@@ -4,7 +4,10 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertTicketSchema, insertTicketReplySchema } from "@shared/schema";
+import { insertTicketSchema, insertTicketReplySchema, slaDefinitions } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import * as schema from "@shared/schema";
+import { db } from "./db";
 import { notificationService } from "./services/notification-service";
 import * as crypto from 'crypto';
 
@@ -109,7 +112,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const customers = await storage.getCustomers();
       res.json(customers);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch customers" });
+      res.status(500).json({ message: "Falha ao buscar clientes" });
+    }
+  });
+  
+  router.post("/customers", async (req, res) => {
+    try {
+      const customer = await storage.createCustomer(req.body);
+      res.status(201).json(customer);
+    } catch (error) {
+      console.error('Erro ao criar cliente:', error);
+      res.status(500).json({ message: "Falha ao criar cliente", error: String(error) });
+    }
+  });
+  
+  router.patch("/customers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de cliente inválido" });
+      }
+
+      const customer = await storage.updateCustomer(id, req.body);
+      if (!customer) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+
+      res.json(customer);
+    } catch (error) {
+      console.error('Erro ao atualizar cliente:', error);
+      res.status(500).json({ message: "Falha ao atualizar cliente", error: String(error) });
+    }
+  });
+  
+  router.delete("/customers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de cliente inválido" });
+      }
+
+      const success = await storage.deleteCustomer(id);
+      if (!success) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Erro ao excluir cliente:', error);
+      res.status(500).json({ message: "Falha ao excluir cliente", error: String(error) });
     }
   });
 
@@ -119,7 +170,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const officials = await storage.getOfficials();
       res.json(officials);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch officials" });
+      res.status(500).json({ message: "Falha ao buscar atendentes" });
+    }
+  });
+  
+  router.post("/officials", async (req, res) => {
+    try {
+      const official = await storage.createOfficial(req.body);
+      res.status(201).json(official);
+    } catch (error) {
+      console.error('Erro ao criar atendente:', error);
+      res.status(500).json({ message: "Falha ao criar atendente", error: String(error) });
+    }
+  });
+  
+  router.patch("/officials/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de atendente inválido" });
+      }
+
+      const official = await storage.updateOfficial(id, req.body);
+      if (!official) {
+        return res.status(404).json({ message: "Atendente não encontrado" });
+      }
+
+      res.json(official);
+    } catch (error) {
+      console.error('Erro ao atualizar atendente:', error);
+      res.status(500).json({ message: "Falha ao atualizar atendente", error: String(error) });
+    }
+  });
+  
+  router.delete("/officials/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de atendente inválido" });
+      }
+
+      const success = await storage.deleteOfficial(id);
+      if (!success) {
+        return res.status(404).json({ message: "Atendente não encontrado" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Erro ao excluir atendente:', error);
+      res.status(500).json({ message: "Falha ao excluir atendente", error: String(error) });
     }
   });
 
@@ -177,6 +276,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Erro ao obter usuário:', error);
       res.status(500).json({ message: "Erro ao obter dados do usuário" });
+    }
+  });
+  
+  // Rotas para configurações do sistema
+  router.get("/settings/sla", async (req, res) => {
+    try {
+      // Buscar todas as definições de SLA
+      const slaDefinitions = await db.select().from(schema.slaDefinitions);
+      res.json(slaDefinitions);
+    } catch (error) {
+      console.error('Erro ao obter configurações de SLA:', error);
+      res.status(500).json({ message: "Falha ao buscar configurações de SLA", error: String(error) });
+    }
+  });
+  
+  router.post("/settings/sla", async (req, res) => {
+    try {
+      const { priority, responseTimeHours, resolutionTimeHours } = req.body;
+      
+      // Verificar se já existe uma definição para esta prioridade
+      const [existingSLA] = await db
+        .select()
+        .from(schema.slaDefinitions)
+        .where(eq(schema.slaDefinitions.priority, priority));
+      
+      if (existingSLA) {
+        // Atualizar definição existente
+        const [updated] = await db
+          .update(schema.slaDefinitions)
+          .set({
+            responseTimeHours,
+            resolutionTimeHours,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.slaDefinitions.id, existingSLA.id))
+          .returning();
+        
+        return res.json(updated);
+      } else {
+        // Criar nova definição
+        const [created] = await db
+          .insert(schema.slaDefinitions)
+          .values({
+            priority,
+            responseTimeHours,
+            resolutionTimeHours,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          })
+          .returning();
+        
+        return res.status(201).json(created);
+      }
+    } catch (error) {
+      console.error('Erro ao salvar configurações de SLA:', error);
+      res.status(500).json({ message: "Falha ao salvar configurações de SLA", error: String(error) });
+    }
+  });
+  
+  // Configurações gerais do sistema
+  router.get("/settings/general", async (req, res) => {
+    try {
+      // Em uma implementação real, buscaríamos do banco de dados
+      // Por enquanto, retornamos valores padrão
+      res.json({
+        companyName: "Ticket Lead",
+        supportEmail: "suporte@ticketlead.exemplo",
+        allowCustomerRegistration: true
+      });
+    } catch (error) {
+      console.error('Erro ao obter configurações gerais:', error);
+      res.status(500).json({ message: "Falha ao buscar configurações gerais", error: String(error) });
+    }
+  });
+  
+  router.post("/settings/general", async (req, res) => {
+    try {
+      // Em uma implementação real, salvaríamos no banco de dados
+      // Por enquanto, apenas retornamos o que foi enviado
+      res.json(req.body);
+    } catch (error) {
+      console.error('Erro ao salvar configurações gerais:', error);
+      res.status(500).json({ message: "Falha ao salvar configurações gerais", error: String(error) });
     }
   });
 
