@@ -125,8 +125,37 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOfficial(officialData: InsertOfficial): Promise<Official> {
-    const [official] = await db.insert(officials).values(officialData).returning();
-    return official;
+    try {
+      console.log('DatabaseStorage.createOfficial - Iniciando criação com dados:', JSON.stringify(officialData, null, 2));
+      
+      // Verificar campos obrigatórios
+      if (!officialData.email) {
+        throw new Error('Email do atendente é obrigatório');
+      }
+      if (!officialData.name) {
+        throw new Error('Nome do atendente é obrigatório');
+      }
+      
+      // Garantir que isActive tem um valor padrão verdadeiro
+      const dataWithDefaults = {
+        ...officialData,
+        isActive: officialData.isActive !== false, // default para true
+        avatarUrl: officialData.avatarUrl || null
+      };
+      
+      console.log('DatabaseStorage.createOfficial - Inserindo no banco com dados tratados:', JSON.stringify(dataWithDefaults, null, 2));
+      const [official] = await db.insert(officials).values(dataWithDefaults).returning();
+      
+      if (!official) {
+        throw new Error('Falha ao criar atendente - nenhum registro retornado');
+      }
+      
+      console.log('DatabaseStorage.createOfficial - Atendente criado com sucesso:', JSON.stringify(official, null, 2));
+      return official;
+    } catch (error) {
+      console.error('DatabaseStorage.createOfficial - Erro:', error);
+      throw error;
+    }
   }
 
   async updateOfficial(id: number, officialData: Partial<Official>): Promise<Official | undefined> {

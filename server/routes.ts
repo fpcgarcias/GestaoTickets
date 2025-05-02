@@ -465,15 +465,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   router.post("/officials", authRequired, async (req: Request, res: Response) => {
     try {
+      console.log(`Iniciando criação de atendente com dados:`, JSON.stringify(req.body, null, 2));
       const { departments, ...officialData } = req.body;
       
+      // Verificar se o usuário existe
+      if (officialData.userId) {
+        const user = await storage.getUser(officialData.userId);
+        if (!user) {
+          console.log(`ERRO: Usuário com ID ${officialData.userId} não encontrado`);
+          return res.status(404).json({ message: "Usuário não encontrado" });
+        }
+        console.log(`Usuário encontrado: ${user.name} (${user.email})`);
+      }
+      
       // Criar atendente primeiro
+      console.log(`Criando atendente com dados:`, JSON.stringify(officialData, null, 2));
       const official = await storage.createOfficial(officialData);
+      console.log(`Atendente criado com sucesso: ID=${official.id}`);
       
       // Se foram enviados departamentos, adicionar os departamentos do atendente
       if (departments && Array.isArray(departments) && departments.length > 0) {
+        console.log(`Adicionando ${departments.length} departamentos ao atendente`);
         // Adicionar departamentos
         for (const department of departments) {
+          console.log(`Adicionando departamento ${department} ao atendente ${official.id}`);
           await storage.addOfficialDepartment({
             officialId: official.id,
             department
@@ -484,10 +499,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         official.departments = departments;
       }
       
+      console.log(`Retornando atendente criado: ID=${official.id}`);
       res.status(201).json(official);
     } catch (error) {
       console.error('Erro ao criar atendente:', error);
-      res.status(500).json({ message: "Falha ao criar atendente", error: String(error) });
+      
+      // Se o erro ocorreu depois da criação do usuário, verificamos se temos um userId
+      // para dar uma resposta mais útil
+      if (req.body.userId) {
+        console.log(`ERRO: Falha ao criar atendente para usuário ${req.body.userId}. `+
+                   `Considere excluir o usuário para evitar inconsistências.`);
+      }
+      
+      res.status(500).json({ 
+        message: "Falha ao criar atendente", 
+        error: String(error),
+        userId: req.body.userId || null, // Retornar o ID do usuário para possível limpeza
+        suggestion: "O usuário pode ter sido criado mas o atendente não. Considere excluir o usuário e tentar novamente."
+      });
     }
   });
   

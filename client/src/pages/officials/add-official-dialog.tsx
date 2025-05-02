@@ -80,6 +80,10 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
   const createOfficialMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest('POST', '/api/officials', data);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Erro ao criar atendente');
+      }
       return res.json();
     },
     onSuccess: () => {
