@@ -337,8 +337,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   router.post("/auth/logout", (req: Request, res: Response) => {
-    // Em uma aplicação real, encerraríamos a sessão aqui
-    res.json({ success: true });
+    // Destruir a sessão para fazer logout
+    if (req.session) {
+      req.session.destroy(() => {
+        res.json({ success: true });
+      });
+    } else {
+      res.json({ success: true });
+    }
   });
   
   // Endpoint para criar usuários

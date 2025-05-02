@@ -39,9 +39,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(data as User);
       setError(null);
     } else if (queryError) {
-      // Se a consulta falhar, apenas log o erro, mas não configura o usuário
+      // Se a consulta falhar, definimos o usuário como nulo (não autenticado)
       console.error('Erro ao verificar usuário:', queryError);
-      // Não definimos setUser(null) aqui para evitar loops de redirecionamento
+      setUser(null);
     }
   }, [data, queryError]);
 

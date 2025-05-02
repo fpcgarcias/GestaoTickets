@@ -1,10 +1,35 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import session from "express-session";
+import crypto from "crypto";
+
+// Para garantir que temos um secret único a cada inicialização
+const generateSecret = () => crypto.randomBytes(32).toString('hex');
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Configurar a sessão
+app.use(session({
+  secret: process.env.SESSION_SECRET || generateSecret(),
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 1 dia
+  }
+}));
+
+// Declarar tipos para sessão
+declare module 'express-session' {
+  interface SessionData {
+    userId?: number;
+    userRole?: 'admin' | 'support' | 'customer';
+  }
+}
 
 app.use((req, res, next) => {
   const start = Date.now();
