@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -8,6 +8,8 @@ interface User {
   email: string;
   role: 'admin' | 'support' | 'customer';
   name: string;
+  avatarUrl?: string;
+  initials?: string;
 }
 
 interface AuthContextType {
@@ -65,17 +67,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const value = {
+    user,
+    isLoading,
+    error,
+    login,
+    logout,
+    isAuthenticated: !!user
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        error,
-        login,
-        logout,
-        isAuthenticated: !!user,
-      }}
-    >
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

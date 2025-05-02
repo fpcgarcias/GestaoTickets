@@ -13,6 +13,7 @@ import OfficialsIndex from "@/pages/officials/index";
 import Settings from "@/pages/settings";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { AuthProvider } from "./hooks/use-auth";
 
 function AppContent() {
   const [location] = useLocation();
@@ -39,15 +40,15 @@ function AppContent() {
   );
 }
 
-function App() {
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <AppContent />
+        <AuthProvider>
+          <Toaster />
+          <AppContent />
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
 }
-
-export default App;

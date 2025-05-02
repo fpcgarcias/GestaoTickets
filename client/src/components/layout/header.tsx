@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bell, ChevronDown, Menu } from 'lucide-react';
+import { ChevronDown, Menu } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,17 +12,25 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "@/components/layout/sidebar";
+import { NotificationCenter } from "@/components/layout/notification-center";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 
 export const Header: React.FC = () => {
   const [location] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // This would come from auth context in a real app
-  const currentUser = {
-    name: "Alex Robert",
-    avatarUrl: "https://randomuser.me/api/portraits/men/32.jpg",
-    initials: "AR"
+  const { user } = useAuth();
+  
+  // Use dados do usuário autenticado ou valores padrão
+  const currentUser = user || {
+    id: 1,
+    name: "Usuário",
+    email: "usuario@example.com",
+    username: "usuario",
+    role: "admin" as const,
+    avatarUrl: "", 
+    initials: "U"
   };
 
   return (
@@ -39,14 +47,11 @@ export const Header: React.FC = () => {
             <Sidebar currentPath={location} />
           </SheetContent>
         </Sheet>
-        <div className="text-neutral-800">Welcome! John Smith</div>
+        <div className="text-neutral-800">Bem-vindo, {currentUser.name}!</div>
       </div>
 
       <div className="flex items-center">
-        <Button variant="ghost" size="icon" className="mr-4 text-neutral-600">
-          <Bell size={20} />
-          <span className="sr-only">Notifications</span>
-        </Button>
+        <NotificationCenter />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

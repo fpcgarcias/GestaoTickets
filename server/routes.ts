@@ -1,9 +1,12 @@
 import express, { Response } from "express";
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertTicketSchema, insertTicketReplySchema } from "@shared/schema";
+import { notificationService } from "./services/notification-service";
+import * as crypto from 'crypto';
 
 function validateRequest(schema: z.ZodType<any, any>) {
   return (req: Request, res: Response, next: Function) => {
@@ -151,5 +154,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api", router);
 
   const httpServer = createServer(app);
+  
+  // Configurar o servidor WebSocket
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  
+  // Lidar com conexões WebSocket
+  wss.on('connection', (ws) => {
+    console.log('Nova conexão WebSocket recebida');
+    
+    // Autenticar o usuário e configurar a conexão
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        
+        // Processar mensagem de autenticação
+        if (data.type === 'auth') {
+          const userId = data.userId;
+          const userRole = data.userRole;
+          
+          if (userId && userRole) {
+            // Adicionar o cliente ao serviço de notificações
+            notificationService.addClient(ws, userId, userRole);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao processar mensagem WebSocket:', error);
+      }
+    });
+    
+    // Lidar com fechamento da conexão
+    ws.on('close', () => {
+      notificationService.removeClient(ws);
+      console.log('Conexão WebSocket fechada');
+    });
+  });
+  
+  // Atualizar as rotas para usar as notificações
+  
+  // Notificar sobre criação de ticket
+  const originalCreateTicket = router.stack.find(
+    (layer) => layer.route && layer.route.path === '/tickets' && layer.route.methods.post
+  );
+  
+  if (originalCreateTicket && originalCreateTicket.route) {
+    // Substituir o manipulador de rota com um que também envie notificações
+    const originalHandler = originalCreateTicket.route.stack[1].handle;
+    
+    originalCreateTicket.route.stack[1].handle = async (req: Request, res: Response) => {
+      try {
+        const ticket = await storage.createTicket(req.body);
+        
+        // Enviar notificação após salvar o ticket
+        await notificationService.notifyNewTicket(ticket.id);
+        
+        res.status(201).json(ticket);
+      } catch (error) {
+        res.status(500).json({ message: "Failed to create ticket" });
+      }
+    };
+  }
+  
+  // Notificar sobre respostas em tickets
+  const originalCreateReply = router.stack.find(
+    (layer) => layer.route && layer.route.path === '/ticket-replies' && layer.route.methods.post
+  );
+  
+  if (originalCreateReply && originalCreateReply.route) {
+    // Substituir o manipulador de rota com um que também envie notificações
+    const originalHandler = originalCreateReply.route.stack[1].handle;
+    
+    originalCreateReply.route.stack[1].handle = async (req: Request, res: Response) => {
+      try {
+        const ticketId = req.body.ticketId;
+        const userId = req.body.userId;
+        
+        // Verificar se o ticket existe
+        const ticket = await storage.getTicket(ticketId);
+        if (!ticket) {
+          return res.status(404).json({ message: "Ticket not found" });
+        }
+        
+        const reply = await storage.createTicketReply(req.body);
+        
+        // Enviar notificação após salvar a resposta
+        if (userId) {
+          await notificationService.notifyNewReply(ticketId, userId);
+        }
+        
+        // Se a resposta incluir atualização de status, notificar sobre isso também
+        if (req.body.status && ticket.status !== req.body.status) {
+          await notificationService.notifyTicketStatusUpdate(ticketId, ticket.status, req.body.status);
+        }
+        
+        res.status(201).json(reply);
+      } catch (error) {
+        res.status(500).json({ message: "Failed to create ticket reply" });
+      }
+    };
+  }
+  
   return httpServer;
 }
