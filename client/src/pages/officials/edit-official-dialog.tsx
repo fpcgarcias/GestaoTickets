@@ -167,7 +167,32 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Verificar se pelo menos um departamento foi selecionado
+    if (!formData.departments || formData.departments.length === 0) {
+      toast({
+        title: "Erro de validação",
+        description: "Selecione pelo menos um departamento para o atendente.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setSubmitting(true);
+    
+    // Garantir que temos pelo menos um departamento para o campo department
+    let updatedData = {...formData};
+    // Se existe um array de departamentos, use o primeiro como departamento principal
+    if (Array.isArray(formData.departments) && formData.departments.length > 0) {
+      const firstDept = formData.departments[0];
+      // Se for um objeto com propriedade department, use-o
+      if (typeof firstDept === 'object' && firstDept !== null && 'department' in firstDept) {
+        updatedData.department = firstDept.department;
+      } else {
+        // Caso contrário, é uma string
+        updatedData.department = firstDept;
+      }
+    }
     
     // Verificar se há senha para atualizar e se as senhas correspondem
     if (showPasswordForm) {
@@ -187,12 +212,12 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
       
       // Se chegou aqui, a senha é válida, adicionar ao formData
       updateOfficialMutation.mutate({
-        ...formData,
+        ...updatedData,
         password: passwordData.password
       });
     } else {
       // Atualização normal sem senha
-      updateOfficialMutation.mutate(formData);
+      updateOfficialMutation.mutate(updatedData);
     }
   };
 
