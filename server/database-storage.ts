@@ -639,6 +639,45 @@ export class DatabaseStorage implements IStorage {
       };
     }
   }
+  
+  // Obter estatísticas dos tickets filtrados pelo papel do usuário
+  async getTicketStatsByUserRole(userId: number, userRole: string): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+    try {
+      // Obter tickets filtrados pelo papel do usuário
+      const userTickets = await this.getTicketsByUserRole(userId, userRole);
+      
+      const byStatus = {
+        new: 0,
+        ongoing: 0,
+        resolved: 0,
+      };
+      
+      const byPriority = {
+        low: 0,
+        medium: 0,
+        high: 0,
+        critical: 0,
+      };
+      
+      userTickets.forEach(ticket => {
+        byStatus[ticket.status as keyof typeof byStatus] += 1;
+        byPriority[ticket.priority as keyof typeof byPriority] += 1;
+      });
+      
+      return {
+        total: userTickets.length,
+        byStatus,
+        byPriority,
+      };
+    } catch (error) {
+      console.error('Erro ao obter estatísticas de tickets por papel do usuário:', error);
+      return {
+        total: 0,
+        byStatus: { new: 0, ongoing: 0, resolved: 0 },
+        byPriority: { low: 0, medium: 0, high: 0, critical: 0 }
+      };
+    }
+  }
 
   async getRecentTickets(limit: number = 10): Promise<Ticket[]> {
     try {
@@ -655,6 +694,22 @@ export class DatabaseStorage implements IStorage {
       return enrichedTickets.filter(Boolean) as Ticket[];
     } catch (error) {
       console.error('Erro ao obter tickets recentes:', error);
+      return [];
+    }
+  }
+  
+  // Obter tickets recentes filtrados pelo papel do usuário
+  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 10): Promise<Ticket[]> {
+    try {
+      // Obter tickets filtrados pelo papel do usuário
+      const userTickets = await this.getTicketsByUserRole(userId, userRole);
+      
+      // Ordenar tickets por data de criação (mais recentes primeiro) e limitar
+      return userTickets
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, limit);
+    } catch (error) {
+      console.error('Erro ao obter tickets recentes por papel do usuário:', error);
       return [];
     }
   }

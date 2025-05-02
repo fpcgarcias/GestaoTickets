@@ -164,21 +164,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.get("/tickets/stats", authRequired, async (_req: Request, res: Response) => {
+  router.get("/tickets/stats", authRequired, async (req: Request, res: Response) => {
     try {
-      const stats = await storage.getTicketStats();
+      // Obter o ID do usuário da sessão
+      const userId = req.session.userId;
+      const userRole = req.session.userRole;
+      
+      if (!userId || !userRole) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+      
+      // Obter estatísticas de tickets filtradas pelo papel do usuário
+      const stats = await storage.getTicketStatsByUserRole(userId, userRole);
       res.json(stats);
     } catch (error) {
+      console.error('Erro ao buscar estatísticas de tickets:', error);
       res.status(500).json({ message: "Falha ao buscar estatísticas de tickets" });
     }
   });
 
   router.get("/tickets/recent", authRequired, async (req: Request, res: Response) => {
     try {
+      // Obter o ID do usuário da sessão
+      const userId = req.session.userId;
+      const userRole = req.session.userRole;
+      
+      if (!userId || !userRole) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+      
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
-      const tickets = await storage.getRecentTickets(limit);
+      
+      // Obter tickets recentes filtrados pelo papel do usuário
+      const tickets = await storage.getRecentTicketsByUserRole(userId, userRole, limit);
       res.json(tickets);
     } catch (error) {
+      console.error('Erro ao buscar tickets recentes:', error);
       res.status(500).json({ message: "Falha ao buscar tickets recentes" });
     }
   });
