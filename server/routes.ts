@@ -368,15 +368,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Cliente não encontrado" });
       }
       
-      // Se há um usuário associado, excluí-lo também
-      if (customer.userId) {
-        await storage.deleteUser(customer.userId);
-      }
+      // Armazenar o userId para exclusão posterior
+      const userId = customer.userId;
 
-      // Excluir o cliente
+      // Excluir o cliente primeiro
       const success = await storage.deleteCustomer(id);
       if (!success) {
         return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+
+      // Após excluir o cliente com sucesso, excluir o usuário associado, se houver
+      if (userId) {
+        await storage.deleteUser(userId);
       }
 
       res.json({ success: true });
@@ -503,9 +506,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "ID de atendente inválido" });
       }
 
+      // Buscar atendente para verificar se há um usuário associado
+      const official = await storage.getOfficial(id);
+      if (!official) {
+        return res.status(404).json({ message: "Atendente não encontrado" });
+      }
+      
+      // Armazenar o userId para exclusão posterior
+      const userId = official.userId;
+
+      // Excluir o atendente primeiro
       const success = await storage.deleteOfficial(id);
       if (!success) {
         return res.status(404).json({ message: "Atendente não encontrado" });
+      }
+
+      // Após excluir o atendente com sucesso, excluir o usuário associado, se houver
+      if (userId) {
+        await storage.deleteUser(userId);
       }
 
       res.json({ success: true });

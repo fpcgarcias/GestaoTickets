@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Search, Mail, Phone, Building, Pencil, Trash, UserPlus, Loader2 } from 'lucide-react';
+import { Plus, Search, Mail, Phone, Building, Pencil, Trash, UserPlus, Loader2, Copy, AlertTriangle } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -53,6 +53,13 @@ export default function UsersIndex() {
     queryKey: ['/api/customers'],
   });
 
+  // Estado para armazenar as informações de acesso temporário
+  const [tempAccessInfo, setTempAccessInfo] = useState<{
+    username: string,
+    temporaryPassword: string,
+    message: string
+  } | null>(null);
+  
   // Mutação para adicionar cliente
   const addCustomerMutation = useMutation({
     mutationFn: async (customerData: {
@@ -64,13 +71,22 @@ export default function UsersIndex() {
       const res = await apiRequest('POST', '/api/customers', customerData);
       return res.json();
     },
-    onSuccess: () => {
-      toast({
-        title: "Cliente adicionado",
-        description: "Cliente adicionado com sucesso.",
-      });
-      resetForm();
-      setIsAddDialogOpen(false);
+    onSuccess: (data) => {
+      // Verificar se há informações de acesso na resposta
+      if (data.accessInfo) {
+        setTempAccessInfo(data.accessInfo);
+        toast({
+          title: "Cliente adicionado",
+          description: "Cliente adicionado com sucesso. Uma senha temporária foi gerada.",
+        });
+      } else {
+        toast({
+          title: "Cliente adicionado",
+          description: "Cliente adicionado com sucesso.",
+        });
+        resetForm();
+        setIsAddDialogOpen(false);
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
     },
     onError: (error) => {
@@ -79,7 +95,7 @@ export default function UsersIndex() {
         description: `Ocorreu um erro: ${error.message}`,
         variant: "destructive",
       });
-    },
+    }
   });
 
   // Mutação para atualizar cliente
@@ -327,74 +343,153 @@ export default function UsersIndex() {
       </Card>
       
       {/* Dialog para adicionar cliente */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          // Limpar as informações de acesso temporário ao fechar o diálogo
+          setTempAccessInfo(null);
+          resetForm();
+        }
+        setIsAddDialogOpen(open);
+      }}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Adicionar Novo Cliente</DialogTitle>
-            <DialogDescription>
-              Preencha os dados do cliente para adicioná-lo ao sistema.  
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Nome *</Label>
-              <Input 
-                id="name" 
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Nome do cliente"
-              />
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email *</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="email@exemplo.com"
-              />
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="phone">Telefone</Label>
-              <Input 
-                id="phone" 
-                value={newPhone}
-                onChange={(e) => setNewPhone(e.target.value)}
-                placeholder="(00) 00000-0000"
-              />
-            </div>
-            
-            <div className="grid gap-2">
-              <Label htmlFor="company">Empresa</Label>
-              <Input 
-                id="company" 
-                value={newCompany}
-                onChange={(e) => setNewCompany(e.target.value)}
-                placeholder="Nome da empresa"
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancelar</Button>
-            <Button 
-              onClick={handleAddCustomer}
-              disabled={addCustomerMutation.isPending}
-            >
-              {addCustomerMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Adicionando...
-                </>
-              ) : (
-                <>Adicionar Cliente</>
-              )}
-            </Button>
-          </DialogFooter>
+          {tempAccessInfo ? (
+            // Exibir informações de acesso se estiverem disponíveis
+            <>
+              <DialogHeader>
+                <DialogTitle>Cliente Adicionado com Sucesso</DialogTitle>
+                <DialogDescription>
+                  As informações de acesso do cliente foram geradas. Guarde essas informações em um lugar seguro.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="mt-4 space-y-6">
+                <div className="rounded-md border border-yellow-200 bg-yellow-50 p-4">
+                  <div className="flex items-center">
+                    <AlertTriangle className="h-4 w-4 text-yellow-500 mr-2" />
+                    <p className="text-sm font-medium text-yellow-800">
+                      Importante: Estas informações só serão exibidas uma vez.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <Label className="font-semibold block mb-1">Nome de usuário</Label>
+                    <div className="rounded-md border p-3 bg-neutral-50 text-neutral-900 flex justify-between items-center">
+                      <span>{tempAccessInfo.username}</span>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => navigator.clipboard.writeText(tempAccessInfo.username)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="font-semibold block mb-1">Senha temporária</Label>
+                    <div className="rounded-md border p-3 bg-neutral-50 text-neutral-900 flex justify-between items-center">
+                      <span>{tempAccessInfo.temporaryPassword}</span>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => navigator.clipboard.writeText(tempAccessInfo.temporaryPassword)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <p className="text-sm text-neutral-600 mt-4">
+                    {tempAccessInfo.message}
+                  </p>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button 
+                  onClick={() => {
+                    setTempAccessInfo(null);
+                    resetForm();
+                    setIsAddDialogOpen(false);
+                  }}
+                >
+                  Entendi, fechar
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            // Formulário para adicionar cliente
+            <>
+              <DialogHeader>
+                <DialogTitle>Adicionar Novo Cliente</DialogTitle>
+                <DialogDescription>
+                  Preencha os dados do cliente para adicioná-lo ao sistema.  
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Nome *</Label>
+                  <Input 
+                    id="name" 
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Nome do cliente"
+                  />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="email">Email *</Label>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="email@exemplo.com"
+                  />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="phone">Telefone</Label>
+                  <Input 
+                    id="phone" 
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="company">Empresa</Label>
+                  <Input 
+                    id="company" 
+                    value={newCompany}
+                    onChange={(e) => setNewCompany(e.target.value)}
+                    placeholder="Nome da empresa"
+                  />
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancelar</Button>
+                <Button 
+                  onClick={handleAddCustomer}
+                  disabled={addCustomerMutation.isPending}
+                >
+                  {addCustomerMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Adicionando...
+                    </>
+                  ) : (
+                    <>Adicionar Cliente</>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
