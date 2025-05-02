@@ -76,8 +76,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Falha ao buscar tickets" });
     }
   });
-
+  
   // Stats and dashboard endpoints
+  // Busca tickets com base no papel do usuário
+  router.get("/tickets/user-role", async (req: Request, res: Response) => {
+    try {
+      // Verificar autenticação
+      // Em uma aplicação real, verificaríamos a autenticação da sessão
+      // Como ainda não temos sessão completa, vamos simular com o usuário "admin"
+      const user = await storage.getUserByUsername("admin");
+      
+      if (!user) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+      
+      const userId = user.id;
+      const userRole = user.role;
+      
+      const tickets = await storage.getTicketsByUserRole(userId, userRole);
+      res.json(tickets);
+    } catch (error) {
+      console.error('Erro ao buscar tickets por papel do usuário:', error);
+      res.status(500).json({ message: "Falha ao buscar tickets para o usuário" });
+    }
+  });
+  
   router.get("/tickets/stats", async (_req: Request, res: Response) => {
     try {
       const stats = await storage.getTicketStats();

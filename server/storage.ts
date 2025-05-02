@@ -10,7 +10,9 @@ import {
   TicketReply,
   InsertTicketReply,
   TicketStatusHistory,
-  SLADefinition
+  SLADefinition,
+  OfficialDepartment,
+  InsertOfficialDepartment
 } from "@shared/schema";
 import { generateTicketId } from "../client/src/lib/utils";
 
@@ -40,6 +42,15 @@ export interface IStorage {
   updateOfficial(id: number, officialData: Partial<Official>): Promise<Official | undefined>;
   deleteOfficial(id: number): Promise<boolean>;
   
+  // Official departments operations
+  getOfficialDepartments(officialId: number): Promise<OfficialDepartment[]>;
+  addOfficialDepartment(officialDepartment: InsertOfficialDepartment): Promise<OfficialDepartment>;
+  removeOfficialDepartment(officialId: number, department: string): Promise<boolean>;
+  getOfficialsByDepartment(department: string): Promise<Official[]>;
+  
+  // Ticket filtering by user role
+  getTicketsByUserRole(userId: number, userRole: string): Promise<Ticket[]>;
+  
   // Ticket operations
   getTickets(): Promise<Ticket[]>;
   getTicket(id: number): Promise<Ticket | undefined>;
@@ -66,6 +77,7 @@ export interface IStorage {
 
 // In-memory storage implementation
 export class MemStorage implements IStorage {
+  // Implementação dos métodos da interface para a memória
   private users: Map<number, User>;
   private customers: Map<number, Customer>;
   private officials: Map<number, Official>;
@@ -623,6 +635,76 @@ export class MemStorage implements IStorage {
     return Array.from(this.tickets.values())
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, limit);
+  }
+
+  // Implementação dos métodos de departamentos de atendentes
+  async getOfficialDepartments(officialId: number): Promise<OfficialDepartment[]> {
+    // Simulação: retorna departamentos para o atendente com ID 2 (usuário de suporte)
+    if (officialId === 2) {
+      return [
+        { id: 1, officialId: 2, department: 'technical', createdAt: new Date(), updatedAt: new Date() },
+        { id: 2, officialId: 2, department: 'billing', createdAt: new Date(), updatedAt: new Date() }
+      ];
+    }
+    return [];
+  }
+  
+  async addOfficialDepartment(officialDepartment: InsertOfficialDepartment): Promise<OfficialDepartment> {
+    // Simulação: retorna um objeto de departamento de atendente
+    return {
+      id: 3,
+      ...officialDepartment,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+  }
+  
+  async removeOfficialDepartment(officialId: number, department: string): Promise<boolean> {
+    // Simulação: sempre retorna true (sucesso)
+    return true;
+  }
+  
+  async getOfficialsByDepartment(department: string): Promise<Official[]> {
+    // Simulação: retorna oficiais do departamento 'technical'
+    if (department === 'technical') {
+      const official = await this.getOfficial(2); // ID do usuário de suporte
+      return official ? [official] : [];
+    }
+    return [];
+  }
+  
+  // Implementação do método para filtrar tickets por papel do usuário
+  async getTicketsByUserRole(userId: number, userRole: string): Promise<Ticket[]> {
+    // Todos os tickets
+    const allTickets = Array.from(this.tickets.values());
+    
+    // Filtrar com base no papel do usuário
+    if (userRole === 'admin') {
+      // Administradores veem todos os tickets
+      return allTickets;
+    } else if (userRole === 'support') {
+      // Atendentes (support) veem tickets de seus departamentos
+      // Para simplificar a implementação em memória, consideramos que o atendente é responsável
+      // por todos os tickets que têm um assignedToId igual ao ID do atendente (official)
+      const official = await this.getOfficialByEmail('support@example.com');
+      if (!official) return [];
+      
+      // Em uma implementação completa, verificaríamos os departamentos do atendente
+      // e retornaríamos todos os tickets desses departamentos + os atribuídos a ele
+      return allTickets.filter(ticket => 
+        ticket.assignedToId === official.id || // Atribuídos diretamente ao atendente
+        !ticket.assignedToId // Ou não atribuídos a ninguém (para o atendente pegar)
+      );
+    } else if (userRole === 'customer') {
+      // Clientes veem apenas seus próprios tickets
+      const customer = await this.getCustomerByEmail('customer@example.com');
+      if (!customer) return [];
+      
+      return allTickets.filter(ticket => ticket.customerId === customer.id);
+    }
+    
+    // Se não for nenhum papel conhecido, retorna array vazio
+    return [];
   }
 }
 

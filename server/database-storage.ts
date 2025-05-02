@@ -2,6 +2,7 @@ import {
   users, type User, type InsertUser,
   customers, type Customer, type InsertCustomer,
   officials, type Official, type InsertOfficial,
+  officialDepartments, type OfficialDepartment, type InsertOfficialDepartment,
   tickets, type Ticket, type InsertTicket,
   ticketReplies, type TicketReply, type InsertTicketReply,
   ticketStatusHistory, type TicketStatusHistory,
@@ -9,7 +10,7 @@ import {
   ticketStatusEnum, ticketPriorityEnum, userRoleEnum, departmentEnum
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray } from "drizzle-orm";
 import { IStorage } from "./storage";
 
 export class DatabaseStorage implements IStorage {
@@ -112,8 +113,112 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteOfficial(id: number): Promise<boolean> {
+    // Primeiro removemos os departamentos relacionados
+    await db.delete(officialDepartments).where(eq(officialDepartments.officialId, id));
+    
+    // Depois removemos o oficial
     await db.delete(officials).where(eq(officials.id, id));
     return true;
+  }
+  
+  // Operações de departamentos dos oficiais
+  async getOfficialDepartments(officialId: number): Promise<OfficialDepartment[]> {
+    return db
+      .select()
+      .from(officialDepartments)
+      .where(eq(officialDepartments.officialId, officialId));
+  }
+  
+  async addOfficialDepartment(officialDepartment: InsertOfficialDepartment): Promise<OfficialDepartment> {
+    const [department] = await db
+      .insert(officialDepartments)
+      .values(officialDepartment)
+      .returning();
+    return department;
+  }
+  
+  async removeOfficialDepartment(officialId: number, department: string): Promise<boolean> {
+    await db
+      .delete(officialDepartments)
+      .where(
+        and(
+          eq(officialDepartments.officialId, officialId),
+          eq(officialDepartments.department, department as any)
+        )
+      );
+    return true;
+  }
+  
+  async getOfficialsByDepartment(department: string): Promise<Official[]> {
+    const departmentOfficials = await db
+      .select()
+      .from(officialDepartments)
+      .innerJoin(officials, eq(officialDepartments.officialId, officials.id))
+      .where(eq(officialDepartments.department, department as any));
+    
+    return departmentOfficials.map(row => row.officials);
+  }
+  
+  // Filtrar tickets baseado no perfil do usuário
+  async getTicketsByUserRole(userId: number, userRole: string): Promise<Ticket[]> {
+    // Buscar informações do usuário
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) return [];
+    
+    // Comportamento baseado no papel do usuário
+    if (userRole === 'admin') {
+      // Administradores veem todos os tickets
+      return this.getTickets();
+    } else if (userRole === 'customer') {
+      // Clientes veem apenas seus próprios tickets
+      const [customer] = await db.select().from(customers).where(eq(customers.userId, userId));
+      if (!customer) return [];
+      
+      return this.getTicketsByCustomerId(customer.id);
+    } else if (userRole === 'support') {
+      // Atendentes veem tickets de seus departamentos
+      const [official] = await db.select().from(officials).where(eq(officials.userId, userId));
+      if (!official) return [];
+      
+      // Obter os departamentos do atendente
+      const officialDepts = await this.getOfficialDepartments(official.id);
+      if (officialDepts.length === 0) {
+        // Se não estiver associado a nenhum departamento, mostrar apenas tickets atribuídos diretamente
+        return this.getTicketsByOfficialId(official.id);
+      }
+      
+      // Obter os nomes dos departamentos
+      const departments = officialDepts.map(dept => dept.department);
+      
+      // Buscar tickets relacionados aos departamentos do atendente
+      // Criamos uma consulta SQL para cada departamento ou tickets atribuídos diretamente
+      try {
+        // Criamos uma lista de OR para cada departamento
+        const departmentOrConditions = [];
+        
+        for (const dept of departments) {
+          departmentOrConditions.push(eq(tickets.departmentId, dept));
+        }
+        
+        // Adicionamos os tickets atribuídos diretamente
+        departmentOrConditions.push(eq(tickets.assignedToId, official.id));
+        
+        // Executamos a consulta com OR de todos os departamentos ou atribuído ao atendente
+        const ticketsData = await db
+          .select()
+          .from(tickets)
+          .where(or(...departmentOrConditions));
+        
+        const enrichedTickets = await Promise.all(
+          ticketsData.map(ticket => this.getTicket(ticket.id))
+        );
+        
+        return enrichedTickets.filter(Boolean) as Ticket[];
+      } catch (error) {
+        console.error('Erro ao buscar tickets para atendente:', error);
+        return [];
+      }
+    }
   }
 
   // Ticket operations
@@ -441,4 +546,6 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
   }
+
+
 }

@@ -39,12 +39,20 @@ export const officials = pgTable("officials", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
-  department: departmentEnum("department").notNull(),
+  // Removendo o campo department direto e vamos usar a tabela de junção
   userId: integer("user_id").references(() => users.id),
   isActive: boolean("is_active").default(true).notNull(),
   avatarUrl: text("avatar_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Tabela para armazenar os departamentos de cada atendente (relação muitos-para-muitos)
+export const officialDepartments = pgTable("official_departments", {
+  id: serial("id").primaryKey(),
+  officialId: integer("official_id").references(() => officials.id).notNull(),
+  department: departmentEnum("department").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // SLA definitions
@@ -127,6 +135,12 @@ export const insertOfficialSchema = createInsertSchema(officials).omit({
   updatedAt: true,
 });
 
+// Schema para inserir mapeamento de departamentos
+export const insertOfficialDepartmentSchema = createInsertSchema(officialDepartments).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Schema for inserting tickets
 export const insertTicketSchema = z.object({
   title: z.string().min(5, "O título deve ter pelo menos 5 caracteres"),
@@ -153,8 +167,15 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Customer = typeof customers.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 
-export type Official = typeof officials.$inferSelect;
-export type InsertOfficial = z.infer<typeof insertOfficialSchema>;
+export type Official = typeof officials.$inferSelect & {
+  departments?: string[] | OfficialDepartment[];
+};
+export type InsertOfficial = z.infer<typeof insertOfficialSchema> & {
+  departments?: string[];
+};
+
+export type OfficialDepartment = typeof officialDepartments.$inferSelect;
+export type InsertOfficialDepartment = z.infer<typeof insertOfficialDepartmentSchema>;
 
 export type Ticket = typeof tickets.$inferSelect & {
   customer: Partial<Customer>;

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
+import { AuthContext } from '@/hooks/use-auth';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import { Button } from "@/components/ui/button";
@@ -38,8 +39,14 @@ export default function TicketsIndex() {
   });
   const [calendarOpen, setCalendarOpen] = useState(false);
 
+  // Obtemos informações do usuário atual
+  const { user } = useContext(AuthContext);
+
+  // Busca tickets com base no papel do usuário
   const { data: tickets, isLoading } = useQuery<Ticket[]>({
-    queryKey: ['/api/tickets'],
+    queryKey: ['/api/tickets/user-role'],
+    // Só busca se o usuário estiver autenticado
+    enabled: !!user,
   });
 
   const filteredTickets = tickets?.filter(ticket => {
