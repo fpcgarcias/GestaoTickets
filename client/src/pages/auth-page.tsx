@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
+import { useSystemSettings } from '@/hooks/use-system-settings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +13,7 @@ export default function AuthPage() {
   const [location, setLocation] = useLocation();
   const { user, login, isLoading, error } = useAuth();
   const { toast } = useToast();
+  const { companyName } = useSystemSettings();
   const [activeTab, setActiveTab] = useState<string>('login');
   
   // Formulário de login
@@ -126,7 +128,7 @@ export default function AuthPage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">TICKET LEAD</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">{companyName}</CardTitle>
             <CardDescription className="text-center">Sistema de Gestão de Chamados</CardDescription>
           </CardHeader>
           <Tabs value={activeTab} onValueChange={setActiveTab}>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { useSystemSettings } from '@/hooks/use-system-settings';
 import { cn } from '@/lib/utils';
 import { Link } from 'wouter';
 import { 
@@ -37,6 +38,7 @@ const SidebarItem = ({ href, icon, label, isActive }: {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const { user } = useAuth();
+  const { companyName } = useSystemSettings();
   
   // Definir itens de navegação com base no papel do usuário
   const navItems = [
@@ -58,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       {/* Versão desktop da barra lateral */}
       <div className="w-64 bg-white border-r border-neutral-200 flex-shrink-0 hidden md:block">
         <div className="p-6 border-b border-neutral-200">
-          <h1 className="text-xl font-semibold text-neutral-900">TICKET LEAD</h1>
+          <h1 className="text-xl font-semibold text-neutral-900">{companyName}</h1>
         </div>
         <nav className="p-4">
           {filteredNavItems.map((item) => (
