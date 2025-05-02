@@ -527,6 +527,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Rota para alternar status (ativar/inativar) de um atendente
+  router.patch("/officials/:id/toggle-active", authRequired, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de atendente inválido" });
+      }
+
+      // Buscar atendente para verificar o status atual e o userId
+      const official = await storage.getOfficial(id);
+      if (!official) {
+        return res.status(404).json({ message: "Atendente não encontrado" });
+      }
+      
+      const userId = official.userId;
+      const currentActiveStatus = official.isActive;
+      
+      let updatedOfficial;
+      if (currentActiveStatus) {
+        // Se está ativo, inativar
+        updatedOfficial = await storage.inactivateOfficial(id);
+        
+        // Também inativar o usuário associado, se existir
+        if (userId) {
+          await storage.inactivateUser(userId);
+        }
+        
+        res.json({ 
+          success: true, 
+          message: "Atendente inativado com sucesso",
+          isActive: false
+        });
+      } else {
+        // Se está inativo, ativar
+        updatedOfficial = await storage.activateOfficial(id);
+        
+        // Também ativar o usuário associado, se existir
+        if (userId) {
+          await storage.activateUser(userId);
+        }
+        
+        res.json({ 
+          success: true, 
+          message: "Atendente ativado com sucesso",
+          isActive: true 
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao alternar status do atendente:', error);
+      res.status(500).json({ message: "Falha ao alternar status do atendente", error: String(error) });
+    }
+  });
+  
   router.delete("/officials/:id", authRequired, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);

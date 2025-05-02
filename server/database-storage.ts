@@ -147,6 +147,24 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
   
+  async inactivateOfficial(id: number): Promise<Official | undefined> {
+    const [official] = await db
+      .update(officials)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(officials.id, id))
+      .returning();
+    return official || undefined;
+  }
+
+  async activateOfficial(id: number): Promise<Official | undefined> {
+    const [official] = await db
+      .update(officials)
+      .set({ isActive: true, updatedAt: new Date() })
+      .where(eq(officials.id, id))
+      .returning();
+    return official || undefined;
+  }
+  
   // Operações de departamentos dos oficiais
   async getOfficialDepartments(officialId: number): Promise<OfficialDepartment[]> {
     return db
