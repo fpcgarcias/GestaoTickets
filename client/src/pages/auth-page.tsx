@@ -238,7 +238,7 @@ export default function AuthPage() {
       {/* Lado direito - Informações do produto */}
       <div className="flex-1 bg-primary text-white p-8 hidden md:flex flex-col justify-center">
         <div className="max-w-lg mx-auto">
-          <h1 className="text-4xl font-bold mb-4">TICKET LEAD</h1>
+          <h1 className="text-4xl font-bold mb-4">{companyName}</h1>
           <h2 className="text-2xl font-semibold mb-6">Sistema Completo de Gestão de Chamados</h2>
           
           <ul className="space-y-4">

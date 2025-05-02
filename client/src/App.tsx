@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -18,7 +19,6 @@ import { AuthProvider } from "./hooks/use-auth";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/hooks/use-auth";
 import { useSystemSettings } from "@/hooks/use-system-settings";
-import { useEffect } from "react";
 
 function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
