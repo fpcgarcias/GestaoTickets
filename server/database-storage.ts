@@ -31,8 +31,48 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(userData: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(userData).returning();
-    return user;
+    try {
+      console.log('DatabaseStorage.createUser - Iniciando criação com dados:', JSON.stringify(userData, null, 2));
+      
+      // Verificar campos obrigatórios
+      if (!userData.username) {
+        throw new Error('Nome de usuário é obrigatório');
+      }
+      if (!userData.email) {
+        throw new Error('Email do usuário é obrigatório');
+      }
+      if (!userData.name) {
+        throw new Error('Nome do usuário é obrigatório');
+      }
+      if (!userData.password) {
+        throw new Error('Senha do usuário é obrigatória');
+      }
+      if (!userData.role) {
+        throw new Error('Papel do usuário é obrigatório');
+      }
+      
+      // Garantir que campos opcionais tenham valores adequados
+      const dataWithDefaults = {
+        ...userData,
+        active: userData.active !== false, // default para true se não for explicitamente falso
+        avatarUrl: userData.avatarUrl || null,
+        createdAt: userData.createdAt || new Date(),
+        updatedAt: userData.updatedAt || new Date()
+      };
+      
+      console.log('DatabaseStorage.createUser - Inserindo no banco com dados tratados:', JSON.stringify(dataWithDefaults, null, 2));
+      const [user] = await db.insert(users).values(dataWithDefaults).returning();
+      
+      if (!user) {
+        throw new Error('Falha ao criar usuário - nenhum registro retornado');
+      }
+      
+      console.log('DatabaseStorage.createUser - Usuário criado com sucesso:', JSON.stringify(user, null, 2));
+      return user;
+    } catch (error) {
+      console.error('DatabaseStorage.createUser - Erro:', error);
+      throw error;
+    }
   }
 
   async updateUser(id: number, userData: Partial<User>): Promise<User | undefined> {
