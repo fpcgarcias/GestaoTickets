@@ -35,12 +35,24 @@ export async function migrateDepartmentsToJunctionTable() {
       // Migrar dados
       for (const official of officials) {
         if (official.department) {
-          // Inserir na nova tabela de junção
-          await db.execute(sql`
-            INSERT INTO official_departments (official_id, department)
-            VALUES (${official.id}, ${official.department})
+          // Verificar se já existe uma entrada para este atendente e departamento
+          const existingEntry = await db.execute(sql`
+            SELECT id FROM official_departments 
+            WHERE official_id = ${official.id} AND department = ${official.department}
+            LIMIT 1
           `);
-          console.log(`Migrado departamento ${official.department} para atendente ${official.id}`);
+          
+          // Só inserir se não existir
+          if (!existingEntry.rows || existingEntry.rows.length === 0) {
+            // Inserir na nova tabela de junção
+            await db.execute(sql`
+              INSERT INTO official_departments (official_id, department)
+              VALUES (${official.id}, ${official.department})
+            `);
+            console.log(`Migrado departamento ${official.department} para atendente ${official.id}`);
+          } else {
+            console.log(`Departamento ${official.department} já existe para atendente ${official.id}, pulando`);
+          }
         }
       }
       

@@ -28,7 +28,7 @@ export default function OfficialsIndex() {
   const [selectedOfficial, setSelectedOfficial] = useState<Official | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  const { data: officials, isLoading } = useQuery({
+  const { data: officials = [], isLoading } = useQuery<Official[]>({
     queryKey: ['/api/officials'],
   });
   
@@ -129,8 +129,9 @@ export default function OfficialsIndex() {
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {official.departments && Array.isArray(official.departments) && official.departments.length > 0 ? (
-                            official.departments.map((dept, index) => (
-                              <Badge key={index} variant="outline" className="capitalize">
+                            // Remover departamentos duplicados e exibi-los
+                            [...new Set(official.departments)].map((dept) => (
+                              <Badge key={dept} variant="outline" className="capitalize">
                                 {dept === 'technical' && 'Suporte Técnico'}
                                 {dept === 'billing' && 'Faturamento'}
                                 {dept === 'general' && 'Atendimento Geral'}

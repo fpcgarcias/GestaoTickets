@@ -215,7 +215,8 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
               <div className="col-span-3 space-y-4">
                 {/* Exibir departamentos selecionados */}
                 <div className="flex flex-wrap gap-2">
-                  {formData.departments.map(dept => {
+                  {/* Remover departamentos duplicados e exibi-los */}
+                  {[...new Set(formData.departments)].map(dept => {
                     const deptInfo = availableDepartments.find(d => d.value === dept);
                     return (
                       <Badge key={dept} variant="secondary" className="px-3 py-1">
