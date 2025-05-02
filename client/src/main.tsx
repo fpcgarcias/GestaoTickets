@@ -2,8 +2,8 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
-// Set document title
-document.title = "Ticket Lead - Support Ticket Management System";
+// O título do documento será definido dinamicamente quando as configurações forem carregadas
+// usando o hook useSystemSettings dentro do componente App
 
 // Add the head element for favicon
 const link = document.createElement("link");
