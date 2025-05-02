@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { migrateDepartmentsToJunctionTable } from "./migrate-departments";
 import { migratePasswords } from "./migrate-passwords";
+import { migrateActiveField } from "./migrate-active-field";
 import session from "express-session";
 import crypto from "crypto";
 
@@ -80,6 +81,15 @@ app.use((req, res, next) => {
     log('Migração de senhas concluída.');
   } catch (error) {
     log('Erro ao migrar senhas: ' + error);
+  }
+
+  // Executar migração do campo active
+  try {
+    log('Iniciando migração do campo active...');
+    await migrateActiveField();
+    log('Migração do campo active concluída.');
+  } catch (error) {
+    log('Erro ao migrar campo active: ' + error);
   }
 
   const server = await registerRoutes(app);

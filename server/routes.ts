@@ -548,6 +548,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Credenciais inválidas" });
       }
       
+      // Verificar se o usuário está ativo
+      if (user.active === false) {
+        return res.status(401).json({ message: "Conta inativa. Contate o administrador do sistema." });
+      }
+      
       // Verificar senha usando bcrypt
       const { comparePasswords } = await import('./utils/password');
       const passwordMatch = await comparePasswords(password, user.password);
@@ -640,6 +645,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           req.session.destroy(() => {});
         }
         return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+      
+      // Verificar se o usuário está ativo
+      if (user.active === false) {
+        // Se o usuário estiver inativo, invalidamos a sessão
+        if (req.session) {
+          req.session.destroy(() => {});
+        }
+        return res.status(401).json({ message: "Conta inativa. Contate o administrador do sistema." });
       }
       
       // Não enviamos a senha para o cliente
