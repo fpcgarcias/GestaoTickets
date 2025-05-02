@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,8 +16,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AddOfficialDialog } from './add-official-dialog';
 
 export default function OfficialsIndex() {
+  const [showAddDialog, setShowAddDialog] = useState(false);
   const { data: officials, isLoading } = useQuery({
     queryKey: ['/api/officials'],
   });
@@ -25,23 +27,28 @@ export default function OfficialsIndex() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Officials</h1>
-        <Button>
+        <h1 className="text-2xl font-semibold text-neutral-900">Atendentes</h1>
+        <Button onClick={() => setShowAddDialog(true)}>
           <UserPlus className="mr-2 h-4 w-4" />
-          Add Official
+          Adicionar Atendente
         </Button>
       </div>
+      
+      <AddOfficialDialog 
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+      />
 
       <Card>
         <CardHeader>
-          <CardTitle>Support Staff Management</CardTitle>
-          <CardDescription>Manage your internal support team members</CardDescription>
+          <CardTitle>Gerenciamento de Atendentes</CardTitle>
+          <CardDescription>Gerencie os membros da sua equipe de suporte</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-between mb-6">
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
-              <Input placeholder="Search officials" className="pl-10" />
+              <Input placeholder="Pesquisar atendentes" className="pl-10" />
             </div>
           </div>
 
@@ -49,12 +56,12 @@ export default function OfficialsIndex() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <TableHead>Nome</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Department</TableHead>
+                  <TableHead>Departamento</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Assigned Tickets</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Tickets Atribuídos</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -69,10 +76,53 @@ export default function OfficialsIndex() {
                       <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                     </TableRow>
                   ))
+                ) : officials && officials.length > 0 ? (
+                  officials.map((official) => (
+                    <TableRow key={official.id}>
+                      <TableCell className="font-medium">{official.name}</TableCell>
+                      <TableCell>{official.email}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {official.department === 'technical' && 'Suporte Técnico'}
+                          {official.department === 'billing' && 'Faturamento'}
+                          {official.department === 'general' && 'Atendimento Geral'}
+                          {official.department === 'sales' && 'Vendas'}
+                          {official.department === 'other' && 'Outro'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {official.isActive ? (
+                          <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-100">
+                            <Check className="w-3 h-3 mr-1" />
+                            Ativo
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="bg-red-100 text-red-800 hover:bg-red-100">
+                            <X className="w-3 h-3 mr-1" />
+                            Inativo
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {/* TODO: Add assigned tickets count */}
+                        -
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" size="icon" className="h-8 w-8">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="outline" size="icon" className="h-8 w-8">
+                            <Trash className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
                 ) : (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-10 text-neutral-500">
-                      No support staff found. Add your first team member to get started.
+                      Nenhum atendente encontrado. Adicione seu primeiro membro de equipe para começar.
                     </TableCell>
                   </TableRow>
                 )}

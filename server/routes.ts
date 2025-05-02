@@ -257,6 +257,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Em uma aplicação real, encerraríamos a sessão aqui
     res.json({ success: true });
   });
+  
+  // Endpoint para criar usuários
+  router.post("/users", async (req, res) => {
+    try {
+      const { username, email, password, name, role, avatarUrl } = req.body;
+      
+      // Verificar se o usuário já existe
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ message: "Nome de usuário já existe" });
+      }
+      
+      const existingEmail = await storage.getUserByEmail(email);
+      if (existingEmail) {
+        return res.status(400).json({ message: "Email já está em uso" });
+      }
+      
+      // Criar usuário
+      const user = await storage.createUser({
+        username,
+        email,
+        password,
+        name,
+        role,
+        avatarUrl,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      // Não retornar a senha
+      const { password: _, ...userWithoutPassword } = user;
+      
+      res.status(201).json(userWithoutPassword);
+    } catch (error) {
+      console.error('Erro ao criar usuário:', error);
+      res.status(500).json({ message: "Falha ao criar usuário", error: String(error) });
+    }
+  });
 
   // Endpoint para obter o usuário atual (quando autenticado)
   router.get("/auth/me", async (req, res) => {
