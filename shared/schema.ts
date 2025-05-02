@@ -66,6 +66,7 @@ export const tickets = pgTable("tickets", {
   status: ticketStatusEnum("status").notNull().default('new'),
   priority: ticketPriorityEnum("priority").notNull().default('medium'),
   type: text("type").notNull(), // technical, account, billing, feature, deposit
+  departmentId: integer("department_id"), // Departamento relacionado ao ticket
   customerId: integer("customer_id").references(() => customers.id),
   customerEmail: text("customer_email").notNull(),
   assignedToId: integer("assigned_to_id").references(() => officials.id),
@@ -128,11 +129,12 @@ export const insertOfficialSchema = createInsertSchema(officials).omit({
 
 // Schema for inserting tickets
 export const insertTicketSchema = z.object({
-  title: z.string().min(5, "Title must be at least 5 characters"),
-  description: z.string().min(10, "Description must be at least 10 characters"),
-  customerEmail: z.string().email("Invalid email address"),
-  type: z.string().min(1, "Ticket type is required"),
+  title: z.string().min(5, "O título deve ter pelo menos 5 caracteres"),
+  description: z.string().min(10, "A descrição deve ter pelo menos 10 caracteres"),
+  customerEmail: z.string().email("Endereço de email inválido"),
+  type: z.string().min(1, "O tipo de chamado é obrigatório"),
   priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
+  departmentId: z.number().optional(),
 });
 
 // Schema for inserting ticket replies

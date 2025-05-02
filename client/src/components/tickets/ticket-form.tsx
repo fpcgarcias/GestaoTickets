@@ -39,7 +39,8 @@ export const TicketForm = () => {
       description: '',
       customerEmail: '',
       type: '',
-      priority: PRIORITY_LEVELS.MEDIUM,
+      priority: 'medium' as const,
+      departmentId: undefined,
     },
   });
 
@@ -50,16 +51,16 @@ export const TicketForm = () => {
     },
     onSuccess: () => {
       toast({
-        title: "Success!",
-        description: "Ticket created successfully.",
+        title: "Sucesso!",
+        description: "Chamado criado com sucesso.",
       });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
       navigate('/tickets');
     },
     onError: (error) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to create ticket",
+        title: "Erro",
+        description: error.message || "Falha ao criar o chamado",
         variant: "destructive",
       });
     },

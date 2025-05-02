@@ -250,6 +250,7 @@ export class DatabaseStorage implements IStorage {
       status: 'new',
       priority: ticketData.priority || 'medium',
       type: ticketData.type,
+      departmentId: ticketData.departmentId,
       ticketId: ticketIdString
     };
     

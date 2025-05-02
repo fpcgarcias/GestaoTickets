@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -287,55 +287,7 @@ export default function Settings() {
         </TabsContent>
         
         <TabsContent value="departments">
-          <Card>
-            <CardHeader>
-              <CardTitle>Gerenciamento de Departamentos</CardTitle>
-              <CardDescription>Configure e gerencie departamentos de suporte</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4 mb-6">
-                <div className="flex items-center justify-between p-3 border rounded-md">
-                  <div>
-                    <h3 className="font-medium">Suporte Técnico</h3>
-                    <p className="text-sm text-neutral-500">Para problemas técnicos e de produto</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm">Editar</Button>
-                    <Button variant="destructive" size="sm">Excluir</Button>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 border rounded-md">
-                  <div>
-                    <h3 className="font-medium">Faturamento</h3>
-                    <p className="text-sm text-neutral-500">Para consultas de pagamento e faturamento</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm">Editar</Button>
-                    <Button variant="destructive" size="sm">Excluir</Button>
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 border rounded-md">
-                  <div>
-                    <h3 className="font-medium">Atendimento ao Cliente</h3>
-                    <p className="text-sm text-neutral-500">Para consultas gerais e assistência</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm">Editar</Button>
-                    <Button variant="destructive" size="sm">Excluir</Button>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex justify-end">
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Adicionar Departamento
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <DepartmentsSettings />
         </TabsContent>
         
         <TabsContent value="notifications">
