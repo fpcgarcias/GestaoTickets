@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { migrateDepartmentsToJunctionTable } from "./migrate-departments";
 import session from "express-session";
 import crypto from "crypto";
 
@@ -62,6 +63,15 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Executar a migração de departamentos
+  try {
+    log('Iniciando migração de departamentos...');
+    await migrateDepartmentsToJunctionTable();
+    log('Migração de departamentos concluída.');
+  } catch (error) {
+    log('Erro ao migrar departamentos: ' + error);
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
