@@ -45,9 +45,9 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
     return (
       <Card className="bg-red-50">
         <CardContent className="p-6">
-          <h2 className="text-lg font-semibold text-red-700">Error Loading Ticket</h2>
+          <h2 className="text-lg font-semibold text-red-700">Erro ao Carregar Chamado</h2>
           <p className="text-red-600">
-            {error instanceof Error ? error.message : "Failed to load ticket details"}
+            {error instanceof Error ? error.message : "Falha ao carregar detalhes do chamado"}
           </p>
         </CardContent>
       </Card>
@@ -61,14 +61,27 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
           <div>
             <div className="flex items-center mb-2">
               <StatusDot status={ticket.status} />
-              <span className="font-medium text-neutral-800">Ticket# {ticket.ticketId}</span>
+              <span className="font-medium text-neutral-800">Chamado #{ticket.ticketId}</span>
             </div>
             <h2 className="text-xl font-semibold">{ticket.title}</h2>
           </div>
           <div className="text-sm text-neutral-500">
-            Posted at {formatDate(ticket.createdAt)}
+            Criado em {formatDate(ticket.createdAt)}
           </div>
         </div>
+        
+        {ticket.customer && (
+          <div className="flex items-center gap-2 mb-4 bg-blue-50 p-3 rounded-md">
+            <Building className="h-5 w-5 text-blue-500" />
+            <div>
+              <span className="text-sm text-blue-700 font-medium">Cliente: </span>
+              <span className="text-sm text-blue-800">{ticket.customer.name}</span>
+              {ticket.customer.email && (
+                <> - <span className="text-sm text-blue-600">{ticket.customer.email}</span></>
+              )}
+            </div>
+          </div>
+        )}
         
         <div className="mb-8 text-neutral-700 space-y-4 whitespace-pre-line">
           {ticket.description}

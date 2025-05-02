@@ -53,8 +53,8 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     },
     onSuccess: () => {
       toast({
-        title: "Success!",
-        description: "Reply submitted successfully.",
+        title: "Sucesso!",
+        description: "Resposta enviada com sucesso.",
       });
       queryClient.invalidateQueries({ queryKey: [`/api/tickets/${ticket.id}`] });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
@@ -62,8 +62,8 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     },
     onError: (error) => {
       toast({
-        title: "Error",
-        description: error.message || "Failed to submit reply",
+        title: "Erro",
+        description: error.message || "Falha ao enviar resposta",
         variant: "destructive",
       });
     },
@@ -76,13 +76,13 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   return (
     <Card>
       <CardContent className="p-6">
-        <h3 className="text-lg font-medium mb-6">Reply to Ticket</h3>
+        <h3 className="text-lg font-medium mb-6">Responder ao Chamado</h3>
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <FormItem>
-                <FormLabel>Customer Email</FormLabel>
+                <FormLabel>E-mail do Cliente</FormLabel>
                 <Input 
                   value={ticket.customerEmail} 
                   readOnly 
@@ -95,14 +95,14 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 name="type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Request Ticket Type</FormLabel>
+                    <FormLabel>Tipo de Chamado</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
                       defaultValue={ticket.type}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Choose Type" />
+                          <SelectValue placeholder="Escolher Tipo" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -130,13 +130,13 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select Status" />
+                          <SelectValue placeholder="Selecionar Status" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value={TICKET_STATUS.NEW}>New</SelectItem>
-                        <SelectItem value={TICKET_STATUS.ONGOING}>On-Going</SelectItem>
-                        <SelectItem value={TICKET_STATUS.RESOLVED}>Resolved</SelectItem>
+                        <SelectItem value={TICKET_STATUS.NEW}>Novo</SelectItem>
+                        <SelectItem value={TICKET_STATUS.ONGOING}>Em Andamento</SelectItem>
+                        <SelectItem value={TICKET_STATUS.RESOLVED}>Resolvido</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -150,10 +150,10 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
               name="message"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Reply Message</FormLabel>
+                  <FormLabel>Mensagem de Resposta</FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder="Type your reply here..." 
+                      placeholder="Digite sua resposta aqui..." 
                       rows={6} 
                       {...field} 
                     />
@@ -169,7 +169,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 className="px-6"
                 disabled={replyMutation.isPending}
               >
-                {replyMutation.isPending ? "Submitting..." : "Submit Reply"}
+                {replyMutation.isPending ? "Enviando..." : "Enviar Resposta"}
               </Button>
             </div>
           </form>
