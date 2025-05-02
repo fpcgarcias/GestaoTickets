@@ -15,12 +15,21 @@ export default function UsersIndex() {
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   
   // Formulário para novo cliente
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newCompany, setNewCompany] = useState('');
+  
+  // Formulário para edição
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editCompany, setEditCompany] = useState('');
 
   const { data: customers, isLoading } = useQuery({
     queryKey: ['/api/customers'],
@@ -55,6 +64,53 @@ export default function UsersIndex() {
     },
   });
 
+  // Mutação para atualizar cliente
+  const updateCustomerMutation = useMutation({
+    mutationFn: async (data: { id: number, customerData: any }) => {
+      const res = await apiRequest('PATCH', `/api/customers/${data.id}`, data.customerData);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Cliente atualizado",
+        description: "Cliente atualizado com sucesso.",
+      });
+      setIsEditDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao atualizar cliente",
+        description: `Ocorreu um erro: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutação para excluir cliente
+  const deleteCustomerMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest('DELETE', `/api/customers/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Cliente excluído",
+        description: "Cliente excluído com sucesso.",
+      });
+      setIsDeleteDialogOpen(false);
+      setSelectedCustomer(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao excluir cliente",
+        description: `Ocorreu um erro: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleAddCustomer = () => {
     if (!newName || !newEmail) {
       toast({
@@ -78,6 +134,47 @@ export default function UsersIndex() {
     setNewEmail('');
     setNewPhone('');
     setNewCompany('');
+  };
+
+  const handleEditCustomer = (customer: any) => {
+    setSelectedCustomer(customer);
+    setEditName(customer.name);
+    setEditEmail(customer.email);
+    setEditPhone(customer.phone || '');
+    setEditCompany(customer.company || '');
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteCustomer = (customer: any) => {
+    setSelectedCustomer(customer);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const submitEditCustomer = () => {
+    if (!editName || !editEmail) {
+      toast({
+        title: "Dados incompletos",
+        description: "Nome e email são obrigatórios.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateCustomerMutation.mutate({
+      id: selectedCustomer.id,
+      customerData: {
+        name: editName,
+        email: editEmail,
+        phone: editPhone || undefined,
+        company: editCompany || undefined,
+      }
+    });
+  };
+
+  const confirmDeleteCustomer = () => {
+    if (selectedCustomer) {
+      deleteCustomerMutation.mutate(selectedCustomer.id);
+    }
   };
   
   // Filtragem de clientes
@@ -151,10 +248,10 @@ export default function UsersIndex() {
                       <TableCell>{customer.ticketCount || 0}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="sm">
+                          <Button variant="outline" size="sm" onClick={() => handleEditCustomer(customer)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="outline" size="sm" className="text-red-500">
+                          <Button variant="outline" size="sm" className="text-red-500" onClick={() => handleDeleteCustomer(customer)}>
                             <Trash className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -240,6 +337,118 @@ export default function UsersIndex() {
                 </>
               ) : (
                 <>Adicionar Cliente</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para editar cliente */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Cliente</DialogTitle>
+            <DialogDescription>
+              Editar informações do cliente
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-name">Nome *</Label>
+              <Input 
+                id="edit-name" 
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Nome do cliente"
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-email">Email *</Label>
+              <Input 
+                id="edit-email" 
+                type="email" 
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="email@exemplo.com"
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-phone">Telefone</Label>
+              <Input 
+                id="edit-phone" 
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="(00) 00000-0000"
+              />
+            </div>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="edit-company">Empresa</Label>
+              <Input 
+                id="edit-company" 
+                value={editCompany}
+                onChange={(e) => setEditCompany(e.target.value)}
+                placeholder="Nome da empresa"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
+            <Button 
+              onClick={submitEditCustomer}
+              disabled={updateCustomerMutation.isPending}
+            >
+              {updateCustomerMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Atualizando...
+                </>
+              ) : (
+                <>Salvar Alterações</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para confirmar exclusão */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+            <DialogDescription>
+              Você tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedCustomer && (
+            <div className="py-4">
+              <p className="mb-2"><strong>Nome:</strong> {selectedCustomer.name}</p>
+              <p className="mb-2"><strong>Email:</strong> {selectedCustomer.email}</p>
+              <p className="text-red-500 mt-4 text-sm">
+                Atenção: Todos os chamados associados a este cliente permanecerão no sistema.
+              </p>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancelar</Button>
+            <Button 
+              variant="destructive"
+              onClick={confirmDeleteCustomer}
+              disabled={deleteCustomerMutation.isPending}
+            >
+              {deleteCustomerMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                <>Excluir Cliente</>
               )}
             </Button>
           </DialogFooter>
