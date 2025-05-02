@@ -58,19 +58,21 @@ export function useNotifications() {
         // Adicionar à lista de notificações
         setNotifications((prev) => [notification, ...prev]);
         
-        // Mostrar toast para o usuário
-        let variant: 'default' | 'destructive' | null = 'default';
-        
-        // Determinar a variação do toast com base na prioridade
-        if (notification.priority === 'high' || notification.priority === 'critical') {
-          variant = 'destructive';
+        // Mostrar toast apenas para notificações que não são do tipo welcome
+        if (notification.type !== 'welcome') {
+          let variant: 'default' | 'destructive' | null = 'default';
+          
+          // Determinar a variação do toast com base na prioridade
+          if (notification.priority === 'high' || notification.priority === 'critical') {
+            variant = 'destructive';
+          }
+          
+          toast({
+            title: notification.title,
+            description: notification.message,
+            variant: variant === null ? undefined : variant,
+          });
         }
-        
-        toast({
-          title: notification.title,
-          description: notification.message,
-          variant: variant === null ? undefined : variant,
-        });
       } catch (error) {
         console.error('Erro ao processar notificação:', error);
       }
