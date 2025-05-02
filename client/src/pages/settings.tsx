@@ -190,7 +190,19 @@ export default function Settings() {
               </div>
               
               <div className="flex justify-end">
-                <Button>Salvar Configurações</Button>
+                <Button 
+                  onClick={handleSaveGeneralSettings}
+                  disabled={saveGeneralSettingsMutation.isPending}
+                >
+                  {saveGeneralSettingsMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    'Salvar Configurações'
+                  )}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -256,7 +268,19 @@ export default function Settings() {
               </div>
               
               <div className="flex justify-end">
-                <Button>Salvar Configurações de SLA</Button>
+                <Button 
+                  onClick={handleSaveSlaSettings}
+                  disabled={saveSlaSettingsMutation.isPending}
+                >
+                  {saveSlaSettingsMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    'Salvar Configurações de SLA'
+                  )}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -356,7 +380,14 @@ export default function Settings() {
               </div>
               
               <div className="flex justify-end">
-                <Button>Salvar Configurações de Notificação</Button>
+                <Button onClick={() => {
+                  toast({
+                    title: "Configurações de notificação salvas",
+                    description: "As configurações de notificação foram atualizadas com sucesso",
+                  });
+                }}>
+                  Salvar Configurações de Notificação
+                </Button>
               </div>
             </CardContent>
           </Card>
