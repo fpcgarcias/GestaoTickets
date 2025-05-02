@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, UserPlus, Pencil, UserX, UserCheck } from 'lucide-react';
 import { Customer } from '@shared/schema';
-import { queryClient } from '@/lib/query-client';
+import { queryClient } from '@/lib/queryClient';
 import { Skeleton } from '@/components/ui/skeleton';
 import AddClientDialog from './add-client-dialog';
 import EditClientDialog from './edit-client-dialog';

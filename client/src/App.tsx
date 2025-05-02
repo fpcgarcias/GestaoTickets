@@ -72,6 +72,12 @@ function AppContent() {
         </MainLayout>
       )} />
       
+      <ProtectedRoute path="/clients" component={() => (
+        <MainLayout>
+          <ClientsIndex />
+        </MainLayout>
+      )} />
+      
       <ProtectedRoute path="/users" component={() => (
         <MainLayout>
           <UsersIndex />
@@ -81,12 +87,6 @@ function AppContent() {
       <ProtectedRoute path="/officials" component={() => (
         <MainLayout>
           <OfficialsIndex />
-        </MainLayout>
-      )} />
-      
-      <ProtectedRoute path="/clients" component={() => (
-        <MainLayout>
-          <ClientsIndex />
         </MainLayout>
       )} />
       
