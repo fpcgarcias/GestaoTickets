@@ -86,6 +86,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Rotas públicas (sem autenticação) - Login, Logout, Registro
   // Estas rotas não precisam de middleware de autenticação
 
+  // Rota para registro de novos usuários
+  router.post("/register", async (req: Request, res: Response) => {
+    try {
+      const { username, email, password, name, role } = req.body;
+      
+      // Verificar se o usuário já existe
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(400).json({ message: "Nome de usuário já existe" });
+      }
+      
+      const existingEmail = await storage.getUserByEmail(email);
+      if (existingEmail) {
+        return res.status(400).json({ message: "Email já está em uso" });
+      }
+      
+      // Criar usuário - por padrão, novos usuários terão o papel de 'customer' a menos que especificado diferente
+      const userRole = role || 'customer';
+      
+      const user = await storage.createUser({
+        username,
+        email,
+        password,
+        name,
+        role: userRole,
+        avatarUrl: null
+      });
+      
+      // Autenticar o usuário recém-registrado
+      if (req.session) {
+        req.session.userId = user.id;
+        req.session.userRole = user.role;
+      }
+      
+      // Não retornar a senha
+      const { password: _, ...userWithoutPassword } = user;
+      
+      res.status(201).json(userWithoutPassword);
+    } catch (error) {
+      console.error('Erro ao registrar usuário:', error);
+      res.status(500).json({ message: "Falha ao registrar usuário", error: String(error) });
+    }
+  });
+
   // Tickets endpoints - Todas as rotas abaixo dessa linha precisam de autenticação
   router.get("/tickets", authRequired, async (req: Request, res: Response) => {
     try {
