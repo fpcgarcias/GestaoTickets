@@ -12,56 +12,57 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Plus } from "lucide-react";
 
 export default function Settings() {
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-neutral-900 mb-6">Site Settings</h1>
+      <h1 className="text-2xl font-semibold text-neutral-900 mb-6">Configurações do Sistema</h1>
       
       <Tabs defaultValue="general" className="w-full">
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent mb-6">
           <TabsTrigger value="general" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
-            General
+            Geral
           </TabsTrigger>
           <TabsTrigger value="sla" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
-            SLA Settings
+            Configurações de SLA
           </TabsTrigger>
           <TabsTrigger value="departments" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
-            Departments
+            Departamentos
           </TabsTrigger>
           <TabsTrigger value="notifications" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
-            Notifications
+            Notificações
           </TabsTrigger>
         </TabsList>
         
         <TabsContent value="general">
           <Card>
             <CardHeader>
-              <CardTitle>General Settings</CardTitle>
-              <CardDescription>Configure the basic settings for your ticket system</CardDescription>
+              <CardTitle>Configurações Gerais</CardTitle>
+              <CardDescription>Configure as configurações básicas para seu sistema de chamados</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="company-name">Company Name</Label>
+                  <Label htmlFor="company-name">Nome da Empresa</Label>
                   <Input id="company-name" defaultValue="Ticket Lead" />
                 </div>
                 <div>
-                  <Label htmlFor="support-email">Support Email</Label>
-                  <Input id="support-email" defaultValue="support@ticketlead.example" type="email" />
+                  <Label htmlFor="support-email">Email de Suporte</Label>
+                  <Input id="support-email" defaultValue="suporte@ticketlead.exemplo" type="email" />
                 </div>
               </div>
               
               <div className="flex items-center justify-between border-t pt-4">
                 <div>
-                  <h3 className="font-medium">Allow Customer Registration</h3>
-                  <p className="text-sm text-neutral-500">Let customers register and create their own accounts</p>
+                  <h3 className="font-medium">Permitir Registro de Clientes</h3>
+                  <p className="text-sm text-neutral-500">Permitir que clientes se registrem e criem suas próprias contas</p>
                 </div>
                 <Switch defaultChecked />
               </div>
               
               <div className="flex justify-end">
-                <Button>Save Settings</Button>
+                <Button>Salvar Configurações</Button>
               </div>
             </CardContent>
           </Card>
@@ -70,26 +71,26 @@ export default function Settings() {
         <TabsContent value="sla">
           <Card>
             <CardHeader>
-              <CardTitle>SLA Configuration</CardTitle>
-              <CardDescription>Set up response time requirements by priority</CardDescription>
+              <CardTitle>Configuração de SLA</CardTitle>
+              <CardDescription>Configure requisitos de tempo de resposta por prioridade</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="low-priority">Low Priority SLA (hours)</Label>
+                    <Label htmlFor="low-priority">SLA Prioridade Baixa (horas)</Label>
                     <Input id="low-priority" type="number" defaultValue="48" />
                   </div>
                   <div>
-                    <Label htmlFor="medium-priority">Medium Priority SLA (hours)</Label>
+                    <Label htmlFor="medium-priority">SLA Prioridade Média (horas)</Label>
                     <Input id="medium-priority" type="number" defaultValue="24" />
                   </div>
                   <div>
-                    <Label htmlFor="high-priority">High Priority SLA (hours)</Label>
+                    <Label htmlFor="high-priority">SLA Prioridade Alta (horas)</Label>
                     <Input id="high-priority" type="number" defaultValue="8" />
                   </div>
                   <div>
-                    <Label htmlFor="critical-priority">Critical Priority SLA (hours)</Label>
+                    <Label htmlFor="critical-priority">SLA Prioridade Crítica (horas)</Label>
                     <Input id="critical-priority" type="number" defaultValue="4" />
                   </div>
                 </div>
@@ -97,14 +98,14 @@ export default function Settings() {
               
               <div className="flex items-center justify-between border-t pt-4">
                 <div>
-                  <h3 className="font-medium">SLA Breach Notifications</h3>
-                  <p className="text-sm text-neutral-500">Send alerts when SLA timeframes are about to be breached</p>
+                  <h3 className="font-medium">Notificações de Violação de SLA</h3>
+                  <p className="text-sm text-neutral-500">Enviar alertas quando os prazos de SLA estiverem prestes a ser violados</p>
                 </div>
                 <Switch defaultChecked />
               </div>
               
               <div className="flex justify-end">
-                <Button>Save SLA Settings</Button>
+                <Button>Salvar Configurações de SLA</Button>
               </div>
             </CardContent>
           </Card>
@@ -113,41 +114,41 @@ export default function Settings() {
         <TabsContent value="departments">
           <Card>
             <CardHeader>
-              <CardTitle>Department Management</CardTitle>
-              <CardDescription>Set up and manage support departments</CardDescription>
+              <CardTitle>Gerenciamento de Departamentos</CardTitle>
+              <CardDescription>Configure e gerencie departamentos de suporte</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4 mb-6">
                 <div className="flex items-center justify-between p-3 border rounded-md">
                   <div>
-                    <h3 className="font-medium">Technical Support</h3>
-                    <p className="text-sm text-neutral-500">For technical and product issues</p>
+                    <h3 className="font-medium">Suporte Técnico</h3>
+                    <p className="text-sm text-neutral-500">Para problemas técnicos e de produto</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">Edit</Button>
-                    <Button variant="destructive" size="sm">Delete</Button>
+                    <Button variant="outline" size="sm">Editar</Button>
+                    <Button variant="destructive" size="sm">Excluir</Button>
                   </div>
                 </div>
                 
                 <div className="flex items-center justify-between p-3 border rounded-md">
                   <div>
-                    <h3 className="font-medium">Billing</h3>
-                    <p className="text-sm text-neutral-500">For payment and invoice inquiries</p>
+                    <h3 className="font-medium">Faturamento</h3>
+                    <p className="text-sm text-neutral-500">Para consultas de pagamento e faturamento</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">Edit</Button>
-                    <Button variant="destructive" size="sm">Delete</Button>
+                    <Button variant="outline" size="sm">Editar</Button>
+                    <Button variant="destructive" size="sm">Excluir</Button>
                   </div>
                 </div>
                 
                 <div className="flex items-center justify-between p-3 border rounded-md">
                   <div>
-                    <h3 className="font-medium">Customer Service</h3>
-                    <p className="text-sm text-neutral-500">For general inquiries and assistance</p>
+                    <h3 className="font-medium">Atendimento ao Cliente</h3>
+                    <p className="text-sm text-neutral-500">Para consultas gerais e assistência</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">Edit</Button>
-                    <Button variant="destructive" size="sm">Delete</Button>
+                    <Button variant="outline" size="sm">Editar</Button>
+                    <Button variant="destructive" size="sm">Excluir</Button>
                   </div>
                 </div>
               </div>
@@ -155,7 +156,7 @@ export default function Settings() {
               <div className="flex justify-end">
                 <Button>
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Department
+                  Adicionar Departamento
                 </Button>
               </div>
             </CardContent>
@@ -165,46 +166,46 @@ export default function Settings() {
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
-              <CardTitle>Notification Settings</CardTitle>
-              <CardDescription>Configure when and how notifications are sent</CardDescription>
+              <CardTitle>Configurações de Notificação</CardTitle>
+              <CardDescription>Configure quando e como as notificações são enviadas</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-medium">New Ticket Notifications</h3>
-                    <p className="text-sm text-neutral-500">Send notifications when new tickets are created</p>
+                    <h3 className="font-medium">Notificações de Novos Chamados</h3>
+                    <p className="text-sm text-neutral-500">Enviar notificações quando novos chamados são criados</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
                 
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-medium">Ticket Reply Notifications</h3>
-                    <p className="text-sm text-neutral-500">Send notifications when tickets receive replies</p>
+                    <h3 className="font-medium">Notificações de Respostas</h3>
+                    <p className="text-sm text-neutral-500">Enviar notificações quando os chamados recebem respostas</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
                 
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-medium">Status Change Notifications</h3>
-                    <p className="text-sm text-neutral-500">Send notifications when ticket status changes</p>
+                    <h3 className="font-medium">Notificações de Mudança de Status</h3>
+                    <p className="text-sm text-neutral-500">Enviar notificações quando o status do chamado muda</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
                 
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-medium">Assignment Notifications</h3>
-                    <p className="text-sm text-neutral-500">Send notifications when tickets are assigned</p>
+                    <h3 className="font-medium">Notificações de Atribuição</h3>
+                    <p className="text-sm text-neutral-500">Enviar notificações quando chamados são atribuídos</p>
                   </div>
                   <Switch defaultChecked />
                 </div>
               </div>
               
               <div className="flex justify-end">
-                <Button>Save Notification Settings</Button>
+                <Button>Salvar Configurações de Notificação</Button>
               </div>
             </CardContent>
           </Card>

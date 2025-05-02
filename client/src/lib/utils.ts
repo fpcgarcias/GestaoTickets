@@ -7,10 +7,10 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(date: Date | string | number): string {
   const d = new Date(date);
-  return d.toLocaleTimeString('en-US', {
+  return d.toLocaleTimeString('pt-BR', {
     hour: 'numeric',
     minute: '2-digit',
-    hour12: true
+    hour12: false
   });
 }
 
@@ -48,9 +48,9 @@ export const STATUS_COLORS = {
 };
 
 export const TICKET_TYPES = [
-  { value: 'technical', label: 'Technical Support' },
-  { value: 'account', label: 'Account Issue' },
-  { value: 'billing', label: 'Billing Question' },
-  { value: 'feature', label: 'Feature Request' },
-  { value: 'deposit', label: 'Deposit Issue' }
+  { value: 'technical', label: 'Suporte Técnico' },
+  { value: 'account', label: 'Problema de Conta' },
+  { value: 'billing', label: 'Questão de Faturamento' },
+  { value: 'feature', label: 'Solicitação de Recurso' },
+  { value: 'deposit', label: 'Problema de Depósito' }
 ];

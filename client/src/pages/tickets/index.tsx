@@ -76,13 +76,13 @@ export default function TicketsIndex() {
           onValueChange={setTimeFilter}
         >
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Time period" />
+            <SelectValue placeholder="Período" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="this-week">This Week</SelectItem>
-            <SelectItem value="last-week">Last Week</SelectItem>
-            <SelectItem value="this-month">This Month</SelectItem>
-            <SelectItem value="custom">Custom Range</SelectItem>
+            <SelectItem value="this-week">Esta Semana</SelectItem>
+            <SelectItem value="last-week">Semana Passada</SelectItem>
+            <SelectItem value="this-month">Este Mês</SelectItem>
+            <SelectItem value="custom">Período Personalizado</SelectItem>
           </SelectContent>
         </Select>
 
@@ -91,14 +91,14 @@ export default function TicketsIndex() {
           onValueChange={setPriorityFilter}
         >
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select Priority" />
+            <SelectValue placeholder="Selecionar Prioridade" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Priorities</SelectItem>
-            <SelectItem value={PRIORITY_LEVELS.LOW}>Low</SelectItem>
-            <SelectItem value={PRIORITY_LEVELS.MEDIUM}>Medium</SelectItem>
-            <SelectItem value={PRIORITY_LEVELS.HIGH}>High</SelectItem>
-            <SelectItem value={PRIORITY_LEVELS.CRITICAL}>Critical</SelectItem>
+            <SelectItem value="">Todas as Prioridades</SelectItem>
+            <SelectItem value={PRIORITY_LEVELS.LOW}>Baixa</SelectItem>
+            <SelectItem value={PRIORITY_LEVELS.MEDIUM}>Média</SelectItem>
+            <SelectItem value={PRIORITY_LEVELS.HIGH}>Alta</SelectItem>
+            <SelectItem value={PRIORITY_LEVELS.CRITICAL}>Crítica</SelectItem>
           </SelectContent>
         </Select>
       </div>
