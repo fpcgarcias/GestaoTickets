@@ -26,44 +26,44 @@ export default function Dashboard() {
     queryKey: ['/api/tickets/recent'],
   });
 
-  // Dummy data for now, in a real app this would come from the backend
+  // Dados de status transformados para português
   const statusData = [
-    { name: 'New', value: ticketStats?.byStatus?.new || 0, color: '#42A5F5' },
-    { name: 'On-Going', value: ticketStats?.byStatus?.ongoing || 0, color: '#FFA726' },
-    { name: 'Resolved', value: ticketStats?.byStatus?.resolved || 0, color: '#66BB6A' },
+    { name: 'Novos', value: ticketStats?.byStatus?.new || 0, color: '#42A5F5' },
+    { name: 'Em Andamento', value: ticketStats?.byStatus?.ongoing || 0, color: '#FFA726' },
+    { name: 'Resolvidos', value: ticketStats?.byStatus?.resolved || 0, color: '#66BB6A' },
   ];
 
   const priorityData = [
-    { name: 'Low', count: ticketStats?.byPriority?.low || 0 },
-    { name: 'Medium', count: ticketStats?.byPriority?.medium || 0 },
-    { name: 'High', count: ticketStats?.byPriority?.high || 0 },
-    { name: 'Critical', count: ticketStats?.byPriority?.critical || 0 },
+    { name: 'Baixa', count: ticketStats?.byPriority?.low || 0 },
+    { name: 'Média', count: ticketStats?.byPriority?.medium || 0 },
+    { name: 'Alta', count: ticketStats?.byPriority?.high || 0 },
+    { name: 'Crítica', count: ticketStats?.byPriority?.critical || 0 },
   ];
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-neutral-900 mb-6">Dashboard</h1>
+      <h1 className="text-2xl font-semibold text-neutral-900 mb-6">Painel de Controle</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <StatCard 
-          title="Total Tickets" 
+          title="Total de Chamados" 
           value={ticketStats?.total || 0} 
           isLoading={isStatsLoading}
         />
         <StatCard 
-          title="New Tickets" 
+          title="Chamados Novos" 
           value={ticketStats?.byStatus?.new || 0} 
           isLoading={isStatsLoading}
           status={TICKET_STATUS.NEW}
         />
         <StatCard 
-          title="On-Going Tickets" 
+          title="Chamados em Andamento" 
           value={ticketStats?.byStatus?.ongoing || 0} 
           isLoading={isStatsLoading}
           status={TICKET_STATUS.ONGOING}
         />
         <StatCard 
-          title="Resolved Tickets" 
+          title="Chamados Resolvidos" 
           value={ticketStats?.byStatus?.resolved || 0} 
           isLoading={isStatsLoading}
           status={TICKET_STATUS.RESOLVED}
@@ -73,8 +73,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <Card>
           <CardHeader>
-            <CardTitle>Tickets by Status</CardTitle>
-            <CardDescription>Distribution of tickets across different statuses</CardDescription>
+            <CardTitle>Chamados por Status</CardTitle>
+            <CardDescription>Distribuição de chamados por diferentes status</CardDescription>
           </CardHeader>
           <CardContent>
             {isStatsLoading ? (
@@ -106,8 +106,8 @@ export default function Dashboard() {
         
         <Card>
           <CardHeader>
-            <CardTitle>Tickets by Priority</CardTitle>
-            <CardDescription>Number of tickets for each priority level</CardDescription>
+            <CardTitle>Chamados por Prioridade</CardTitle>
+            <CardDescription>Número de chamados para cada nível de prioridade</CardDescription>
           </CardHeader>
           <CardContent>
             {isStatsLoading ? (
@@ -137,8 +137,8 @@ export default function Dashboard() {
       
       <Card>
         <CardHeader>
-          <CardTitle>Recent Tickets</CardTitle>
-          <CardDescription>Latest tickets that need attention</CardDescription>
+          <CardTitle>Chamados Recentes</CardTitle>
+          <CardDescription>Chamados mais recentes que precisam de atenção</CardDescription>
         </CardHeader>
         <CardContent>
           {isRecentLoading ? (
@@ -156,14 +156,14 @@ export default function Dashboard() {
                     <div>
                       <p className="font-medium">{ticket.title}</p>
                       <p className="text-sm text-neutral-500">
-                        {ticket.customerEmail} • {new Date(ticket.createdAt).toLocaleDateString()}
+                        {ticket.customerEmail} • {new Date(ticket.createdAt).toLocaleDateString('pt-BR')}
                       </p>
                     </div>
                   </div>
                   <div className="text-sm">
                     {ticket.priority === PRIORITY_LEVELS.HIGH && (
                       <span className="text-xs font-medium text-white bg-status-high px-2 py-1 rounded">
-                        High Priority
+                        Alta Prioridade
                       </span>
                     )}
                   </div>
