@@ -730,14 +730,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { username, email, password, name, role, avatarUrl } = req.body;
       
+      console.log(`Tentando criar usuário: ${name}, email: ${email}, username: ${username}, role: ${role}`);
+      
       // Verificar se o usuário já existe
       const existingUser = await storage.getUserByUsername(username);
       if (existingUser) {
+        console.log(`Erro: Nome de usuário '${username}' já existe`);
         return res.status(400).json({ message: "Nome de usuário já existe" });
       }
       
       const existingEmail = await storage.getUserByEmail(email);
       if (existingEmail) {
+        console.log(`Erro: Email '${email}' já está em uso`);
         return res.status(400).json({ message: "Email já está em uso" });
       }
       
