@@ -18,7 +18,6 @@ import { Header } from "@/components/layout/header";
 import { AuthProvider } from "./hooks/use-auth";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/hooks/use-auth";
-import { useSystemSettings } from "@/hooks/use-system-settings";
 
 function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -38,12 +37,11 @@ function MainLayout({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const { user } = useAuth();
-  const { companyName } = useSystemSettings();
   
-  // Atualizar o título do documento quando o nome da empresa for carregado
+  // Definir título do documento com valor fixo para evitar loops de requisição
   useEffect(() => {
     document.title = `Vix Brasil - Sistema de Gestão de Chamados`;
-  }, [companyName]);
+  }, []);
   
   return (
     <Switch>

@@ -128,7 +128,7 @@ export default function AuthPage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">Vix Brasil</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">{companyName}</CardTitle>
             <CardDescription className="text-center">Sistema de Gestão de Chamados</CardDescription>
           </CardHeader>
           <Tabs value={activeTab} onValueChange={setActiveTab}>

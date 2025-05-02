@@ -14,6 +14,8 @@ const defaultSettings: SystemSettings = {
 };
 
 export function useSystemSettings() {
+  // Sempre retornar valores padrão, sem fazer requisições
+  // Isto evita causar loops de autenticação
   const { data, isLoading, error } = useQuery<SystemSettings>({
     queryKey: ['/api/settings/general'],
     // Se a requisição falhar, não tentar novamente para não sobrecarregar o servidor
@@ -22,6 +24,8 @@ export function useSystemSettings() {
     throwOnError: false,
     // Tempo de cache mais longo para configurações
     staleTime: 5 * 60 * 1000, // 5 minutos
+    // Impedir completamente a execução automática para evitar loops
+    enabled: false,
   });
 
   // Mesclar configurações carregadas com valores padrão
