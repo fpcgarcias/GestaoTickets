@@ -468,6 +468,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Iniciando criação de atendente com dados:`, JSON.stringify(req.body, null, 2));
       const { departments, ...officialData } = req.body;
       
+      // Verificar se há departamentos selecionados
+      if (!departments || !Array.isArray(departments) || departments.length === 0) {
+        return res.status(400).json({ 
+          message: "Pelo menos um departamento deve ser selecionado para o atendente" 
+        });
+      }
+      
       // Verificar se o usuário existe
       if (officialData.userId) {
         const user = await storage.getUser(officialData.userId);
@@ -478,9 +485,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`Usuário encontrado: ${user.name} (${user.email})`);
       }
       
+      // Para compatibilidade com a tabela física, usar o primeiro departamento como principal
+      let departmentValue = departments[0];
+      if (typeof departmentValue === 'object' && departmentValue !== null && 'department' in departmentValue) {
+        departmentValue = departmentValue.department;
+      }
+      
       // Criar atendente primeiro
-      console.log(`Criando atendente com dados:`, JSON.stringify(officialData, null, 2));
-      const official = await storage.createOfficial(officialData);
+      const dataWithDepartment = {
+        ...officialData,
+        department: departmentValue // Adicionar campo department para compatibilidade
+      };
+      
+      console.log(`Criando atendente com dados:`, JSON.stringify(dataWithDepartment, null, 2));
+      const official = await storage.createOfficial(dataWithDepartment);
       console.log(`Atendente criado com sucesso: ID=${official.id}`);
       
       // Se foram enviados departamentos, adicionar os departamentos do atendente
@@ -527,7 +545,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "ID de atendente inválido" });
       }
 
-      const { departments, password, ...officialData } = req.body;
+      const { departments, password, department, ...officialData } = req.body;
+      
+      // Verificar se temos pelo menos um departamento
+      if (!departments || !Array.isArray(departments) || departments.length === 0) {
+        if (!department) { // Se nem department foi fornecido
+          return res.status(400).json({ message: "Pelo menos um departamento deve ser selecionado" });
+        }
+      }
+      
+      // Preparar o objeto de atualização, incluindo department para compatibilidade
+      let departmentValue = 'technical'; // Fallback para um departamento padrão
+      
+      // Se department foi fornecido diretamente, use-o
+      if (department) {
+        departmentValue = department;
+      }
+      // Caso contrário, use o primeiro departamento do array se disponível
+      else if (Array.isArray(departments) && departments.length > 0) {
+        if (typeof departments[0] === 'object' && departments[0] !== null && 'department' in departments[0]) {
+          departmentValue = departments[0].department;
+        } else {
+          departmentValue = departments[0];
+        }
+      }
+      
+      const updateData = {
+        ...officialData,
+        department: departmentValue // Adicionar department para compatibilidade com a tabela física
+      };
       
       // Se uma senha foi fornecida, criptografá-la antes de salvar
       if (password) {
@@ -548,7 +594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Atualizar dados básicos do atendente
-      const official = await storage.updateOfficial(id, officialData);
+      const official = await storage.updateOfficial(id, updateData);
       if (!official) {
         return res.status(404).json({ message: "Atendente não encontrado" });
       }
