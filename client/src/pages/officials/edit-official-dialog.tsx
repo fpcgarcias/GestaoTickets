@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Official } from '@shared/schema';
+import { Check, ChevronsUpDown } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface EditOfficialDialogProps {
   open: boolean;
@@ -22,11 +29,26 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    department: 'technical',
     isActive: true,
+    departments: [] as string[]
   });
 
   const [submitting, setSubmitting] = useState(false);
+  const [popoverOpen, setPopoverOpen] = useState(false);
+
+  // Carregar departamentos disponíveis
+  const { data: departmentsData } = useQuery({
+    queryKey: ["/api/settings/departments"],
+  });
+
+  // Departamentos disponíveis para seleção
+  const availableDepartments = [
+    { value: "technical", label: "Suporte Técnico" },
+    { value: "billing", label: "Faturamento" },
+    { value: "general", label: "Atendimento Geral" },
+    { value: "sales", label: "Vendas" },
+    { value: "other", label: "Outro" }
+  ];
 
   // Carregar dados do atendente quando o componente abrir
   useEffect(() => {
@@ -34,11 +56,39 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
       setFormData({
         name: official.name,
         email: official.email,
-        department: official.department,
         isActive: official.isActive,
+        // Se o oficial tiver um único departamento definido, convertemos para array
+        departments: official.departments 
+          ? Array.isArray(official.departments) 
+            ? official.departments as string[]
+            : [official.department] 
+          : []
       });
     }
   }, [official]);
+  
+  const toggleDepartment = (department: string) => {
+    setFormData(prev => {
+      if (prev.departments.includes(department)) {
+        return {
+          ...prev,
+          departments: prev.departments.filter(d => d !== department)
+        };
+      } else {
+        return {
+          ...prev,
+          departments: [...prev.departments, department]
+        };
+      }
+    });
+  };
+  
+  const removeDepartment = (department: string) => {
+    setFormData(prev => ({
+      ...prev,
+      departments: prev.departments.filter(d => d !== department)
+    }));
+  };
 
   const updateOfficialMutation = useMutation({
     mutationFn: async (data: any) => {
