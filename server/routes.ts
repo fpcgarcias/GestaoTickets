@@ -263,8 +263,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   router.post("/customers", authRequired, async (req: Request, res: Response) => {
     try {
-      const customer = await storage.createCustomer(req.body);
-      res.status(201).json(customer);
+      const { email, name } = req.body;
+      
+      // Verificar se já existe cliente ou usuário com este email
+      const existingCustomer = await storage.getCustomerByEmail(email);
+      if (existingCustomer) {
+        return res.status(400).json({ message: "Email já cadastrado para outro cliente" });
+      }
+      
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "Email já cadastrado para outro usuário" });
+      }
+      
+      // Criar nome de usuário a partir do email (parte antes do @)
+      const username = email.split('@')[0];
+      
+      // Gerar senha temporária (6 caracteres alfanuméricos)
+      const tempPassword = Math.random().toString(36).substring(2, 8);
+      
+      // Criptografar senha
+      const { hashPassword } = await import('./utils/password');
+      const hashedPassword = await hashPassword(tempPassword);
+      
+      // Criar usuário primeiro
+      const user = await storage.createUser({
+        username,
+        email,
+        password: hashedPassword,
+        name,
+        role: 'customer'
+      });
+      
+      // Criar cliente associado ao usuário
+      const customer = await storage.createCustomer({
+        ...req.body,
+        userId: user.id
+      });
+      
+      // Retornar o cliente com informações de acesso
+      res.status(201).json({
+        ...customer,
+        accessInfo: {
+          username,
+          temporaryPassword: tempPassword,
+          message: "Uma senha temporária foi gerada. Por favor, informe ao cliente para alterá-la no primeiro acesso."
+        }
+      });
     } catch (error) {
       console.error('Erro ao criar cliente:', error);
       res.status(500).json({ message: "Falha ao criar cliente", error: String(error) });
@@ -317,6 +362,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "ID de cliente inválido" });
       }
 
+      // Buscar cliente para verificar se há um usuário associado
+      const customer = await storage.getCustomer(id);
+      if (!customer) {
+        return res.status(404).json({ message: "Cliente não encontrado" });
+      }
+      
+      // Se há um usuário associado, excluí-lo também
+      if (customer.userId) {
+        await storage.deleteUser(customer.userId);
+      }
+
+      // Excluir o cliente
       const success = await storage.deleteCustomer(id);
       if (!success) {
         return res.status(404).json({ message: "Cliente não encontrado" });
