@@ -25,8 +25,9 @@ import { TICKET_STATUS, TICKET_TYPES } from '@/lib/utils';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ticket } from '@shared/schema';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { Ticket, Official } from '@shared/schema';
+import { Loader2 } from 'lucide-react';
 
 interface TicketReplyFormProps {
   ticket: Ticket;

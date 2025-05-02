@@ -154,10 +154,11 @@ export const insertTicketSchema = z.object({
 // Schema for inserting ticket replies
 export const insertTicketReplySchema = z.object({
   ticketId: z.number(),
-  message: z.string().min(1, "Reply message is required"),
+  message: z.string().min(1, "A mensagem é obrigatória"),
   status: z.enum(['new', 'ongoing', 'resolved']),
   type: z.string().optional(),
   isInternal: z.boolean().default(false),
+  assignedToId: z.number().optional(), // Campo opcional para atribuir o chamado a um atendente
 });
 
 // Types
