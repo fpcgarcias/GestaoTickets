@@ -799,6 +799,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Endpoint para criar usuário de suporte e atendente em uma única transação atômica
+  router.post("/support-users", adminRequired, async (req: Request, res: Response) => {
+    // Importar e chamar o endpoint de criação integrada
+    const { hashPassword } = await import('./utils/password');
+    const { createSupportUserEndpoint } = await import('./endpoints/create-support-user');
+    await createSupportUserEndpoint(req, res, storage, hashPassword);
+  });
+  
   // Endpoint para atualizar informações do usuário
   router.patch("/users/:id", adminRequired, async (req: Request, res: Response) => {
     try {
