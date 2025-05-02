@@ -64,11 +64,30 @@ function validateRequest(schema: z.ZodType<any, any>) {
   };
 }
 
+// Middleware para verificar se o usuário está autenticado
+function authRequired(req: Request, res: Response, next: Function) {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ message: "Não autenticado" });
+  }
+  next();
+}
+
+// Middleware para verificar se o usuário é admin
+function adminRequired(req: Request, res: Response, next: Function) {
+  if (!req.session || !req.session.userId || req.session.userRole !== 'admin') {
+    return res.status(403).json({ message: "Acesso negado" });
+  }
+  next();
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const router = express.Router();
+  
+  // Rotas públicas (sem autenticação) - Login, Logout, Registro
+  // Estas rotas não precisam de middleware de autenticação
 
-  // Tickets endpoints 
-  router.get("/tickets", async (req: Request, res: Response) => {
+  // Tickets endpoints - Todas as rotas abaixo dessa linha precisam de autenticação
+  router.get("/tickets", authRequired, async (req: Request, res: Response) => {
     try {
       const tickets = await storage.getTickets();
       res.json(tickets);
@@ -79,7 +98,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Stats and dashboard endpoints
   // Busca tickets com base no papel do usuário
-  router.get("/tickets/user-role", async (req: Request, res: Response) => {
+  router.get("/tickets/user-role", authRequired, async (req: Request, res: Response) => {
     try {
       // Verificar autenticação
       // Em uma aplicação real, verificaríamos a autenticação da sessão
@@ -101,7 +120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.get("/tickets/stats", async (_req: Request, res: Response) => {
+  router.get("/tickets/stats", authRequired, async (_req: Request, res: Response) => {
     try {
       const stats = await storage.getTicketStats();
       res.json(stats);
@@ -110,7 +129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  router.get("/tickets/recent", async (req: Request, res: Response) => {
+  router.get("/tickets/recent", authRequired, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
       const tickets = await storage.getRecentTickets(limit);
@@ -121,7 +140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Individual ticket by ID
-  router.get("/tickets/:id", async (req: Request, res: Response) => {
+  router.get("/tickets/:id", authRequired, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -140,7 +159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Ticket creation and responses
-  router.post("/tickets", validateRequest(insertTicketSchema), async (req: Request, res: Response) => {
+  router.post("/tickets", authRequired, validateRequest(insertTicketSchema), async (req: Request, res: Response) => {
     try {
       const ticket = await storage.createTicket(req.body);
       
@@ -154,7 +173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.post("/ticket-replies", validateRequest(insertTicketReplySchema), async (req: Request, res: Response) => {
+  router.post("/ticket-replies", authRequired, validateRequest(insertTicketReplySchema), async (req: Request, res: Response) => {
     try {
       const ticketId = req.body.ticketId;
       const userId = req.body.userId;
@@ -185,7 +204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Customer endpoints
-  router.get("/customers", async (req: Request, res: Response) => {
+  router.get("/customers", authRequired, async (req: Request, res: Response) => {
     try {
       const customers = await storage.getCustomers();
       res.json(customers);
@@ -194,7 +213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.post("/customers", async (req: Request, res: Response) => {
+  router.post("/customers", authRequired, async (req: Request, res: Response) => {
     try {
       const customer = await storage.createCustomer(req.body);
       res.status(201).json(customer);
@@ -204,7 +223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.patch("/customers/:id", async (req: Request, res: Response) => {
+  router.patch("/customers/:id", authRequired, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -223,7 +242,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.delete("/customers/:id", async (req: Request, res: Response) => {
+  router.delete("/customers/:id", authRequired, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -243,7 +262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Official endpoints
-  router.get("/officials", async (req: Request, res: Response) => {
+  router.get("/officials", authRequired, async (req: Request, res: Response) => {
     try {
       const officials = await storage.getOfficials();
       res.json(officials);
@@ -252,7 +271,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.post("/officials", async (req: Request, res: Response) => {
+  router.post("/officials", authRequired, async (req: Request, res: Response) => {
     try {
       const official = await storage.createOfficial(req.body);
       res.status(201).json(official);
@@ -262,7 +281,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.patch("/officials/:id", async (req: Request, res: Response) => {
+  router.patch("/officials/:id", authRequired, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -281,7 +300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.delete("/officials/:id", async (req: Request, res: Response) => {
+  router.delete("/officials/:id", authRequired, async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -348,7 +367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Endpoint para criar usuários
-  router.post("/users", async (req: Request, res: Response) => {
+  router.post("/users", adminRequired, async (req: Request, res: Response) => {
     try {
       const { username, email, password, name, role, avatarUrl } = req.body;
       
@@ -384,7 +403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Endpoint para obter o usuário atual (quando autenticado)
-  router.get("/auth/me", async (req: Request, res: Response) => {
+  router.get("/auth/me", authRequired, async (req: Request, res: Response) => {
     try {
       // Verificamos a sessão/autenticação
       if (!req.session || !req.session.userId) {
@@ -414,7 +433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Rotas para configurações do sistema
   // Configurações gerais
-  router.get("/settings/general", async (req: Request, res: Response) => {
+  router.get("/settings/general", adminRequired, async (req: Request, res: Response) => {
     try {
       // Buscar configurações do sistema
       const companyName = await getSystemSetting('companyName', 'Ticket Lead');
@@ -433,7 +452,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.post("/settings/general", async (req: Request, res: Response) => {
+  router.post("/settings/general", adminRequired, async (req: Request, res: Response) => {
     try {
       const { companyName, supportEmail, allowCustomerRegistration } = req.body;
       
@@ -454,7 +473,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Configurações de departamentos
-  router.get("/settings/departments", async (req: Request, res: Response) => {
+  router.get("/settings/departments", adminRequired, async (req: Request, res: Response) => {
     try {
       // Buscar configurações de departamentos
       const departmentsJson = await getSystemSetting('departments', '[]');
@@ -477,7 +496,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.post("/settings/departments", async (req: Request, res: Response) => {
+  router.post("/settings/departments", adminRequired, async (req: Request, res: Response) => {
     try {
       const departments = req.body;
       
@@ -497,7 +516,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Configurações de tipos de incidentes
-  router.get("/settings/incident-types", async (req: Request, res: Response) => {
+  router.get("/settings/incident-types", adminRequired, async (req: Request, res: Response) => {
     try {
       // Buscar configurações de tipos de incidentes
       const typesJson = await getSystemSetting('incidentTypes', '[]');
@@ -521,7 +540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.post("/settings/incident-types", async (req: Request, res: Response) => {
+  router.post("/settings/incident-types", adminRequired, async (req: Request, res: Response) => {
     try {
       const incidentTypes = req.body;
       
@@ -541,7 +560,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Endpoints para configurações de SLA
-  router.get("/settings/sla", async (_req: Request, res: Response) => {
+  router.get("/settings/sla", adminRequired, async (_req: Request, res: Response) => {
     try {
       // Buscar configurações de SLA do banco de dados
       const slaSettings = await db.select().from(schema.slaDefinitions);
@@ -564,7 +583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.post("/settings/sla", async (req: Request, res: Response) => {
+  router.post("/settings/sla", adminRequired, async (req: Request, res: Response) => {
     try {
       const slaData = req.body;
       const { priority, responseTimeHours, resolutionTimeHours } = slaData;
