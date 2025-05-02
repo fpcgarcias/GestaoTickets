@@ -107,7 +107,12 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
 
   const createSupportUserMutation = useMutation({
     mutationFn: async (userData: any) => {
+      console.log('Enviando dados para criar usuário de suporte:', JSON.stringify(userData, null, 2));
       const res = await apiRequest('POST', '/api/support-users', userData);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || errorData.error || 'Erro ao criar usuário e atendente');
+      }
       return res.json();
     },
     onSuccess: (data) => {
@@ -270,7 +275,8 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
                                 key={dept.value}
                                 value={dept.value}
                                 onSelect={() => {
-                                  // Não fazer nada no onSelect
+                                  // Selecionar departamento quando item for clicado
+                                  toggleDepartment(dept.value);
                                 }}
                               >
                                 <div className="flex items-center gap-2">

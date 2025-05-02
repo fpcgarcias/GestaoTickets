@@ -94,24 +94,48 @@ export async function createSupportUserEndpoint(
       }
 
       // Utilizar o primeiro departamento selecionado como departamento principal (para compatibilidade)
-      let defaultDepartment = 'technical'; // Fallback para garantir valor não-nulo
+      // Garantir que sempre tenhamos um valor default para o departamento
+      const defaultDepartments = ['technical', 'general', 'billing', 'sales', 'other'];
       
-      // Garantir que userDepartments seja sempre um array de strings
+      // Departamento padrão se não houver nenhum departamento válido
+      let defaultDepartment = defaultDepartments[0]; // Usando 'technical' como fallback seguro
+      
+      // Forçar conversão para array
       const departmentsArray = Array.isArray(userDepartments) ? userDepartments : [];
-      console.log(`Departamentos recebidos: ${JSON.stringify(departmentsArray)}`);
+      console.log(`Departamentos recebidos (original): ${JSON.stringify(userDepartments)}`);
+      console.log(`Departamentos como array: ${JSON.stringify(departmentsArray)}`);
       
-      if (departmentsArray.length > 0) {
-        // Se o valor for um objeto com propriedade 'department'
-        if (typeof departmentsArray[0] === 'object' && departmentsArray[0] !== null && 'department' in departmentsArray[0]) {
-          defaultDepartment = departmentsArray[0].department;
+      // Validar que há pelo menos um departamento
+      if (departmentsArray.length === 0) {
+        console.warn('Nenhum departamento foi fornecido! Usando departamento padrão:', defaultDepartment);
+      } else {
+        const firstDept = departmentsArray[0];
+        
+        // Processar com base no tipo
+        if (typeof firstDept === 'string' && firstDept.trim() !== '') {
+          // Verificar se é um valor válido
+          if (defaultDepartments.includes(firstDept)) {
+            defaultDepartment = firstDept;
+            console.log(`Usando departamento string válido: ${defaultDepartment}`);
+          } else {
+            console.warn(`Departamento inválido recebido: ${firstDept}, usando padrão: ${defaultDepartment}`);
+          }
         } 
-        // Se for uma string
-        else if (typeof departmentsArray[0] === 'string') {
-          defaultDepartment = departmentsArray[0];
+        // Se for um objeto, verificar a propriedade 'department'
+        else if (typeof firstDept === 'object' && firstDept !== null && 'department' in firstDept) {
+          const deptValue = firstDept.department;
+          if (typeof deptValue === 'string' && deptValue.trim() !== '' && defaultDepartments.includes(deptValue)) {
+            defaultDepartment = deptValue;
+            console.log(`Usando departamento de objeto válido: ${defaultDepartment}`);
+          } else {
+            console.warn(`Departamento de objeto inválido: ${deptValue}, usando padrão: ${defaultDepartment}`);
+          }
+        } else {
+          console.warn(`Tipo de departamento inesperado: ${typeof firstDept}, usando padrão: ${defaultDepartment}`);
         }
       }
       
-      console.log(`Departamento padrão selecionado: ${defaultDepartment}`);
+      console.log(`Departamento final escolhido: ${defaultDepartment}`);
       
       const officialData: any = {
         name,
