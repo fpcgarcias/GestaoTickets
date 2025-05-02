@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusDot, PriorityBadge } from './status-badge';
+import { SLAIndicator } from './sla-indicator';
 import { formatDate } from '@/lib/utils';
 import { Ticket } from '@shared/schema';
 
@@ -48,7 +49,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
           <div className="flex items-center">
             <Avatar className="w-7 h-7 mr-2">
               <AvatarImage src={customer.avatarUrl || ""} alt={customer.name} />
-              <AvatarFallback>{customer.name.charAt(0)}</AvatarFallback>
+              <AvatarFallback>{customer.name?.charAt(0) || "C"}</AvatarFallback>
             </Avatar>
             <span className="text-sm text-neutral-700">{customer.name}</span>
           </div>
@@ -60,6 +61,17 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
             <Link href={`/tickets/${id}`}>Abrir Chamado</Link>
           </Button>
         </div>
+        
+        {/* Status do SLA */}
+        {status !== 'resolved' && (
+          <div className="mt-3 pt-3 border-t border-neutral-100">
+            <SLAIndicator 
+              ticketCreatedAt={createdAt.toString()} 
+              ticketPriority={priority} 
+              ticketStatus={status} 
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   );

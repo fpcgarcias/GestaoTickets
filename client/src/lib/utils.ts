@@ -7,7 +7,11 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(date: Date | string | number): string {
   const d = new Date(date);
-  return d.toLocaleTimeString('pt-BR', {
+  return d.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }) + ' ' + d.toLocaleTimeString('pt-BR', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: false

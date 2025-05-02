@@ -90,6 +90,20 @@ export default function TicketsIndex() {
             const endDate = new Date(dateRange.to);
             endDate.setHours(23, 59, 59, 999); // Final do dia
             if (ticketDate > endDate) return false;
+            
+            // Verifica se o ticketDate é do mesmo dia do endDate
+            // Se sim, verificamos se o ticket foi criado depois do horário atual
+            const currentDate = new Date();
+            const isTicketSameDay = (
+              ticketDate.getDate() === currentDate.getDate() &&
+              ticketDate.getMonth() === currentDate.getMonth() &&
+              ticketDate.getFullYear() === currentDate.getFullYear()
+            );
+            
+            // Se for o mesmo dia, não considerar tickets criados depois do horário atual
+            if (isTicketSameDay && ticketDate.getTime() > currentDate.getTime()) {
+              return false;
+            }
           }
           break;
       }
