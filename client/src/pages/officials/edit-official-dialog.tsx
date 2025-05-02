@@ -23,6 +23,18 @@ interface EditOfficialDialogProps {
 }
 
 export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficialDialogProps) {
+  // Função wrapper para controlar o fechamento do diálogo e limpar estados
+  const handleOpenChange = (isOpen: boolean) => {
+    // Se estiver fechando o diálogo
+    if (!isOpen) {
+      // Limpar os estados de senha
+      setShowPasswordForm(false);
+      setPasswordData({ password: '', confirmPassword: '' });
+      setPasswordError('');
+    }
+    // Chamar o manipulador original
+    onOpenChange(isOpen);
+  };
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -106,7 +118,7 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
       setSubmitting(false);
-      onOpenChange(false);
+      handleOpenChange(false);
       toast({
         title: "Atendente atualizado",
         description: "As informações do atendente foram atualizadas com sucesso.",
@@ -161,7 +173,7 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Editar Atendente</DialogTitle>
@@ -348,7 +360,7 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
           </div>
           
           <DialogFooter>
-            <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" type="button" onClick={() => handleOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={submitting}>

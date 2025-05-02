@@ -19,6 +19,18 @@ export default function UsersIndex() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   
+  // Função para controlar a abertura/fechamento do diálogo de edição
+  const handleEditDialogOpenChange = (open: boolean) => {
+    // Se estiver fechando o diálogo, resetar formulário de senha
+    if (!open) {
+      setShowPasswordForm(false);
+      setPassword('');
+      setConfirmPassword('');
+      setPasswordError('');
+    }
+    setIsEditDialogOpen(open);
+  };
+  
   // Formulário para novo cliente
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -156,6 +168,15 @@ export default function UsersIndex() {
     setIsDeleteDialogOpen(true);
   };
 
+  // Função para alternar a exibição do formulário de senha
+  const togglePasswordForm = () => {
+    // Limpar os campos de senha e erros ao alternar
+    setPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setShowPasswordForm(!showPasswordForm);
+  };
+
   const submitEditCustomer = () => {
     if (!editName || !editEmail) {
       toast({
@@ -166,15 +187,43 @@ export default function UsersIndex() {
       return;
     }
 
-    updateCustomerMutation.mutate({
-      id: selectedCustomer.id,
-      customerData: {
-        name: editName,
-        email: editEmail,
-        phone: editPhone || undefined,
-        company: editCompany || undefined,
+    // Verificar se há senha para atualizar
+    if (showPasswordForm) {
+      // Verificar se as senhas correspondem
+      if (password !== confirmPassword) {
+        setPasswordError('As senhas não correspondem');
+        return;
       }
-    });
+      
+      // Verificar se a senha tem pelo menos 6 caracteres
+      if (password.length < 6) {
+        setPasswordError('A senha deve ter pelo menos 6 caracteres');
+        return;
+      }
+
+      // Adicionar senha aos dados a serem atualizados
+      updateCustomerMutation.mutate({
+        id: selectedCustomer.id,
+        customerData: {
+          name: editName,
+          email: editEmail,
+          phone: editPhone || undefined,
+          company: editCompany || undefined,
+          password: password
+        }
+      });
+    } else {
+      // Atualização normal sem senha
+      updateCustomerMutation.mutate({
+        id: selectedCustomer.id,
+        customerData: {
+          name: editName,
+          email: editEmail,
+          phone: editPhone || undefined,
+          company: editCompany || undefined,
+        }
+      });
+    }
   };
 
   const confirmDeleteCustomer = () => {
@@ -350,7 +399,7 @@ export default function UsersIndex() {
       </Dialog>
 
       {/* Dialog para editar cliente */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditDialogOpen} onOpenChange={handleEditDialogOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar Cliente</DialogTitle>
@@ -400,10 +449,56 @@ export default function UsersIndex() {
                 placeholder="Nome da empresa"
               />
             </div>
+
+            {/* Botão para exibir/ocultar formulário de senha */}
+            <div className="grid gap-2">
+              <Label htmlFor="change-password">Senha</Label>
+              <Button 
+                id="change-password"
+                type="button" 
+                variant="outline" 
+                onClick={togglePasswordForm}
+                className="w-full justify-start"
+              >
+                {showPasswordForm ? "Cancelar alteração de senha" : "Alterar senha"}
+              </Button>
+            </div>
+            
+            {/* Formulário de senha condicional */}
+            {showPasswordForm && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="password">Nova senha</Label>
+                  <Input 
+                    id="password" 
+                    type="password" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Digite a nova senha"
+                  />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="confirm-password">Confirmar senha</Label>
+                  <div className="space-y-2">
+                    <Input 
+                      id="confirm-password" 
+                      type="password" 
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Digite a senha novamente"
+                    />
+                    {passwordError && (
+                      <p className="text-sm text-red-500">{passwordError}</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => handleEditDialogOpenChange(false)}>Cancelar</Button>
             <Button 
               onClick={submitEditCustomer}
               disabled={updateCustomerMutation.isPending}
