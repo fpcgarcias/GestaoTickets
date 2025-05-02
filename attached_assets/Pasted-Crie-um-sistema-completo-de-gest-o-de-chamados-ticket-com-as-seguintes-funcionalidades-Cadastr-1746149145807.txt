@@ -1,0 +1,37 @@
+Crie um sistema completo de gestão de chamados (ticket) com as seguintes funcionalidades:
+
+Cadastro de clientes: pessoas que abrirão os chamados. Cada cliente deve ter nome, e-mail, telefone, e empresa (opcional).
+
+Cadastro de usuários internos (atendentes): nome, e-mail, área de atuação e status (ativo/inativo).
+
+Cadastro de áreas de atendimento: setores como TI, Financeiro, RH, etc., com a possibilidade de associar usuários a cada área.
+
+Cadastro de níveis de prioridade: baixa, média, alta e crítica, com possibilidade de customização.
+
+Registro e controle de SLA (Service Level Agreement): definir prazos máximos de atendimento por prioridade e área. O sistema deve alertar quando um chamado estiver perto ou ultrapassar o prazo.
+
+Abertura de chamados pelos clientes: incluir título, descrição, prioridade, e área relacionada.
+
+Acompanhamento de chamados: cada chamado deve ter histórico de interações (mensagens, alterações de status, etc.).
+
+Status dos chamados: aberto, em andamento, aguardando resposta, resolvido, fechado.
+
+Notificações por push (web): avisar clientes e atendentes sobre atualizações nos chamados (nova resposta, mudança de status, etc.).
+
+Dashboard para atendentes: com métricas como chamados por status, por prioridade, por área e por tempo de atendimento.
+
+Permissões de acesso: clientes veem apenas seus próprios chamados; atendentes acessam apenas as áreas às quais pertencem.
+
+Autenticação de usuários: com login e senha.
+
+Logs de atividade: registrar ações importantes como criação, edição, encerramento de chamados e alterações de SLA.
+
+Opcional, se possível:
+
+Integração com e-mail para criar chamados a partir de mensagens.
+
+Exportação de relatórios em Excel ou PDF.
+
+API REST para integração com outros sistemas.
+
+Desenvolva com código limpo, modular, escalável e com foco em segurança e boa experiência do usuário. Use um design simples e moderno, responsivo, com preferência por tecnologias amplamente suportadas no mercado atual.
