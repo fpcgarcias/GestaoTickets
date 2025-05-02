@@ -100,7 +100,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Stats and dashboard endpoints
-  router.get("/tickets/stats", async (req, res) => {
+  router.get("/tickets/stats", async (_req, res) => {
     try {
       const stats = await storage.getTicketStats();
       res.json(stats);
