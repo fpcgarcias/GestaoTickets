@@ -22,9 +22,7 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official }: Tog
   const toggleStatusMutation = useMutation({
     mutationFn: async () => {
       if (!official?.id) return;
-      const res = await apiRequest('PATCH', `/api/officials/${official.id}/toggle-status`, { 
-        isActive: !official.isActive 
-      });
+      const res = await apiRequest('PATCH', `/api/officials/${official.id}/toggle-active`, {});
       return res.json();
     },
     onSuccess: (data) => {
