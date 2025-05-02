@@ -323,7 +323,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Não enviamos a senha para o cliente
       const { password: _, ...userWithoutPassword } = user;
       
-      // Em uma aplicação real, configuraríamos sessão ou JWT aqui
+      // Criar ou atualizar a sessão do usuário
+      if (req.session) {
+        req.session.userId = user.id;
+        req.session.userRole = user.role;
+      }
+      
       res.json(userWithoutPassword);
     } catch (error) {
       console.error('Erro de login:', error);
@@ -375,12 +380,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Endpoint para obter o usuário atual (quando autenticado)
   router.get("/auth/me", async (req: Request, res: Response) => {
     try {
-      // Em uma aplicação real com sessões, obteríamos o usuário a partir da sessão
-      // Por enquanto, retornamos o admin para manter compatibilidade
-      const user = await storage.getUserByUsername("admin");
+      // Verificamos a sessão/autenticação
+      if (!req.session || !req.session.userId) {
+        return res.status(401).json({ message: "Não autenticado" });
+      }
+      
+      // Buscar o usuário pelo ID da sessão
+      const user = await storage.getUser(req.session.userId);
       
       if (!user) {
-        return res.status(401).json({ message: "Não autenticado" });
+        // Se o usuário não existir mais, limpamos a sessão
+        if (req.session) {
+          req.session.destroy(() => {});
+        }
+        return res.status(401).json({ message: "Usuário não encontrado" });
       }
       
       // Não enviamos a senha para o cliente
