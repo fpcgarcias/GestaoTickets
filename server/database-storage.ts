@@ -129,11 +129,11 @@ export class DatabaseStorage implements IStorage {
           .where(eq(customers.id, ticket.customerId));
         
         let official = undefined;
-        if (ticket.officialId) {
+        if (ticket.assignedToId) {
           [official] = await db
             .select()
             .from(officials)
-            .where(eq(officials.id, ticket.officialId));
+            .where(eq(officials.id, ticket.assignedToId));
         }
         
         const replies = await this.getTicketReplies(ticket.id);
@@ -160,11 +160,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(customers.id, ticket.customerId));
     
     let official = undefined;
-    if (ticket.officialId) {
+    if (ticket.assignedToId) {
       [official] = await db
         .select()
         .from(officials)
-        .where(eq(officials.id, ticket.officialId));
+        .where(eq(officials.id, ticket.assignedToId));
     }
     
     const replies = await this.getTicketReplies(ticket.id);
@@ -214,7 +214,7 @@ export class DatabaseStorage implements IStorage {
     const ticketsData = await db
       .select()
       .from(tickets)
-      .where(eq(tickets.officialId, officialId));
+      .where(eq(tickets.assignedToId, officialId));
     
     const enrichedTickets = await Promise.all(
       ticketsData.map(ticket => this.getTicket(ticket.id))
@@ -269,7 +269,9 @@ export class DatabaseStorage implements IStorage {
           id,
           currentTicket.status,
           ticketData.status,
-          ticketData.updatedById || currentTicket.updatedById
+          // Na versão atual, o usuário que fez a atualização não é salvo
+          // Seria necessário adicionar mais um campo no schema para isso
+          undefined
         );
       }
     }
