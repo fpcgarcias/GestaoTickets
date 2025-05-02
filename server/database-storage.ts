@@ -49,6 +49,28 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
 
+  async inactivateUser(id: number): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user || undefined;
+  }
+
+  async activateUser(id: number): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ active: true, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user || undefined;
+  }
+
+  async getActiveUsers(): Promise<User[]> {
+    return db.select().from(users).where(eq(users.active, true));
+  }
+
   // Customer operations
   async getCustomers(): Promise<Customer[]> {
     return db.select().from(customers);

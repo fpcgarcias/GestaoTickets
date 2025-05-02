@@ -74,22 +74,22 @@ app.use((req, res, next) => {
     log('Erro ao migrar departamentos: ' + error);
   }
   
-  // Executar migração de senhas
-  try {
-    log('Iniciando migração de senhas...');
-    await migratePasswords();
-    log('Migração de senhas concluída.');
-  } catch (error) {
-    log('Erro ao migrar senhas: ' + error);
-  }
-
-  // Executar migração do campo active
+  // Executar migração do campo active primeiro
   try {
     log('Iniciando migração do campo active...');
     await migrateActiveField();
     log('Migração do campo active concluída.');
   } catch (error) {
     log('Erro ao migrar campo active: ' + error);
+  }
+
+  // Executar migração de senhas depois
+  try {
+    log('Iniciando migração de senhas...');
+    await migratePasswords();
+    log('Migração de senhas concluída.');
+  } catch (error) {
+    log('Erro ao migrar senhas: ' + error);
   }
 
   const server = await registerRoutes(app);
