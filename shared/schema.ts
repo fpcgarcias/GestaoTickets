@@ -96,6 +96,15 @@ export const ticketStatusHistory = pgTable("ticket_status_history", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// System settings table
+export const systemSettings = pgTable("system_settings", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Schema for inserting users
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
