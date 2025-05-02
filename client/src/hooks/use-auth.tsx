@@ -27,22 +27,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, error: queryError } = useQuery({
     queryKey: ['/api/auth/me'],
-    enabled: false, // We'll manually trigger this
+    enabled: true, // Sempre habilitado para verificar o estado atual da autenticação
   });
 
-  useEffect(() => {
-    // Check if user is already logged in
-    refetch();
-  }, [refetch]);
+  // Removido o useEffect de refetch, pois a consulta já está enabled=true
 
   useEffect(() => {
     if (data) {
       setUser(data as User);
       setError(null);
+    } else if (queryError) {
+      // Se a consulta falhar, apenas log o erro, mas não configura o usuário
+      console.error('Erro ao verificar usuário:', queryError);
+      // Não definimos setUser(null) aqui para evitar loops de redirecionamento
     }
-  }, [data]);
+  }, [data, queryError]);
 
   const login = async (username: string, password: string) => {
     try {

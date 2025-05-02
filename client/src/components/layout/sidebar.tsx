@@ -37,10 +37,10 @@ const SidebarItem = ({ href, icon, label, isActive }: {
 export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navItems = [
     { href: "/", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
-    { href: "/users", icon: <Users size={20} />, label: "Users" },
     { href: "/tickets", icon: <TicketIcon size={20} />, label: "Tickets" },
-    { href: "/officials", icon: <UserCog size={20} />, label: "Officials" },
-    { href: "/settings", icon: <Settings size={20} />, label: "Site Settings" },
+    { href: "/users", icon: <Users size={20} />, label: "Clientes" },
+    { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes" },
+    { href: "/settings", icon: <Settings size={20} />, label: "Configurações" },
   ];
 
   return (
@@ -71,19 +71,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 md:hidden">
         <nav className="flex justify-around p-2">
           {navItems.map((item) => (
-            <Link key={item.href} href={item.href}>
-              <div className={cn(
+            <a 
+              key={item.href} 
+              href={item.href}
+              className={cn(
                 "flex flex-col items-center p-2 rounded-md",
                 (item.href === "/" 
                   ? currentPath === "/" 
                   : currentPath.startsWith(item.href))
                 ? "text-primary" 
                 : "text-neutral-700"
-              )}>
-                {item.icon}
-                <span className="text-xs mt-1">{item.label}</span>
-              </div>
-            </Link>
+              )}
+            >
+              {item.icon}
+              <span className="text-xs mt-1">{item.label}</span>
+            </a>
           ))}
         </nav>
       </div>
