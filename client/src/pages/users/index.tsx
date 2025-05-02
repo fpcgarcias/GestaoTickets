@@ -93,7 +93,7 @@ export default function UsersIndex() {
         title: "Cliente atualizado",
         description: "Cliente atualizado com sucesso.",
       });
-      setIsEditDialogOpen(false);
+      handleEditDialogOpenChange(false);
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
     },
     onError: (error) => {

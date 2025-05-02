@@ -23,10 +23,14 @@ export default function AuthPage() {
   // Formulário de registro
   const [registerData, setRegisterData] = useState({
     password: '',
+    confirmPassword: '',
     name: '',
     email: '',
     role: 'customer' as 'customer' | 'support' | 'admin'
   });
+  
+  // Estado para erros de senha
+  const [passwordError, setPasswordError] = useState('');
   
   // Se o usuário já estiver logado, redirecionar para a página inicial
   // Usamos useEffect para evitar erro de atualização durante renderização
@@ -56,6 +60,20 @@ export default function AuthPage() {
   
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPasswordError('');
+    
+    // Verificar se as senhas correspondem
+    if (registerData.password !== registerData.confirmPassword) {
+      setPasswordError('As senhas não correspondem');
+      return;
+    }
+    
+    // Verificar se a senha tem pelo menos 6 caracteres
+    if (registerData.password.length < 6) {
+      setPasswordError('A senha deve ter pelo menos 6 caracteres');
+      return;
+    }
+      
     try {
       // Configurar username como o email
       const userData = {
@@ -82,10 +100,14 @@ export default function AuthPage() {
       // Limpar o formulário
       setRegisterData({
         password: '',
+        confirmPassword: '',
         name: '',
         email: '',
         role: 'customer'
       });
+      
+      // Limpar erros de senha
+      setPasswordError('');
       
       // Mudar para o tab de login
       setActiveTab('login');
@@ -183,6 +205,21 @@ export default function AuthPage() {
                       onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
                       required
                     />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-confirm-password">Confirmar Senha</Label>
+                    <Input 
+                      id="reg-confirm-password" 
+                      type="password" 
+                      placeholder="Digite a senha novamente" 
+                      value={registerData.confirmPassword}
+                      onChange={(e) => setRegisterData({...registerData, confirmPassword: e.target.value})}
+                      required
+                    />
+                    {passwordError && (
+                      <p className="text-sm text-red-500">{passwordError}</p>
+                    )}
                   </div>
                 </CardContent>
                 <CardFooter>
