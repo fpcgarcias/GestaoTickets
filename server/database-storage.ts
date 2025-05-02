@@ -436,16 +436,31 @@ export class DatabaseStorage implements IStorage {
   async createTicketReply(replyData: InsertTicketReply): Promise<TicketReply> {
     const [reply] = await db.insert(ticketReplies).values(replyData).returning();
     
+    // Atualizações do ticket a serem feitas
+    const ticketUpdates: Partial<Ticket> = {};
+    
     // Se estamos atualizando o status do ticket junto com a resposta
     if (replyData.status) {
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, reply.ticketId));
       
       if (ticket && ticket.status !== replyData.status) {
-        await this.updateTicket(ticket.id, { 
-          status: replyData.status
-          // Não usamos updatedById pois não existe no schema
-        });
+        ticketUpdates.status = replyData.status;
+        
+        // Se o status estiver sendo alterado para 'resolved', marcamos a data de resolução
+        if (replyData.status === 'resolved') {
+          ticketUpdates.resolvedAt = new Date();
+        }
       }
+    }
+    
+    // Se estamos atribuindo o ticket a um atendente
+    if (replyData.assignedToId) {
+      ticketUpdates.assignedToId = replyData.assignedToId;
+    }
+    
+    // Aplicar as atualizações ao ticket se houver alguma
+    if (Object.keys(ticketUpdates).length > 0) {
+      await this.updateTicket(reply.ticketId, ticketUpdates);
     }
     
     // Se esta é a primeira resposta, atualizar firstResponseAt

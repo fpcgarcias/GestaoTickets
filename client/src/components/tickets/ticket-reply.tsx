@@ -37,6 +37,11 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
+  
+  // Buscar a lista de atendentes disponíveis
+  const { data: officials, isLoading: isLoadingOfficials } = useQuery<Official[]>({
+    queryKey: ["/api/officials"],
+  });
 
   const form = useForm<InsertTicketReply>({
     resolver: zodResolver(insertTicketReplySchema),
@@ -44,6 +49,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
       ticketId: ticket.id,
       message: '',
       status: ticket.status,
+      assignedToId: ticket.assignedToId || undefined,
     },
   });
 
@@ -138,6 +144,47 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                         <SelectItem value={TICKET_STATUS.NEW}>Novo</SelectItem>
                         <SelectItem value={TICKET_STATUS.ONGOING}>Em Andamento</SelectItem>
                         <SelectItem value={TICKET_STATUS.RESOLVED}>Resolvido</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            
+            <div className="grid grid-cols-1 gap-6">
+              <FormField
+                control={form.control}
+                name="assignedToId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Atendente Responsável</FormLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(parseInt(value))}
+                      defaultValue={field.value ? String(field.value) : undefined}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecionar Atendente" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {isLoadingOfficials && (
+                          <div className="flex items-center justify-center p-2">
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            <span>Carregando atendentes...</span>
+                          </div>
+                        )}
+                        {officials?.map((official) => (
+                          <SelectItem key={official.id} value={String(official.id)}>
+                            {official.name}
+                          </SelectItem>
+                        ))}
+                        {(!officials || officials.length === 0) && !isLoadingOfficials && (
+                          <div className="p-2 text-neutral-500 text-sm text-center">
+                            Nenhum atendente encontrado
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
