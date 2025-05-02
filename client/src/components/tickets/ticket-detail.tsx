@@ -5,6 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate, STATUS_COLORS } from '@/lib/utils';
 import { Ticket } from '@shared/schema';
 import { StatusDot } from './status-badge';
+import { Building } from 'lucide-react';
 
 interface TicketDetailProps {
   ticketId: number;

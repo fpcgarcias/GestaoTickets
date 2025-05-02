@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import { Button } from "@/components/ui/button";
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Calendar } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,6 +12,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { TicketCard } from '@/components/tickets/ticket-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,6 +32,11 @@ export default function TicketsIndex() {
   const [timeFilter, setTimeFilter] = useState('this-week');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ 
+    from: undefined, 
+    to: undefined 
+  });
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const { data: tickets, isLoading } = useQuery<Ticket[]>({
     queryKey: ['/api/tickets'],
@@ -67,7 +80,13 @@ export default function TicketsIndex() {
           if (ticketDate < monthStart) return false;
           break;
         case 'custom':
-          // Será implementado com um seletor de data personalizado
+          // Filtro personalizado com range de datas
+          if (dateRange.from && ticketDate < dateRange.from) return false;
+          if (dateRange.to) {
+            const endDate = new Date(dateRange.to);
+            endDate.setHours(23, 59, 59, 999); // Final do dia
+            if (ticketDate > endDate) return false;
+          }
           break;
       }
     }
@@ -97,20 +116,67 @@ export default function TicketsIndex() {
           />
         </div>
 
-        <Select
-          value={timeFilter}
-          onValueChange={setTimeFilter}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Período" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="this-week">Esta Semana</SelectItem>
-            <SelectItem value="last-week">Semana Passada</SelectItem>
-            <SelectItem value="this-month">Este Mês</SelectItem>
-            <SelectItem value="custom">Período Personalizado</SelectItem>
-          </SelectContent>
-        </Select>
+        {timeFilter === 'custom' ? (
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className="w-[280px] justify-start text-left font-normal"
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                {dateRange.from ? (
+                  dateRange.to ? (
+                    <>
+                      {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} {' - '} 
+                      {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
+                    </>
+                  ) : (
+                    format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
+                  )
+                ) : (
+                  <span>Período Personalizado</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <CalendarComponent
+                mode="range"
+                selected={{
+                  from: dateRange.from,
+                  to: dateRange.to
+                }}
+                onSelect={(range) => {
+                  setDateRange(range || { from: undefined, to: undefined });
+                  if (range?.from && range?.to) {
+                    setTimeout(() => setCalendarOpen(false), 500);
+                  }
+                }}
+                locale={ptBR}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <Select
+            value={timeFilter}
+            onValueChange={(value) => {
+              setTimeFilter(value);
+              if (value === 'custom') {
+                setTimeout(() => setCalendarOpen(true), 100);
+              }
+            }}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="this-week">Esta Semana</SelectItem>
+              <SelectItem value="last-week">Semana Passada</SelectItem>
+              <SelectItem value="this-month">Este Mês</SelectItem>
+              <SelectItem value="custom">Período Personalizado</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
 
         <Select
           value={priorityFilter}

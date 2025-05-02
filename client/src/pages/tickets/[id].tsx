@@ -22,10 +22,10 @@ export default function TicketDetailPage() {
         <Button variant="ghost" size="sm" asChild className="mr-4">
           <Link href="/tickets">
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to tickets
+            Voltar para chamados
           </Link>
         </Button>
-        <h1 className="text-2xl font-semibold text-neutral-900">Tickets</h1>
+        <h1 className="text-2xl font-semibold text-neutral-900">Chamados</h1>
       </div>
 
       {isLoading ? (
