@@ -9,10 +9,14 @@ import { formatDate } from '@/lib/utils';
 import { Link } from 'wouter';
 
 export const NotificationCenter: React.FC = () => {
-  const { notifications, connected } = useNotifications();
+  const { notifications, connected, unreadCount, markAllAsRead } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
 
   const toggleNotifications = () => {
+    // Se estamos abrindo o painel, marcar todas como lidas
+    if (!isOpen) {
+      markAllAsRead();
+    }
     setIsOpen((prev) => !prev);
   };
 
@@ -26,12 +30,12 @@ export const NotificationCenter: React.FC = () => {
         aria-label="Notificações"
       >
         <Bell className="h-5 w-5" />
-        {notifications.length > 0 && (
+        {unreadCount > 0 && (
           <Badge
             variant="destructive"
             className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center p-2 text-xs"
           >
-            {notifications.length > 9 ? '9+' : notifications.length}
+            {unreadCount > 9 ? '9+' : unreadCount}
           </Badge>
         )}
       </Button>

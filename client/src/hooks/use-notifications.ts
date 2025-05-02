@@ -18,6 +18,7 @@ export function useNotifications() {
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [notifications, setNotifications] = useState<NotificationPayload[]>([]);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   // Inicializar a conexão WebSocket
   useEffect(() => {
@@ -58,8 +59,10 @@ export function useNotifications() {
         // Adicionar à lista de notificações
         setNotifications((prev) => [notification, ...prev]);
         
-        // Mostrar toast apenas para notificações que não são do tipo welcome
+        // Incrementar a contagem de notificações não lidas para notificações não welcome
         if (notification.type !== 'welcome') {
+          setUnreadCount(count => count + 1);
+          
           let variant: 'default' | 'destructive' | null = 'default';
           
           // Determinar a variação do toast com base na prioridade
@@ -98,8 +101,15 @@ export function useNotifications() {
     };
   }, [isAuthenticated, user, toast]);
 
+  // Função para marcar todas as notificações como lidas
+  const markAllAsRead = () => {
+    setUnreadCount(0);
+  };
+
   return {
     connected,
     notifications,
+    unreadCount,
+    markAllAsRead,
   };
 }
