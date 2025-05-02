@@ -28,6 +28,7 @@ export interface IStorage {
   inactivateUser(id: number): Promise<User | undefined>;
   activateUser(id: number): Promise<User | undefined>;
   getActiveUsers(): Promise<User[]>;
+  getAllUsers(): Promise<User[]>;
   
   // Customer operations
   getCustomers(): Promise<Customer[]>;
@@ -129,6 +130,8 @@ export class MemStorage implements IStorage {
       email: 'admin@example.com',
       name: 'Admin User',
       role: 'admin',
+      avatarUrl: null,
+      active: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -142,6 +145,8 @@ export class MemStorage implements IStorage {
       email: 'support@example.com',
       name: 'Support User',
       role: 'support',
+      avatarUrl: null,
+      active: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -155,10 +160,27 @@ export class MemStorage implements IStorage {
       email: 'customer@example.com',
       name: 'John Snow',
       role: 'customer',
+      avatarUrl: null,
+      active: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    // Add a inactive user for testing
+    const inactiveUser: User = {
+      id: this.userId++,
+      username: 'inactive',
+      password: 'inactive',
+      email: 'inactive@example.com',
+      name: 'Inactive User',
+      role: 'customer',
+      avatarUrl: null,
+      active: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
     this.users.set(customerUser.id, customerUser);
+    this.users.set(inactiveUser.id, inactiveUser);
     
     // Add a customer record
     const customer: Customer = {
@@ -375,6 +397,10 @@ export class MemStorage implements IStorage {
 
   async getActiveUsers(): Promise<User[]> {
     return Array.from(this.users.values()).filter(user => user.active !== false);
+  }
+  
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
   }
 
   // Customer operations

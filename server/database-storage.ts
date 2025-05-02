@@ -70,6 +70,10 @@ export class DatabaseStorage implements IStorage {
   async getActiveUsers(): Promise<User[]> {
     return db.select().from(users).where(eq(users.active, true));
   }
+  
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users);
+  }
 
   // Customer operations
   async getCustomers(): Promise<Customer[]> {

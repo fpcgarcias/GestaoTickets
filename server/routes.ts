@@ -368,9 +368,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Cliente não encontrado" });
       }
       
-      // Armazenar o userId para exclusão posterior
+      // Armazenar o userId para inativação posterior
       const userId = customer.userId;
 
+      // Duas opções:
+      // 1. Se quisermos manter o cliente na base para referência histórica, podemos inativar
+      //    apenas o usuário associado, impedindo o login
+      // 2. Se quisermos remover completamente o cliente, fazemos como está comentado abaixo
+      
+      // Opção 1: Inativar apenas o usuário (manter cliente para referência histórica)
+      if (userId) {
+        const inactivatedUser = await storage.inactivateUser(userId);
+        if (!inactivatedUser) {
+          return res.status(404).json({ message: "Usuário do cliente não encontrado" });
+        }
+        res.json({ 
+          success: true, 
+          message: "Cliente inativado com sucesso",
+          inactive: true
+        });
+      } else {
+        // Se não há usuário associado, remover o cliente
+        const success = await storage.deleteCustomer(id);
+        if (!success) {
+          return res.status(404).json({ message: "Cliente não encontrado" });
+        }
+        res.json({ success: true, message: "Cliente removido com sucesso" });
+      }
+
+      /* 
+      // Opção 2: Excluir o cliente da base (remover completamente)
       // Excluir o cliente primeiro
       const success = await storage.deleteCustomer(id);
       if (!success) {
@@ -383,9 +410,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({ success: true });
+      */
     } catch (error) {
-      console.error('Erro ao excluir cliente:', error);
-      res.status(500).json({ message: "Falha ao excluir cliente", error: String(error) });
+      console.error('Erro ao excluir/inativar cliente:', error);
+      res.status(500).json({ message: "Falha ao excluir/inativar cliente", error: String(error) });
     }
   });
 
@@ -512,9 +540,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Atendente não encontrado" });
       }
       
-      // Armazenar o userId para exclusão posterior
+      // Armazenar o userId para inativação posterior
       const userId = official.userId;
 
+      // Duas opções:
+      // 1. Se quisermos manter o atendente na base para referência histórica, podemos inativar
+      //    apenas o usuário associado, impedindo o login
+      // 2. Se quisermos remover completamente o atendente, fazemos como está comentado abaixo
+      
+      // Opção 1: Inativar apenas o usuário (manter atendente para referência histórica)
+      if (userId) {
+        const inactivatedUser = await storage.inactivateUser(userId);
+        if (!inactivatedUser) {
+          return res.status(404).json({ message: "Usuário do atendente não encontrado" });
+        }
+        
+        // Também inativar o atendente na tabela de atendentes para consistência
+        await storage.updateOfficial(id, { isActive: false });
+        
+        res.json({ 
+          success: true, 
+          message: "Atendente inativado com sucesso",
+          inactive: true
+        });
+      } else {
+        // Se não há usuário associado, remover o atendente
+        const success = await storage.deleteOfficial(id);
+        if (!success) {
+          return res.status(404).json({ message: "Atendente não encontrado" });
+        }
+        res.json({ success: true, message: "Atendente removido com sucesso" });
+      }
+
+      /* 
+      // Opção 2: Excluir o atendente da base (remover completamente)
       // Excluir o atendente primeiro
       const success = await storage.deleteOfficial(id);
       if (!success) {
@@ -527,9 +586,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       res.json({ success: true });
+      */
     } catch (error) {
-      console.error('Erro ao excluir atendente:', error);
-      res.status(500).json({ message: "Falha ao excluir atendente", error: String(error) });
+      console.error('Erro ao excluir/inativar atendente:', error);
+      res.status(500).json({ message: "Falha ao excluir/inativar atendente", error: String(error) });
     }
   });
 
@@ -615,7 +675,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashedPassword,
         name,
         role,
-        avatarUrl
+        avatarUrl,
+        active: true // Garantir que novos usuários são criados como ativos por padrão
       });
       
       // Não retornar a senha
@@ -627,7 +688,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Falha ao criar usuário", error: String(error) });
     }
   });
+  
+  // Endpoint para gerenciar status de ativação de usuários
+  router.patch("/users/:id/toggle-active", adminRequired, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de usuário inválido" });
+      }
+      
+      // Buscar usuário atual para verificar seu status atual
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+      
+      // Impedir inativação da própria conta do administrador logado
+      if (user.id === req.session?.userId && user.active !== false) {
+        return res.status(403).json({ 
+          message: "Não é possível inativar sua própria conta de administrador",
+          type: "self-deactivation"
+        });
+      }
+      
+      // Alternar o status active do usuário
+      let updatedUser;
+      if (user.active === false) {
+        updatedUser = await storage.activateUser(id);
+      } else {
+        updatedUser = await storage.inactivateUser(id);
+      }
+      
+      if (!updatedUser) {
+        return res.status(500).json({ message: "Falha ao atualizar status do usuário" });
+      }
+      
+      // Não retornar a senha
+      const { password: _, ...userWithoutPassword } = updatedUser;
+      
+      res.json({
+        user: userWithoutPassword,
+        message: updatedUser.active ? "Usuário ativado com sucesso" : "Usuário inativado com sucesso"
+      });
+    } catch (error) {
+      console.error('Erro ao alternar status do usuário:', error);
+      res.status(500).json({ message: "Falha ao alternar status do usuário", error: String(error) });
+    }
+  });
 
+  // Endpoint para listar todos os usuários (apenas para administradores)
+  router.get("/users", adminRequired, async (req: Request, res: Response) => {
+    try {
+      // Verificar se queremos incluir usuários inativos
+      const includeInactive = req.query.includeInactive === 'true';
+      
+      // Buscar usuários
+      const users = includeInactive ? 
+        await storage.getAllUsers() : 
+        await storage.getActiveUsers();
+      
+      // Não retornar as senhas
+      const usersWithoutPasswords = users.map(user => {
+        const { password, ...userWithoutPassword } = user;
+        return userWithoutPassword;
+      });
+      
+      res.json(usersWithoutPasswords);
+    } catch (error) {
+      console.error('Erro ao listar usuários:', error);
+      res.status(500).json({ message: "Falha ao listar usuários", error: String(error) });
+    }
+  });
+  
   // Endpoint para obter o usuário atual (quando autenticado)
   router.get("/auth/me", authRequired, async (req: Request, res: Response) => {
     try {
