@@ -14,6 +14,31 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Inicializar serviço de notificações 
+const notificationService = {
+  initialize: () => {
+    console.log('Serviço de notificações inicializado');
+    
+    // Verificar se há usuários órfãos no sistema
+    setTimeout(async () => {
+      try {
+        const { findOrphanSupportUsers } = await import('./clean-orphan-users');
+        const orphanUsers = await findOrphanSupportUsers();
+        
+        if (orphanUsers.length > 0) {
+          console.log(`Aviso: Foram encontrados ${orphanUsers.length} usuários de suporte sem registro de atendente.`);
+          console.log('Para corrigir, execute a função fixAllOrphanSupportUsers() do módulo clean-orphan-users.');
+        }
+      } catch (error) {
+        console.error('Erro ao verificar usuários órfãos:', error);
+      }
+    }, 5000); // Aguardar 5 segundos para não atrapalhar a inicialização
+  }
+};
+
+// Inicializar serviço
+notificationService.initialize();
+
 // Configurar a sessão
 app.use(session({
   secret: process.env.SESSION_SECRET || generateSecret(),
