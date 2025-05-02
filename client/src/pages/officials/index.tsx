@@ -24,7 +24,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddOfficialDialog } from './add-official-dialog';
 import { EditOfficialDialog } from './edit-official-dialog';
-import { DeleteOfficialDialog } from './delete-official-dialog';
+import { ToggleStatusOfficialDialog } from './toggle-status-official-dialog';
 import { Official } from '@shared/schema';
 
 export default function OfficialsIndex() {
@@ -79,7 +79,7 @@ export default function OfficialsIndex() {
         official={selectedOfficial}
       />
       
-      <DeleteOfficialDialog
+      <ToggleStatusOfficialDialog
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
         official={selectedOfficial}
