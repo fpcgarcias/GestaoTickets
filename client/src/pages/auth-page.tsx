@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,6 @@ export default function AuthPage() {
   
   // Formulário de registro
   const [registerData, setRegisterData] = useState({
-    username: '',
     password: '',
     name: '',
     email: '',
@@ -30,10 +29,12 @@ export default function AuthPage() {
   });
   
   // Se o usuário já estiver logado, redirecionar para a página inicial
-  if (user) {
-    setLocation('/');
-    return null;
-  }
+  // Usamos useEffect para evitar erro de atualização durante renderização
+  useEffect(() => {
+    if (user) {
+      setLocation('/');
+    }
+  }, [user, setLocation]);
   
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,11 +57,17 @@ export default function AuthPage() {
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Configurar username como o email
+      const userData = {
+        ...registerData,
+        username: registerData.email
+      };
+      
       // Fazer chamada API para registrar usuário
       const response = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(registerData)
+        body: JSON.stringify(userData)
       });
       
       if (!response.ok) {
@@ -74,7 +81,6 @@ export default function AuthPage() {
       
       // Limpar o formulário
       setRegisterData({
-        username: '',
         password: '',
         name: '',
         email: '',
@@ -166,17 +172,7 @@ export default function AuthPage() {
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-username">Nome de Usuário</Label>
-                    <Input 
-                      id="reg-username" 
-                      type="text" 
-                      placeholder="Escolha um nome de usuário" 
-                      value={registerData.username}
-                      onChange={(e) => setRegisterData({...registerData, username: e.target.value})}
-                      required
-                    />
-                  </div>
+                  {/* Campo de nome de usuário removido, o email será usado como username */}
                   <div className="space-y-2">
                     <Label htmlFor="reg-password">Senha</Label>
                     <Input 
