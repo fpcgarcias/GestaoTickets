@@ -42,7 +42,7 @@ function AppContent() {
   
   // Atualizar o título do documento quando o nome da empresa for carregado
   useEffect(() => {
-    document.title = `${companyName} - Sistema de Gestão de Chamados`;
+    document.title = `Vix Brasil - Sistema de Gestão de Chamados`;
   }, [companyName]);
   
   return (
