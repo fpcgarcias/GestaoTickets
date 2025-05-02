@@ -17,11 +17,39 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddOfficialDialog } from './add-official-dialog';
+import { EditOfficialDialog } from './edit-official-dialog';
+import { DeleteOfficialDialog } from './delete-official-dialog';
+import { Official } from '@shared/schema';
 
 export default function OfficialsIndex() {
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [selectedOfficial, setSelectedOfficial] = useState<Official | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  
   const { data: officials, isLoading } = useQuery({
     queryKey: ['/api/officials'],
+  });
+  
+  const handleEditOfficial = (official: Official) => {
+    setSelectedOfficial(official);
+    setShowEditDialog(true);
+  };
+  
+  const handleDeleteOfficial = (official: Official) => {
+    setSelectedOfficial(official);
+    setShowDeleteDialog(true);
+  };
+  
+  // Filtrar os atendentes com base na busca
+  const filteredOfficials = officials?.filter(official => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      official.name.toLowerCase().includes(query) ||
+      official.email.toLowerCase().includes(query)
+    );
   });
 
   return (
@@ -38,6 +66,18 @@ export default function OfficialsIndex() {
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
       />
+      
+      <EditOfficialDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        official={selectedOfficial}
+      />
+      
+      <DeleteOfficialDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        official={selectedOfficial}
+      />
 
       <Card>
         <CardHeader>
@@ -48,7 +88,12 @@ export default function OfficialsIndex() {
           <div className="flex justify-between mb-6">
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
-              <Input placeholder="Pesquisar atendentes" className="pl-10" />
+              <Input 
+                placeholder="Pesquisar atendentes" 
+                className="pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
           </div>
 
@@ -76,8 +121,8 @@ export default function OfficialsIndex() {
                       <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                     </TableRow>
                   ))
-                ) : officials && officials.length > 0 ? (
-                  officials.map((official) => (
+                ) : filteredOfficials && filteredOfficials.length > 0 ? (
+                  filteredOfficials.map((official) => (
                     <TableRow key={official.id}>
                       <TableCell className="font-medium">{official.name}</TableCell>
                       <TableCell>{official.email}</TableCell>
@@ -109,10 +154,20 @@ export default function OfficialsIndex() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <Button variant="outline" size="icon" className="h-8 w-8">
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => handleEditOfficial(official)}
+                          >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="outline" size="icon" className="h-8 w-8">
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => handleDeleteOfficial(official)}
+                          >
                             <Trash className="h-4 w-4" />
                           </Button>
                         </div>
