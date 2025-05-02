@@ -244,16 +244,32 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
                             {availableDepartments.map((dept) => (
                               <CommandItem
                                 key={dept.value}
+                                value={dept.value}
                                 onSelect={() => {
-                                  toggleDepartment(dept.value);
-                                  setPopoverOpen(false);
+                                  // Não fazer nada no onSelect
                                 }}
                               >
-                                <Checkbox
-                                  checked={formData.departments.includes(dept.value)}
-                                  className="mr-2"
-                                />
-                                {dept.label}
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleDepartment(dept.value);
+                                    }}
+                                  >
+                                    <Checkbox 
+                                      checked={formData.departments.includes(dept.value)}
+                                      className="mr-2"
+                                    />
+                                  </div>
+                                  <span 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleDepartment(dept.value);
+                                    }}
+                                  >
+                                    {dept.label}
+                                  </span>
+                                </div>
                               </CommandItem>
                             ))}
                           </CommandGroup>

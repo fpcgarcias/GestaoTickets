@@ -199,16 +199,28 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
                             key={dept.value}
                             value={dept.value}
                             onSelect={() => {
-                              toggleDepartment(dept.value);
-                              setPopoverOpen(false);
+                              // Não fazer nada no onSelect
                             }}
                           >
                             <div className="flex items-center gap-2">
-                              <Checkbox 
-                                checked={formData.departments.includes(dept.value)}
-                                onCheckedChange={() => toggleDepartment(dept.value)}
-                              />
-                              <span>{dept.label}</span>
+                              <div
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleDepartment(dept.value);
+                                }}
+                              >
+                                <Checkbox 
+                                  checked={formData.departments.includes(dept.value)}
+                                />
+                              </div>
+                              <span 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleDepartment(dept.value);
+                                }}
+                              >
+                                {dept.label}
+                              </span>
                             </div>
                           </CommandItem>
                         ))}
