@@ -16,11 +16,13 @@ import { NotificationCenter } from "@/components/layout/notification-center";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useSystemSettings } from "@/hooks/use-system-settings";
 
 export const Header: React.FC = () => {
   const [location, setLocation] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { toast } = useToast();
+  const { companyName } = useSystemSettings();
 
   const { user, logout } = useAuth();
   
@@ -91,7 +93,7 @@ export const Header: React.FC = () => {
           </SheetTrigger>
           <SheetContent side="left" className="p-0">
             <div className="p-6 border-b border-neutral-200">
-              <h1 className="text-xl font-semibold text-neutral-900">TICKET LEAD</h1>
+              <h1 className="text-xl font-semibold text-neutral-900">{companyName}</h1>
             </div>
             <nav className="p-4">
               <a href="/" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location === "/" ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
