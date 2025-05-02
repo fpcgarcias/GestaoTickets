@@ -24,7 +24,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AddOfficialDialog } from './add-official-dialog';
 import { EditOfficialDialog } from './edit-official-dialog';
-import { ToggleStatusOfficialDialog } from './toggle-status-official-dialog';
+import { ToggleStatusOfficialDialog } from '@/pages/officials/toggle-status-official-dialog';
 import { Official } from '@shared/schema';
 
 export default function OfficialsIndex() {

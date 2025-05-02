@@ -89,12 +89,29 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
   
   const toggleDepartment = (department: string) => {
     setFormData(prev => {
-      if (prev.departments.includes(department)) {
+      // Verificar se o departamento já existe na lista
+      const exists = prev.departments.some(d => {
+        // Se for um objeto com propriedade 'department'
+        if (typeof d === 'object' && d !== null && 'department' in d) {
+          return d.department === department;
+        }
+        // Se for uma string
+        return d === department;
+      });
+      
+      if (exists) {
+        // Filtrar o departamento (tanto se for string quanto objeto)
         return {
           ...prev,
-          departments: prev.departments.filter(d => d !== department)
+          departments: prev.departments.filter(d => {
+            if (typeof d === 'object' && d !== null && 'department' in d) {
+              return d.department !== department;
+            }
+            return d !== department;
+          })
         };
       } else {
+        // Adicionar o novo departamento como string
         return {
           ...prev,
           departments: [...prev.departments, department]
@@ -106,7 +123,14 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
   const removeDepartment = (department: string) => {
     setFormData(prev => ({
       ...prev,
-      departments: prev.departments.filter(d => d !== department)
+      departments: prev.departments.filter(d => {
+        // Se for um objeto com propriedade 'department'
+        if (typeof d === 'object' && d !== null && 'department' in d) {
+          return d.department !== department;
+        }
+        // Se for uma string
+        return d !== department;
+      })
     }));
   };
 
@@ -215,15 +239,20 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
               <div className="col-span-3 space-y-4">
                 {/* Exibir departamentos selecionados */}
                 <div className="flex flex-wrap gap-2">
-                  {/* Remover departamentos duplicados e exibi-los */}
-                  {[...new Set(formData.departments)].map(dept => {
-                    const deptInfo = availableDepartments.find(d => d.value === dept);
+                  {/* Exibir departamentos */}
+                  {formData.departments.map((dept, index) => {
+                    // Normalizamos o valor do departamento
+                    const departmentValue = typeof dept === 'object' && dept !== null && 'department' in dept
+                      ? dept.department
+                      : dept;
+                      
+                    const deptInfo = availableDepartments.find(d => d.value === departmentValue);
                     return (
-                      <Badge key={dept} variant="secondary" className="px-3 py-1">
-                        {deptInfo?.label || dept}
+                      <Badge key={index} variant="secondary" className="px-3 py-1">
+                        {deptInfo?.label || departmentValue}
                         <X 
                           className="ml-2 h-3 w-3 cursor-pointer" 
-                          onClick={() => removeDepartment(dept)}
+                          onClick={() => removeDepartment(departmentValue)}
                         />
                       </Badge>
                     );
@@ -263,7 +292,14 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
                                 }}
                               >
                                 <Checkbox 
-                                  checked={formData.departments.includes(dept.value)}
+                                  checked={formData.departments.some(d => {
+                                    // Se for um objeto com propriedade 'department'
+                                    if (typeof d === 'object' && d !== null && 'department' in d) {
+                                      return d.department === dept.value;
+                                    }
+                                    // Se for uma string
+                                    return d === dept.value;
+                                  })}
                                 />
                               </div>
                               <span 
