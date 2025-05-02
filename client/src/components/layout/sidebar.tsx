@@ -44,7 +44,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navItems = [
     { href: "/", icon: <LayoutDashboard size={20} />, label: "Painel de Controle", roles: ['admin', 'support', 'customer'] },
     { href: "/tickets", icon: <TicketIcon size={20} />, label: "Chamados", roles: ['admin', 'support', 'customer'] },
-    { href: "/users", icon: <Users size={20} />, label: "Clientes", roles: ['admin', 'support'] },
+    { href: "/clients", icon: <Users size={20} />, label: "Clientes", roles: ['admin', 'support'] },
+    { href: "/users", icon: <Users size={20} />, label: "Usuários", roles: ['admin'] },
     { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes", roles: ['admin'] },
     { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin'] },
   ];

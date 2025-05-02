@@ -11,6 +11,7 @@ import NewTicket from "@/pages/tickets/new";
 import TicketDetail from "@/pages/tickets/[id]";
 import UsersIndex from "@/pages/users/index";
 import OfficialsIndex from "@/pages/officials/index";
+import ClientsIndex from "@/pages/clients/index";
 import Settings from "@/pages/settings";
 import AuthPage from "@/pages/auth-page";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -80,6 +81,12 @@ function AppContent() {
       <ProtectedRoute path="/officials" component={() => (
         <MainLayout>
           <OfficialsIndex />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/clients" component={() => (
+        <MainLayout>
+          <ClientsIndex />
         </MainLayout>
       )} />
       

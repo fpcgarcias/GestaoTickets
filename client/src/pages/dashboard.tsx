@@ -18,6 +18,7 @@ import {
 } from 'recharts';
 
 export default function Dashboard() {
+  // Utilizamos as rotas que já filtram tickets baseados no papel do usuário
   const { data: ticketStats, isLoading: isStatsLoading } = useQuery({
     queryKey: ['/api/tickets/stats'],
   });
