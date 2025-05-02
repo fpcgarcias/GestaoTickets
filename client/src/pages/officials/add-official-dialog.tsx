@@ -105,22 +105,30 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
     }
   });
 
-  const createUserMutation = useMutation({
+  const createSupportUserMutation = useMutation({
     mutationFn: async (userData: any) => {
-      const res = await apiRequest('POST', '/api/users', userData);
+      const res = await apiRequest('POST', '/api/support-users', userData);
       return res.json();
     },
     onSuccess: (data) => {
-      // Após criar o usuário, criar o atendente
-      createOfficialMutation.mutate({
-        ...formData,
-        userId: data.id
+      setSubmitting(false);
+      
+      // Mostrar mensagem de sucesso e senha gerada
+      toast({
+        title: "Atendente criado com sucesso",
+        description: `Senha para primeiro acesso: ${generatedPassword}`,
+        variant: "default",
+        duration: 10000, // 10 segundos para copiar a senha
       });
+      
+      // Fechar o diálogo e resetar o formulário
+      handleCloseDialog();
+      onCreated && onCreated(data.official);
     },
     onError: (error) => {
       setSubmitting(false);
       toast({
-        title: "Erro ao criar usuário",
+        title: "Erro ao criar atendente",
         description: error.message,
         variant: "destructive",
       });
@@ -135,14 +143,15 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
     const password = generateRandomPassword();
     setGeneratedPassword(password);
     
-    // Create user first
-    createUserMutation.mutate({
+    // Criar o usuário e atendente em uma única operação
+    createSupportUserMutation.mutate({
       username: formData.email,
       email: formData.email,
       name: formData.name,
       password: password,
-      role: 'support',
-      avatarUrl: null
+      userDepartments: formData.departments,
+      avatarUrl: null,
+      isActive: true
     });
   };
 

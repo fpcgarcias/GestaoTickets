@@ -23,7 +23,7 @@ export async function createSupportUserEndpoint(
       email, 
       password, 
       name, 
-      departments = [],
+      userDepartments = [],
       avatarUrl = null,
       isActive = true
     } = req.body;
@@ -102,10 +102,10 @@ export async function createSupportUserEndpoint(
       console.log(`Atendente criado com ID: ${official.id}`);
       
       // 3. Adicionar departamentos ao atendente
-      if (departments && Array.isArray(departments) && departments.length > 0) {
-        console.log(`Adicionando ${departments.length} departamentos ao atendente ID: ${official.id}`);
+      if (userDepartments && Array.isArray(userDepartments) && userDepartments.length > 0) {
+        console.log(`Adicionando ${userDepartments.length} departamentos ao atendente ID: ${official.id}`);
         
-        for (const department of departments) {
+        for (const department of userDepartments) {
           await storage.addOfficialDepartment({
             officialId: official.id,
             department,
@@ -115,11 +115,11 @@ export async function createSupportUserEndpoint(
         }
       }
       
-      return { user, official, departments };
+      return { user, official, userDepartments };
     });
     
     // Remover a senha do resultado
-    const { user, official, departments } = result;
+    const { user, official, userDepartments: departments } = result;
     const { password: _, ...userWithoutPassword } = user;
     
     // Retornar o resultado completo
@@ -128,7 +128,7 @@ export async function createSupportUserEndpoint(
       user: userWithoutPassword,
       official: {
         ...official,
-        departments
+        departments: departments
       }
     });
   } catch (error: any) {

@@ -23,14 +23,14 @@ export async function withTransaction<T>(callback: () => Promise<T>): Promise<T>
     const result = await callback();
     
     // Confirmar a transação se tudo correu bem
-    await db.execute(SQL`COMMIT`);
+    await db.execute(sql`COMMIT`);
     console.log('Transação confirmada com sucesso');
     
     return result;
   } catch (error) {
     // Reverter a transação em caso de erro
     try {
-      await db.execute(SQL`ROLLBACK`);
+      await db.execute(sql`ROLLBACK`);
       console.log('Transação revertida devido a erro:', error);
     } catch (rollbackError) {
       console.error('Erro ao reverter transação:', rollbackError);
