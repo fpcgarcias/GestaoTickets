@@ -309,9 +309,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.get("/officials", authRequired, async (req: Request, res: Response) => {
     try {
       const officials = await storage.getOfficials();
-      res.json(officials);
+      
+      // Buscar os departamentos para cada atendente
+      const officialsWithDepartments = await Promise.all(officials.map(async (official) => {
+        const officialDepartments = await storage.getOfficialDepartments(official.id);
+        const departments = officialDepartments.map(od => od.department);
+        return {
+          ...official,
+          departments
+        };
+      }));
+      
+      res.json(officialsWithDepartments);
     } catch (error) {
-      res.status(500).json({ message: "Falha ao buscar atendentes" });
+      console.error('Erro ao buscar atendentes:', error);
+      res.status(500).json({ message: "Falha ao buscar atendentes", error: String(error) });
     }
   });
   
