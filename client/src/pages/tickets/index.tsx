@@ -52,10 +52,10 @@ export default function TicketsIndex() {
   return (
     <div className="mb-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Tickets</h1>
+        <h1 className="text-2xl font-semibold text-neutral-900">Chamados</h1>
         <Button onClick={() => navigate('/tickets/new')}>
           <Plus className="mr-2 h-4 w-4" />
-          New Ticket
+          Novo Chamado
         </Button>
       </div>
 
@@ -64,7 +64,7 @@ export default function TicketsIndex() {
         <div className="relative w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
           <Input 
-            placeholder="Search for ticket" 
+            placeholder="Buscar chamado" 
             className="pl-10"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -112,16 +112,16 @@ export default function TicketsIndex() {
       >
         <TabsList className="border-b border-neutral-200 w-full justify-start rounded-none bg-transparent">
           <TabsTrigger value="all" className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            All Tickets
+            Todos os Chamados
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.NEW} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            New
+            Novos
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.ONGOING} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            On-Going
+            Em Andamento
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.RESOLVED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            Resolved
+            Resolvidos
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -131,15 +131,15 @@ export default function TicketsIndex() {
         <div className="flex flex-wrap gap-4">
           <div className="flex items-center">
             <div className="w-3 h-3 rounded-full bg-status-new mr-2"></div>
-            <span className="text-sm text-neutral-700">New Tickets</span>
+            <span className="text-sm text-neutral-700">Chamados Novos</span>
           </div>
           <div className="flex items-center">
             <div className="w-3 h-3 rounded-full bg-status-ongoing mr-2"></div>
-            <span className="text-sm text-neutral-700">On-Going Tickets</span>
+            <span className="text-sm text-neutral-700">Chamados em Andamento</span>
           </div>
           <div className="flex items-center">
             <div className="w-3 h-3 rounded-full bg-status-resolved mr-2"></div>
-            <span className="text-sm text-neutral-700">Resolved Tickets</span>
+            <span className="text-sm text-neutral-700">Chamados Resolvidos</span>
           </div>
         </div>
       </div>
@@ -167,13 +167,13 @@ export default function TicketsIndex() {
           ))
         ) : (
           <div className="bg-white rounded-md border border-neutral-200 p-8 text-center">
-            <h3 className="text-lg font-medium text-neutral-700 mb-2">No tickets found</h3>
+            <h3 className="text-lg font-medium text-neutral-700 mb-2">Nenhum chamado encontrado</h3>
             <p className="text-neutral-500 mb-4">
-              {searchQuery ? 'Try adjusting your search terms' : 'Create your first ticket to get started'}
+              {searchQuery ? 'Tente ajustar seus termos de busca' : 'Crie seu primeiro chamado para começar'}
             </p>
             {!searchQuery && (
               <Button asChild>
-                <Link href="/tickets/new">Create Ticket</Link>
+                <Link href="/tickets/new">Criar Chamado</Link>
               </Button>
             )}
           </div>
@@ -184,10 +184,10 @@ export default function TicketsIndex() {
       {filteredTickets && filteredTickets.length > 0 && (
         <div className="flex justify-end mt-6">
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" disabled>Previous</Button>
+            <Button variant="outline" size="sm" disabled>Anterior</Button>
             <Button variant="outline" size="sm" className="bg-primary text-white hover:bg-primary/90">1</Button>
             <Button variant="outline" size="sm">2</Button>
-            <Button variant="outline" size="sm">Next</Button>
+            <Button variant="outline" size="sm">Próxima</Button>
           </div>
         </div>
       )}
