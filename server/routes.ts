@@ -148,17 +148,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Busca tickets com base no papel do usuário
   router.get("/tickets/user-role", authRequired, async (req: Request, res: Response) => {
     try {
-      // Verificar autenticação
-      // Em uma aplicação real, verificaríamos a autenticação da sessão
-      // Como ainda não temos sessão completa, vamos simular com o usuário "admin"
-      const user = await storage.getUserByUsername("admin");
+      // Obter o ID do usuário da sessão
+      const userId = req.session.userId;
+      const userRole = req.session.userRole;
       
-      if (!user) {
+      if (!userId || !userRole) {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
-      
-      const userId = user.id;
-      const userRole = user.role;
       
       const tickets = await storage.getTicketsByUserRole(userId, userRole);
       res.json(tickets);
@@ -423,7 +419,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const officials = await storage.getOfficials();
       
       // Buscar os departamentos para cada atendente
+      // Aqui estamos evitando a duplicação de departamentos, verificando se o atendente já tem os departamentos
       const officialsWithDepartments = await Promise.all(officials.map(async (official) => {
+        // Se o atendente já tem departamentos, reutilizamos
+        if (official.departments && Array.isArray(official.departments) && official.departments.length > 0) {
+          return official;
+        }
+        
+        // Caso contrário, buscamos os departamentos
         const officialDepartments = await storage.getOfficialDepartments(official.id);
         const departments = officialDepartments.map(od => od.department);
         return {

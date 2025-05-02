@@ -205,28 +205,47 @@ export class DatabaseStorage implements IStorage {
   
   // Filtrar tickets baseado no perfil do usuário
   async getTicketsByUserRole(userId: number, userRole: string): Promise<Ticket[]> {
+    console.log(`Buscando tickets para usuário ID ${userId} com papel ${userRole}`);
+    
     // Buscar informações do usuário
     const [user] = await db.select().from(users).where(eq(users.id, userId));
-    if (!user) return [];
+    if (!user) {
+      console.log('Usuário não encontrado');
+      return [];
+    }
     
     // Comportamento baseado no papel do usuário
     if (userRole === 'admin') {
+      console.log('Papel: admin - retornando todos os tickets');
       // Administradores veem todos os tickets
       return this.getTickets();
     } else if (userRole === 'customer') {
+      console.log('Papel: customer - buscando tickets do cliente');
       // Clientes veem apenas seus próprios tickets
       const [customer] = await db.select().from(customers).where(eq(customers.userId, userId));
-      if (!customer) return [];
+      if (!customer) {
+        console.log(`Não foi encontrado nenhum cliente para o usuário ID ${userId}`);
+        return [];
+      }
       
+      console.log(`Cliente encontrado: ID ${customer.id}`);
       return this.getTicketsByCustomerId(customer.id);
     } else if (userRole === 'support') {
+      console.log('Papel: support - buscando tickets do atendente');
       // Atendentes veem tickets de seus departamentos
       const [official] = await db.select().from(officials).where(eq(officials.userId, userId));
-      if (!official) return [];
+      if (!official) {
+        console.log(`Não foi encontrado nenhum atendente para o usuário ID ${userId}`);
+        return [];
+      }
       
+      console.log(`Atendente encontrado: ID ${official.id}`);
       // Obter os departamentos do atendente
       const officialDepts = await this.getOfficialDepartments(official.id);
+      console.log(`Departamentos do atendente: ${JSON.stringify(officialDepts.map(d => d.department))}`);
+      
       if (officialDepts.length === 0) {
+        console.log('Atendente sem departamentos, mostrando apenas tickets atribuídos diretamente');
         // Se não estiver associado a nenhum departamento, mostrar apenas tickets atribuídos diretamente
         return this.getTicketsByOfficialId(official.id);
       }
@@ -253,6 +272,8 @@ export class DatabaseStorage implements IStorage {
           .from(tickets)
           .where(or(...departmentOrConditions));
         
+        console.log(`Encontrados ${ticketsData.length} tickets para o atendente`);
+        
         const enrichedTickets = await Promise.all(
           ticketsData.map(ticket => this.getTicket(ticket.id))
         );
@@ -263,6 +284,10 @@ export class DatabaseStorage implements IStorage {
         return [];
       }
     }
+    
+    // Se o papel do usuário não for reconhecido, retorna array vazio
+    console.log(`Papel desconhecido: ${userRole}`);
+    return [];
   }
 
   // Ticket operations
