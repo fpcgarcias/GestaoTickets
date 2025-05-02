@@ -29,7 +29,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const { data, isLoading, error: queryError } = useQuery({
     queryKey: ['/api/auth/me'],
-    enabled: true, // Sempre habilitado para verificar o estado atual da autenticação
+    retry: false, // Não tentar novamente em caso de falha
+    refetchInterval: false, // Não fazer requisições em intervalo
+    refetchOnWindowFocus: false, // Não refetch ao focar a janela
+    staleTime: 60 * 1000, // 1 minuto
   });
 
   // Removido o useEffect de refetch, pois a consulta já está enabled=true

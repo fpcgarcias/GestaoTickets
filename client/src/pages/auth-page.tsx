@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
-import { useSystemSettings } from '@/hooks/use-system-settings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,7 +12,8 @@ export default function AuthPage() {
   const [location, setLocation] = useLocation();
   const { user, login, isLoading, error } = useAuth();
   const { toast } = useToast();
-  const { companyName } = useSystemSettings();
+  // Usar valor fixo padrão para evitar loops de autenticação
+  const companyName = "Vix Brasil";
   const [activeTab, setActiveTab] = useState<string>('login');
   
   // Formulário de login
