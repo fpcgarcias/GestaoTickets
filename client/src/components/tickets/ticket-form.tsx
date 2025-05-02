@@ -21,11 +21,11 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { insertTicketSchema, type InsertTicket } from '@shared/schema';
-import { TICKET_TYPES, PRIORITY_LEVELS } from '@/lib/utils';
+import { TICKET_TYPES, PRIORITY_LEVELS, DEPARTMENTS } from '@/lib/utils';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 
 export const TicketForm = () => {
   const { toast } = useToast();
@@ -69,11 +69,23 @@ export const TicketForm = () => {
     createTicketMutation.mutate(data);
   };
 
+  // Buscar dados de departamentos
+  const { data: departments } = useQuery({
+    queryKey: ["/api/settings/departments"],
+    initialData: DEPARTMENTS.map(dept => ({ id: parseInt(dept.value), name: dept.label, description: '' }))
+  });
+
+  // Buscar dados de tipos de incidentes
+  const { data: incidentTypes } = useQuery({
+    queryKey: ["/api/settings/incident-types"],
+    initialData: TICKET_TYPES.map(type => ({ id: 0, name: type.label, departmentId: type.departmentId }))
+  });
+
   return (
     <Card>
       <CardContent className="p-6">
-        <h2 className="text-lg font-medium mb-2">Create Quick Ticket</h2>
-        <p className="text-neutral-600 mb-6">Write and address new queries and issues</p>
+        <h2 className="text-lg font-medium mb-2">Criar Novo Chamado</h2>
+        <p className="text-neutral-600 mb-6">Adicione um novo chamado de suporte</p>
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -83,10 +95,41 @@ export const TicketForm = () => {
                 name="customerEmail"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel>Email do Cliente</FormLabel>
                     <FormControl>
-                      <Input placeholder="Type Email" {...field} />
+                      <Input placeholder="Digite o email" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="departmentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Departamento</FormLabel>
+                    <Select 
+                      onValueChange={(value) => {
+                        // Atualizar o departamento selecionado
+                        field.onChange(parseInt(value));
+                      }} 
+                      defaultValue={field.value?.toString()}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um departamento" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {departments?.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id.toString()}>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -97,14 +140,14 @@ export const TicketForm = () => {
                 name="type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Request Ticket Type</FormLabel>
+                    <FormLabel>Tipo de Chamado</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
                       defaultValue={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Choose Type" />
+                          <SelectValue placeholder="Escolha o tipo" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -125,21 +168,21 @@ export const TicketForm = () => {
                 name="priority"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Priority Status</FormLabel>
+                    <FormLabel>Prioridade</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
                       defaultValue={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select Status" />
+                          <SelectValue placeholder="Selecione a prioridade" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value={PRIORITY_LEVELS.LOW}>Low</SelectItem>
-                        <SelectItem value={PRIORITY_LEVELS.MEDIUM}>Medium</SelectItem>
-                        <SelectItem value={PRIORITY_LEVELS.HIGH}>High</SelectItem>
-                        <SelectItem value={PRIORITY_LEVELS.CRITICAL}>Critical</SelectItem>
+                        <SelectItem value={PRIORITY_LEVELS.LOW}>Baixa</SelectItem>
+                        <SelectItem value={PRIORITY_LEVELS.MEDIUM}>Média</SelectItem>
+                        <SelectItem value={PRIORITY_LEVELS.HIGH}>Alta</SelectItem>
+                        <SelectItem value={PRIORITY_LEVELS.CRITICAL}>Crítica</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -153,9 +196,9 @@ export const TicketForm = () => {
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Ticket Title</FormLabel>
+                  <FormLabel>Título do Chamado</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter ticket title" {...field} />
+                    <Input placeholder="Digite o título do chamado" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -167,10 +210,10 @@ export const TicketForm = () => {
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Ticket Body</FormLabel>
+                  <FormLabel>Descrição do Problema</FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder="Type ticket issue here..." 
+                      placeholder="Descreva o problema detalhadamente..." 
                       rows={6} 
                       {...field} 
                     />
@@ -186,7 +229,7 @@ export const TicketForm = () => {
                 className="px-6"
                 disabled={createTicketMutation.isPending}
               >
-                {createTicketMutation.isPending ? "Creating..." : "Send Ticket"}
+                {createTicketMutation.isPending ? "Criando..." : "Enviar Chamado"}
               </Button>
             </div>
           </form>

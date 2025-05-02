@@ -48,9 +48,21 @@ export const STATUS_COLORS = {
 };
 
 export const TICKET_TYPES = [
-  { value: 'technical', label: 'Suporte Técnico' },
-  { value: 'account', label: 'Problema de Conta' },
-  { value: 'billing', label: 'Questão de Faturamento' },
-  { value: 'feature', label: 'Solicitação de Recurso' },
-  { value: 'deposit', label: 'Problema de Depósito' }
+  { value: 'technical', label: 'Problema Técnico', departmentId: 1 },
+  { value: 'billing', label: 'Dúvida de Faturamento', departmentId: 2 },
+  { value: 'inquiry', label: 'Pedido de Informação', departmentId: 3 },
+  { value: 'complaint', label: 'Reclamação', departmentId: 3 }
+];
+
+export const DEPARTMENTS = [
+  { id: 1, value: '1', label: 'Suporte Técnico' },
+  { id: 2, value: '2', label: 'Faturamento' },
+  { id: 3, value: '3', label: 'Atendimento ao Cliente' }
+];
+
+export const PERIOD_OPTIONS = [
+  { value: 'today', label: 'Hoje' },
+  { value: 'week', label: '7 dias' },
+  { value: 'month', label: '30 dias' },
+  { value: 'custom', label: 'Período Personalizado' }
 ];
