@@ -239,6 +239,20 @@ export class DatabaseStorage implements IStorage {
             .select()
             .from(officials)
             .where(eq(officials.id, ticket.assignedToId));
+            
+          if (official) {
+            // Buscar os departamentos do atendente
+            const officialDepartmentsData = await db
+              .select()
+              .from(officialDepartments)
+              .where(eq(officialDepartments.officialId, official.id));
+              
+            const departments = officialDepartmentsData.map((od) => od.department);
+            official = {
+              ...official,
+              departments
+            };
+          }
         }
         
         const replies = await this.getTicketReplies(ticket.id);
@@ -270,6 +284,20 @@ export class DatabaseStorage implements IStorage {
         .select()
         .from(officials)
         .where(eq(officials.id, ticket.assignedToId));
+        
+      if (official) {
+        // Buscar os departamentos do atendente
+        const officialDepartmentsData = await db
+          .select()
+          .from(officialDepartments)
+          .where(eq(officialDepartments.officialId, official.id));
+          
+        const departments = officialDepartmentsData.map((od) => od.department);
+        official = {
+          ...official,
+          departments
+        };
+      }
     }
     
     const replies = await this.getTicketReplies(ticket.id);

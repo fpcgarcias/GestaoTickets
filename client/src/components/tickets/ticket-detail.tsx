@@ -3,10 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate, STATUS_COLORS } from '@/lib/utils';
-import { Ticket } from '@shared/schema';
+import { Ticket, Official } from '@shared/schema';
 import { StatusDot } from './status-badge';
 import { SLAStatus } from './sla-status';
-import { Building } from 'lucide-react';
+import { Building, UserCircle2 } from 'lucide-react';
 
 interface TicketDetailProps {
   ticketId: number;
@@ -92,6 +92,20 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
             ticketStatus={ticket.status} 
           />
         </div>
+        
+        {/* Atendente responsável */}
+        {ticket.assignedToId && ticket.official && (
+          <div className="flex items-center gap-2 mb-4 bg-green-50 p-3 rounded-md">
+            <UserCircle2 className="h-5 w-5 text-green-500" />
+            <div>
+              <span className="text-sm text-green-700 font-medium">Atendente Responsável: </span>
+              <span className="text-sm text-green-800">{ticket.official.name}</span>
+              {ticket.official.email && (
+                <> - <span className="text-sm text-green-600">{ticket.official.email}</span></>
+              )}
+            </div>
+          </div>
+        )}
         
         <div className="mb-8 text-neutral-700 space-y-4 whitespace-pre-line">
           {ticket.description}
