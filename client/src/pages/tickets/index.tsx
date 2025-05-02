@@ -94,7 +94,7 @@ export default function TicketsIndex() {
             <SelectValue placeholder="Selecionar Prioridade" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todas as Prioridades</SelectItem>
+            <SelectItem value="all">Todas as Prioridades</SelectItem>
             <SelectItem value={PRIORITY_LEVELS.LOW}>Baixa</SelectItem>
             <SelectItem value={PRIORITY_LEVELS.MEDIUM}>Média</SelectItem>
             <SelectItem value={PRIORITY_LEVELS.HIGH}>Alta</SelectItem>
