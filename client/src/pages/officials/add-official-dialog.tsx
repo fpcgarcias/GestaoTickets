@@ -38,6 +38,44 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
   const [submitting, setSubmitting] = useState(false);
   const [userCreated, setUserCreated] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState('');
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  
+  // Carregar departamentos disponíveis
+  const { data: departmentsData } = useQuery({
+    queryKey: ["/api/settings/departments"],
+  });
+
+  // Departamentos disponíveis para seleção
+  const availableDepartments = [
+    { value: "technical", label: "Suporte Técnico" },
+    { value: "billing", label: "Faturamento" },
+    { value: "general", label: "Atendimento Geral" },
+    { value: "sales", label: "Vendas" },
+    { value: "other", label: "Outro" }
+  ];
+  
+  const toggleDepartment = (department: string) => {
+    setFormData(prev => {
+      if (prev.departments.includes(department)) {
+        return {
+          ...prev,
+          departments: prev.departments.filter(d => d !== department)
+        };
+      } else {
+        return {
+          ...prev,
+          departments: [...prev.departments, department]
+        };
+      }
+    });
+  };
+  
+  const removeDepartment = (department: string) => {
+    setFormData(prev => ({
+      ...prev,
+      departments: prev.departments.filter(d => d !== department)
+    }));
+  };
 
   const createOfficialMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -160,24 +198,69 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
                 </div>
                 
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="department" className="text-right">
-                    Departamento
+                  <Label className="text-right">
+                    Departamentos
                   </Label>
-                  <Select 
-                    value={formData.department} 
-                    onValueChange={(value) => setFormData({ ...formData, department: value })}
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Selecione um departamento" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="technical">Suporte Técnico</SelectItem>
-                      <SelectItem value="billing">Faturamento</SelectItem>
-                      <SelectItem value="general">Atendimento Geral</SelectItem>
-                      <SelectItem value="sales">Vendas</SelectItem>
-                      <SelectItem value="other">Outro</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="col-span-3 space-y-2">
+                    <div className="flex flex-wrap gap-1 mb-1">
+                      {formData.departments.map((dept) => (
+                        <Badge key={dept} variant="secondary" className="gap-1">
+                          {dept === 'technical' && 'Suporte Técnico'}
+                          {dept === 'billing' && 'Faturamento'}
+                          {dept === 'general' && 'Atendimento Geral'}
+                          {dept === 'sales' && 'Vendas'}
+                          {dept === 'other' && 'Outro'}
+                          <button
+                            type="button"
+                            className="rounded-full outline-none hover:bg-neutral-200 flex items-center justify-center"
+                            onClick={() => removeDepartment(dept)}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                      {formData.departments.length === 0 && (
+                        <span className="text-sm text-neutral-500">Nenhum departamento selecionado</span>
+                      )}
+                    </div>
+                    
+                    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={popoverOpen}
+                          className="w-full justify-between"
+                        >
+                          <span>Selecionar departamentos</span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0">
+                        <Command>
+                          <CommandInput placeholder="Buscar departamento..." className="h-9" />
+                          <CommandEmpty>Nenhum departamento encontrado.</CommandEmpty>
+                          <CommandGroup>
+                            {availableDepartments.map((dept) => (
+                              <CommandItem
+                                key={dept.value}
+                                onSelect={() => {
+                                  toggleDepartment(dept.value);
+                                  setPopoverOpen(false);
+                                }}
+                              >
+                                <Checkbox
+                                  checked={formData.departments.includes(dept.value)}
+                                  className="mr-2"
+                                />
+                                {dept.label}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
               </div>
               
