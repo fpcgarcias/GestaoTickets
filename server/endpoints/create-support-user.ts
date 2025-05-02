@@ -94,7 +94,24 @@ export async function createSupportUserEndpoint(
       }
 
       // Utilizar o primeiro departamento selecionado como departamento principal (para compatibilidade)
-      const defaultDepartment = userDepartments[0];
+      let defaultDepartment = 'technical'; // Fallback para garantir valor não-nulo
+      
+      // Garantir que userDepartments seja sempre um array de strings
+      const departmentsArray = Array.isArray(userDepartments) ? userDepartments : [];
+      console.log(`Departamentos recebidos: ${JSON.stringify(departmentsArray)}`);
+      
+      if (departmentsArray.length > 0) {
+        // Se o valor for um objeto com propriedade 'department'
+        if (typeof departmentsArray[0] === 'object' && departmentsArray[0] !== null && 'department' in departmentsArray[0]) {
+          defaultDepartment = departmentsArray[0].department;
+        } 
+        // Se for uma string
+        else if (typeof departmentsArray[0] === 'string') {
+          defaultDepartment = departmentsArray[0];
+        }
+      }
+      
+      console.log(`Departamento padrão selecionado: ${defaultDepartment}`);
       
       const officialData: any = {
         name,
@@ -111,16 +128,27 @@ export async function createSupportUserEndpoint(
       console.log(`Atendente criado com ID: ${official.id}`);
       
       // 3. Adicionar departamentos ao atendente
-      if (userDepartments && Array.isArray(userDepartments) && userDepartments.length > 0) {
-        console.log(`Adicionando ${userDepartments.length} departamentos ao atendente ID: ${official.id}`);
+      if (departmentsArray.length > 0) {
+        console.log(`Adicionando ${departmentsArray.length} departamentos ao atendente ID: ${official.id}`);
         
-        for (const department of userDepartments) {
+        for (const dept of departmentsArray) {
+          // Determinar o valor correto do departamento (string ou objeto)
+          let departmentValue;
+          if (typeof dept === 'object' && dept !== null && 'department' in dept) {
+            departmentValue = dept.department;
+          } else if (typeof dept === 'string') {
+            departmentValue = dept;
+          } else {
+            console.log(`Ignorando departamento de formato inválido: ${JSON.stringify(dept)}`);
+            continue; // Pular este departamento
+          }
+          
           await storage.addOfficialDepartment({
             officialId: official.id,
-            department,
+            department: departmentValue,
             createdAt: new Date()
           });
-          console.log(`Departamento '${department}' adicionado ao atendente ID: ${official.id}`);
+          console.log(`Departamento '${departmentValue}' adicionado ao atendente ID: ${official.id}`);
         }
       }
       
