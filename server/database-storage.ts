@@ -224,15 +224,37 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTicket(ticketData: InsertTicket): Promise<Ticket> {
-    const [ticket] = await db.insert(tickets).values(ticketData).returning();
+    // Buscamos o cliente pelo email primeiro
+    let customerId: number | null = null;
+    const [existingCustomer] = await db
+      .select()
+      .from(customers)
+      .where(eq(customers.email, ticketData.customerEmail));
+
+    if (existingCustomer) {
+      customerId = existingCustomer.id;
+    } else {
+      // Se não encontrar, usar um cliente padrão (ID 1) para evitar erro
+      customerId = 1;
+    }
     
-    // Adicionamos status history para o novo ticket
-    await this.addTicketStatusHistory(
-      ticket.id,
-      "", // não há status anterior
-      ticket.status,
-      ticket.createdById
-    );
+    // Gerar um ID de ticket legível (2025-CSxxxx)
+    const ticketIdString = `2025-CS${Math.floor(1000 + Math.random() * 9000)}`;
+    
+    // Preparar os dados para inserção
+    const ticketInsertData = {
+      title: ticketData.title,
+      description: ticketData.description,
+      customerEmail: ticketData.customerEmail,
+      customerId,
+      status: 'new',
+      priority: ticketData.priority || 'medium',
+      type: ticketData.type,
+      ticketId: ticketIdString
+    };
+    
+    // Inserir o ticket
+    const [ticket] = await db.insert(tickets).values(ticketInsertData).returning();
     
     return this.getTicket(ticket.id) as Promise<Ticket>;
   }

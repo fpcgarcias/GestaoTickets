@@ -123,31 +123,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Authentication endpoints (mock for now)
-  router.post("/auth/login", (req, res) => {
-    // In a real app, this would validate credentials
-    res.json({
-      id: 1,
-      username: "admin",
-      name: "Admin User",
-      email: "admin@example.com",
-      role: "admin"
-    });
+  // Implementação real de autenticação
+  router.post("/auth/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ message: "Usuário e senha são obrigatórios" });
+      }
+      
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user) {
+        return res.status(401).json({ message: "Credenciais inválidas" });
+      }
+      
+      // Validação simples de senha - em produção usar bcrypt ou similar
+      if (user.password !== password) {
+        return res.status(401).json({ message: "Credenciais inválidas" });
+      }
+      
+      // Não enviamos a senha para o cliente
+      const { password: _, ...userWithoutPassword } = user;
+      
+      // Em uma aplicação real, configuraríamos sessão ou JWT aqui
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error('Erro de login:', error);
+      res.status(500).json({ message: "Erro ao processar login" });
+    }
   });
 
   router.post("/auth/logout", (req, res) => {
+    // Em uma aplicação real, encerraríamos a sessão aqui
     res.json({ success: true });
   });
 
-  router.get("/auth/me", (req, res) => {
-    // Mock current user
-    res.json({
-      id: 1,
-      username: "admin",
-      name: "Admin User",
-      email: "admin@example.com",
-      role: "admin"
-    });
+  // Endpoint para obter o usuário atual (quando autenticado)
+  router.get("/auth/me", async (req, res) => {
+    try {
+      // Em uma aplicação real com sessões, obteríamos o usuário a partir da sessão
+      // Por enquanto, retornamos o admin para manter compatibilidade
+      const user = await storage.getUserByUsername("admin");
+      
+      if (!user) {
+        return res.status(401).json({ message: "Não autenticado" });
+      }
+      
+      // Não enviamos a senha para o cliente
+      const { password: _, ...userWithoutPassword } = user;
+      
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error('Erro ao obter usuário:', error);
+      res.status(500).json({ message: "Erro ao obter dados do usuário" });
+    }
   });
 
   // Mount the router at /api
@@ -191,67 +221,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Atualizar as rotas para usar as notificações
   
-  // Notificar sobre criação de ticket
-  const originalCreateTicket = router.stack.find(
-    (layer) => layer.route && layer.route.path === '/tickets' && layer.route.methods.post
-  );
+  // Substituir a implementação do POST /tickets para incluir notificações
+  router.post("/tickets", validateRequest(insertTicketSchema), async (req, res) => {
+    try {
+      const ticket = await storage.createTicket(req.body);
+      
+      // Enviar notificação após salvar o ticket
+      await notificationService.notifyNewTicket(ticket.id);
+      
+      res.status(201).json(ticket);
+    } catch (error) {
+      console.error('Erro ao criar ticket:', error);
+      res.status(500).json({ message: "Falha ao criar ticket", error: String(error) });
+    }
+  });
   
-  if (originalCreateTicket && originalCreateTicket.route) {
-    // Substituir o manipulador de rota com um que também envie notificações
-    const originalHandler = originalCreateTicket.route.stack[1].handle;
-    
-    originalCreateTicket.route.stack[1].handle = async (req: Request, res: Response) => {
-      try {
-        const ticket = await storage.createTicket(req.body);
-        
-        // Enviar notificação após salvar o ticket
-        await notificationService.notifyNewTicket(ticket.id);
-        
-        res.status(201).json(ticket);
-      } catch (error) {
-        res.status(500).json({ message: "Failed to create ticket" });
+  // Substituir a implementação do POST /ticket-replies para incluir notificações
+  router.post("/ticket-replies", validateRequest(insertTicketReplySchema), async (req, res) => {
+    try {
+      const ticketId = req.body.ticketId;
+      const userId = req.body.userId;
+      
+      // Verificar se o ticket existe
+      const ticket = await storage.getTicket(ticketId);
+      if (!ticket) {
+        return res.status(404).json({ message: "Ticket não encontrado" });
       }
-    };
-  }
-  
-  // Notificar sobre respostas em tickets
-  const originalCreateReply = router.stack.find(
-    (layer) => layer.route && layer.route.path === '/ticket-replies' && layer.route.methods.post
-  );
-  
-  if (originalCreateReply && originalCreateReply.route) {
-    // Substituir o manipulador de rota com um que também envie notificações
-    const originalHandler = originalCreateReply.route.stack[1].handle;
-    
-    originalCreateReply.route.stack[1].handle = async (req: Request, res: Response) => {
-      try {
-        const ticketId = req.body.ticketId;
-        const userId = req.body.userId;
-        
-        // Verificar se o ticket existe
-        const ticket = await storage.getTicket(ticketId);
-        if (!ticket) {
-          return res.status(404).json({ message: "Ticket not found" });
-        }
-        
-        const reply = await storage.createTicketReply(req.body);
-        
-        // Enviar notificação após salvar a resposta
-        if (userId) {
-          await notificationService.notifyNewReply(ticketId, userId);
-        }
-        
-        // Se a resposta incluir atualização de status, notificar sobre isso também
-        if (req.body.status && ticket.status !== req.body.status) {
-          await notificationService.notifyTicketStatusUpdate(ticketId, ticket.status, req.body.status);
-        }
-        
-        res.status(201).json(reply);
-      } catch (error) {
-        res.status(500).json({ message: "Failed to create ticket reply" });
+      
+      const reply = await storage.createTicketReply(req.body);
+      
+      // Enviar notificação após salvar a resposta
+      if (userId) {
+        await notificationService.notifyNewReply(ticketId, userId);
       }
-    };
-  }
+      
+      // Se a resposta incluir atualização de status, notificar sobre isso também
+      if (req.body.status && ticket.status !== req.body.status) {
+        await notificationService.notifyTicketStatusUpdate(ticketId, ticket.status, req.body.status);
+      }
+      
+      res.status(201).json(reply);
+    } catch (error) {
+      console.error('Erro ao criar resposta de ticket:', error);
+      res.status(500).json({ message: "Falha ao criar resposta de ticket", error: String(error) });
+    }
+  });
   
   return httpServer;
 }
