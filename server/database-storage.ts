@@ -9,7 +9,7 @@ import {
   ticketStatusEnum, ticketPriorityEnum, userRoleEnum, departmentEnum
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or } from "drizzle-orm";
+import { eq, desc, and, or, sql } from "drizzle-orm";
 import { IStorage } from "./storage";
 
 export class DatabaseStorage implements IStorage {
@@ -337,15 +337,15 @@ export class DatabaseStorage implements IStorage {
       
       if (ticket && ticket.status !== replyData.status) {
         await this.updateTicket(ticket.id, { 
-          status: replyData.status,
-          updatedById: reply.userId
+          status: replyData.status
+          // Não usamos updatedById pois não existe no schema
         });
       }
     }
     
     // Se esta é a primeira resposta, atualizar firstResponseAt
     const ticketRepliesCount = await db
-      .select({ count: db.fn.count() })
+      .select({ count: sql`count(*)` })
       .from(ticketReplies)
       .where(eq(ticketReplies.ticketId, reply.ticketId));
     
@@ -387,44 +387,58 @@ export class DatabaseStorage implements IStorage {
 
   // Stats and dashboard operations
   async getTicketStats(): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
-    const allTickets = await db.select().from(tickets);
-    
-    const byStatus = {
-      new: 0,
-      ongoing: 0,
-      resolved: 0,
-    };
-    
-    const byPriority = {
-      low: 0,
-      medium: 0,
-      high: 0,
-      critical: 0,
-    };
-    
-    allTickets.forEach(ticket => {
-      byStatus[ticket.status as keyof typeof byStatus] += 1;
-      byPriority[ticket.priority as keyof typeof byPriority] += 1;
-    });
-    
-    return {
-      total: allTickets.length,
-      byStatus,
-      byPriority,
-    };
+    try {
+      const allTickets = await db.select().from(tickets);
+      
+      const byStatus = {
+        new: 0,
+        ongoing: 0,
+        resolved: 0,
+      };
+      
+      const byPriority = {
+        low: 0,
+        medium: 0,
+        high: 0,
+        critical: 0,
+      };
+      
+      allTickets.forEach(ticket => {
+        byStatus[ticket.status as keyof typeof byStatus] += 1;
+        byPriority[ticket.priority as keyof typeof byPriority] += 1;
+      });
+      
+      return {
+        total: allTickets.length,
+        byStatus,
+        byPriority,
+      };
+    } catch (error) {
+      console.error('Erro ao obter estatísticas de tickets:', error);
+      return {
+        total: 0,
+        byStatus: { new: 0, ongoing: 0, resolved: 0 },
+        byPriority: { low: 0, medium: 0, high: 0, critical: 0 }
+      };
+    }
   }
 
   async getRecentTickets(limit: number = 10): Promise<Ticket[]> {
-    const recentTickets = await db
-      .select()
-      .from(tickets)
-      .orderBy(desc(tickets.createdAt))
-      .limit(limit);
-    
-    const enrichedTickets = await Promise.all(
-      recentTickets.map(ticket => this.getTicket(ticket.id))
-    );
-    
-    return enrichedTickets.filter(Boolean) as Ticket[];
+    try {
+      const recentTickets = await db
+        .select()
+        .from(tickets)
+        .orderBy(desc(tickets.createdAt))
+        .limit(limit);
+      
+      const enrichedTickets = await Promise.all(
+        recentTickets.map(ticket => this.getTicket(ticket.id))
+      );
+      
+      return enrichedTickets.filter(Boolean) as Ticket[];
+    } catch (error) {
+      console.error('Erro ao obter tickets recentes:', error);
+      return [];
+    }
   }
 }
