@@ -22,6 +22,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { insertTicketSchema, type InsertTicket } from '@shared/schema';
 import { TICKET_TYPES, PRIORITY_LEVELS, DEPARTMENTS } from '@/lib/utils';
+import { z } from 'zod';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
@@ -32,12 +33,20 @@ export const TicketForm = () => {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
-  const form = useForm<InsertTicket>({
-    resolver: zodResolver(insertTicketSchema),
+  // Adicionar uma consulta para buscar os clientes
+  const { data: customers, isLoading: isLoadingCustomers } = useQuery({
+    queryKey: ["/api/customers"],
+  });
+
+  const form = useForm<InsertTicket & { customerId?: number }>({
+    resolver: zodResolver(insertTicketSchema.extend({
+      customerId: z.number().optional()
+    })),
     defaultValues: {
       title: '',
       description: '',
       customerEmail: '',
+      customerId: undefined,
       type: '',
       priority: 'medium' as const,
       departmentId: undefined,
@@ -66,8 +75,18 @@ export const TicketForm = () => {
     },
   });
 
-  const onSubmit = (data: InsertTicket) => {
-    createTicketMutation.mutate(data);
+  const onSubmit = (data: InsertTicket & { customerId?: number }) => {
+    // Se um cliente foi selecionado, usar seu email
+    if (data.customerId) {
+      const selectedCustomer = customers?.find(c => c.id === data.customerId);
+      if (selectedCustomer) {
+        data.customerEmail = selectedCustomer.email;
+      }
+    }
+    
+    // Remover customerId que não faz parte do schema
+    const { customerId, ...ticketData } = data;
+    createTicketMutation.mutate(ticketData);
   };
 
   // Buscar dados de departamentos
@@ -91,6 +110,43 @@ export const TicketForm = () => {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <FormField
+                control={form.control}
+                name="customerId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cliente</FormLabel>
+                    <Select
+                      onValueChange={(value) => {
+                        const customerId = parseInt(value);
+                        field.onChange(customerId);
+                        
+                        // Atualizar automaticamente o email
+                        const selectedCustomer = customers?.find(c => c.id === customerId);
+                        if (selectedCustomer) {
+                          form.setValue('customerEmail', selectedCustomer.email);
+                        }
+                      }}
+                      defaultValue={field.value?.toString()}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um cliente" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {customers?.map((customer) => (
+                          <SelectItem key={customer.id} value={customer.id.toString()}>
+                            {customer.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
               <FormField
                 control={form.control}
                 name="customerEmail"

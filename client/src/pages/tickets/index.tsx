@@ -41,11 +41,37 @@ export default function TicketsIndex() {
     }
     
     // Apply priority filter
-    if (priorityFilter && ticket.priority !== priorityFilter) {
+    if (priorityFilter && priorityFilter !== 'all' && ticket.priority !== priorityFilter) {
       return false;
     }
     
-    // Time filter would be applied on the server in a real app
+    // Apply time filter
+    if (timeFilter && ticket.createdAt) {
+      const ticketDate = new Date(ticket.createdAt);
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const weekStart = new Date(today);
+      weekStart.setDate(today.getDate() - today.getDay()); // Início da semana (domingo)
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      switch (timeFilter) {
+        case 'this-week':
+          if (ticketDate < weekStart) return false;
+          break;
+        case 'last-week':
+          const lastWeekStart = new Date(weekStart);
+          lastWeekStart.setDate(weekStart.getDate() - 7);
+          if (ticketDate < lastWeekStart || ticketDate >= weekStart) return false;
+          break;
+        case 'this-month':
+          if (ticketDate < monthStart) return false;
+          break;
+        case 'custom':
+          // Será implementado com um seletor de data personalizado
+          break;
+      }
+    }
+    
     return true;
   });
 

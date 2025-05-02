@@ -34,7 +34,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
           <div className="flex items-center">
             {priority && <PriorityBadge priority={priority} />}
             <div className="text-sm text-neutral-500">
-              Posted at {formatDate(createdAt)}
+              Postado em {formatDate(createdAt)}
             </div>
           </div>
         </div>
@@ -57,7 +57,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
             className="text-primary hover:text-primary-dark text-sm font-medium px-0"
             asChild
           >
-            <Link href={`/tickets/${id}`}>Open Ticket</Link>
+            <Link href={`/tickets/${id}`}>Abrir Chamado</Link>
           </Button>
         </div>
       </CardContent>
