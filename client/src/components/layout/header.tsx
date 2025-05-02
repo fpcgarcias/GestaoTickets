@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, Menu, User, Settings, LogOut } from 'lucide-react';
+import { ChevronDown, Menu, User, Settings, LogOut, LayoutDashboard, TicketIcon, UserCog } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,14 +55,28 @@ export const Header: React.FC = () => {
   };
 
   // Função para navegar para configurações
-  const goToSettings = () => {
+  const goToSettings = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     setLocation('/settings');
+    // Fechar dropdown após clicar
+    const closeDropdown = document.querySelector('[data-radix-dropdown-menu-content-close]');
+    if (closeDropdown) {
+      (closeDropdown as HTMLElement).click();
+    }
   };
 
   // Função para navegar para perfil
-  const goToProfile = () => {
+  const goToProfile = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     // Redirecionar para perfil (ou settings por enquanto)
     setLocation('/settings');
+    // Fechar dropdown após clicar
+    const closeDropdown = document.querySelector('[data-radix-dropdown-menu-content-close]');
+    if (closeDropdown) {
+      (closeDropdown as HTMLElement).click();
+    }
   };
 
   return (
@@ -76,7 +90,31 @@ export const Header: React.FC = () => {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="p-0">
-            <Sidebar currentPath={location} />
+            <div className="p-6 border-b border-neutral-200">
+              <h1 className="text-xl font-semibold text-neutral-900">TICKET LEAD</h1>
+            </div>
+            <nav className="p-4">
+              <a href="/" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location === "/" ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                <span className="mr-3 text-lg"><LayoutDashboard size={20} /></span>
+                <span className={location === "/" ? "font-medium" : ""}>Dashboard</span>
+              </a>
+              <a href="/tickets" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/tickets") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                <span className="mr-3 text-lg"><TicketIcon size={20} /></span>
+                <span className={location.startsWith("/tickets") ? "font-medium" : ""}>Tickets</span>
+              </a>
+              <a href="/users" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/users") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                <span className="mr-3 text-lg"><User size={20} /></span>
+                <span className={location.startsWith("/users") ? "font-medium" : ""}>Users</span>
+              </a>
+              <a href="/officials" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/officials") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                <span className="mr-3 text-lg"><UserCog size={20} /></span>
+                <span className={location.startsWith("/officials") ? "font-medium" : ""}>Officials</span>
+              </a>
+              <a href="/settings" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/settings") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                <span className="mr-3 text-lg"><Settings size={20} /></span>
+                <span className={location.startsWith("/settings") ? "font-medium" : ""}>Site Settings</span>
+              </a>
+            </nav>
           </SheetContent>
         </Sheet>
         <div className="text-neutral-800">Bem-vindo, {currentUser.name}!</div>

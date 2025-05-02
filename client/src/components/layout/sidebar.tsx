@@ -21,7 +21,7 @@ const SidebarItem = ({ href, icon, label, isActive }: {
 }) => {
   return (
     <Link href={href}>
-      <a className={cn(
+      <div className={cn(
         "sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer",
         isActive 
           ? "active" 
@@ -29,7 +29,7 @@ const SidebarItem = ({ href, icon, label, isActive }: {
       )}>
         <span className="mr-3 text-lg">{icon}</span>
         <span className={isActive ? "font-medium" : ""}>{label}</span>
-      </a>
+      </div>
     </Link>
   );
 };
@@ -44,25 +44,49 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   ];
 
   return (
-    <div className="w-64 bg-white border-r border-neutral-200 flex-shrink-0 hidden md:block">
-      <div className="p-6 border-b border-neutral-200">
-        <h1 className="text-xl font-semibold text-neutral-900">TICKET LEAD</h1>
+    <>
+      {/* Versão desktop da barra lateral */}
+      <div className="w-64 bg-white border-r border-neutral-200 flex-shrink-0 hidden md:block">
+        <div className="p-6 border-b border-neutral-200">
+          <h1 className="text-xl font-semibold text-neutral-900">TICKET LEAD</h1>
+        </div>
+        <nav className="p-4">
+          {navItems.map((item) => (
+            <SidebarItem 
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+              isActive={
+                item.href === "/" 
+                  ? currentPath === "/" 
+                  : currentPath.startsWith(item.href)
+              }
+            />
+          ))}
+        </nav>
       </div>
-      <nav className="p-4">
-        {navItems.map((item) => (
-          <SidebarItem 
-            key={item.href}
-            href={item.href}
-            icon={item.icon}
-            label={item.label}
-            isActive={
-              item.href === "/" 
-                ? currentPath === "/" 
-                : currentPath.startsWith(item.href)
-            }
-          />
-        ))}
-      </nav>
-    </div>
+      
+      {/* Versão mobile da barra lateral (visível apenas em telas pequenas) */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 md:hidden">
+        <nav className="flex justify-around p-2">
+          {navItems.map((item) => (
+            <Link key={item.href} href={item.href}>
+              <div className={cn(
+                "flex flex-col items-center p-2 rounded-md",
+                (item.href === "/" 
+                  ? currentPath === "/" 
+                  : currentPath.startsWith(item.href))
+                ? "text-primary" 
+                : "text-neutral-700"
+              )}>
+                {item.icon}
+                <span className="text-xs mt-1">{item.label}</span>
+              </div>
+            </Link>
+          ))}
+        </nav>
+      </div>
+    </>
   );
 };
