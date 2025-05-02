@@ -36,8 +36,8 @@ const SidebarItem = ({ href, icon, label, isActive }: {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const navItems = [
-    { href: "/", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
-    { href: "/tickets", icon: <TicketIcon size={20} />, label: "Tickets" },
+    { href: "/", icon: <LayoutDashboard size={20} />, label: "Painel de Controle" },
+    { href: "/tickets", icon: <TicketIcon size={20} />, label: "Chamados" },
     { href: "/users", icon: <Users size={20} />, label: "Clientes" },
     { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes" },
     { href: "/settings", icon: <Settings size={20} />, label: "Configurações" },

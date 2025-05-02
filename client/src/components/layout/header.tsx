@@ -96,11 +96,11 @@ export const Header: React.FC = () => {
             <nav className="p-4">
               <a href="/" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location === "/" ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
                 <span className="mr-3 text-lg"><LayoutDashboard size={20} /></span>
-                <span className={location === "/" ? "font-medium" : ""}>Dashboard</span>
+                <span className={location === "/" ? "font-medium" : ""}>Painel de Controle</span>
               </a>
               <a href="/tickets" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/tickets") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
                 <span className="mr-3 text-lg"><TicketIcon size={20} /></span>
-                <span className={location.startsWith("/tickets") ? "font-medium" : ""}>Tickets</span>
+                <span className={location.startsWith("/tickets") ? "font-medium" : ""}>Chamados</span>
               </a>
               <a href="/users" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/users") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
                 <span className="mr-3 text-lg"><User size={20} /></span>
