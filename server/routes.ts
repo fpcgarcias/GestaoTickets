@@ -25,7 +25,7 @@ function validateRequest(schema: z.ZodType<any, any>) {
 export async function registerRoutes(app: Express): Promise<Server> {
   const router = express.Router();
 
-  // Tickets endpoints
+  // Tickets endpoints - general list
   router.get("/tickets", async (req, res) => {
     try {
       const tickets = await storage.getTickets();
@@ -35,6 +35,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Stats and dashboard endpoints - these must come BEFORE the :id route
+  router.get("/tickets/stats", async (_req, res) => {
+    try {
+      const stats = await storage.getTicketStats();
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch ticket stats" });
+    }
+  });
+
+  router.get("/tickets/recent", async (req, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+      const tickets = await storage.getRecentTickets(limit);
+      res.json(tickets);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch recent tickets" });
+    }
+  });
+
+  // Individual ticket by ID - must come AFTER specific routes
   router.get("/tickets/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
@@ -96,26 +117,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(officials);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch officials" });
-    }
-  });
-
-  // Stats and dashboard endpoints
-  router.get("/tickets/stats", async (_req, res) => {
-    try {
-      const stats = await storage.getTicketStats();
-      res.json(stats);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch ticket stats" });
-    }
-  });
-
-  router.get("/tickets/recent", async (req, res) => {
-    try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
-      const tickets = await storage.getRecentTickets(limit);
-      res.json(tickets);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch recent tickets" });
     }
   });
 
