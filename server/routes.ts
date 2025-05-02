@@ -105,10 +105,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Criar usuário - por padrão, novos usuários terão o papel de 'customer' a menos que especificado diferente
       const userRole = role || 'customer';
       
+      // Criptografar senha antes de salvar
+      const { hashPassword } = await import('./utils/password');
+      const hashedPassword = await hashPassword(password);
+      
       const user = await storage.createUser({
         username,
         email,
-        password,
+        password: hashedPassword,
         name,
         role: userRole,
         avatarUrl: null
@@ -431,8 +435,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Credenciais inválidas" });
       }
       
-      // Validação simples de senha - em produção usar bcrypt ou similar
-      if (user.password !== password) {
+      // Verificar senha usando bcrypt
+      const { comparePasswords } = await import('./utils/password');
+      const passwordMatch = await comparePasswords(password, user.password);
+      
+      if (!passwordMatch) {
         return res.status(401).json({ message: "Credenciais inválidas" });
       }
       
@@ -479,11 +486,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Email já está em uso" });
       }
       
+      // Criptografar senha antes de salvar
+      const { hashPassword } = await import('./utils/password');
+      const hashedPassword = await hashPassword(password);
+      
       // Criar usuário
       const user = await storage.createUser({
         username,
         email,
-        password,
+        password: hashedPassword,
         name,
         role,
         avatarUrl
