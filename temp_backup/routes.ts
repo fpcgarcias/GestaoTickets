@@ -67,102 +67,83 @@ function validateRequest(schema: z.ZodType<any, any>) {
 export async function registerRoutes(app: Express): Promise<Server> {
   const router = express.Router();
 
-  // Tickets endpoints 
-  router.get("/tickets", async (req: Request, res: Response) => {
+  // Tickets endpoints - general list
+  router.get("/tickets", async (req, res) => {
     try {
       const tickets = await storage.getTickets();
       res.json(tickets);
     } catch (error) {
-      res.status(500).json({ message: "Falha ao buscar tickets" });
+      res.status(500).json({ message: "Failed to fetch tickets" });
     }
   });
 
-  // Stats and dashboard endpoints
-  router.get("/tickets/stats", async (_req: Request, res: Response) => {
+  // Stats and dashboard endpoints - these must come BEFORE the :id route
+  router.get("/tickets/stats", async (_req, res) => {
     try {
       const stats = await storage.getTicketStats();
       res.json(stats);
     } catch (error) {
-      res.status(500).json({ message: "Falha ao buscar estatísticas de tickets" });
+      res.status(500).json({ message: "Failed to fetch ticket stats" });
     }
   });
 
-  router.get("/tickets/recent", async (req: Request, res: Response) => {
+  router.get("/tickets/recent", async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
       const tickets = await storage.getRecentTickets(limit);
       res.json(tickets);
     } catch (error) {
-      res.status(500).json({ message: "Falha ao buscar tickets recentes" });
+      res.status(500).json({ message: "Failed to fetch recent tickets" });
     }
   });
 
-  // Individual ticket by ID
-  router.get("/tickets/:id", async (req: Request, res: Response) => {
+  // Individual ticket by ID - must come AFTER specific routes
+  router.get("/tickets/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
-        return res.status(400).json({ message: "ID de ticket inválido" });
+        return res.status(400).json({ message: "Invalid ticket ID" });
       }
 
       const ticket = await storage.getTicket(id);
       if (!ticket) {
-        return res.status(404).json({ message: "Ticket não encontrado" });
+        return res.status(404).json({ message: "Ticket not found" });
       }
 
       res.json(ticket);
     } catch (error) {
-      res.status(500).json({ message: "Falha ao buscar ticket" });
+      res.status(500).json({ message: "Failed to fetch ticket" });
     }
   });
-  
-  // Ticket creation and responses
-  router.post("/tickets", validateRequest(insertTicketSchema), async (req: Request, res: Response) => {
+
+  router.post("/tickets", validateRequest(insertTicketSchema), async (req, res) => {
     try {
       const ticket = await storage.createTicket(req.body);
-      
-      // Enviar notificação após salvar o ticket
-      await notificationService.notifyNewTicket(ticket.id);
-      
       res.status(201).json(ticket);
     } catch (error) {
-      console.error('Erro ao criar ticket:', error);
-      res.status(500).json({ message: "Falha ao criar ticket", error: String(error) });
+      res.status(500).json({ message: "Failed to create ticket" });
     }
   });
-  
-  router.post("/ticket-replies", validateRequest(insertTicketReplySchema), async (req: Request, res: Response) => {
+
+  router.post("/ticket-replies", validateRequest(insertTicketReplySchema), async (req, res) => {
     try {
       const ticketId = req.body.ticketId;
-      const userId = req.body.userId;
       
-      // Verificar se o ticket existe
+      // Check if ticket exists
       const ticket = await storage.getTicket(ticketId);
       if (!ticket) {
-        return res.status(404).json({ message: "Ticket não encontrado" });
+        return res.status(404).json({ message: "Ticket not found" });
       }
       
       const reply = await storage.createTicketReply(req.body);
-      
-      // Enviar notificação após salvar a resposta
-      if (userId) {
-        await notificationService.notifyNewReply(ticketId, userId);
-      }
-      
-      // Se a resposta incluir atualização de status, notificar sobre isso também
-      if (req.body.status && ticket.status !== req.body.status) {
-        await notificationService.notifyTicketStatusUpdate(ticketId, ticket.status, req.body.status);
-      }
-      
       res.status(201).json(reply);
     } catch (error) {
-      console.error('Erro ao criar resposta de ticket:', error);
-      res.status(500).json({ message: "Falha ao criar resposta de ticket", error: String(error) });
+      res.status(500).json({ message: "Failed to create ticket reply" });
     }
   });
-  
+
   // Customer endpoints
-  router.get("/customers", async (req: Request, res: Response) => {
+  router.get("/customers", async (req, res) => {
     try {
       const customers = await storage.getCustomers();
       res.json(customers);
@@ -171,7 +152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.post("/customers", async (req: Request, res: Response) => {
+  router.post("/customers", async (req, res) => {
     try {
       const customer = await storage.createCustomer(req.body);
       res.status(201).json(customer);
@@ -181,7 +162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.patch("/customers/:id", async (req: Request, res: Response) => {
+  router.patch("/customers/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -200,7 +181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.delete("/customers/:id", async (req: Request, res: Response) => {
+  router.delete("/customers/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -220,7 +201,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Official endpoints
-  router.get("/officials", async (req: Request, res: Response) => {
+  router.get("/officials", async (req, res) => {
     try {
       const officials = await storage.getOfficials();
       res.json(officials);
@@ -229,7 +210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.post("/officials", async (req: Request, res: Response) => {
+  router.post("/officials", async (req, res) => {
     try {
       const official = await storage.createOfficial(req.body);
       res.status(201).json(official);
@@ -239,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.patch("/officials/:id", async (req: Request, res: Response) => {
+  router.patch("/officials/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -258,7 +239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.delete("/officials/:id", async (req: Request, res: Response) => {
+  router.delete("/officials/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -277,8 +258,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Autenticação
-  router.post("/auth/login", async (req: Request, res: Response) => {
+  // Implementação real de autenticação
+  router.post("/auth/login", async (req, res) => {
     try {
       const { username, password } = req.body;
       
@@ -308,13 +289,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  router.post("/auth/logout", (req: Request, res: Response) => {
+  router.post("/auth/logout", (req, res) => {
     // Em uma aplicação real, encerraríamos a sessão aqui
     res.json({ success: true });
   });
   
   // Endpoint para criar usuários
-  router.post("/users", async (req: Request, res: Response) => {
+  router.post("/users", async (req, res) => {
     try {
       const { username, email, password, name, role, avatarUrl } = req.body;
       
@@ -350,7 +331,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Endpoint para obter o usuário atual (quando autenticado)
-  router.get("/auth/me", async (req: Request, res: Response) => {
+  router.get("/auth/me", async (req, res) => {
     try {
       // Em uma aplicação real com sessões, obteríamos o usuário a partir da sessão
       // Por enquanto, retornamos o admin para manter compatibilidade
@@ -372,7 +353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Rotas para configurações do sistema
   // Configurações gerais
-  router.get("/settings/general", async (req: Request, res: Response) => {
+  router.get("/settings/general", async (req, res) => {
     try {
       // Buscar configurações do sistema
       const companyName = await getSystemSetting('companyName', 'Ticket Lead');
@@ -391,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.post("/settings/general", async (req: Request, res: Response) => {
+  router.post("/settings/general", async (req, res) => {
     try {
       const { companyName, supportEmail, allowCustomerRegistration } = req.body;
       
@@ -412,7 +393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Configurações de departamentos
-  router.get("/settings/departments", async (req: Request, res: Response) => {
+  router.get("/settings/departments", async (req, res) => {
     try {
       // Buscar configurações de departamentos
       const departmentsJson = await getSystemSetting('departments', '[]');
@@ -435,7 +416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.post("/settings/departments", async (req: Request, res: Response) => {
+  router.post("/settings/departments", async (req, res) => {
     try {
       const departments = req.body;
       
@@ -455,7 +436,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Configurações de tipos de incidentes
-  router.get("/settings/incident-types", async (req: Request, res: Response) => {
+  router.get("/settings/incident-types", async (req, res) => {
     try {
       // Buscar configurações de tipos de incidentes
       const typesJson = await getSystemSetting('incidentTypes', '[]');
@@ -479,7 +460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  router.post("/settings/incident-types", async (req: Request, res: Response) => {
+  router.post("/settings/incident-types", async (req, res) => {
     try {
       const incidentTypes = req.body;
       
@@ -498,10 +479,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Montar o router em /api
+  // SLA
+  router.get("/settings/sla", async (req, res) => {
+    try {
+      // Buscar todas as definições de SLA
+      const slaDefinitions = await db.select().from(schema.slaDefinitions);
+      res.json(slaDefinitions);
+    } catch (error) {
+      console.error('Erro ao obter configurações de SLA:', error);
+      res.status(500).json({ message: "Falha ao buscar configurações de SLA", error: String(error) });
+    }
+  });
+  
+  router.post("/settings/sla", async (req, res) => {
+    try {
+      const { priority, responseTimeHours, resolutionTimeHours } = req.body;
+      
+      // Verificar se já existe uma definição para esta prioridade
+      const [existingSLA] = await db
+        .select()
+        .from(schema.slaDefinitions)
+        .where(eq(schema.slaDefinitions.priority, priority));
+      
+      if (existingSLA) {
+        // Atualizar definição existente
+        const [updated] = await db
+          .update(schema.slaDefinitions)
+          .set({
+            responseTimeHours,
+            resolutionTimeHours,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.slaDefinitions.id, existingSLA.id))
+          .returning();
+        
+        return res.json(updated);
+      } else {
+        // Criar nova definição
+        const [created] = await db
+          .insert(schema.slaDefinitions)
+          .values({
+            priority,
+            responseTimeHours,
+            resolutionTimeHours,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          })
+          .returning();
+        
+        return res.status(201).json(created);
+      }
+    } catch (error) {
+      console.error('Erro ao salvar configurações de SLA:', error);
+      res.status(500).json({ message: "Falha ao salvar configurações de SLA", error: String(error) });
+    }
+  });
+  
+          return res.json([]);
+        }
+      } else {
+        // Valores padrão
+        const defaultDepartments = [
+          { id: 1, name: "Suporte Técnico", description: "Para problemas técnicos e de produto" },
+          { id: 2, name: "Faturamento", description: "Para consultas de pagamento e faturamento" },
+          { id: 3, name: "Atendimento ao Cliente", description: "Para consultas gerais e assistência" }
+        ];
+        return res.json(defaultDepartments);
+      }
+    } catch (error) {
+      console.error('Erro ao obter departamentos:', error);
+      res.status(500).json({ message: "Falha ao buscar departamentos", error: String(error) });
+    }
+  });
+  
+  router.post("/settings/departments", async (req, res) => {
+    try {
+      const departments = req.body;
+      
+      if (!Array.isArray(departments)) {
+        return res.status(400).json({ message: "Formato inválido. Envie um array de departamentos." });
+      }
+      
+      // Buscar configuração existente
+      const [existingConfig] = await db
+        .select()
+        .from(schema.systemSettings)
+        .where(eq(schema.systemSettings.key, 'departments'));
+      
+      // Converter para string JSON
+      const departmentsJson = JSON.stringify(departments);
+      
+      if (existingConfig) {
+        // Atualizar configuração existente
+        await db
+          .update(schema.systemSettings)
+          .set({ 
+            value: departmentsJson,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.systemSettings.id, existingConfig.id));
+      } else {
+        // Criar nova configuração
+        await db
+          .insert(schema.systemSettings)
+          .values({
+            key: 'departments',
+            value: departmentsJson,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+      }
+      
+      res.json(departments);
+    } catch (error) {
+      console.error('Erro ao salvar departamentos:', error);
+      res.status(500).json({ message: "Falha ao salvar departamentos", error: String(error) });
+    }
+  });
+
+  // Mount the router at /api
   app.use("/api", router);
 
-  // Criar o servidor HTTP
   const httpServer = createServer(app);
   
   // Configurar o servidor WebSocket
@@ -536,6 +634,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       notificationService.removeClient(ws);
       console.log('Conexão WebSocket fechada');
     });
+  });
+  
+  // Atualizar as rotas para usar as notificações
+  
+  // Substituir a implementação do POST /tickets para incluir notificações
+  router.post("/tickets", validateRequest(insertTicketSchema), async (req, res) => {
+    try {
+      const ticket = await storage.createTicket(req.body);
+      
+      // Enviar notificação após salvar o ticket
+      await notificationService.notifyNewTicket(ticket.id);
+      
+      res.status(201).json(ticket);
+    } catch (error) {
+      console.error('Erro ao criar ticket:', error);
+      res.status(500).json({ message: "Falha ao criar ticket", error: String(error) });
+    }
+  });
+  
+  // Substituir a implementação do POST /ticket-replies para incluir notificações
+  router.post("/ticket-replies", validateRequest(insertTicketReplySchema), async (req, res) => {
+    try {
+      const ticketId = req.body.ticketId;
+      const userId = req.body.userId;
+      
+      // Verificar se o ticket existe
+      const ticket = await storage.getTicket(ticketId);
+      if (!ticket) {
+        return res.status(404).json({ message: "Ticket não encontrado" });
+      }
+      
+      const reply = await storage.createTicketReply(req.body);
+      
+      // Enviar notificação após salvar a resposta
+      if (userId) {
+        await notificationService.notifyNewReply(ticketId, userId);
+      }
+      
+      // Se a resposta incluir atualização de status, notificar sobre isso também
+      if (req.body.status && ticket.status !== req.body.status) {
+        await notificationService.notifyTicketStatusUpdate(ticketId, ticket.status, req.body.status);
+      }
+      
+      res.status(201).json(reply);
+    } catch (error) {
+      console.error('Erro ao criar resposta de ticket:', error);
+      res.status(500).json({ message: "Falha ao criar resposta de ticket", error: String(error) });
+    }
   });
   
   return httpServer;

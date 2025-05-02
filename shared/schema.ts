@@ -169,3 +169,5 @@ export type InsertTicketReply = z.infer<typeof insertTicketReplySchema>;
 export type TicketStatusHistory = typeof ticketStatusHistory.$inferSelect;
 
 export type SLADefinition = typeof slaDefinitions.$inferSelect;
+
+export type SystemSetting = typeof systemSettings.$inferSelect;
