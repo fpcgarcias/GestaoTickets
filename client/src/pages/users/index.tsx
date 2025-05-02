@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   Search, Key, Pencil, Loader2, Copy, AlertTriangle, 
-  User, Check, X, UserCog, UserCheck, UserX, Shield
+  User, Check, X, UserCog, UserCheck, UserX, Shield, Save
 } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -28,6 +28,12 @@ export default function UsersIndex() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  
+  // Estados para edição de usuário
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editUsername, setEditUsername] = useState('');
 
   // Abrir gerenciador de status
   const handleStatusChange = (user: any) => {
@@ -42,6 +48,15 @@ export default function UsersIndex() {
     setConfirmPassword('');
     setPasswordError('');
     setResetPasswordDialogOpen(true);
+  };
+  
+  // Abrir gerenciador de edição
+  const handleEditUser = (user: any) => {
+    setSelectedUser(user);
+    setEditName(user.name);
+    setEditEmail(user.email);
+    setEditUsername(user.username);
+    setEditDialogOpen(true);
   };
 
   // Carrega usuários com ou sem usuários inativos
@@ -102,6 +117,50 @@ export default function UsersIndex() {
       });
     }
   });
+  
+  // Mutação para editar usuário
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ id, userData }: { id: number; userData: any }) => {
+      const res = await apiRequest('PATCH', `/api/users/${id}`, userData);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Usuário atualizado",
+        description: "Os dados do usuário foram atualizados com sucesso.",
+      });
+      setEditDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro ao atualizar usuário",
+        description: `Ocorreu um erro: ${error.message}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  // Lidar com envio do formulário de edição
+  const handleEditUserSubmit = () => {
+    if (!editName || !editEmail || !editUsername) {
+      toast({
+        title: "Dados incompletos",
+        description: "Nome, nome de usuário e email são obrigatórios.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    updateUserMutation.mutate({
+      id: selectedUser.id,
+      userData: {
+        name: editName,
+        email: editEmail,
+        username: editUsername
+      }
+    });
+  };
   
   // Lidar com envio do formulário de redefinição de senha
   const handleResetPasswordSubmit = () => {
@@ -235,6 +294,14 @@ export default function UsersIndex() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleEditUser(user)}
+                            title="Editar usuário"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
                           <Button 
                             variant="outline" 
                             size="sm" 
@@ -392,6 +459,75 @@ export default function UsersIndex() {
             <Button onClick={handleResetPasswordSubmit}>
               <Key className="h-4 w-4 mr-2" />
               Redefinir senha
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Diálogo para editar usuário */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogDescription>
+              Edite as informações do usuário selecionado.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedUser && (
+            <div className="py-4">
+              <div className="flex items-center p-3 rounded-md border bg-neutral-50 mb-4">
+                <div className="mr-3">
+                  {selectedUser.role === 'admin' ? <Shield className="h-5 w-5 text-blue-600" /> : 
+                   selectedUser.role === 'support' ? <UserCog className="h-5 w-5 text-amber-600" /> : 
+                   <User className="h-5 w-5 text-neutral-600" />}
+                </div>
+                <div>
+                  <p className="font-medium">{selectedUser.name}</p>
+                  <p className="text-sm text-neutral-500">{selectedUser.email}</p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="editName">Nome</Label>
+                  <Input 
+                    id="editName" 
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Nome completo"
+                  />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="editEmail">Email</Label>
+                  <Input 
+                    id="editEmail" 
+                    type="email" 
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="email@exemplo.com"
+                  />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="editUsername">Nome de usuário</Label>
+                  <Input 
+                    id="editUsername" 
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    placeholder="Nome de usuário"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleEditUserSubmit}>
+              <Save className="h-4 w-4 mr-2" />
+              Salvar alterações
             </Button>
           </DialogFooter>
         </DialogContent>

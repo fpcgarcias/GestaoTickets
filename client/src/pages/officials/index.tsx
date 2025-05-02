@@ -11,7 +11,13 @@ import {
   Trash, 
   UserPlus,
   Check,
-  X
+  X,
+  UserCog,
+  UserCheck,
+  UserX,
+  Shield,
+  User,
+  AlertTriangle
 } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from '@tanstack/react-query';
@@ -165,19 +171,22 @@ export default function OfficialsIndex() {
                         <div className="flex justify-end gap-2">
                           <Button 
                             variant="outline" 
-                            size="icon" 
-                            className="h-8 w-8"
+                            size="sm"
                             onClick={() => handleEditOfficial(official)}
+                            title="Editar atendente"
                           >
-                            <Pencil className="h-4 w-4" />
+                            <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className="h-8 w-8"
+                            variant={official.isActive ? "destructive" : "default"} 
+                            size="sm"
+                            className={official.isActive ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
                             onClick={() => handleDeleteOfficial(official)}
+                            title={official.isActive ? "Desativar atendente" : "Ativar atendente"}
                           >
-                            <Trash className="h-4 w-4" />
+                            {official.isActive ? 
+                              <UserX className="h-3.5 w-3.5" /> : 
+                              <UserCheck className="h-3.5 w-3.5" />}
                           </Button>
                         </div>
                       </TableCell>
