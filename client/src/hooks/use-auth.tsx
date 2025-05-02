@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 
 interface User {
   id: number;
@@ -51,9 +51,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await apiRequest('POST', '/api/auth/login', { username, password });
       const userData = await response.json();
       setUser(userData);
+      // Atualiza o cache do React Query com os dados do usuário
+      queryClient.setQueryData(['/api/auth/me'], userData);
       return userData;
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to login'));
+      setError(err instanceof Error ? err : new Error('Falha ao fazer login'));
       throw err;
     }
   };
@@ -62,8 +64,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await apiRequest('POST', '/api/auth/logout', {});
       setUser(null);
+      // Limpa o cache do React Query para o usuário
+      queryClient.setQueryData(['/api/auth/me'], null);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to logout'));
+      setError(err instanceof Error ? err : new Error('Falha ao fazer logout'));
       throw err;
     }
   };

@@ -104,15 +104,15 @@ export const Header: React.FC = () => {
               </a>
               <a href="/users" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/users") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
                 <span className="mr-3 text-lg"><User size={20} /></span>
-                <span className={location.startsWith("/users") ? "font-medium" : ""}>Users</span>
+                <span className={location.startsWith("/users") ? "font-medium" : ""}>Clientes</span>
               </a>
               <a href="/officials" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/officials") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
                 <span className="mr-3 text-lg"><UserCog size={20} /></span>
-                <span className={location.startsWith("/officials") ? "font-medium" : ""}>Officials</span>
+                <span className={location.startsWith("/officials") ? "font-medium" : ""}>Atendentes</span>
               </a>
               <a href="/settings" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/settings") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
                 <span className="mr-3 text-lg"><Settings size={20} /></span>
-                <span className={location.startsWith("/settings") ? "font-medium" : ""}>Site Settings</span>
+                <span className={location.startsWith("/settings") ? "font-medium" : ""}>Configurações</span>
               </a>
             </nav>
           </SheetContent>
