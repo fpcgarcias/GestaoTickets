@@ -88,12 +88,21 @@ export async function createSupportUserEndpoint(
       
       // 2. Criar o atendente
       console.log(`Criando atendente para usuário ID: ${user.id}`);
-      const officialData: InsertOfficial = {
+      // Garantir que pelo menos um departamento seja fornecido
+      if (!userDepartments || !Array.isArray(userDepartments) || userDepartments.length === 0) {
+        throw new Error('Pelo menos um departamento deve ser selecionado');
+      }
+
+      // Utilizar o primeiro departamento selecionado como departamento principal (para compatibilidade)
+      const defaultDepartment = userDepartments[0];
+      
+      const officialData: any = {
         name,
         email,
         userId: user.id,
         isActive,
         avatarUrl,
+        department: defaultDepartment, // Para compatibilidade com a coluna existente no banco
         createdAt: new Date(),
         updatedAt: new Date()
       };

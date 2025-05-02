@@ -137,6 +137,17 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Verificar se pelo menos um departamento foi selecionado
+    if (!formData.departments.length) {
+      toast({
+        title: "Erro de validação",
+        description: "Selecione pelo menos um departamento para o atendente.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setSubmitting(true);
     
     // Generate a random password for the user
