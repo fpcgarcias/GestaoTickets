@@ -81,7 +81,11 @@ export default function TicketsIndex() {
           break;
         case 'custom':
           // Filtro personalizado com range de datas
-          if (dateRange.from && ticketDate < dateRange.from) return false;
+          if (dateRange.from) {
+            const startDate = new Date(dateRange.from);
+            startDate.setHours(0, 0, 0, 0); // Início do dia
+            if (ticketDate < startDate) return false;
+          }
           if (dateRange.to) {
             const endDate = new Date(dateRange.to);
             endDate.setHours(23, 59, 59, 999); // Final do dia

@@ -5,6 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate, STATUS_COLORS } from '@/lib/utils';
 import { Ticket } from '@shared/schema';
 import { StatusDot } from './status-badge';
+import { SLAStatus } from './sla-status';
 import { Building } from 'lucide-react';
 
 interface TicketDetailProps {
@@ -82,6 +83,15 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
             </div>
           </div>
         )}
+        
+        {/* Status do SLA */}
+        <div className="mb-4">
+          <SLAStatus 
+            ticketCreatedAt={ticket.createdAt.toString()} 
+            ticketPriority={ticket.priority} 
+            ticketStatus={ticket.status} 
+          />
+        </div>
         
         <div className="mb-8 text-neutral-700 space-y-4 whitespace-pre-line">
           {ticket.description}

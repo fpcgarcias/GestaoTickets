@@ -498,6 +498,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Endpoints para configurações de SLA
+  router.get("/settings/sla", async (_req: Request, res: Response) => {
+    try {
+      // Buscar configurações de SLA do banco de dados
+      const slaSettings = await db.select().from(schema.slaDefinitions);
+      
+      // Se não existirem configurações, retornar valores padrão
+      if (!slaSettings || slaSettings.length === 0) {
+        const defaultSlaSettings = [
+          { id: 1, priority: 'low', responseTimeHours: 72, resolutionTimeHours: 120 },
+          { id: 2, priority: 'medium', responseTimeHours: 48, resolutionTimeHours: 72 },
+          { id: 3, priority: 'high', responseTimeHours: 24, resolutionTimeHours: 48 },
+          { id: 4, priority: 'critical', responseTimeHours: 4, resolutionTimeHours: 24 },
+        ];
+        return res.json(defaultSlaSettings);
+      }
+      
+      res.json(slaSettings);
+    } catch (error) {
+      console.error('Erro ao obter configurações de SLA:', error);
+      res.status(500).json({ message: "Falha ao buscar configurações de SLA", error: String(error) });
+    }
+  });
+  
+  router.post("/settings/sla", async (req: Request, res: Response) => {
+    try {
+      const slaData = req.body;
+      const { priority, responseTimeHours, resolutionTimeHours } = slaData;
+      
+      if (!priority || !['low', 'medium', 'high', 'critical'].includes(priority)) {
+        return res.status(400).json({ message: "Prioridade inválida" });
+      }
+      
+      // Verificar se já existe uma configuração para esta prioridade
+      const [existingSla] = await db
+        .select()
+        .from(schema.slaDefinitions)
+        .where(eq(schema.slaDefinitions.priority, priority));
+      
+      if (existingSla) {
+        // Atualizar configuração existente
+        await db
+          .update(schema.slaDefinitions)
+          .set({ 
+            responseTimeHours: responseTimeHours || existingSla.responseTimeHours,
+            resolutionTimeHours: resolutionTimeHours || existingSla.resolutionTimeHours,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.slaDefinitions.id, existingSla.id));
+          
+        // Buscar a configuração atualizada
+        const [updatedSla] = await db
+          .select()
+          .from(schema.slaDefinitions)
+          .where(eq(schema.slaDefinitions.id, existingSla.id));
+          
+        res.json(updatedSla);
+      } else {
+        // Criar nova configuração de SLA
+        const [newSla] = await db
+          .insert(schema.slaDefinitions)
+          .values({
+            priority,
+            responseTimeHours: responseTimeHours || 0,
+            resolutionTimeHours: resolutionTimeHours || 0,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          })
+          .returning();
+          
+        res.status(201).json(newSla);
+      }
+    } catch (error) {
+      console.error('Erro ao salvar configurações de SLA:', error);
+      res.status(500).json({ message: "Falha ao salvar configurações de SLA", error: String(error) });
+    }
+  });
+  
   // Montar o router em /api
   app.use("/api", router);
 

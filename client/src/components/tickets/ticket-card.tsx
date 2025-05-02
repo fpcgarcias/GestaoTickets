@@ -34,7 +34,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket }) => {
           <div className="flex items-center">
             {priority && <PriorityBadge priority={priority} />}
             <div className="text-sm text-neutral-500">
-              Postado em {formatDate(createdAt)}
+              Criado em {formatDate(createdAt)}
             </div>
           </div>
         </div>

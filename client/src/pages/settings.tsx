@@ -109,17 +109,30 @@ export default function Settings() {
   });
 
   // Handler para salvar configurações de SLA
-  const handleSaveSlaSettings = () => {
+  const handleSaveSlaSettings = async () => {
     const prioritySettings = [
-      { priority: 'low', responseTimeHours: 72, resolutionTimeHours: parseInt(lowPriority) },
-      { priority: 'medium', responseTimeHours: 48, resolutionTimeHours: parseInt(mediumPriority) },
-      { priority: 'high', responseTimeHours: 24, resolutionTimeHours: parseInt(highPriority) },
-      { priority: 'critical', responseTimeHours: 4, resolutionTimeHours: parseInt(criticalPriority) },
+      { priority: 'low', responseTimeHours: 72, resolutionTimeHours: parseInt(lowPriority) || 120 },
+      { priority: 'medium', responseTimeHours: 48, resolutionTimeHours: parseInt(mediumPriority) || 72 },
+      { priority: 'high', responseTimeHours: 24, resolutionTimeHours: parseInt(highPriority) || 48 },
+      { priority: 'critical', responseTimeHours: 4, resolutionTimeHours: parseInt(criticalPriority) || 24 },
     ];
 
-    // Salvar cada configuração de SLA
-    for (const setting of prioritySettings) {
-      saveSlaSettingsMutation.mutate(setting);
+    // Salvar cada configuração de SLA em sequência e esperar cada uma ser concluída
+    try {
+      for (const setting of prioritySettings) {
+        await saveSlaSettingsMutation.mutateAsync(setting);
+      }
+      
+      toast({
+        title: "Configurações de SLA salvas",
+        description: "Todas as configurações de SLA foram atualizadas com sucesso",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao salvar configurações",
+        description: "Ocorreu um erro ao salvar as configurações de SLA",
+        variant: "destructive",
+      });
     }
   };
 
