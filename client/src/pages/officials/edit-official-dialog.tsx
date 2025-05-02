@@ -57,11 +57,11 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
         name: official.name,
         email: official.email,
         isActive: official.isActive,
-        // Se o oficial tiver um único departamento definido, convertemos para array
+        // Se o oficial tiver departamentos definidos, usamos eles
         departments: official.departments 
           ? Array.isArray(official.departments) 
             ? official.departments as string[]
-            : [official.department] 
+            : [] 
           : []
       });
     }
@@ -158,25 +158,65 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
               />
             </div>
             
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="department" className="text-right">
-                Departamento
-              </Label>
-              <Select 
-                value={formData.department} 
-                onValueChange={(value) => setFormData({ ...formData, department: value })}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Selecione um departamento" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="technical">Suporte Técnico</SelectItem>
-                  <SelectItem value="billing">Faturamento</SelectItem>
-                  <SelectItem value="general">Atendimento Geral</SelectItem>
-                  <SelectItem value="sales">Vendas</SelectItem>
-                  <SelectItem value="other">Outro</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-4 items-start gap-4">
+              <Label className="text-right mt-2">Departamentos</Label>
+              <div className="col-span-3 space-y-4">
+                {/* Exibir departamentos selecionados */}
+                <div className="flex flex-wrap gap-2">
+                  {formData.departments.map(dept => {
+                    const deptInfo = availableDepartments.find(d => d.value === dept);
+                    return (
+                      <Badge key={dept} variant="secondary" className="px-3 py-1">
+                        {deptInfo?.label || dept}
+                        <X 
+                          className="ml-2 h-3 w-3 cursor-pointer" 
+                          onClick={() => removeDepartment(dept)}
+                        />
+                      </Badge>
+                    );
+                  })}
+                </div>
+                
+                {/* Seletor de departamentos */}
+                <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-between"
+                      type="button"
+                    >
+                      <span>Selecionar departamentos</span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Pesquisar departamento..." />
+                      <CommandEmpty>Nenhum departamento encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {availableDepartments.map((dept) => (
+                          <CommandItem
+                            key={dept.value}
+                            value={dept.value}
+                            onSelect={() => {
+                              toggleDepartment(dept.value);
+                              setPopoverOpen(false);
+                            }}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Checkbox 
+                                checked={formData.departments.includes(dept.value)}
+                                onCheckedChange={() => toggleDepartment(dept.value)}
+                              />
+                              <span>{dept.label}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">

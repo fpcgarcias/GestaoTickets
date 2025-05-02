@@ -317,7 +317,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   router.post("/officials", authRequired, async (req: Request, res: Response) => {
     try {
-      const official = await storage.createOfficial(req.body);
+      const { departments, ...officialData } = req.body;
+      
+      // Criar atendente primeiro
+      const official = await storage.createOfficial(officialData);
+      
+      // Se foram enviados departamentos, adicionar os departamentos do atendente
+      if (departments && Array.isArray(departments) && departments.length > 0) {
+        // Adicionar departamentos
+        for (const department of departments) {
+          await storage.addOfficialDepartment({
+            officialId: official.id,
+            department
+          });
+        }
+        
+        // Anexar departamentos ao resultado
+        official.departments = departments;
+      }
+      
       res.status(201).json(official);
     } catch (error) {
       console.error('Erro ao criar atendente:', error);
@@ -332,9 +350,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "ID de atendente inválido" });
       }
 
-      const official = await storage.updateOfficial(id, req.body);
+      const { departments, ...officialData } = req.body;
+      
+      // Atualizar dados básicos do atendente
+      const official = await storage.updateOfficial(id, officialData);
       if (!official) {
         return res.status(404).json({ message: "Atendente não encontrado" });
+      }
+      
+      // Se foram enviados departamentos, atualizar os departamentos do atendente
+      if (departments && Array.isArray(departments)) {
+        // Remover departamentos existentes
+        const existingDepartments = await storage.getOfficialDepartments(id);
+        for (const dept of existingDepartments) {
+          await storage.removeOfficialDepartment(id, dept.department);
+        }
+        
+        // Adicionar novos departamentos
+        for (const department of departments) {
+          await storage.addOfficialDepartment({
+            officialId: id,
+            department
+          });
+        }
+        
+        // Anexar departamentos atualizados ao resultado
+        official.departments = departments;
       }
 
       res.json(official);
