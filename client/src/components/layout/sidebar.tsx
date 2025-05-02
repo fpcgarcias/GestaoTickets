@@ -1,4 +1,5 @@
 import React from 'react';
+import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 import { Link } from 'wouter';
 import { 
@@ -35,13 +36,22 @@ const SidebarItem = ({ href, icon, label, isActive }: {
 };
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
+  const { user } = useAuth();
+  
+  // Definir itens de navegação com base no papel do usuário
   const navItems = [
-    { href: "/", icon: <LayoutDashboard size={20} />, label: "Painel de Controle" },
-    { href: "/tickets", icon: <TicketIcon size={20} />, label: "Chamados" },
-    { href: "/users", icon: <Users size={20} />, label: "Clientes" },
-    { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes" },
-    { href: "/settings", icon: <Settings size={20} />, label: "Configurações" },
+    { href: "/", icon: <LayoutDashboard size={20} />, label: "Painel de Controle", roles: ['admin', 'support', 'customer'] },
+    { href: "/tickets", icon: <TicketIcon size={20} />, label: "Chamados", roles: ['admin', 'support', 'customer'] },
+    { href: "/users", icon: <Users size={20} />, label: "Clientes", roles: ['admin', 'support'] },
+    { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes", roles: ['admin'] },
+    { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin'] },
   ];
+  
+  // Filtrar itens de navegação com base no papel do usuário atual
+  const filteredNavItems = navItems.filter(item => {
+    if (!user || !item.roles) return false;
+    return item.roles.includes(user.role);
+  });
 
   return (
     <>
@@ -51,7 +61,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           <h1 className="text-xl font-semibold text-neutral-900">TICKET LEAD</h1>
         </div>
         <nav className="p-4">
-          {navItems.map((item) => (
+          {filteredNavItems.map((item) => (
             <SidebarItem 
               key={item.href}
               href={item.href}
@@ -70,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       {/* Versão mobile da barra lateral (visível apenas em telas pequenas) */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 md:hidden">
         <nav className="flex justify-around p-2">
-          {navItems.map((item) => (
+          {filteredNavItems.map((item) => (
             <a 
               key={item.href} 
               href={item.href}

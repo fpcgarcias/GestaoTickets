@@ -742,6 +742,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Endpoint para atualizar informações do usuário
+  router.patch("/users/:id", adminRequired, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de usuário inválido" });
+      }
+      
+      const { name, email, username, password } = req.body;
+      
+      // Verificar se o usuário existe
+      const existingUser = await storage.getUser(id);
+      if (!existingUser) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+      
+      // Se estamos alterando o nome de usuário, verificar se já existe
+      if (username && username !== existingUser.username) {
+        const userWithUsername = await storage.getUserByUsername(username);
+        if (userWithUsername && userWithUsername.id !== id) {
+          return res.status(400).json({ message: "Nome de usuário já está em uso" });
+        }
+      }
+      
+      // Se estamos alterando o email, verificar se já existe
+      if (email && email !== existingUser.email) {
+        const userWithEmail = await storage.getUserByEmail(email);
+        if (userWithEmail && userWithEmail.id !== id) {
+          return res.status(400).json({ message: "Email já está em uso" });
+        }
+      }
+      
+      // Se uma senha foi fornecida, criptografá-la
+      let hashedPassword;
+      if (password) {
+        const { hashPassword } = await import('./utils/password');
+        hashedPassword = await hashPassword(password);
+      }
+      
+      // Preparar dados de atualização
+      const updateData: any = {};
+      if (name) updateData.name = name;
+      if (email) updateData.email = email;
+      if (username) updateData.username = username;
+      if (hashedPassword) updateData.password = hashedPassword;
+      updateData.updatedAt = new Date();
+      
+      // Atualizar usuário
+      const updatedUser = await storage.updateUser(id, updateData);
+      if (!updatedUser) {
+        return res.status(500).json({ message: "Falha ao atualizar usuário" });
+      }
+      
+      // Não retornar a senha
+      const { password: _, ...userWithoutPassword } = updatedUser;
+      
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error('Erro ao atualizar usuário:', error);
+      res.status(500).json({ message: "Falha ao atualizar usuário", error: String(error) });
+    }
+  });
+
   // Endpoint para gerenciar status de ativação de usuários
   router.patch("/users/:id/toggle-active", adminRequired, async (req: Request, res: Response) => {
     try {

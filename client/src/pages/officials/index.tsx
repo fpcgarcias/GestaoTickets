@@ -135,16 +135,24 @@ export default function OfficialsIndex() {
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {official.departments && Array.isArray(official.departments) && official.departments.length > 0 ? (
-                            // Remover departamentos duplicados e exibi-los
-                            [...new Set(official.departments)].map((dept) => (
-                              <Badge key={dept} variant="outline" className="capitalize">
-                                {dept === 'technical' && 'Suporte Técnico'}
-                                {dept === 'billing' && 'Faturamento'}
-                                {dept === 'general' && 'Atendimento Geral'}
-                                {dept === 'sales' && 'Vendas'}
-                                {dept === 'other' && 'Outro'}
-                              </Badge>
-                            ))
+                            // Exibir os departamentos
+                            official.departments.map((dept, index) => {
+                              // Se dept é um objeto com propriedade 'department', pegamos essa propriedade
+                              // Se não, assumimos que dept é uma string diretamente
+                              const departmentValue = typeof dept === 'object' && dept !== null && 'department' in dept
+                                ? dept.department
+                                : dept;
+                                
+                              return (
+                                <Badge key={index} variant="outline" className="capitalize">
+                                  {departmentValue === 'technical' && 'Suporte Técnico'}
+                                  {departmentValue === 'billing' && 'Faturamento'}
+                                  {departmentValue === 'general' && 'Atendimento Geral'}
+                                  {departmentValue === 'sales' && 'Vendas'}
+                                  {departmentValue === 'other' && 'Outro'}
+                                </Badge>
+                              );
+                            })
                           ) : (
                             <span className="text-neutral-500 text-sm">Sem departamento</span>
                           )}
@@ -152,12 +160,12 @@ export default function OfficialsIndex() {
                       </TableCell>
                       <TableCell>
                         {official.isActive ? (
-                          <Badge variant="success" className="bg-green-100 text-green-800 hover:bg-green-100">
+                          <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">
                             <Check className="w-3 h-3 mr-1" />
                             Ativo
                           </Badge>
                         ) : (
-                          <Badge variant="destructive" className="bg-red-100 text-red-800 hover:bg-red-100">
+                          <Badge variant="outline" className="bg-red-100 text-red-800 hover:bg-red-100">
                             <X className="w-3 h-3 mr-1" />
                             Inativo
                           </Badge>

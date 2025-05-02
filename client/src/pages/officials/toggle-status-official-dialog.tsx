@@ -80,15 +80,23 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official }: Tog
             <div className="mb-4">
               <p className="text-sm font-medium mb-1">Departamentos:</p>
               <div className="flex flex-wrap gap-1">
-                {official.departments.map((dept) => (
-                  <Badge key={dept} variant="outline" className="capitalize">
-                    {dept === 'technical' && 'Suporte Técnico'}
-                    {dept === 'billing' && 'Faturamento'}
-                    {dept === 'general' && 'Atendimento Geral'}
-                    {dept === 'sales' && 'Vendas'}
-                    {dept === 'other' && 'Outro'}
-                  </Badge>
-                ))}
+                {official.departments.map((dept, index) => {
+                  // Se dept é um objeto com propriedade 'department', pegamos essa propriedade
+                  // Se não, assumimos que dept é uma string diretamente
+                  const departmentValue = typeof dept === 'object' && dept !== null && 'department' in dept
+                    ? dept.department
+                    : dept;
+                    
+                  return (
+                    <Badge key={index} variant="outline" className="capitalize">
+                      {departmentValue === 'technical' && 'Suporte Técnico'}
+                      {departmentValue === 'billing' && 'Faturamento'}
+                      {departmentValue === 'general' && 'Atendimento Geral'}
+                      {departmentValue === 'sales' && 'Vendas'}
+                      {departmentValue === 'other' && 'Outro'}
+                    </Badge>
+                  );
+                })}
               </div>
             </div>
           )}
