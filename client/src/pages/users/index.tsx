@@ -30,6 +30,12 @@ export default function UsersIndex() {
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editCompany, setEditCompany] = useState('');
+  
+  // Estados para alteração de senha
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   const { data: customers, isLoading } = useQuery({
     queryKey: ['/api/customers'],

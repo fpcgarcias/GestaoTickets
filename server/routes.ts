@@ -278,7 +278,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "ID de cliente inválido" });
       }
 
-      const customer = await storage.updateCustomer(id, req.body);
+      const { password, ...customerData } = req.body;
+
+      // Se uma senha foi fornecida, criptografá-la antes de salvar
+      if (password) {
+        // Verificar se o cliente tem um usuário associado
+        const customer = await storage.getCustomer(id);
+        if (!customer) {
+          return res.status(404).json({ message: "Cliente não encontrado" });
+        }
+        
+        if (customer.userId) {
+          // Criptografar a nova senha
+          const { hashPassword } = await import('./utils/password');
+          const hashedPassword = await hashPassword(password);
+          
+          // Atualizar a senha do usuário associado
+          await storage.updateUser(customer.userId, { password: hashedPassword });
+        }
+      }
+
+      const customer = await storage.updateCustomer(id, customerData);
       if (!customer) {
         return res.status(404).json({ message: "Cliente não encontrado" });
       }
@@ -366,7 +386,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "ID de atendente inválido" });
       }
 
-      const { departments, ...officialData } = req.body;
+      const { departments, password, ...officialData } = req.body;
+      
+      // Se uma senha foi fornecida, criptografá-la antes de salvar
+      if (password) {
+        // Verificar se o atendente tem um usuário associado
+        const official = await storage.getOfficial(id);
+        if (!official) {
+          return res.status(404).json({ message: "Atendente não encontrado" });
+        }
+        
+        if (official.userId) {
+          // Criptografar a nova senha
+          const { hashPassword } = await import('./utils/password');
+          const hashedPassword = await hashPassword(password);
+          
+          // Atualizar a senha do usuário associado
+          await storage.updateUser(official.userId, { password: hashedPassword });
+        }
+      }
       
       // Atualizar dados básicos do atendente
       const official = await storage.updateOfficial(id, officialData);

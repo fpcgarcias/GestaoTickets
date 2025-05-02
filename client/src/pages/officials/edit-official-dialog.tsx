@@ -33,6 +33,14 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
     departments: [] as string[]
   });
 
+  // Estado para o formulário de senha
+  const [passwordData, setPasswordData] = useState({
+    password: '',
+    confirmPassword: ''
+  });
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+
   const [submitting, setSubmitting] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -114,10 +122,42 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
     }
   });
 
+  // Adicionar método para lidar com o toggle do formulário de senha
+  const togglePasswordForm = () => {
+    setPasswordData({ password: '', confirmPassword: '' }); // Limpar campos de senha
+    setPasswordError(''); // Limpar erros de senha
+    setShowPasswordForm(!showPasswordForm);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    updateOfficialMutation.mutate(formData);
+    
+    // Verificar se há senha para atualizar e se as senhas correspondem
+    if (showPasswordForm) {
+      // Verificar se as senhas correspondem
+      if (passwordData.password !== passwordData.confirmPassword) {
+        setPasswordError('As senhas não correspondem');
+        setSubmitting(false);
+        return;
+      }
+      
+      // Verificar se a senha tem pelo menos 6 caracteres
+      if (passwordData.password.length < 6) {
+        setPasswordError('A senha deve ter pelo menos 6 caracteres');
+        setSubmitting(false);
+        return;
+      }
+      
+      // Se chegou aqui, a senha é válida, adicionar ao formData
+      updateOfficialMutation.mutate({
+        ...formData,
+        password: passwordData.password
+      });
+    } else {
+      // Atualização normal sem senha
+      updateOfficialMutation.mutate(formData);
+    }
   };
 
   return (
@@ -248,6 +288,63 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Botão para mostrar/ocultar formulário de alteração de senha */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <div className="text-right">
+                <Label htmlFor="changePassword" className="cursor-pointer select-none">
+                  Senha
+                </Label>
+              </div>
+              <div className="col-span-3">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={togglePasswordForm}
+                  className="w-full justify-start"
+                >
+                  {showPasswordForm ? "Cancelar alteração de senha" : "Alterar senha"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Formulário de alteração de senha (condicional) */}
+            {showPasswordForm && (
+              <>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="password" className="text-right">
+                    Nova Senha
+                  </Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={passwordData.password}
+                    onChange={(e) => setPasswordData({ ...passwordData, password: e.target.value })}
+                    className="col-span-3"
+                    placeholder="Digite a nova senha"
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="confirmPassword" className="text-right">
+                    Confirmar
+                  </Label>
+                  <div className="col-span-3 space-y-2">
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                      className="w-full"
+                      placeholder="Digite a senha novamente"
+                    />
+                    {passwordError && (
+                      <p className="text-sm text-red-500">{passwordError}</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           
           <DialogFooter>
