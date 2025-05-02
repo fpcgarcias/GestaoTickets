@@ -1,13 +1,17 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { CheckCircle, X, ChevronsUpDown } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 interface AddOfficialDialogProps {
   open: boolean;
@@ -25,7 +29,7 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    department: 'technical',
+    departments: [] as string[],
     userId: null as number | null,
     isActive: true,
     avatarUrl: null as string | null,
@@ -105,7 +109,7 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
     setFormData({
       name: '',
       email: '',
-      department: 'technical',
+      departments: [],
       userId: null,
       isActive: true,
       avatarUrl: null,

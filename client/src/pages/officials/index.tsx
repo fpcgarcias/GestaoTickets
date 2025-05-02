@@ -127,13 +127,21 @@ export default function OfficialsIndex() {
                       <TableCell className="font-medium">{official.name}</TableCell>
                       <TableCell>{official.email}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="capitalize">
-                          {official.department === 'technical' && 'Suporte Técnico'}
-                          {official.department === 'billing' && 'Faturamento'}
-                          {official.department === 'general' && 'Atendimento Geral'}
-                          {official.department === 'sales' && 'Vendas'}
-                          {official.department === 'other' && 'Outro'}
-                        </Badge>
+                        <div className="flex flex-wrap gap-1">
+                          {official.departments && Array.isArray(official.departments) && official.departments.length > 0 ? (
+                            official.departments.map((dept, index) => (
+                              <Badge key={index} variant="outline" className="capitalize">
+                                {dept === 'technical' && 'Suporte Técnico'}
+                                {dept === 'billing' && 'Faturamento'}
+                                {dept === 'general' && 'Atendimento Geral'}
+                                {dept === 'sales' && 'Vendas'}
+                                {dept === 'other' && 'Outro'}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-neutral-500 text-sm">Sem departamento</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {official.isActive ? (
