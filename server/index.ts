@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { migrateDepartmentsToJunctionTable } from "./migrate-departments";
+import { migratePasswords } from "./migrate-passwords";
 import session from "express-session";
 import crypto from "crypto";
 
@@ -63,13 +64,22 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Executar a migração de departamentos
+  // Executar migração de departamentos
   try {
     log('Iniciando migração de departamentos...');
     await migrateDepartmentsToJunctionTable();
     log('Migração de departamentos concluída.');
   } catch (error) {
     log('Erro ao migrar departamentos: ' + error);
+  }
+  
+  // Executar migração de senhas
+  try {
+    log('Iniciando migração de senhas...');
+    await migratePasswords();
+    log('Migração de senhas concluída.');
+  } catch (error) {
+    log('Erro ao migrar senhas: ' + error);
   }
 
   const server = await registerRoutes(app);
