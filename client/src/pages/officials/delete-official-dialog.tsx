@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, UserX, UserCheck } from "lucide-react";
+import { AlertTriangle, UserX, UserCheck, UserCog } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Official } from '@shared/schema';
+import { Badge } from "@/components/ui/badge";
 
 interface ToggleStatusOfficialDialogProps {
   open: boolean;
@@ -81,15 +82,19 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official }: Tog
             <div className="mb-4">
               <p className="text-sm font-medium mb-1">Departamentos:</p>
               <div className="flex flex-wrap gap-1">
-                {official.departments.map((dept) => (
-                  <Badge key={dept} variant="outline" className="capitalize">
-                    {dept === 'technical' && 'Suporte Técnico'}
-                    {dept === 'billing' && 'Faturamento'}
-                    {dept === 'general' && 'Atendimento Geral'}
-                    {dept === 'sales' && 'Vendas'}
-                    {dept === 'other' && 'Outro'}
-                  </Badge>
-                ))}
+                {official.departments.map((dept) => {
+                  const departmentValue = typeof dept === 'string' ? dept : dept?.department;
+                  const key = typeof dept === 'string' ? dept : dept?.id || departmentValue;
+                  return (
+                    <Badge key={key} variant="outline" className="capitalize">
+                      {departmentValue === 'technical' && 'Suporte Técnico'}
+                      {departmentValue === 'billing' && 'Faturamento'}
+                      {departmentValue === 'general' && 'Atendimento Geral'}
+                      {departmentValue === 'sales' && 'Vendas'}
+                      {departmentValue === 'other' && 'Outro'}
+                    </Badge>
+                  );
+                })}
               </div>
             </div>
           )}

@@ -71,7 +71,8 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
           </div>
         </div>
         
-        {ticket.customer && (
+        {/* Exibir detalhes do cliente apenas se ele existir (pelo ID ou nome) */}
+        {ticket.customer?.id || ticket.customer?.name ? (
           <div className="flex items-center gap-2 mb-4 bg-blue-50 p-3 rounded-md">
             <Building className="h-5 w-5 text-blue-500" />
             <div>
@@ -82,7 +83,16 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
               )}
             </div>
           </div>
-        )}
+        ) : ticket.customerEmail ? (
+          // Se não há cliente cadastrado, mas temos o email, mostramos isso
+          <div className="flex items-center gap-2 mb-4 bg-yellow-50 p-3 rounded-md">
+            <Building className="h-5 w-5 text-yellow-500" />
+            <div>
+              <span className="text-sm text-yellow-700 font-medium">Cliente: </span>
+              <span className="text-sm text-yellow-800">(Não cadastrado) - {ticket.customerEmail}</span>
+            </div>
+          </div>
+        ) : null}
         
         {/* Status do SLA */}
         <div className="mb-4">

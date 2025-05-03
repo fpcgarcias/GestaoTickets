@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CheckCircle, X, ChevronsUpDown } from "lucide-react";
+import { CheckCircle, X, ChevronsUpDown, Copy } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
@@ -16,19 +16,21 @@ import { cn } from "@/lib/utils";
 interface AddOfficialDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCreated?: (official: any) => void;
 }
 
 function generateRandomPassword() {
   return Math.random().toString(36).slice(-8);
 }
 
-export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps) {
+export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficialDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    username: '',
     departments: [] as string[],
     userId: null as number | null,
     isActive: true,
@@ -153,6 +155,16 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
       return;
     }
     
+    // Verificar se o nome de login foi fornecido
+    if (!formData.username.trim()) {
+      toast({
+        title: "Erro de validação",
+        description: "O nome de login é obrigatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setSubmitting(true);
     
     // Generate a random password for the user
@@ -160,14 +172,16 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
     setGeneratedPassword(password);
     
     // Criar o usuário e atendente em uma única operação
+    // Estruturando os dados conforme a API espera
     createSupportUserMutation.mutate({
-      username: formData.email,
+      username: formData.username,
       email: formData.email,
-      name: formData.name,
       password: password,
+      name: formData.name,
+      departments: formData.departments,
       userDepartments: formData.departments,
-      avatarUrl: null,
-      isActive: true
+      isActive: true,
+      avatarUrl: null
     });
   };
 
@@ -176,6 +190,7 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
     setFormData({
       name: '',
       email: '',
+      username: '',
       departments: [],
       userId: null,
       isActive: true,
@@ -207,6 +222,19 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="col-span-3"
+                    required
+                  />
+                </div>
+                
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="username" className="text-right">
+                    Login
+                  </Label>
+                  <Input
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
                     className="col-span-3"
                     required
                   />
@@ -335,8 +363,27 @@ export function AddOfficialDialog({ open, onOpenChange }: AddOfficialDialogProps
             <div className="py-6">
               <div className="mb-4">
                 <p className="font-medium mb-1">Dados de Acesso:</p>
-                <p><strong>Nome de Usuário:</strong> {formData.email}</p>
-                <p><strong>Senha Temporária:</strong> {generatedPassword}</p>
+                <p><strong>Nome de Usuário (Login):</strong> {formData.username}</p>
+                <p><strong>Email:</strong> {formData.email}</p>
+                <p className="flex items-center gap-2">
+                  <strong>Senha Temporária:</strong> {generatedPassword}
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedPassword);
+                      toast({
+                        title: "Senha copiada",
+                        description: "A senha foi copiada para a área de transferência.",
+                        duration: 3000,
+                      });
+                    }}
+                    className="h-6 w-6"
+                    type="button"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </p>
               </div>
               
               <div className="bg-amber-50 border border-amber-200 p-3 rounded-md">

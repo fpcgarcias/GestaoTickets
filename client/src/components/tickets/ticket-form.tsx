@@ -28,15 +28,37 @@ import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 
+// Definir tipos para os dados buscados
+interface Customer {
+  id: number;
+  name: string;
+  email: string;
+}
+
+interface IncidentType {
+  id: number;
+  name: string;
+  value: string;
+  departmentId: number;
+}
+
+interface Department {
+  id: number;
+  name: string;
+}
+
 export const TicketForm = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
   // Adicionar uma consulta para buscar os clientes
-  const { data: customers, isLoading: isLoadingCustomers } = useQuery({
+  const { data: customersData, isLoading: isLoadingCustomers } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
   });
+
+  // Garantir que customers é um array
+  const customers = Array.isArray(customersData) ? customersData : [];
 
   const form = useForm<InsertTicket & { customerId?: number }>({
     resolver: zodResolver(insertTicketSchema.extend({
@@ -50,6 +72,7 @@ export const TicketForm = () => {
       type: '',
       priority: 'medium' as const,
       departmentId: undefined,
+      incidentTypeId: undefined,
     },
   });
 
@@ -63,6 +86,9 @@ export const TicketForm = () => {
         title: "Sucesso!",
         description: "Chamado criado com sucesso.",
       });
+      queryClient.invalidateQueries({ queryKey: ['/api/tickets/user-role'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tickets/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tickets/recent'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
       navigate('/tickets');
     },
@@ -78,7 +104,8 @@ export const TicketForm = () => {
   const onSubmit = (data: InsertTicket & { customerId?: number }) => {
     // Se um cliente foi selecionado, usar seu email
     if (data.customerId) {
-      const selectedCustomer = customers?.find(c => c.id === data.customerId);
+      // Usar 'customers' que é garantido como array
+      const selectedCustomer = customers.find((c: Customer) => c.id === data.customerId);
       if (selectedCustomer) {
         data.customerEmail = selectedCustomer.email;
       }
@@ -90,16 +117,27 @@ export const TicketForm = () => {
   };
 
   // Buscar dados de departamentos
-  const { data: departments } = useQuery({
+  const { data: departmentsData } = useQuery<Department[]>({
     queryKey: ["/api/settings/departments"],
-    initialData: DEPARTMENTS.map(dept => ({ id: parseInt(dept.value), name: dept.label, description: '' }))
+    initialData: DEPARTMENTS.map(dept => ({ id: parseInt(dept.value), name: dept.label }))
   });
 
+  // Garantir que departments é um array
+  const departments = Array.isArray(departmentsData) ? departmentsData : [];
+
   // Buscar dados de tipos de incidentes
-  const { data: incidentTypes } = useQuery({
+  const { data: incidentTypesData } = useQuery<IncidentType[]>({
     queryKey: ["/api/settings/incident-types"],
-    initialData: TICKET_TYPES.map(type => ({ id: 0, name: type.label, departmentId: type.departmentId }))
   });
+
+  // Garantir que incidentTypes é um array
+  const incidentTypes = Array.isArray(incidentTypesData) ? incidentTypesData : [];
+
+  // Filtrar tipos de incidentes pelo departamento selecionado
+  const selectedDepartmentId = form.watch('departmentId');
+  const filteredIncidentTypes = selectedDepartmentId 
+    ? incidentTypes.filter((type: IncidentType) => type.departmentId === selectedDepartmentId)
+    : incidentTypes;
 
   return (
     <Card>
@@ -122,7 +160,8 @@ export const TicketForm = () => {
                         field.onChange(customerId);
                         
                         // Atualizar automaticamente o email
-                        const selectedCustomer = customers?.find(c => c.id === customerId);
+                        // Usar 'customers' que é garantido como array
+                        const selectedCustomer = customers.find((c: Customer) => c.id === customerId);
                         if (selectedCustomer) {
                           form.setValue('customerEmail', selectedCustomer.email);
                         }
@@ -135,7 +174,7 @@ export const TicketForm = () => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {customers?.map((customer) => (
+                        {customers.map((customer: Customer) => (
                           <SelectItem key={customer.id} value={customer.id.toString()}>
                             {customer.name}
                           </SelectItem>
@@ -170,7 +209,12 @@ export const TicketForm = () => {
                     <Select 
                       onValueChange={(value) => {
                         // Atualizar o departamento selecionado
-                        field.onChange(parseInt(value));
+                        const departmentId = parseInt(value);
+                        field.onChange(departmentId);
+                        
+                        // Limpar o tipo de incidente quando o departamento muda
+                        form.setValue('type', '');
+                        form.setValue('incidentTypeId', undefined);
                       }} 
                       defaultValue={field.value?.toString()}
                     >
@@ -180,7 +224,7 @@ export const TicketForm = () => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {departments?.map((dept) => (
+                        {departments.map((dept: Department) => (
                           <SelectItem key={dept.id} value={dept.id.toString()}>
                             {dept.name}
                           </SelectItem>
@@ -199,18 +243,35 @@ export const TicketForm = () => {
                   <FormItem>
                     <FormLabel>Tipo de Chamado</FormLabel>
                     <Select 
-                      onValueChange={field.onChange} 
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        
+                        // Encontrar o tipo de incidente pelo valor selecionado
+                        // Usar 'incidentTypes' que é garantido como array
+                        const selectedType = incidentTypes.find((type: IncidentType) => type.value === value);
+                        if (selectedType) {
+                          // Atualizar o ID do tipo de incidente
+                          form.setValue('incidentTypeId', selectedType.id);
+                          
+                          // Se o departamento não estiver selecionado, selecionar automaticamente
+                          // baseado no tipo de incidente
+                          if (!form.getValues('departmentId') && selectedType.departmentId) {
+                            form.setValue('departmentId', selectedType.departmentId);
+                          }
+                        }
+                      }} 
                       defaultValue={field.value}
+                      disabled={!selectedDepartmentId}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Escolha o tipo" />
+                          <SelectValue placeholder={selectedDepartmentId ? "Escolha o tipo" : "Selecione um departamento primeiro"} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {TICKET_TYPES.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
+                        {filteredIncidentTypes.map((type: IncidentType) => (
+                          <SelectItem key={type.id} value={type.value}>
+                            {type.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

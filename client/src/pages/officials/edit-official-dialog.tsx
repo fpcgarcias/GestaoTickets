@@ -16,13 +16,23 @@ import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// Estendendo a interface Official para incluir o user com username
+interface OfficialWithUser extends Official {
+  user?: {
+    id: number;
+    username: string;
+    email?: string;
+  };
+}
+
 interface EditOfficialDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  official: Official | null;
+  official: OfficialWithUser | null;
+  onSaved?: () => void; // Callback opcional para quando o atendente for salvo
 }
 
-export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficialDialogProps) {
+export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: EditOfficialDialogProps) {
   // Função wrapper para controlar o fechamento do diálogo e limpar estados
   const handleOpenChange = (isOpen: boolean) => {
     // Se estiver fechando o diálogo
@@ -41,6 +51,7 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    username: '',
     isActive: true,
     departments: [] as string[]
   });
@@ -73,45 +84,40 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
   // Carregar dados do atendente quando o componente abrir
   useEffect(() => {
     if (official) {
+      // Garantir que official.departments seja sempre um array de strings
+      let currentDepartments: string[] = [];
+      if (official.departments) {
+        if (Array.isArray(official.departments)) {
+          currentDepartments = official.departments.map(d => 
+            typeof d === 'object' && d !== null && 'department' in d ? d.department : d
+          ).filter(d => typeof d === 'string') as string[];
+        } else {
+          // Tratar caso inesperado onde official.departments não é array (opcional)
+          console.warn("official.departments não é um array:", official.departments);
+        }
+      }
+      
       setFormData({
         name: official.name,
         email: official.email,
+        username: official.user?.username || '',
         isActive: official.isActive,
-        // Se o oficial tiver departamentos definidos, usamos eles
-        departments: official.departments 
-          ? Array.isArray(official.departments) 
-            ? official.departments as string[]
-            : [] 
-          : []
+        departments: currentDepartments // Usar o array de strings processado
       });
     }
   }, [official]);
   
   const toggleDepartment = (department: string) => {
     setFormData(prev => {
-      // Verificar se o departamento já existe na lista
-      const exists = prev.departments.some(d => {
-        // Se for um objeto com propriedade 'department'
-        if (typeof d === 'object' && d !== null && 'department' in d) {
-          return d.department === department;
-        }
-        // Se for uma string
-        return d === department;
-      });
+      // Trabalhar diretamente com array de strings
+      const exists = prev.departments.includes(department);
       
       if (exists) {
-        // Filtrar o departamento (tanto se for string quanto objeto)
         return {
           ...prev,
-          departments: prev.departments.filter(d => {
-            if (typeof d === 'object' && d !== null && 'department' in d) {
-              return d.department !== department;
-            }
-            return d !== department;
-          })
+          departments: prev.departments.filter(d => d !== department)
         };
       } else {
-        // Adicionar o novo departamento como string
         return {
           ...prev,
           departments: [...prev.departments, department]
@@ -123,14 +129,8 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
   const removeDepartment = (department: string) => {
     setFormData(prev => ({
       ...prev,
-      departments: prev.departments.filter(d => {
-        // Se for um objeto com propriedade 'department'
-        if (typeof d === 'object' && d !== null && 'department' in d) {
-          return d.department !== department;
-        }
-        // Se for uma string
-        return d !== department;
-      })
+      // Filtrar diretamente o array de strings
+      departments: prev.departments.filter(d => d !== department)
     }));
   };
 
@@ -143,6 +143,8 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
       queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
       setSubmitting(false);
       handleOpenChange(false);
+      // Chamar o callback se fornecido
+      if (onSaved) onSaved();
       toast({
         title: "Atendente atualizado",
         description: "As informações do atendente foram atualizadas com sucesso.",
@@ -178,21 +180,29 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
       return;
     }
     
+    // Verificar se o nome de login foi fornecido
+    if (!formData.username.trim()) {
+      toast({
+        title: "Erro de validação",
+        description: "O nome de login é obrigatório.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setSubmitting(true);
     
-    // Garantir que temos pelo menos um departamento para o campo department
-    let updatedData = {...formData};
-    // Se existe um array de departamentos, use o primeiro como departamento principal
-    if (Array.isArray(formData.departments) && formData.departments.length > 0) {
-      const firstDept = formData.departments[0];
-      // Se for um objeto com propriedade department, use-o
-      if (typeof firstDept === 'object' && firstDept !== null && 'department' in firstDept) {
-        updatedData.department = firstDept.department;
-      } else {
-        // Caso contrário, é uma string
-        updatedData.department = firstDept;
+    // Usar diretamente formData, pois já contém o array de strings 'departments'
+    let updatedData = {
+      ...formData,
+      user: {
+        ...(official?.user || {}),
+        username: formData.username
       }
-    }
+    };
+    
+    // Remover o username do nível principal pois ele pertence ao objeto user
+    delete updatedData.username;
     
     // Verificar se há senha para atualizar e se as senhas correspondem
     if (showPasswordForm) {
@@ -211,14 +221,11 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
       }
       
       // Se chegou aqui, a senha é válida, adicionar ao formData
-      updateOfficialMutation.mutate({
-        ...updatedData,
-        password: passwordData.password
-      });
-    } else {
-      // Atualização normal sem senha
-      updateOfficialMutation.mutate(updatedData);
+      updatedData.user.password = passwordData.password;
     }
+    
+    // Atualização com os dados corretos
+    updateOfficialMutation.mutate(updatedData);
   };
 
   return (
@@ -246,6 +253,19 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
             </div>
             
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="username" className="text-right">
+                Login
+              </Label>
+              <Input
+                id="username"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                className="col-span-3"
+                required
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right">
                 Email
               </Label>
@@ -265,19 +285,14 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
                 {/* Exibir departamentos selecionados */}
                 <div className="flex flex-wrap gap-2">
                   {/* Exibir departamentos */}
-                  {formData.departments.map((dept, index) => {
-                    // Normalizamos o valor do departamento
-                    const departmentValue = typeof dept === 'object' && dept !== null && 'department' in dept
-                      ? dept.department
-                      : dept;
-                      
-                    const deptInfo = availableDepartments.find(d => d.value === departmentValue);
+                  {formData.departments.map((dept: string) => {
+                    const deptInfo = availableDepartments.find(d => d.value === dept);
                     return (
-                      <Badge key={index} variant="secondary" className="px-3 py-1">
-                        {deptInfo?.label || departmentValue}
+                      <Badge key={dept} variant="secondary" className="px-3 py-1">
+                        {deptInfo?.label || dept}
                         <X 
                           className="ml-2 h-3 w-3 cursor-pointer" 
-                          onClick={() => removeDepartment(departmentValue)}
+                          onClick={() => removeDepartment(dept)}
                         />
                       </Badge>
                     );
@@ -306,7 +321,8 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
                             key={dept.value}
                             value={dept.value}
                             onSelect={() => {
-                              // Não fazer nada no onSelect
+                              toggleDepartment(dept.value);
+                              setPopoverOpen(false);
                             }}
                           >
                             <div className="flex items-center gap-2">
@@ -316,15 +332,12 @@ export function EditOfficialDialog({ open, onOpenChange, official }: EditOfficia
                                   toggleDepartment(dept.value);
                                 }}
                               >
-                                <Checkbox 
-                                  checked={formData.departments.some(d => {
-                                    // Se for um objeto com propriedade 'department'
-                                    if (typeof d === 'object' && d !== null && 'department' in d) {
-                                      return d.department === dept.value;
-                                    }
-                                    // Se for uma string
-                                    return d === dept.value;
-                                  })}
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    // Verificar se dept.value existe no array de strings
+                                    formData.departments.includes(dept.value) ? "opacity-100" : "opacity-0"
+                                  )}
                                 />
                               </div>
                               <span 

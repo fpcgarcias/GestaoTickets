@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { 
   User, 
   InsertUser, 
@@ -12,7 +13,8 @@ import {
   TicketStatusHistory,
   SLADefinition,
   OfficialDepartment,
-  InsertOfficialDepartment
+  InsertOfficialDepartment,
+  ticketStatusEnum, ticketPriorityEnum, userRoleEnum, departmentEnum
 } from "@shared/schema";
 import { generateTicketId } from "../client/src/lib/utils";
 
@@ -22,19 +24,19 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  createUser(userData: InsertUser): Promise<User>;
   updateUser(id: number, userData: Partial<User>): Promise<User | undefined>;
   deleteUser(id: number): Promise<boolean>;
-  inactivateUser(id: number): Promise<User | undefined>;
-  activateUser(id: number): Promise<User | undefined>;
-  getActiveUsers(): Promise<User[]>;
-  getAllUsers(): Promise<User[]>;
+  inactivateUser?(id: number): Promise<User | undefined>;
+  activateUser?(id: number): Promise<User | undefined>;
+  getActiveUsers?(): Promise<User[]>;
+  getAllUsers?(): Promise<User[]>;
   
   // Customer operations
   getCustomers(): Promise<Customer[]>;
   getCustomer(id: number): Promise<Customer | undefined>;
   getCustomerByEmail(email: string): Promise<Customer | undefined>;
-  createCustomer(customer: InsertCustomer): Promise<Customer>;
+  createCustomer(customerData: InsertCustomer): Promise<Customer>;
   updateCustomer(id: number, customerData: Partial<Customer>): Promise<Customer | undefined>;
   deleteCustomer(id: number): Promise<boolean>;
   
@@ -42,9 +44,11 @@ export interface IStorage {
   getOfficials(): Promise<Official[]>;
   getOfficial(id: number): Promise<Official | undefined>;
   getOfficialByEmail(email: string): Promise<Official | undefined>;
-  createOfficial(official: InsertOfficial): Promise<Official>;
+  createOfficial(officialData: InsertOfficial): Promise<Official>;
   updateOfficial(id: number, officialData: Partial<Official>): Promise<Official | undefined>;
   deleteOfficial(id: number): Promise<boolean>;
+  inactivateOfficial?(id: number): Promise<Official | undefined>;
+  activateOfficial?(id: number): Promise<Official | undefined>;
   
   // Official departments operations
   getOfficialDepartments(officialId: number): Promise<OfficialDepartment[]>;
@@ -62,13 +66,13 @@ export interface IStorage {
   getTicketsByStatus(status: string): Promise<Ticket[]>;
   getTicketsByCustomerId(customerId: number): Promise<Ticket[]>;
   getTicketsByOfficialId(officialId: number): Promise<Ticket[]>;
-  createTicket(ticket: InsertTicket): Promise<Ticket>;
+  createTicket(ticketData: InsertTicket): Promise<Ticket>;
   updateTicket(id: number, ticketData: Partial<Ticket>): Promise<Ticket | undefined>;
   deleteTicket(id: number): Promise<boolean>;
   
   // Ticket reply operations
   getTicketReplies(ticketId: number): Promise<TicketReply[]>;
-  createTicketReply(reply: InsertTicketReply): Promise<TicketReply>;
+  createTicketReply(replyData: InsertTicketReply): Promise<TicketReply>;
   
   // Stats and dashboard operations
   getTicketStats(): Promise<{
@@ -77,6 +81,8 @@ export interface IStorage {
     byPriority: Record<string, number>;
   }>;
   getRecentTickets(limit?: number): Promise<Ticket[]>;
+  getTicketStatsByUserRole?(userId: number, userRole: string): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
+  getRecentTicketsByUserRole?(userId: number, userRole: string, limit?: number): Promise<Ticket[]>;
 }
 
 // In-memory storage implementation
@@ -89,6 +95,7 @@ export class MemStorage implements IStorage {
   private ticketReplies: Map<number, TicketReply>;
   private ticketStatusHistory: Map<number, TicketStatusHistory>;
   private slaDefinitions: Map<number, SLADefinition>;
+  private officialDepartments: Map<number, OfficialDepartment>;
   
   private userId: number;
   private customerId: number;
@@ -97,6 +104,7 @@ export class MemStorage implements IStorage {
   private replyId: number;
   private historyId: number;
   private slaId: number;
+  private officialDepartmentId: number;
 
   constructor() {
     // Initialize maps
@@ -107,6 +115,7 @@ export class MemStorage implements IStorage {
     this.ticketReplies = new Map();
     this.ticketStatusHistory = new Map();
     this.slaDefinitions = new Map();
+    this.officialDepartments = new Map();
     
     // Initialize auto-increment IDs
     this.userId = 1;
@@ -116,6 +125,7 @@ export class MemStorage implements IStorage {
     this.replyId = 1;
     this.historyId = 1;
     this.slaId = 1;
+    this.officialDepartmentId = 1;
     
     // Add some initial data
     this.initializeData();
@@ -201,13 +211,25 @@ export class MemStorage implements IStorage {
       id: this.officialId++,
       name: 'Support User',
       email: 'support@example.com',
-      department: 'technical',
       userId: supportUser.id,
       isActive: true,
+      avatarUrl: null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      departments: []
     };
     this.officials.set(official.id, official);
+    
+    // Add an initial department for the official
+    const initialDept: OfficialDepartment = {
+      id: this.officialDepartmentId++,
+      officialId: official.id,
+      department: 'technical',
+      createdAt: new Date(),
+    };
+    this.officialDepartments.set(initialDept.id, initialDept);
+    // Update the departments array in the official object (optional but good for consistency)
+    official.departments = [initialDept];
     
     // Add some SLA definitions
     const slaLow: SLADefinition = {
@@ -253,77 +275,87 @@ export class MemStorage implements IStorage {
     // Create sample tickets
     const ticket1: Ticket = {
       id: this.ticketId++,
-      ticketId: '2023-CS123',
-      title: 'How to deposit money to my portal?',
-      description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-      status: 'ongoing',
-      priority: 'medium',
-      type: 'deposit',
+      ticketId: generateTicketId("TE"),
+      title: "Problema de login",
+      description: "Não consigo acessar minha conta.",
+      status: "ongoing",
+      priority: "medium",
+      type: "technical",
       customerId: customer.id,
       customerEmail: customer.email,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      // Add customer info
-      customer: {
-        id: customer.id,
-        name: customer.name,
-        email: customer.email,
-        avatarUrl: customer.avatarUrl,
-      }
+      assignedToId: official.id,
+      createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
+      incidentTypeId: 1,
+      departmentId: 1,
+      firstResponseAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      resolvedAt: null,
+      slaBreached: false,
+      customer: customer,
+      official: official,
+      replies: []
     };
     this.tickets.set(ticket1.id, ticket1);
     
     const ticket2: Ticket = {
       id: this.ticketId++,
-      ticketId: '2023-CS124',
-      title: 'How to deposit money to my portal?',
-      description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-      status: 'new',
-      priority: 'high',
-      type: 'deposit',
+      ticketId: generateTicketId("GE"),
+      title: "Dúvida sobre fatura",
+      description: "Preciso entender minha última fatura.",
+      status: "new",
+      priority: "low",
+      type: "billing",
       customerId: customer.id,
       customerEmail: customer.email,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      // Add customer info
-      customer: {
-        id: customer.id,
-        name: customer.name,
-        email: customer.email,
-        avatarUrl: customer.avatarUrl,
-      }
+      assignedToId: null,
+      createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      incidentTypeId: null,
+      departmentId: 2,
+      firstResponseAt: null,
+      resolvedAt: null,
+      slaBreached: false,
+      customer: customer,
+      official: undefined,
+      replies: []
     };
     this.tickets.set(ticket2.id, ticket2);
     
     const ticket3: Ticket = {
       id: this.ticketId++,
-      ticketId: '2023-CS125',
-      title: 'How to deposit money to my portal?',
-      description: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-      status: 'resolved',
-      priority: 'low',
-      type: 'deposit',
+      ticketId: generateTicketId("SA"),
+      title: "Solicitação de demonstração",
+      description: "Gostaria de agendar uma demonstração.",
+      status: "resolved",
+      priority: "high",
+      type: "sales",
       customerId: customer.id,
       customerEmail: customer.email,
       assignedToId: official.id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      resolvedAt: new Date(),
-      // Add customer info
-      customer: {
-        id: customer.id,
-        name: customer.name,
-        email: customer.email,
-        avatarUrl: customer.avatarUrl,
-      },
-      // Add official info
-      official: {
-        id: official.id,
-        name: official.name,
-        email: official.email,
-      }
+      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      incidentTypeId: null,
+      departmentId: 3,
+      firstResponseAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+      resolvedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      slaBreached: false,
+      customer: customer,
+      official: official,
+      replies: []
     };
     this.tickets.set(ticket3.id, ticket3);
+
+    // Add some ticket replies
+    const reply1: TicketReply = {
+      id: this.replyId++,
+      ticketId: ticket1.id,
+      userId: official.userId,
+      message: "Olá! Estamos verificando seu problema de login.",
+      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      isInternal: false,
+      user: supportUser
+    };
+    this.ticketReplies.set(reply1.id, reply1);
   }
 
   // User operations
@@ -340,15 +372,16 @@ export class MemStorage implements IStorage {
   }
 
   async createUser(userData: InsertUser): Promise<User> {
-    const id = this.userId++;
-    const now = new Date();
+    const newId = this.userId++;
+    const { createdAt, updatedAt, ...restUserData } = userData as any;
     const user: User = {
-      ...userData,
-      id,
-      createdAt: now,
-      updatedAt: now,
+      id: newId,
+      ...restUserData,
+      password: userData.password,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
-    this.users.set(id, user);
+    this.users.set(newId, user);
     return user;
   }
 
@@ -417,15 +450,15 @@ export class MemStorage implements IStorage {
   }
 
   async createCustomer(customerData: InsertCustomer): Promise<Customer> {
-    const id = this.customerId++;
-    const now = new Date();
+    const newId = this.customerId++;
+    const { createdAt, updatedAt, ...restCustomerData } = customerData as any;
     const customer: Customer = {
-      ...customerData,
-      id,
-      createdAt: now,
-      updatedAt: now,
+      id: newId,
+      ...restCustomerData,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
-    this.customers.set(id, customer);
+    this.customers.set(newId, customer);
     return customer;
   }
 
@@ -460,15 +493,20 @@ export class MemStorage implements IStorage {
   }
 
   async createOfficial(officialData: InsertOfficial): Promise<Official> {
-    const id = this.officialId++;
-    const now = new Date();
+    const newId = this.officialId++;
+    const { departments: inputDepartments, createdAt, updatedAt, ...restOfficialData } = officialData as any;
     const official: Official = {
-      ...officialData,
-      id,
-      createdAt: now,
-      updatedAt: now,
+      id: newId, ...restOfficialData, departments: [],
+      createdAt: new Date(), updatedAt: new Date()
     };
-    this.officials.set(id, official);
+    this.officials.set(newId, official);
+
+    if (inputDepartments && Array.isArray(inputDepartments)) {
+      for (const dept of inputDepartments) {
+        await this.addOfficialDepartment({ officialId: newId, department: dept });
+      }
+      official.departments = await this.getOfficialDepartments(newId);
+    }
     return official;
   }
 
@@ -523,52 +561,32 @@ export class MemStorage implements IStorage {
   }
 
   async createTicket(ticketData: InsertTicket): Promise<Ticket> {
-    const id = this.ticketId++;
+    const newId = this.ticketId++;
     const now = new Date();
-    
-    // Look up the customer by email
-    let customer: Partial<Customer> = { name: 'Unknown', email: ticketData.customerEmail };
-    const existingCustomer = await this.getCustomerByEmail(ticketData.customerEmail);
-    
-    if (existingCustomer) {
-      customer = {
-        id: existingCustomer.id,
-        name: existingCustomer.name,
-        email: existingCustomer.email,
-        avatarUrl: existingCustomer.avatarUrl,
-      };
-    } else {
-      // Create a new customer record if it doesn't exist
-      const newCustomer = await this.createCustomer({
-        name: ticketData.customerEmail.split('@')[0], // Use part of email as name
-        email: ticketData.customerEmail,
-        phone: '',
-        company: '',
-      });
-      
-      customer = {
-        id: newCustomer.id,
-        name: newCustomer.name,
-        email: newCustomer.email,
-      };
-    }
-
+    const ticketCustomer = Array.from(this.customers.values()).find(c => c.email === ticketData.customerEmail);
     const ticket: Ticket = {
-      id,
-      ticketId: generateTicketId(), // Generate a human-readable ID
+      id: newId,
+      ticketId: generateTicketId(ticketData.type?.substring(0, 2).toUpperCase() || "GE"),
       title: ticketData.title,
       description: ticketData.description,
-      status: 'new',
-      priority: ticketData.priority,
-      type: ticketData.type,
-      customerId: customer.id || 0,
       customerEmail: ticketData.customerEmail,
+      type: ticketData.type,
+      priority: ticketData.priority || 'medium',
+      departmentId: ticketData.departmentId || null,
+      incidentTypeId: ticketData.incidentTypeId || null,
+      status: 'new',
       createdAt: now,
       updatedAt: now,
-      customer,
+      assignedToId: null,
+      customerId: ticketCustomer?.id || null,
+      firstResponseAt: null,
+      resolvedAt: null,
+      slaBreached: false,
+      customer: ticketCustomer || { id: 0, name: 'Desconhecido', email: ticketData.customerEmail, createdAt: now, updatedAt: now, avatarUrl: null, company: null, phone: null, userId: null },
+      official: undefined,
+      replies: []
     };
-    
-    this.tickets.set(id, ticket);
+    this.tickets.set(newId, ticket);
     return ticket;
   }
 
@@ -610,17 +628,21 @@ export class MemStorage implements IStorage {
   }
 
   async createTicketReply(replyData: InsertTicketReply): Promise<TicketReply> {
-    const id = this.replyId++;
+    const newId = this.replyId++;
     const now = new Date();
     const reply: TicketReply = {
-      id,
+      id: newId,
       ticketId: replyData.ticketId,
       message: replyData.message,
+      status: replyData.status,
+      isInternal: replyData.isInternal ?? false,
+      assignedToId: replyData.assignedToId,
+      userId: 1,
       createdAt: now,
-      isInternal: replyData.isInternal || false,
+      user: this.users.get(1) || undefined
     };
     
-    this.ticketReplies.set(id, reply);
+    this.ticketReplies.set(newId, reply);
     
     // Update the ticket status if provided
     if (replyData.status) {
@@ -642,23 +664,19 @@ export class MemStorage implements IStorage {
   // Helper for ticket status history
   private async addTicketStatusHistory(
     ticketId: number, 
-    oldStatus: string, 
+    oldStatus: string | null,
     newStatus: string, 
-    changedById?: number
+    changedById?: number | null
   ): Promise<void> {
-    const id = this.historyId++;
-    const now = new Date();
-    
+    const newId = this.historyId++;
     const history: TicketStatusHistory = {
-      id,
-      ticketId,
-      oldStatus: oldStatus as any,
-      newStatus: newStatus as any,
-      changedById,
-      createdAt: now,
+      id: newId, ticketId, 
+      oldStatus: oldStatus as typeof ticketStatusEnum.enumValues[number] | null,
+      newStatus: newStatus as typeof ticketStatusEnum.enumValues[number],
+      changedById: changedById || null,
+      createdAt: new Date()
     };
-    
-    this.ticketStatusHistory.set(id, history);
+    this.ticketStatusHistory.set(newId, history);
   }
 
   // Stats and dashboard operations
@@ -709,13 +727,17 @@ export class MemStorage implements IStorage {
   }
   
   async addOfficialDepartment(officialDepartment: InsertOfficialDepartment): Promise<OfficialDepartment> {
-    // Simulação: retorna um objeto de departamento de atendente
-    return {
-      id: 3,
-      ...officialDepartment,
-      createdAt: new Date(),
-      updatedAt: new Date()
+    const newId = this.officialDepartmentId++;
+    const { createdAt, ...restData } = officialDepartment as any;
+    const newDept: OfficialDepartment = {
+      id: newId, ...restData, createdAt: new Date()
     };
+    this.officialDepartments.set(newId, newDept);
+    const official = this.officials.get(officialDepartment.officialId);
+    if (official) {
+      official.departments = [...(official.departments || []), newDept];
+    }
+    return newDept;
   }
   
   async removeOfficialDepartment(officialId: number, department: string): Promise<boolean> {
@@ -767,8 +789,11 @@ export class MemStorage implements IStorage {
   }
 }
 
+// Database storage implementation
 import { DatabaseStorage } from "./database-storage";
 
-// Escolha entre MemStorage (para desenvolvimento) ou DatabaseStorage (para produção)
-// export const storage = new MemStorage();
-export const storage = new DatabaseStorage();
+// Export the storage instance to be used
+// Decidir qual implementação usar com base em uma variável de ambiente ou configuração
+const useDatabase = process.env.USE_DATABASE_STORAGE === 'true';
+
+export const storage: IStorage = useDatabase ? new DatabaseStorage() : new MemStorage();

@@ -5,7 +5,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertTicketSchema, insertTicketReplySchema, slaDefinitions } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import { db } from "./db";
 import { notificationService } from "./services/notification-service";
@@ -223,18 +223,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Rota para atualizar parcialmente um ticket (ex: atribuir atendente)
+  router.patch("/tickets/:id", authRequired, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de ticket inválido" });
+      }
+
+      // Verificar se o ticket está resolvido
+      const existingTicket = await storage.getTicket(id);
+      if (!existingTicket) {
+        return res.status(404).json({ message: "Ticket não encontrado" });
+      }
+
+      // Pegar apenas os campos permitidos para patch (ex: assignedToId)
+      const { assignedToId } = req.body;
+      const updateData: { assignedToId?: number | null } = {};
+
+      // Se o ticket estiver resolvido e estamos tentando mudar o atendente, rejeitar
+      if (existingTicket.status === 'resolved' && assignedToId !== undefined && assignedToId !== existingTicket.assignedToId) {
+        return res.status(403).json({ 
+          message: "Operação não permitida", 
+          details: "Não é possível alterar o atendente de um ticket resolvido." 
+        });
+      }
+
+      // Validar assignedToId se fornecido
+      if (assignedToId !== undefined) {
+        if (assignedToId === null || typeof assignedToId === 'number') {
+          updateData.assignedToId = assignedToId;
+        } else {
+          return res.status(400).json({ message: "assignedToId inválido" });
+        }
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "Nenhum dado válido para atualizar" });
+      }
+
+      const ticket = await storage.updateTicket(id, updateData);
+      if (!ticket) {
+        return res.status(404).json({ message: "Ticket não encontrado" });
+      }
+      
+      // Notificar sobre a atualização de atribuição
+      notificationService.sendNotificationToAll({
+        type: 'ticket_updated',
+        ticketId: ticket.id,
+        title: `Atribuição Atualizada: ${ticket.title}`,
+        message: `O ticket ${ticket.ticketId} foi atribuído/desatribuído.`,
+        timestamp: new Date()
+      });
+
+      res.json(ticket);
+    } catch (error) {
+      console.error('Erro ao atualizar ticket (patch):', error);
+      res.status(500).json({ message: "Falha ao atualizar ticket", error: String(error) });
+    }
+  });
+  
   // Ticket creation and responses
   router.post("/tickets", authRequired, validateRequest(insertTicketSchema), async (req: Request, res: Response) => {
     try {
-      const ticket = await storage.createTicket(req.body);
+      // Validar os dados recebidos
+      const ticketData = insertTicketSchema.parse(req.body);
       
-      // Enviar notificação após salvar o ticket
-      await notificationService.notifyNewTicket(ticket.id);
+      // Gerar um ID legível (YYYY-TIPO##)
+      const currentYear = new Date().getFullYear();
       
-      res.status(201).json(ticket);
+      // Determinar o prefixo com base no tipo de ticket
+      let typePrefix = "GE"; // Prefixo genérico (General)
+      
+      if (ticketData.type) {
+        // Se tiver um tipo, usar as duas primeiras letras do tipo
+        typePrefix = ticketData.type.substring(0, 2).toUpperCase();
+      }
+      
+      // Buscar o último ID para incrementar
+      const [lastTicket] = await db
+        .select({ id: schema.tickets.id })
+        .from(schema.tickets)
+        .orderBy(desc(schema.tickets.id))
+        .limit(1);
+      
+      const nextId = lastTicket ? lastTicket.id + 1 : 1;
+      const ticketIdString = `${currentYear}-${typePrefix}${nextId.toString().padStart(3, '0')}`;
+      
+      // Criar o novo ticket
+      const [newTicket] = await db
+        .insert(schema.tickets)
+        .values({
+          ...ticketData,
+          ticketId: ticketIdString,
+          status: 'new',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      // Responder com o ticket criado
+      res.status(201).json(newTicket);
+      
+      // Enviar notificação de novo ticket
+      notificationService.sendNotificationToAll({
+        type: 'new_ticket',
+        title: 'Novo Ticket Criado',
+        message: `Novo ticket ${ticketIdString}: ${ticketData.title}`,
+        ticketId: newTicket.id,
+        ticketCode: ticketIdString,
+        priority: ticketData.priority,
+        timestamp: new Date()
+      });
+      
     } catch (error) {
-      console.error('Erro ao criar ticket:', error);
-      res.status(500).json({ message: "Falha ao criar ticket", error: String(error) });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Dados inválidos", 
+          errors: error.errors 
+        });
+      }
+      
+      console.error(error);
+      res.status(500).json({ message: "Erro ao criar ticket" });
     }
   });
   
@@ -256,9 +367,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await notificationService.notifyNewReply(ticketId, userId);
       }
       
-      // Se a resposta incluir atualização de status, notificar sobre isso também
-      if (req.body.status && ticket.status !== req.body.status) {
-        await notificationService.notifyTicketStatusUpdate(ticketId, ticket.status, req.body.status);
+      // Se for uma atualização de status ou atribuição, notificar
+      if (req.body.status !== ticket.status || req.body.assignedToId !== ticket.assignedToId) {
+        notificationService.sendNotificationToAll({
+          type: 'ticket_updated',
+          ticketId: ticket.id,
+          title: `Ticket Atualizado: ${ticket.title}`,
+          message: `O status ou atribuição do ticket ${ticket.ticketId} foi atualizado.`,
+          timestamp: new Date()
+        });
       }
       
       res.status(201).json(reply);
@@ -437,10 +554,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Official endpoints
   router.get("/officials", authRequired, async (req: Request, res: Response) => {
     try {
+      console.log('======== REQUISIÇÃO PARA /api/officials ========');
+      console.log('Sessão do usuário:', req.session);
+      console.log('User ID na sessão:', req.session?.userId);
+      console.log('User Role na sessão:', req.session?.userRole);
+      console.log('Headers:', JSON.stringify(req.headers, null, 2));
+      
+      console.log('Buscando lista de atendentes...');
       const officials = await storage.getOfficials();
+      console.log(`Encontrados ${officials.length} atendentes no storage`);
       
       // Buscar os departamentos para cada atendente
       // Aqui estamos evitando a duplicação de departamentos, verificando se o atendente já tem os departamentos
+      console.log('Adicionando informações de departamentos...');
       const officialsWithDepartments = await Promise.all(officials.map(async (official) => {
         // Se o atendente já tem departamentos, reutilizamos
         if (official.departments && Array.isArray(official.departments) && official.departments.length > 0) {
@@ -456,6 +582,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       }));
       
+      console.log(`Retornando ${officialsWithDepartments.length} atendentes com seus departamentos`);
+      // LOG DETALHADO DA RESPOSTA
+      console.log('[DEBUG /api/officials] Dados enviados:', JSON.stringify(officialsWithDepartments, null, 2)); 
+      console.log('========= FIM DA REQUISIÇÃO /api/officials =========');
       res.json(officialsWithDepartments);
     } catch (error) {
       console.error('Erro ao buscar atendentes:', error);
@@ -545,7 +675,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "ID de atendente inválido" });
       }
 
-      const { departments, password, department, ...officialData } = req.body;
+      const { departments, password, department, user, ...officialData } = req.body;
       
       // Verificar se temos pelo menos um departamento
       if (!departments || !Array.isArray(departments) || departments.length === 0) {
@@ -575,27 +705,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
         department: departmentValue // Adicionar department para compatibilidade com a tabela física
       };
       
-      // Se uma senha foi fornecida, criptografá-la antes de salvar
-      if (password) {
-        // Verificar se o atendente tem um usuário associado
-        const official = await storage.getOfficial(id);
-        if (!official) {
-          return res.status(404).json({ message: "Atendente não encontrado" });
+      // Buscar o atendente para obter o userId associado
+      const official = await storage.getOfficial(id);
+      if (!official) {
+        return res.status(404).json({ message: "Atendente não encontrado" });
+      }
+      
+      // Se recebemos dados do usuário e o atendente tem um usuário associado, atualizá-lo
+      if (user && official.userId) {
+        console.log(`Atualizando dados do usuário ${official.userId} associado ao atendente ${id}:`, user);
+        
+        // Preparar os dados de atualização do usuário
+        const userUpdateData: any = {};
+        
+        // Se o username for fornecido, atualizá-lo
+        if (user.username) {
+          userUpdateData.username = user.username;
         }
         
-        if (official.userId) {
+        // Se o email for fornecido, atualizá-lo
+        if (user.email) {
+          userUpdateData.email = user.email;
+        }
+        
+        // Se o nome for fornecido, atualizá-lo
+        if (user.name) {
+          userUpdateData.name = user.name;
+        }
+        
+        // Se a senha for fornecida no objeto user, usar ela
+        if (user.password) {
           // Criptografar a nova senha
           const { hashPassword } = await import('./utils/password');
-          const hashedPassword = await hashPassword(password);
-          
-          // Atualizar a senha do usuário associado
-          await storage.updateUser(official.userId, { password: hashedPassword });
+          userUpdateData.password = await hashPassword(user.password);
         }
+        // Ou se foi fornecida diretamente no objeto principal
+        else if (password) {
+          // Criptografar a nova senha
+          const { hashPassword } = await import('./utils/password');
+          userUpdateData.password = await hashPassword(password);
+        }
+        
+        // Se temos dados para atualizar, realizar a atualização
+        if (Object.keys(userUpdateData).length > 0) {
+          await storage.updateUser(official.userId, userUpdateData);
+        }
+      }
+      // Se apenas a senha foi fornecida diretamente, atualizar apenas ela
+      else if (password && official.userId) {
+        // Criptografar a nova senha
+        const { hashPassword } = await import('./utils/password');
+        const hashedPassword = await hashPassword(password);
+        
+        // Atualizar a senha do usuário associado
+        await storage.updateUser(official.userId, { password: hashedPassword });
       }
       
       // Atualizar dados básicos do atendente
-      const official = await storage.updateOfficial(id, updateData);
-      if (!official) {
+      const updatedOfficial = await storage.updateOfficial(id, updateData);
+      if (!updatedOfficial) {
         return res.status(404).json({ message: "Atendente não encontrado" });
       }
       
@@ -616,10 +784,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         // Anexar departamentos atualizados ao resultado
-        official.departments = departments;
+        updatedOfficial.departments = departments;
       }
 
-      res.json(official);
+      // Buscar o usuário atualizado para incluir na resposta
+      if (updatedOfficial.userId) {
+        const userData = await storage.getUser(updatedOfficial.userId);
+        if (userData) {
+          // Remover a senha do usuário antes de enviar
+          const { password: _, ...userWithoutPassword } = userData;
+          updatedOfficial.user = userWithoutPassword;
+        }
+      }
+
+      res.json(updatedOfficial);
     } catch (error) {
       console.error('Erro ao atualizar atendente:', error);
       res.status(500).json({ message: "Falha ao atualizar atendente", error: String(error) });
@@ -764,6 +942,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (user.active === false) {
         return res.status(401).json({ message: "Conta inativa. Contate o administrador do sistema." });
       }
+      
+      // --- DEBUG LOGIN ---
+      console.log('DEBUG: Senha recebida:', password); 
+      console.log('DEBUG: Hash do banco:', user.password);
+      // --- FIM DEBUG ---
       
       // Verificar senha usando bcrypt
       const { comparePasswords } = await import('./utils/password');
@@ -1112,22 +1295,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Configurações de tipos de incidentes
   router.get("/settings/incident-types", adminRequired, async (req: Request, res: Response) => {
     try {
-      // Buscar configurações de tipos de incidentes
-      const typesJson = await getSystemSetting('incidentTypes', '[]');
+      // Buscar tipos de incidentes da nova tabela
+      const incidentTypes = await db
+        .select()
+        .from(schema.incidentTypes)
+        .orderBy(schema.incidentTypes.id);
       
-      try {
-        const types = JSON.parse(typesJson);
-        return res.json(types);
-      } catch (parseError) {
-        console.error('Erro ao fazer parse dos tipos de incidentes:', parseError);
-        const defaultTypes = [
-          { id: 1, name: "Problema Técnico", departmentId: 1 },
-          { id: 2, name: "Dúvida de Faturamento", departmentId: 2 },
-          { id: 3, name: "Pedido de Informação", departmentId: 3 },
-          { id: 4, name: "Reclamação", departmentId: 3 }
-        ];
-        return res.json(defaultTypes);
-      }
+      return res.json(incidentTypes);
     } catch (error) {
       console.error('Erro ao obter tipos de incidentes:', error);
       res.status(500).json({ message: "Falha ao buscar tipos de incidentes", error: String(error) });
@@ -1141,10 +1315,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!Array.isArray(incidentTypes)) {
         return res.status(400).json({ message: "Formato inválido. Envie um array de tipos de incidentes." });
       }
+
+      // Transação para atualizar tipos de incidentes
+      await db.transaction(async (tx) => {
+        // 1. Excluir todos os tipos existentes
+        await tx.delete(schema.incidentTypes);
+        
+        // 2. Inserir os novos tipos
+        if (incidentTypes.length > 0) {
+          const typesToInsert = incidentTypes.map(type => ({
+            id: type.id,
+            name: type.name,
+            value: type.value,
+            departmentId: type.departmentId,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }));
+          
+          await tx.insert(schema.incidentTypes).values(typesToInsert);
+        }
+      });
       
-      // Converter para string JSON e salvar
-      const typesJson = JSON.stringify(incidentTypes);
-      await saveSystemSetting('incidentTypes', typesJson);
+      // Também atualizar a configuração na tabela system_settings para compatibilidade
+      const legacyFormat = incidentTypes.map(type => ({
+        id: type.id,
+        name: type.name,
+        departmentId: type.departmentId
+      }));
+      await saveSystemSetting('incidentTypes', JSON.stringify(legacyFormat));
       
       res.json(incidentTypes);
     } catch (error) {

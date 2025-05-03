@@ -8,8 +8,8 @@ export interface SystemSettings {
 
 // Valores padrão para as configurações do sistema
 const defaultSettings: SystemSettings = {
-  companyName: 'Ticket Lead',
-  supportEmail: 'suporte@ticketlead.com.br',
+  companyName: 'Vix Brasil',
+  supportEmail: 'suporte@vixbrasil.com',
   allowCustomerRegistration: true
 };
 

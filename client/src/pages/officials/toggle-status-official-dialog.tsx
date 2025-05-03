@@ -12,9 +12,10 @@ interface ToggleStatusOfficialDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   official: Official | null;
+  onStatusChanged?: () => void;
 }
 
-export function ToggleStatusOfficialDialog({ open, onOpenChange, official }: ToggleStatusOfficialDialogProps) {
+export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onStatusChanged }: ToggleStatusOfficialDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [processing, setProcessing] = useState(false);
@@ -29,6 +30,7 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official }: Tog
       queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
       setProcessing(false);
       onOpenChange(false);
+      if (onStatusChanged) onStatusChanged();
       toast({
         title: data.isActive ? "Atendente ativado" : "Atendente desativado",
         description: data.isActive 

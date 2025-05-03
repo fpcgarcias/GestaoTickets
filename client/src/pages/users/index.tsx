@@ -68,6 +68,7 @@ export default function UsersIndex() {
       if (!res.ok) throw new Error('Erro ao carregar usuários');
       return res.json();
     },
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
   
   // Mutação para ativar/desativar usuário

@@ -1,11 +1,26 @@
+// Carregar variáveis de ambiente PRIMEIRO!
+import dotenv from "dotenv";
+dotenv.config();
+
+// --- DEBUG --- 
+console.log('DEBUG: Após dotenv.config()');
+console.log('DEBUG: DATABASE_URL:', process.env.DATABASE_URL);
+console.log('DEBUG: PORT:', process.env.PORT);
+// --- FIM DEBUG ---
+
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { migrateDepartmentsToJunctionTable } from "./migrate-departments";
-import { migratePasswords } from "./migrate-passwords";
 import { migrateActiveField } from "./migrate-active-field";
 import session from "express-session";
 import crypto from "crypto";
+import path from "path";
+import { fileURLToPath } from 'url';
+import http from 'http'; // Importar http
+
+// Calcular __dirname para ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Para garantir que temos um secret único a cada inicialização
 const generateSecret = () => crypto.randomBytes(32).toString('hex');
@@ -13,6 +28,9 @@ const generateSecret = () => crypto.randomBytes(32).toString('hex');
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Criar o servidor HTTP ANTES de setupVite
+const server = http.createServer(app);
 
 // Inicializar serviço de notificações 
 const notificationService = {
@@ -59,6 +77,7 @@ declare module 'express-session' {
   }
 }
 
+// Manter o middleware de log
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -89,62 +108,37 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
-  // Executar migração de departamentos
+// // Servir arquivos estáticos - Usar o __dirname calculado
+// app.use(express.static(path.join(__dirname, "public"))); // Comentar ou remover esta linha
+
+// Função start agora configura tudo
+const start = async () => {
   try {
-    log('Iniciando migração de departamentos...');
-    await migrateDepartmentsToJunctionTable();
-    log('Migração de departamentos concluída.');
-  } catch (error) {
-    log('Erro ao migrar departamentos: ' + error);
-  }
-  
-  // Executar migração do campo active primeiro
-  try {
-    log('Iniciando migração do campo active...');
-    await migrateActiveField();
-    log('Migração do campo active concluída.');
-  } catch (error) {
-    log('Erro ao migrar campo active: ' + error);
-  }
+    console.log("Iniciando o servidor...");
+    
+    // Importar dinamicamente DEPOIS de dotenv.config()
+    const { registerRoutes } = await import("./routes");
+    const { migratePasswords } = await import("./migrate-passwords");
 
-  // Executar migração de senhas depois
-  try {
-    log('Iniciando migração de senhas...');
-    await migratePasswords();
-    log('Migração de senhas concluída.');
-  } catch (error) {
-    log('Erro ao migrar senhas: ' + error);
-  }
-
-  const server = await registerRoutes(app);
-
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+    // 1. Registrar rotas da API PRIMEIRO
+    await registerRoutes(app);
+    
+    // 2. Configurar o Vite DEPOIS das rotas da API
     await setupVite(app, server);
-  } else {
-    serveStatic(app);
+    
+    // 3. Executar migrações
+    console.log("Executando migrações...");
+    await migratePasswords();
+    
+    // 4. Iniciar servidor na porta especificada
+    const PORT = process.env.PORT || 5173; 
+    server.listen(PORT, () => { // Usar a instância 'server' criada anteriormente
+      console.log(`Servidor rodando na porta ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Erro ao iniciar o servidor:", error);
+    process.exit(1);
   }
+};
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-  });
-})();
+start();

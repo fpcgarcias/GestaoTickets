@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, tickets, customers, officials, ticketReplies, ticketStatusHistory, slaDefinitions,
-  userRoleEnum, ticketStatusEnum, ticketPriorityEnum, departmentEnum
+  userRoleEnum, ticketStatusEnum, ticketPriorityEnum, departmentEnum, officialDepartments
 } from "@shared/schema";
 
 async function seedDatabase() {
@@ -45,8 +45,6 @@ async function seedDatabase() {
     name: "Usuário Cliente",
     role: "customer",
     avatarUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date()
   }).returning();
   
   // Adicionar cliente
@@ -58,8 +56,6 @@ async function seedDatabase() {
     company: "Empresa ABC Ltda",
     userId: customerUser.id,
     avatarUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date()
   }).returning();
   
   // Adicionar atendente
@@ -67,13 +63,16 @@ async function seedDatabase() {
   const [official] = await db.insert(officials).values({
     name: "João Silva",
     email: "joao.silva@ticketlead.com",
-    department: "technical",
     userId: supportUser.id,
     isActive: true,
     avatarUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date()
   }).returning();
+
+  // Adicionar o departamento ao atendente na tabela de junção
+  await db.insert(officialDepartments).values({
+    officialId: official.id,
+    department: "technical"
+  });
   
   // Adicionar definições de SLA
   console.log("Adicionando definições de SLA...");

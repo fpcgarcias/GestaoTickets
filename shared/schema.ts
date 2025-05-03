@@ -40,7 +40,7 @@ export const officials = pgTable("officials", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
-  // Removendo o campo department direto e vamos usar a tabela de junção
+  department: departmentEnum("department"),
   userId: integer("user_id").references(() => users.id),
   isActive: boolean("is_active").default(true).notNull(),
   avatarUrl: text("avatar_url"),
@@ -75,6 +75,7 @@ export const tickets = pgTable("tickets", {
   status: ticketStatusEnum("status").notNull().default('new'),
   priority: ticketPriorityEnum("priority").notNull().default('medium'),
   type: text("type").notNull(), // technical, account, billing, feature, deposit
+  incidentTypeId: integer("incident_type_id"), // Referência para o tipo de incidente (nova coluna)
   departmentId: integer("department_id"), // Departamento relacionado ao ticket
   customerId: integer("customer_id").references(() => customers.id),
   customerEmail: text("customer_email").notNull(),
@@ -115,6 +116,15 @@ export const systemSettings = pgTable("system_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Nova tabela para tipos de incidentes
+export const incidentTypes = pgTable("incident_types", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  departmentId: integer("department_id"), // Relacionamento com departamento
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Schema for inserting users
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -150,6 +160,8 @@ export const insertTicketSchema = z.object({
   type: z.string().min(1, "O tipo de chamado é obrigatório"),
   priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
   departmentId: z.number().optional(),
+  incidentTypeId: z.number().optional(), // Novo campo para relacionamento com a tabela de tipos de incidentes
+  customerId: z.number().optional(), // Campo para relacionamento com o cliente
 });
 
 // Schema for inserting ticket replies
@@ -183,6 +195,7 @@ export type Ticket = typeof tickets.$inferSelect & {
   customer: Partial<Customer>;
   official?: Partial<Official>;
   replies?: TicketReply[];
+  incidentType?: IncidentType; // Adicionar tipo de incidente
 };
 export type InsertTicket = z.infer<typeof insertTicketSchema>;
 
@@ -196,3 +209,5 @@ export type TicketStatusHistory = typeof ticketStatusHistory.$inferSelect;
 export type SLADefinition = typeof slaDefinitions.$inferSelect;
 
 export type SystemSetting = typeof systemSettings.$inferSelect;
+
+export type IncidentType = typeof incidentTypes.$inferSelect;

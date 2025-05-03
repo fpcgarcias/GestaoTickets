@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DepartmentsSettings } from '@/components/settings/departments-settings';
+import { IncidentTypesSettings } from '@/components/settings/incident-types-settings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,16 +19,30 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 
+// Definir tipos para os dados das consultas
+interface SLASetting {
+  id?: number; // ID pode ser opcional dependendo da resposta da API
+  priority: string;
+  responseTimeHours: number;
+  resolutionTimeHours: number;
+}
+
+interface GeneralSettings {
+  companyName: string;
+  supportEmail: string;
+  allowCustomerRegistration: boolean;
+}
+
 export default function Settings() {
   const { toast } = useToast();
 
   // Carregar configurações de SLA
-  const { data: slaSettings, isLoading: isLoadingSla } = useQuery({
+  const { data: slaSettingsData, isLoading: isLoadingSla } = useQuery<SLASetting[]>({
     queryKey: ["/api/settings/sla"],
   });
 
   // Carregar configurações gerais
-  const { data: generalSettings, isLoading: isLoadingGeneral } = useQuery({
+  const { data: generalSettingsData, isLoading: isLoadingGeneral } = useQuery<GeneralSettings>({
     queryKey: ["/api/settings/general"],
   });
 
@@ -43,28 +58,31 @@ export default function Settings() {
   const [supportEmail, setSupportEmail] = useState<string>("");
   const [allowCustomerRegistration, setAllowCustomerRegistration] = useState(true);
 
+  // Garantir que os dados sejam tratados corretamente
+  const slaSettings = Array.isArray(slaSettingsData) ? slaSettingsData : [];
+  const generalSettings = generalSettingsData || { companyName: '', supportEmail: '', allowCustomerRegistration: true };
+
   // Atualizar estados quando os dados são carregados
   React.useEffect(() => {
-    if (slaSettings && slaSettings.length > 0) {
-      const low = slaSettings.find(s => s.priority === 'low');
-      const medium = slaSettings.find(s => s.priority === 'medium');
-      const high = slaSettings.find(s => s.priority === 'high');
-      const critical = slaSettings.find(s => s.priority === 'critical');
+    if (slaSettings.length > 0) { // Usar slaSettings que é array
+      const low = slaSettings.find((s: SLASetting) => s.priority === 'low');
+      const medium = slaSettings.find((s: SLASetting) => s.priority === 'medium');
+      const high = slaSettings.find((s: SLASetting) => s.priority === 'high');
+      const critical = slaSettings.find((s: SLASetting) => s.priority === 'critical');
 
       if (low) setLowPriority(low.resolutionTimeHours.toString());
       if (medium) setMediumPriority(medium.resolutionTimeHours.toString());
       if (high) setHighPriority(high.resolutionTimeHours.toString());
       if (critical) setCriticalPriority(critical.resolutionTimeHours.toString());
     }
-  }, [slaSettings]);
+  }, [slaSettings]); // Depender de slaSettings
 
   React.useEffect(() => {
-    if (generalSettings) {
-      setCompanyName(generalSettings.companyName || "");
-      setSupportEmail(generalSettings.supportEmail || "");
-      setAllowCustomerRegistration(generalSettings.allowCustomerRegistration || true);
-    }
-  }, [generalSettings]);
+    // Usar generalSettings que tem valor padrão
+    setCompanyName(generalSettings.companyName || "");
+    setSupportEmail(generalSettings.supportEmail || "");
+    setAllowCustomerRegistration(generalSettings.allowCustomerRegistration || true);
+  }, [generalSettings]); // Depender de generalSettings
 
   // Mutação para salvar configurações de SLA
   const saveSlaSettingsMutation = useMutation({
@@ -159,6 +177,9 @@ export default function Settings() {
           </TabsTrigger>
           <TabsTrigger value="departments" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             Departamentos
+          </TabsTrigger>
+          <TabsTrigger value="ticket-types" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+            Tipos de Chamado
           </TabsTrigger>
           <TabsTrigger value="notifications" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             Notificações
@@ -302,6 +323,10 @@ export default function Settings() {
         
         <TabsContent value="departments">
           <DepartmentsSettings />
+        </TabsContent>
+        
+        <TabsContent value="ticket-types">
+          <IncidentTypesSettings />
         </TabsContent>
         
         <TabsContent value="notifications">

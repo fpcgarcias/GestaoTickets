@@ -12,12 +12,14 @@ interface ToggleStatusClientDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   client: Customer | null;
+  onStatusChanged?: () => void;
 }
 
 export default function ToggleStatusClientDialog({ 
   open, 
   onOpenChange, 
-  client 
+  client, 
+  onStatusChanged 
 }: ToggleStatusClientDialogProps) {
   const { toast } = useToast();
   
@@ -30,6 +32,7 @@ export default function ToggleStatusClientDialog({
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
       onOpenChange(false);
+      if (onStatusChanged) onStatusChanged();
       toast({
         title: data.inactive ? 'Cliente inativado com sucesso' : 'Cliente removido com sucesso',
         description: data.inactive ? 'O cliente foi inativado e não poderá mais acessar o sistema' : 'O cliente foi removido do sistema',

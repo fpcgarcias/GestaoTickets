@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '@/hooks/use-auth';
-import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/use-auth';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import { Button } from "@/components/ui/button";
 import { Plus, Search, Calendar } from 'lucide-react';
@@ -16,6 +17,7 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { DateRange } from 'react-day-picker';
 import {
   Popover,
   PopoverContent,
@@ -25,10 +27,14 @@ import { TicketCard } from '@/components/tickets/ticket-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
-import { Ticket } from '@shared/schema';
+import { Ticket, Official } from '@shared/schema';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 
 export default function TicketsIndex() {
   const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState('this-week');
   const [priorityFilter, setPriorityFilter] = useState('');
@@ -39,15 +45,43 @@ export default function TicketsIndex() {
   });
   const [calendarOpen, setCalendarOpen] = useState(false);
 
-  // Obtemos informações do usuário atual
-  const { user } = useContext(AuthContext);
+  // Pegar estado de autenticação
+  const { user, isLoading: isAuthLoading } = useAuth();
 
   // Busca tickets com base no papel do usuário
-  const { data: tickets, isLoading } = useQuery<Ticket[]>({
+  const { data: tickets, isLoading: isTicketsLoading } = useQuery<Ticket[]>({
     queryKey: ['/api/tickets/user-role'],
-    // Só busca se o usuário estiver autenticado
     enabled: !!user,
   });
+
+  // Mutação para atribuir atendente
+  const assignTicketMutation = useMutation({
+    mutationFn: async ({ ticketId, assignedToId }: { ticketId: number; assignedToId: number | null }) => {
+      const response = await apiRequest('PATCH', `/api/tickets/${ticketId}`, { assignedToId });
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      toast({
+        title: "Sucesso!",
+        description: `Chamado #${variables.ticketId} atribuído com sucesso.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/tickets/user-role'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tickets/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tickets/recent'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tickets/${variables.ticketId}`] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Erro",
+        description: error.message || "Falha ao atribuir o chamado",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAssignTicket = (ticketId: number, assignedToId: number | null) => {
+    assignTicketMutation.mutate({ ticketId, assignedToId });
+  };
 
   const filteredTickets = tickets?.filter(ticket => {
     // Apply search filter
@@ -119,6 +153,41 @@ export default function TicketsIndex() {
     return true;
   });
 
+  // Mostrar Skeleton enquanto a autenticação está carregando OU o usuário ainda não foi definido
+  if (isAuthLoading || !user) {
+    return (
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-6">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-10 w-36" />
+        </div>
+        <div className="flex flex-wrap items-center gap-4 mb-6">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-10 w-44" />
+          <Skeleton className="h-10 w-44" />
+        </div>
+        <Skeleton className="h-10 w-full mb-6" /> {/* Tabs */}
+        <Skeleton className="h-16 w-full mb-6" /> {/* Legend */}
+        <div className="space-y-4">
+          {Array(3).fill(0).map((_, i) => (
+            <div key={i} className="bg-white rounded-md border border-neutral-200 p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <Skeleton className="h-6 w-3/4 mb-2" />
+              <Skeleton className="h-10 w-full mb-4" />
+              <div className="flex justify-between">
+                <Skeleton className="h-7 w-28 rounded-full" />
+                <Skeleton className="h-5 w-20" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mb-8">
       <div className="flex justify-between items-center mb-6">
@@ -170,8 +239,11 @@ export default function TicketsIndex() {
                   from: dateRange.from,
                   to: dateRange.to
                 }}
-                onSelect={(range) => {
-                  setDateRange(range || { from: undefined, to: undefined });
+                onSelect={(range: DateRange | undefined) => {
+                  setDateRange({ 
+                    from: range?.from,
+                    to: range?.to
+                  });
                   if (range?.from && range?.to) {
                     setTimeout(() => setCalendarOpen(false), 500);
                   }
@@ -263,7 +335,7 @@ export default function TicketsIndex() {
 
       {/* Ticket Cards */}
       <div className="space-y-4">
-        {isLoading ? (
+        {isTicketsLoading ? (
           Array(3).fill(0).map((_, i) => (
             <div key={i} className="bg-white rounded-md border border-neutral-200 p-4 shadow-sm">
               <div className="flex items-center justify-between mb-3">
@@ -280,7 +352,12 @@ export default function TicketsIndex() {
           ))
         ) : filteredTickets?.length ? (
           filteredTickets.map(ticket => (
-            <TicketCard key={ticket.id} ticket={ticket} />
+            <TicketCard 
+              key={ticket.id} 
+              ticket={ticket} 
+              onAssignTicket={handleAssignTicket}
+              isAssigning={assignTicketMutation.isPending && assignTicketMutation.variables?.ticketId === ticket.id}
+            />
           ))
         ) : (
           <div className="bg-white rounded-md border border-neutral-200 p-8 text-center">

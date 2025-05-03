@@ -26,8 +26,9 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Ticket, Official } from '@shared/schema';
+import { Ticket, Official, IncidentType } from '@shared/schema';
 import { Loader2 } from 'lucide-react';
+import { z } from 'zod';
 
 interface TicketReplyFormProps {
   ticket: Ticket;
@@ -43,13 +44,35 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     queryKey: ["/api/officials"],
   });
 
-  const form = useForm<InsertTicketReply>({
-    resolver: zodResolver(insertTicketReplySchema),
+  // Buscar dados de tipos de incidentes
+  const { data: incidentTypesData } = useQuery<IncidentType[]>({
+    queryKey: ["/api/settings/incident-types"],
+  });
+
+  // Garantir que incidentTypes é um array
+  const incidentTypes = Array.isArray(incidentTypesData) ? incidentTypesData : [];
+
+  // Filtrar tipos de incidentes pelo departamento do ticket
+  const filteredIncidentTypes = ticket.departmentId && Array.isArray(incidentTypes)
+    ? incidentTypes.filter((type: IncidentType) => type.departmentId === ticket.departmentId)
+    : (incidentTypes || []);
+
+  // Estender o tipo do formulário para incluir incidentTypeId
+  const formSchema = insertTicketReplySchema.extend({
+    incidentTypeId: z.number().optional(),
+    type: z.string().optional()
+  });
+  type FormValues = z.infer<typeof formSchema>;
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       ticketId: ticket.id,
       message: '',
       status: ticket.status,
       assignedToId: ticket.assignedToId || undefined,
+      type: ticket.type,
+      incidentTypeId: ticket.incidentTypeId || undefined,
     },
   });
 
@@ -104,8 +127,10 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                   <FormItem>
                     <FormLabel>Tipo de Chamado</FormLabel>
                     <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={ticket.type}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                      }}
+                      defaultValue={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -113,9 +138,9 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {TICKET_TYPES.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
+                        {filteredIncidentTypes.map((type: IncidentType) => (
+                          <SelectItem key={type.id} value={type.value}>
+                            {type.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -175,7 +200,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                             <span>Carregando atendentes...</span>
                           </div>
                         )}
-                        {officials?.map((official) => (
+                        {(officials ?? []).map((official: Official) => (
                           <SelectItem key={official.id} value={String(official.id)}>
                             {official.name}
                           </SelectItem>

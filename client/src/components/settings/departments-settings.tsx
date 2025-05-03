@@ -30,15 +30,14 @@ export function DepartmentsSettings() {
   const [editDescription, setEditDescription] = useState('');
 
   // Carregar departamentos
-  const { data: departmentsData, isLoading } = useQuery({
+  const { data: departmentsData, isLoading } = useQuery<Department[]>({
     queryKey: ["/api/settings/departments"],
   });
 
   // Atualizar estados quando os dados são carregados
   useEffect(() => {
-    if (departmentsData) {
-      setDepartments(departmentsData);
-    }
+    // Garante que setDepartments recebe um array
+    setDepartments(Array.isArray(departmentsData) ? departmentsData : []);
   }, [departmentsData]);
 
   // Mutação para salvar departamentos

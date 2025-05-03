@@ -14,9 +14,10 @@ interface EditClientDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   client: Customer | null;
+  onSaved?: () => void;
 }
 
-export default function EditClientDialog({ open, onOpenChange, client }: EditClientDialogProps) {
+export default function EditClientDialog({ open, onOpenChange, client, onSaved }: EditClientDialogProps) {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: '',
@@ -67,9 +68,10 @@ export default function EditClientDialog({ open, onOpenChange, client }: EditCli
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
       onOpenChange(false);
+      if (onSaved) onSaved();
       toast({
-        title: 'Cliente atualizado com sucesso',
-        description: 'As informações do cliente foram atualizadas',
+        title: 'Cliente atualizado',
+        description: 'As informações do cliente foram atualizadas com sucesso.',
         variant: 'default',
       });
       

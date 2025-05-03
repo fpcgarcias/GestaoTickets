@@ -17,28 +17,63 @@ import {
   Legend
 } from 'recharts';
 
+// Definir tipos para os dados das consultas
+interface TicketStats {
+  total: number;
+  byStatus: {
+    new: number;
+    ongoing: number;
+    resolved: number;
+  };
+  byPriority: {
+    low: number;
+    medium: number;
+    high: number;
+    critical: number;
+  };
+}
+
+interface RecentTicket {
+  id: number;
+  title: string;
+  customerEmail: string;
+  createdAt: string;
+  status: 'new' | 'ongoing' | 'resolved'; // Tipo mais específico
+  priority: string;
+}
+
 export default function Dashboard() {
   // Utilizamos as rotas que já filtram tickets baseados no papel do usuário
-  const { data: ticketStats, isLoading: isStatsLoading } = useQuery({
+  const { data: ticketStatsData, isLoading: isStatsLoading } = useQuery<TicketStats>({ // Tipo explícito
     queryKey: ['/api/tickets/stats'],
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
 
-  const { data: recentTickets, isLoading: isRecentLoading } = useQuery({
+  const { data: recentTicketsData, isLoading: isRecentLoading } = useQuery<RecentTicket[]>({ // Tipo explícito
     queryKey: ['/api/tickets/recent'],
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
+
+  // Garantir que os dados não sejam undefined antes de acessar propriedades
+  const ticketStats = ticketStatsData || { 
+    total: 0, 
+    byStatus: { new: 0, ongoing: 0, resolved: 0 }, // Garantir que as chaves existam
+    byPriority: { low: 0, medium: 0, high: 0, critical: 0 } // Garantir que as chaves existam
+  };
+  const recentTickets = Array.isArray(recentTicketsData) ? recentTicketsData : [];
 
   // Dados de status transformados para português
   const statusData = [
-    { name: 'Novos', value: ticketStats?.byStatus?.new || 0, color: '#42A5F5' },
-    { name: 'Em Andamento', value: ticketStats?.byStatus?.ongoing || 0, color: '#FFA726' },
-    { name: 'Resolvidos', value: ticketStats?.byStatus?.resolved || 0, color: '#66BB6A' },
+    { name: 'Novos', value: ticketStats.byStatus.new, color: '#42A5F5' }, // Acesso direto agora é seguro
+    { name: 'Em Andamento', value: ticketStats.byStatus.ongoing, color: '#FFA726' }, // Acesso direto agora é seguro
+    { name: 'Resolvidos', value: ticketStats.byStatus.resolved, color: '#66BB6A' }, // Acesso direto agora é seguro
   ];
 
   const priorityData = [
-    { name: 'Baixa', count: ticketStats?.byPriority?.low || 0 },
-    { name: 'Média', count: ticketStats?.byPriority?.medium || 0 },
-    { name: 'Alta', count: ticketStats?.byPriority?.high || 0 },
-    { name: 'Crítica', count: ticketStats?.byPriority?.critical || 0 },
+    { name: 'Baixa', count: ticketStats.byPriority.low }, // Acesso direto agora é seguro
+    { name: 'Média', count: ticketStats.byPriority.medium }, // Acesso direto agora é seguro
+    { name: 'Alta', count: ticketStats.byPriority.high }, // Acesso direto agora é seguro
+    { name: 'Crítica', count: ticketStats.byPriority.critical }, // Acesso direto agora é seguro
   ];
 
   return (
@@ -48,26 +83,26 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <StatCard 
           title="Total de Chamados" 
-          value={ticketStats?.total || 0} 
+          value={ticketStats.total} // Acesso direto agora é seguro
           isLoading={isStatsLoading}
         />
         <StatCard 
           title="Chamados Novos" 
-          value={ticketStats?.byStatus?.new || 0} 
+          value={ticketStats.byStatus.new} // Acesso direto agora é seguro
           isLoading={isStatsLoading}
-          status={TICKET_STATUS.NEW}
+          status={TICKET_STATUS.NEW as 'new'} // Cast para o tipo literal
         />
         <StatCard 
           title="Chamados em Andamento" 
-          value={ticketStats?.byStatus?.ongoing || 0} 
+          value={ticketStats.byStatus.ongoing} // Acesso direto agora é seguro
           isLoading={isStatsLoading}
-          status={TICKET_STATUS.ONGOING}
+          status={TICKET_STATUS.ONGOING as 'ongoing'} // Cast para o tipo literal
         />
         <StatCard 
           title="Chamados Resolvidos" 
-          value={ticketStats?.byStatus?.resolved || 0} 
+          value={ticketStats.byStatus.resolved} // Acesso direto agora é seguro
           isLoading={isStatsLoading}
-          status={TICKET_STATUS.RESOLVED}
+          status={TICKET_STATUS.RESOLVED as 'resolved'} // Cast para o tipo literal
         />
       </div>
       
@@ -150,7 +185,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              {recentTickets?.slice(0, 5).map((ticket: any) => (
+              {recentTickets.slice(0, 5).map((ticket: RecentTicket) => (
                 <div key={ticket.id} className="flex items-center justify-between border-b pb-4">
                   <div className="flex items-center">
                     <StatusDot status={ticket.status} />
@@ -182,7 +217,7 @@ interface StatCardProps {
   title: string;
   value: number;
   isLoading: boolean;
-  status?: string;
+  status?: 'new' | 'ongoing' | 'resolved'; // Tipo mais específico para status
 }
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, isLoading, status }) => {

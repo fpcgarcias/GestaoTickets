@@ -77,18 +77,30 @@ export default function ClientsIndex() {
       <AddClientDialog 
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
+        onCreated={() => {
+          // Atualizar a lista de clientes automaticamente
+          queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+        }}
       />
       
       <EditClientDialog
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
         client={selectedClient}
+        onSaved={() => {
+          // Atualizar a lista após edição
+          queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+        }}
       />
       
       <ToggleStatusClientDialog
         open={showDeleteDialog}
         onOpenChange={setShowDeleteDialog}
         client={selectedClient}
+        onStatusChanged={() => {
+          // Atualizar a lista após alteração de status
+          queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+        }}
       />
 
       <Card>

@@ -26,8 +26,9 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
-  const { data, isLoading, error: queryError } = useQuery({
+  const { data, isLoading: isQueryLoading, error: queryError } = useQuery({
     queryKey: ['/api/auth/me'],
     retry: false, // Não tentar novamente em caso de falha
     refetchInterval: false, // Não fazer requisições em intervalo
@@ -35,24 +36,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     staleTime: 60 * 1000, // 1 minuto
   });
 
-  // Removido o useEffect de refetch, pois a consulta já está enabled=true
-
   useEffect(() => {
     if (data) {
       setUser(data as User);
       setError(null);
     } else if (queryError) {
-      // Se a consulta falhar, definimos o usuário como nulo (não autenticado)
       console.error('Erro ao verificar usuário:', queryError);
       setUser(null);
     }
+    setIsInitializing(false);
   }, [data, queryError]);
 
   const login = async (username: string, password: string) => {
     try {
       setError(null);
       const response = await apiRequest('POST', '/api/auth/login', { username, password });
-      const userData = await response.json();
+      
+      // --- DEBUG LOGIN FRONTEND ---
+      console.log('DEBUG FE: Login Response Status:', response.status);
+      const responseText = await response.text(); // Ler como texto primeiro
+      console.log('DEBUG FE: Login Response Body Text:', responseText);
+      // --- FIM DEBUG ---
+      
+      // Tentar fazer parse do JSON agora
+      const userData = JSON.parse(responseText);
+      console.log('DEBUG FE: Parsed User Data:', userData); // Logar dados parseados
+
       setUser(userData);
       // Atualiza o cache do React Query com os dados do usuário
       queryClient.setQueryData(['/api/auth/me'], userData);
@@ -77,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = {
     user,
-    isLoading,
+    isLoading: isInitializing,
     error,
     login,
     logout,

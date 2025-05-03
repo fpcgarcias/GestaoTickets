@@ -79,8 +79,6 @@ export async function createSupportUserEndpoint(
         role: 'support',
         avatarUrl,
         active: true,
-        createdAt: new Date(),
-        updatedAt: new Date()
       };
       
       const user = await storage.createUser(userData);
@@ -144,8 +142,6 @@ export async function createSupportUserEndpoint(
         isActive,
         avatarUrl,
         department: defaultDepartment, // Para compatibilidade com a coluna existente no banco
-        createdAt: new Date(),
-        updatedAt: new Date()
       };
       
       const official = await storage.createOfficial(officialData);
@@ -170,7 +166,6 @@ export async function createSupportUserEndpoint(
           await storage.addOfficialDepartment({
             officialId: official.id,
             department: departmentValue,
-            createdAt: new Date()
           });
           console.log(`Departamento '${departmentValue}' adicionado ao atendente ID: ${official.id}`);
         }

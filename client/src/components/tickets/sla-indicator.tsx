@@ -19,12 +19,15 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   const [percentConsumed, setPercentConsumed] = useState<number>(0);
   const [isBreached, setIsBreached] = useState<boolean>(false);
   
-  const { data: slaSettings } = useQuery({
+  const { data: slaSettingsData } = useQuery({
     queryKey: ["/api/settings/sla"],
   });
   
   useEffect(() => {
-    if (!slaSettings || !ticketCreatedAt || ticketStatus === 'resolved') return;
+    // Garantir que slaSettings é um array
+    const slaSettings = Array.isArray(slaSettingsData) ? slaSettingsData : [];
+
+    if (!slaSettings || slaSettings.length === 0 || !ticketCreatedAt || ticketStatus === 'resolved') return;
     
     // Encontrar a configuração de SLA para a prioridade deste ticket
     const slaSetting = slaSettings.find((s: any) => s.priority === ticketPriority);
@@ -58,9 +61,12 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
       setTimeRemaining(`Vence ${remainingTime}`);
     }
     
-  }, [slaSettings, ticketCreatedAt, ticketPriority, ticketStatus]);
+  }, [slaSettingsData, ticketCreatedAt, ticketPriority, ticketStatus]);
   
-  if (ticketStatus === 'resolved' || !slaSettings || !timeRemaining) {
+  // Obter slaSettings como array também para a condição de retorno
+  const slaSettingsArray = Array.isArray(slaSettingsData) ? slaSettingsData : [];
+
+  if (ticketStatus === 'resolved' || !slaSettingsArray || slaSettingsArray.length === 0 || !timeRemaining) {
     return null;
   }
   
