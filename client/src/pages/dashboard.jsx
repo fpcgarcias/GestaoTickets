@@ -29,10 +29,10 @@ export default function Dashboard() {
         { name: 'Resolvidos', value: ticketStats.byStatus.resolved, color: '#66BB6A' }, // Acesso direto agora é seguro
     ];
     var priorityData = [
-        { name: 'Baixa', count: ticketStats.byPriority.low }, // Acesso direto agora é seguro
-        { name: 'Média', count: ticketStats.byPriority.medium }, // Acesso direto agora é seguro
-        { name: 'Alta', count: ticketStats.byPriority.high }, // Acesso direto agora é seguro
-        { name: 'Crítica', count: ticketStats.byPriority.critical }, // Acesso direto agora é seguro
+        { name: 'Baixa', Qtde: ticketStats.byPriority.low }, // Acesso direto agora é seguro
+        { name: 'Média', Qtde: ticketStats.byPriority.medium }, // Acesso direto agora é seguro
+        { name: 'Alta', Qtde: ticketStats.byPriority.high }, // Acesso direto agora é seguro
+        { name: 'Crítica', Qtde: ticketStats.byPriority.critical }, // Acesso direto agora é seguro
     ];
     return (<div>
       <h1 className="text-2xl font-semibold text-neutral-900 mb-6">Painel de Controle</h1>
@@ -90,7 +90,7 @@ export default function Dashboard() {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="count" fill="#8884d8"/>
+                  <Bar dataKey="Qtde" fill="#8884d8"/>
                 </BarChart>
               </ResponsiveContainer>)}
           </CardContent>
