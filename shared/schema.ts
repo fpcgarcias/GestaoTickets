@@ -18,6 +18,7 @@ export const users = pgTable("users", {
   role: userRoleEnum("role").notNull().default('customer'),
   avatarUrl: text("avatar_url"),
   active: boolean("active").notNull().default(true),
+  adUser: boolean("ad_user").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

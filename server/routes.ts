@@ -926,12 +926,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Autenticação
   router.post("/auth/login", async (req: Request, res: Response) => {
     try {
-      const { username, password } = req.body;
+      const { username, password, useAD = false } = req.body;
       
       if (!username || !password) {
         return res.status(400).json({ message: "Usuário e senha são obrigatórios" });
       }
       
+      // Se useAD = true, tentamos autenticação com Active Directory
+      if (useAD) {
+        // Importa o módulo de AD
+        const { authenticateAD, isUserInGroup } = await import('./utils/active-directory');
+        
+        // Tenta autenticar com AD
+        const adUser = await authenticateAD(username, password);
+        
+        if (!adUser) {
+          return res.status(401).json({ message: "Credenciais inválidas no Active Directory" });
+        }
+        
+        // Verificar se tivemos um erro específico de email não encontrado
+        if (adUser.error === 'EMAIL_NOT_FOUND') {
+          return res.status(400).json({ 
+            message: "E-mail não encontrado no Active Directory", 
+            details: "Seu usuário foi autenticado, mas não possui um e-mail válido cadastrado. Por favor, contate o administrador do sistema para atualizar seu cadastro no Active Directory."
+          });
+        }
+        
+        // Verifica se o usuário já existe no sistema
+        let user = await storage.getUserByUsername(adUser.username) || 
+                   await storage.getUserByEmail(adUser.email);
+        
+        // Se não existir, criamos um novo usuário com base nos dados do AD
+        if (!user) {
+          // Determinar o papel/função do usuário com base em grupos do AD ou definir um padrão
+          const isAdmin = await isUserInGroup(adUser.username, process.env.AD_ADMIN_GROUP || 'SistemaGestao-Admins');
+          const isSupport = await isUserInGroup(adUser.username, process.env.AD_SUPPORT_GROUP || 'SistemaGestao-Suporte');
+          
+          let role = 'customer'; // Papel padrão
+          if (isAdmin) role = 'admin';
+          else if (isSupport) role = 'support';
+          
+          // Gerar uma senha aleatória para o usuário local (não será usada com AD)
+          const { hashPassword } = await import('./utils/password');
+          const randomPassword = Math.random().toString(36).slice(-10);
+          const hashedPassword = await hashPassword(randomPassword);
+          
+          // Criar o usuário no sistema local
+          user = await storage.createUser({
+            username: adUser.username,
+            email: adUser.email,
+            password: hashedPassword,
+            name: adUser.name,
+            role: role,
+            active: true,
+            // Flag para indicar que este usuário foi importado do AD
+            adUser: true
+          });
+        } else {
+          // Verificar se o usuário está ativo
+          if (user.active === false) {
+            return res.status(401).json({ message: "Conta inativa. Contate o administrador do sistema." });
+          }
+          
+          // Atualizar dados do usuário com informações atualizadas do AD
+          await storage.updateUser(user.id, {
+            name: adUser.name,
+            email: adUser.email,
+            updatedAt: new Date()
+          });
+          
+          // Recarregar o usuário com os dados atualizados
+          user = await storage.getUser(user.id);
+        }
+        
+        // Não enviamos a senha para o cliente
+        const { password: _, ...userWithoutPassword } = user;
+        
+        // Criar ou atualizar a sessão do usuário
+        if (req.session) {
+          req.session.userId = user.id;
+          req.session.userRole = user.role;
+          req.session.adUsername = adUser.username;
+          req.session.adData = adUser.adData;
+        }
+        
+        return res.json(userWithoutPassword);
+      }
+      
+      // Autenticação local (sistema existente)
       const user = await storage.getUserByUsername(username);
       
       if (!user) {
@@ -983,6 +1065,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Rota para testar a conexão com o Active Directory (apenas admin)
+  router.get("/auth/test-ad", adminRequired, async (req: Request, res: Response) => {
+    try {
+      const { testADConnection } = await import('./utils/active-directory');
+      const result = await testADConnection();
+      res.json(result);
+    } catch (error) {
+      console.error('Erro ao testar conexão AD:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Erro ao testar conexão com AD',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Rota para testar a conexão com o Active Directory (acesso público para depuração)
+  router.get("/auth/test-ad-public", async (req: Request, res: Response) => {
+    try {
+      console.log('[AD Debug] Iniciando teste de conexão AD (rota pública)');
+      const { testADConnection } = await import('./utils/active-directory');
+      const result = await testADConnection();
+      console.log('[AD Debug] Resultado do teste:', result);
+      res.json(result);
+    } catch (error) {
+      console.error('[AD Debug] Erro ao testar conexão AD:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Erro ao testar conexão com AD',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Rota para testar a autenticação de um usuário específico com o AD
+  router.post("/auth/test-ad-user", async (req: Request, res: Response) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ message: "Usuário e senha são obrigatórios" });
+      }
+      
+      console.log(`[AD Debug] Testando autenticação do usuário '${username}' com o AD`);
+      const { authenticateAD } = await import('./utils/active-directory');
+      
+      // Tenta autenticar com AD
+      const adUser = await authenticateAD(username, password);
+      
+      if (!adUser) {
+        return res.status(401).json({ 
+          success: false,
+          message: "Credenciais inválidas no Active Directory" 
+        });
+      }
+      
+      // Autenticação bem-sucedida, retornar dados do usuário (sem informações sensíveis)
+      res.json({
+        success: true,
+        message: "Autenticação bem-sucedida com o Active Directory",
+        user: {
+          username: adUser.username,
+          name: adUser.name,
+          email: adUser.email,
+          attributes: Object.keys(adUser.adData || {})
+        }
+      });
+    } catch (error) {
+      console.error('[AD Debug] Erro ao testar autenticação de usuário:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Erro ao testar autenticação de usuário com AD',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // Endpoint para criar usuários
   router.post("/users", adminRequired, async (req: Request, res: Response) => {
     try {

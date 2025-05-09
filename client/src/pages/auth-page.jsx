@@ -54,6 +54,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
 export default function AuthPage() {
     var _this = this;
     var _a = useLocation(), location = _a[0], setLocation = _a[1];
@@ -65,7 +66,8 @@ export default function AuthPage() {
     // Formulário de login
     var _d = useState({
         username: '',
-        password: ''
+        password: '',
+        useAD: false
     }), loginData = _d[0], setLoginData = _d[1];
     // Formulário de registro
     var _e = useState({
@@ -93,7 +95,7 @@ export default function AuthPage() {
                     _a.label = 1;
                 case 1:
                     _a.trys.push([1, 3, , 4]);
-                    return [4 /*yield*/, login(loginData.username, loginData.password)];
+                    return [4 /*yield*/, login(loginData.username, loginData.password, loginData.useAD)];
                 case 2:
                     _a.sent();
                     toast({
@@ -104,9 +106,21 @@ export default function AuthPage() {
                     return [3 /*break*/, 4];
                 case 3:
                     err_1 = _a.sent();
+                    console.error('Erro no login:', err_1);
+                    
+                    // Verificar se a resposta contém um erro específico sobre email não encontrado
+                    let errorMessage = "Credenciais inválidas. Tente novamente.";
+                    
+                    // Agora podemos acessar os dados diretamente do objeto de erro
+                    if (err_1 && err_1.data) {
+                        if (err_1.data.message && err_1.data.message.includes("E-mail não encontrado")) {
+                            errorMessage = err_1.data.details || "E-mail não encontrado no Active Directory. Contate o administrador do sistema.";
+                        }
+                    }
+                    
                     toast({
                         title: "Erro no login",
-                        description: "Credenciais inválidas. Tente novamente.",
+                        description: errorMessage,
                         variant: "destructive",
                     });
                     return [3 /*break*/, 4];
@@ -199,6 +213,22 @@ export default function AuthPage() {
                     <Label htmlFor="password">Senha</Label>
                     <Input id="password" type="password" placeholder="Sua senha" value={loginData.password} onChange={function (e) { return setLoginData(__assign(__assign({}, loginData), { password: e.target.value })); }} required/>
                   </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="use-ad" 
+                      checked={loginData.useAD} 
+                      onCheckedChange={(checked) => 
+                        setLoginData(__assign(__assign({}, loginData), { useAD: !!checked }))
+                      }
+                    />
+                    <Label htmlFor="use-ad" className="cursor-pointer">Autenticar com Active Directory</Label>
+                  </div>
+                  {loginData.useAD && (
+                    <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 p-2 rounded">
+                      <p>Digite seu nome de usuário do AD sem o domínio (ex: <strong>joao.silva</strong>)</p>
+                      <p>Se preferir, use o formato completo: <strong>usuario@vixbrasil.local</strong></p>
+                    </div>
+                  )}
                 </CardContent>
                 <CardFooter>
                   <Button type="submit" className="w-full" disabled={isLoading}>

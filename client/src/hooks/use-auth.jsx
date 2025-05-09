@@ -62,28 +62,45 @@ export function AuthProvider(_a) {
             setUser(null);
         }
     }, [data, queryError]);
-    var login = function (username, password) { return __awaiter(_this, void 0, void 0, function () {
-        var response, userData, err_1;
+    var login = function (username, password, useAD) { return __awaiter(_this, void 0, void 0, function () {
+        var response, userData, responseData, errorMsg, err_1;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
-                    _a.trys.push([0, 3, , 4]);
+                    _a.trys.push([0, 5, , 6]);
                     setError(null);
-                    return [4 /*yield*/, apiRequest('POST', '/api/auth/login', { username: username, password: password })];
+                    return [4 /*yield*/, fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ username: username, password: password, useAD: useAD })
+                    })];
                 case 1:
                     response = _a.sent();
                     return [4 /*yield*/, response.json()];
                 case 2:
-                    userData = _a.sent();
+                    responseData = _a.sent();
+                    if (!!response.ok) return [3 /*break*/, 3];
+                    // Se a resposta não for ok, o backend retornou um erro
+                    errorMsg = responseData.message || 'Falha ao fazer login';
+                    // Criar um erro com dados detalhados
+                    var customError = new Error(errorMsg);
+                    customError.response = response;
+                    customError.data = responseData;
+                    throw customError;
+                case 3:
+                    userData = responseData;
                     setUser(userData);
                     // Atualiza o cache do React Query com os dados do usuário
                     queryClient.setQueryData(['/api/auth/me'], userData);
                     return [2 /*return*/, userData];
-                case 3:
+                case 4: return [3 /*break*/, 6];
+                case 5:
                     err_1 = _a.sent();
-                    setError(err_1 instanceof Error ? err_1 : new Error('Falha ao fazer login'));
+                    setError(err_1);
                     throw err_1;
-                case 4: return [2 /*return*/];
+                case 6: return [2 /*return*/];
             }
         });
     }); };
@@ -114,7 +131,8 @@ export function AuthProvider(_a) {
         error: error,
         login: login,
         logout: logout,
-        isAuthenticated: !!user
+        isAuthenticated: !!user,
+        isADUser: !!(user && user.adUser)
     };
     return (<AuthContext.Provider value={value}>
       {children}
