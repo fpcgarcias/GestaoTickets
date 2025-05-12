@@ -83,6 +83,156 @@ function adminRequired(req: Request, res: Response, next: Function) {
 export async function registerRoutes(app: Express): Promise<Server> {
   const router = express.Router();
   
+  // Nova rota para diagnóstico de extração de email do AD (admin)
+  router.get("/auth/test-ad-email", async (req: Request, res: Response) => {
+    try {
+      const username = req.query.username as string;
+      
+      if (!username) {
+        return res.status(400).json({ 
+          message: "Nome de usuário é obrigatório", 
+          usage: "?username=nome.usuario" 
+        });
+      }
+      
+      console.log(`[AD Email Test] Testando extração de email para usuário: ${username}`);
+      
+      // Importar módulo AD para testar
+      const { authenticateAD } = await import('./utils/active-directory');
+      
+      // Configurar o AD para diagnosticar (sem autenticar, apenas buscar)
+      if (!process.env.AD_URL || !process.env.AD_BASE_DN || !process.env.AD_USERNAME || !process.env.AD_PASSWORD) {
+        return res.status(500).json({
+          success: false,
+          message: "Configuração do AD incompleta. Verifique as variáveis de ambiente."
+        });
+      }
+      
+      const AD = await import('activedirectory2').then(mod => mod.default);
+      const adConfig = {
+        url: process.env.AD_URL,
+        baseDN: process.env.AD_BASE_DN,
+        username: process.env.AD_USERNAME,
+        password: process.env.AD_PASSWORD,
+        attributes: {
+          user: ['sAMAccountName', 'mail', 'displayName', 'userPrincipalName', 'proxyAddresses']
+        }
+      };
+      
+      // Função auxiliar para corrigir domínios de email
+      function fixEmailDomain(email: string, source: string): { email: string, wasFixed: boolean } {
+        if (!email || !email.includes('@') || !process.env.AD_EMAIL_DOMAIN) {
+          return { email, wasFixed: false };
+        }
+        
+        // Extrair o nome de usuário e o domínio do email
+        const parts = email.split('@');
+        const userPart = parts[0];
+        const domainPart = parts[1];
+        
+        // Verificar se o domínio parece ser um domínio interno do AD
+        if (domainPart && (
+            (process.env.AD_DOMAIN && domainPart.toLowerCase() === process.env.AD_DOMAIN.toLowerCase()) ||
+            domainPart.toLowerCase().includes('local') ||
+            domainPart.toLowerCase().includes('internal') ||
+            domainPart.toLowerCase().includes('ad') ||
+            domainPart.toLowerCase().includes('corp')
+          )) {
+          // Substituir o domínio pelo domínio de email configurado
+          const fixedEmail = `${userPart}@${process.env.AD_EMAIL_DOMAIN}`;
+          return { email: fixedEmail, wasFixed: true };
+        }
+        
+        return { email, wasFixed: false };
+      }
+      
+      const ad = new AD(adConfig);
+      
+      // Formatar o nome de usuário com o domínio para busca
+      let formattedUsername = username;
+      if (!formattedUsername.includes('@') && process.env.AD_DOMAIN) {
+        formattedUsername = `${formattedUsername}@${process.env.AD_DOMAIN}`;
+      }
+      
+      // Buscar o usuário no AD
+      ad.findUser(formattedUsername, (err: Error | null, user: any) => {
+        if (err || !user) {
+          console.error('[AD Email Test] Erro ou usuário não encontrado:', err);
+          return res.status(404).json({ 
+            success: false, 
+            message: "Usuário não encontrado no AD",
+            error: err ? err.message : "Usuário não encontrado" 
+          });
+        }
+        
+        // Analisar os dados disponíveis para o email
+        const emailSources = {
+          mail: user.mail || 'Não disponível',
+          userPrincipalName: user.userPrincipalName || 'Não disponível',
+          proxyAddresses: Array.isArray(user.proxyAddresses) ? user.proxyAddresses : 'Não disponível'
+        };
+        
+        // Fazer a extração como seria feita na autenticação
+        let userEmail = '';
+        let emailSource = '';
+        
+        if (user.mail && user.mail.trim()) {
+          userEmail = user.mail.trim();
+          emailSource = 'mail attribute';
+        } else if (user.proxyAddresses && Array.isArray(user.proxyAddresses) && user.proxyAddresses.length > 0) {
+          const primarySmtp = user.proxyAddresses.find((addr: string) => addr.startsWith('SMTP:'));
+          if (primarySmtp) {
+            userEmail = primarySmtp.substring(5);
+            emailSource = 'proxyAddresses (primary)';
+          } else if (user.proxyAddresses[0]) {
+            const proxy = user.proxyAddresses[0];
+            if (proxy.startsWith('smtp:')) {
+              userEmail = proxy.substring(5);
+            } else {
+              userEmail = proxy;
+            }
+            emailSource = 'proxyAddresses (first)';
+          }
+        } else if (user.userPrincipalName && user.userPrincipalName.includes('@')) {
+          userEmail = user.userPrincipalName;
+          emailSource = 'userPrincipalName';
+        }
+        
+        // Resultado inicial sem correção
+        const originalEmail = userEmail;
+        
+        // Aplicar correção de domínio
+        const { email: correctedEmail, wasFixed } = fixEmailDomain(userEmail, emailSource);
+        
+        return res.json({
+          success: true,
+          username: formattedUsername,
+          displayName: user.displayName || 'Não disponível',
+          sAMAccountName: user.sAMAccountName || 'Não disponível',
+          availableAttributes: Object.keys(user),
+          emailSources,
+          extractedEmail: {
+            emailOriginal: originalEmail,
+            emailCorrigido: correctedEmail,
+            domínioSubstituído: wasFixed,
+            fonte: emailSource
+          },
+          adConfigs: {
+            AD_DOMAIN: process.env.AD_DOMAIN || '(não definido)',
+            AD_EMAIL_DOMAIN: process.env.AD_EMAIL_DOMAIN || '(não definido)'
+          }
+        });
+      });
+    } catch (error) {
+      console.error('[AD Email Test] Erro:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Erro ao testar extração de email',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
   // Rotas públicas (sem autenticação) - Login, Logout, Registro
   // Estas rotas não precisam de middleware de autenticação
 
@@ -952,9 +1102,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
         
-        // Verifica se o usuário já existe no sistema
+        // Verifica se o usuário já existe no sistema por username ou email
         let user = await storage.getUserByUsername(adUser.username) || 
                    await storage.getUserByEmail(adUser.email);
+        
+        // Se não existir, verifica se existe algum usuário com o mesmo AD username 
+        // mas email diferente (caso de correção de domínio)
+        if (!user) {
+          console.log('[AD Debug] Usuário não encontrado pelo username ou email, verificando usuários AD existentes');
+          
+          // Buscar todos os usuários do AD no sistema
+          const allUsers = await storage.getAllUsers();
+          const adUsers = allUsers.filter(u => u.adUser === true);
+          
+          console.log(`[AD Debug] Encontrados ${adUsers.length} usuários do AD no sistema`);
+          
+          // Verificar se algum deles tem o mesmo nome de usuário do AD
+          // ou o mesmo email mas com domínio diferente
+          for (const existingUser of adUsers) {
+            const existingUsername = existingUser.username.toLowerCase();
+            const adUsername = adUser.username.toLowerCase();
+            
+            // Verificar por username
+            if (existingUsername === adUsername) {
+              console.log(`[AD Debug] Usuário encontrado pelo username do AD: ${existingUsername}`);
+              user = existingUser;
+              break;
+            }
+            
+            // Verificar por email sem considerar o domínio
+            if (existingUser.email && adUser.email) {
+              const existingEmailUser = existingUser.email.split('@')[0].toLowerCase();
+              const adEmailUser = adUser.email.split('@')[0].toLowerCase();
+              
+              if (existingEmailUser === adEmailUser) {
+                console.log(`[AD Debug] Usuário encontrado pela parte local do email: ${existingEmailUser}`);
+                user = existingUser;
+                break;
+              }
+            }
+          }
+        }
         
         // Se não existir, criamos um novo usuário com base nos dados do AD
         if (!user) {
@@ -972,6 +1160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const hashedPassword = await hashPassword(randomPassword);
           
           // Criar o usuário no sistema local
+          console.log(`[AD Debug] Criando novo usuário para ${adUser.username} (${adUser.email})`);
           user = await storage.createUser({
             username: adUser.username,
             email: adUser.email,
@@ -989,14 +1178,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           // Atualizar dados do usuário com informações atualizadas do AD
-          await storage.updateUser(user.id, {
-            name: adUser.name,
-            email: adUser.email,
-            updatedAt: new Date()
-          });
-          
-          // Recarregar o usuário com os dados atualizados
-          user = await storage.getUser(user.id);
+          console.log(`[AD Debug] Atualizando usuário existente: ${user.username} (ID: ${user.id})`);
+          try {
+            await storage.updateUser(user.id, {
+              name: adUser.name,
+              email: adUser.email,
+              updatedAt: new Date()
+            });
+            
+            // Recarregar o usuário com os dados atualizados
+            user = await storage.getUser(user.id);
+          } catch (updateError) {
+            console.error('[AD Debug] Erro ao atualizar usuário:', updateError);
+            // Continuar com o login mesmo se a atualização falhar
+            // para não bloquear o acesso ao usuário
+          }
         }
         
         // Não enviamos a senha para o cliente

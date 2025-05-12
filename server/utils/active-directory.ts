@@ -12,6 +12,7 @@ console.log(`AD_BASE_DN: ${process.env.AD_BASE_DN || '(não definido)'}`);
 console.log(`AD_USERNAME: ${process.env.AD_USERNAME || '(não definido)'}`);
 console.log(`AD_PASSWORD: ${process.env.AD_PASSWORD ? '(definido)' : '(não definido)'}`);
 console.log(`AD_DOMAIN: ${process.env.AD_DOMAIN || '(não definido)'}`);
+console.log(`AD_EMAIL_DOMAIN: ${process.env.AD_EMAIL_DOMAIN || '(não definido, usando o mesmo domínio do AD)'}`);
 console.log(`AD_ADMIN_GROUP: ${process.env.AD_ADMIN_GROUP || '(não definido, usando padrão: SistemaGestao-Admins)'}`);
 console.log(`AD_SUPPORT_GROUP: ${process.env.AD_SUPPORT_GROUP || '(não definido, usando padrão: SistemaGestao-Suporte)'}`);
 console.log('===============================================');
@@ -29,6 +30,39 @@ const adConfig = {
 
 // Instância do Active Directory
 const ad = new ActiveDirectory(adConfig);
+
+/**
+ * Função auxiliar para corrigir o domínio do email quando necessário
+ * @param email Email original
+ * @param source Fonte de onde o email foi extraído
+ * @returns Email com domínio corrigido, se aplicável
+ */
+function fixEmailDomain(email: string, source: string): { email: string, wasFixed: boolean } {
+  if (!email || !email.includes('@') || !process.env.AD_EMAIL_DOMAIN) {
+    return { email, wasFixed: false };
+  }
+  
+  // Extrair o nome de usuário e o domínio do email
+  const parts = email.split('@');
+  const userPart = parts[0];
+  const domainPart = parts[1];
+  
+  // Verificar se o domínio parece ser um domínio interno do AD
+  if (domainPart && (
+      (process.env.AD_DOMAIN && domainPart.toLowerCase() === process.env.AD_DOMAIN.toLowerCase()) ||
+      domainPart.toLowerCase().includes('local') ||
+      domainPart.toLowerCase().includes('internal') ||
+      domainPart.toLowerCase().includes('ad') ||
+      domainPart.toLowerCase().includes('corp')
+    )) {
+    // Substituir o domínio pelo domínio de email configurado
+    const fixedEmail = `${userPart}@${process.env.AD_EMAIL_DOMAIN}`;
+    console.log(`[AD Debug] Domínio do email substituído: ${email} -> ${fixedEmail} (fonte: ${source})`);
+    return { email: fixedEmail, wasFixed: true };
+  }
+  
+  return { email, wasFixed: false };
+}
 
 /**
  * Autentica um usuário no Active Directory
@@ -49,7 +83,7 @@ export async function authenticateAD(username: string, password: string): Promis
       const domainPart = formattedUsername.split('@')[1];
       
       // Se o domínio não corresponde ao configurado, substituí-lo
-      if (process.env.AD_DOMAIN && domainPart !== process.env.AD_DOMAIN) {
+      if (process.env.AD_DOMAIN && domainPart.toLowerCase() !== process.env.AD_DOMAIN.toLowerCase()) {
         const userPart = formattedUsername.split('@')[0];
         formattedUsername = `${userPart}@${process.env.AD_DOMAIN}`;
         console.log(`[AD Debug] Domínio substituído, novo username: ${formattedUsername}`);
@@ -85,20 +119,20 @@ export async function authenticateAD(username: string, password: string): Promis
         
         // Extrair o email do usuário
         let userEmail = '';
+        let emailSource = '';
         
         // Verificar várias possíveis fontes de email em ordem de prioridade
         if (user.mail && user.mail.trim()) {
-          userEmail = user.mail;
+          userEmail = user.mail.trim();
+          emailSource = 'mail attribute';
           console.log(`[AD Debug] Email encontrado no atributo 'mail': ${userEmail}`);
-        } else if (user.userPrincipalName && user.userPrincipalName.includes('@')) {
-          userEmail = user.userPrincipalName;
-          console.log(`[AD Debug] Email extraído do userPrincipalName: ${userEmail}`);
         } else if (user.proxyAddresses && Array.isArray(user.proxyAddresses) && user.proxyAddresses.length > 0) {
           // Procurar por endereço SMTP primário (começa com "SMTP:")
           const primarySmtp = user.proxyAddresses.find((addr: string) => addr.startsWith('SMTP:'));
           if (primarySmtp) {
             userEmail = primarySmtp.substring(5); // Remove o prefixo "SMTP:"
-            console.log(`[AD Debug] Email encontrado em proxyAddresses: ${userEmail}`);
+            emailSource = 'proxyAddresses (primary)';
+            console.log(`[AD Debug] Email encontrado em proxyAddresses (primary): ${userEmail}`);
           } else if (user.proxyAddresses[0]) {
             // Usar o primeiro endereço proxy se não houver SMTP primário
             const proxy = user.proxyAddresses[0];
@@ -107,8 +141,13 @@ export async function authenticateAD(username: string, password: string): Promis
             } else {
               userEmail = proxy;
             }
+            emailSource = 'proxyAddresses (first)';
             console.log(`[AD Debug] Email alternativo de proxyAddresses: ${userEmail}`);
           }
+        } else if (user.userPrincipalName && user.userPrincipalName.includes('@')) {
+          userEmail = user.userPrincipalName;
+          emailSource = 'userPrincipalName';
+          console.log(`[AD Debug] Email extraído do userPrincipalName: ${userEmail}`);
         }
         
         // Verificar se encontramos um email válido
@@ -120,9 +159,17 @@ export async function authenticateAD(username: string, password: string): Promis
           });
         }
         
+        // Corrigir o domínio do email se necessário
+        const { email: correctedEmail, wasFixed } = fixEmailDomain(userEmail, emailSource);
+        userEmail = correctedEmail;
+        
+        if (!wasFixed) {
+          console.log(`[AD Debug] Email mantido sem alterações: ${userEmail} (fonte: ${emailSource})`);
+        }
+        
         // Mapear atributos do AD para o formato esperado pelo sistema
         const adUser = {
-          username: user.sAMAccountName || formattedUsername,
+          username: user.sAMAccountName || formattedUsername.split('@')[0],
           email: userEmail,
           name: user.displayName || formattedUsername,
           adData: user // Dados brutos do AD para referência
@@ -198,7 +245,8 @@ export async function testADConnection(): Promise<{ success: boolean; message: s
               AD_BASE_DN: process.env.AD_BASE_DN ? 'Definido' : 'Não definido',
               AD_USERNAME: process.env.AD_USERNAME ? 'Definido' : 'Não definido',
               AD_PASSWORD: process.env.AD_PASSWORD ? 'Definido' : 'Não definido',
-              AD_DOMAIN: process.env.AD_DOMAIN ? 'Definido' : 'Não definido'
+              AD_DOMAIN: process.env.AD_DOMAIN ? 'Definido' : 'Não definido',
+              AD_EMAIL_DOMAIN: process.env.AD_EMAIL_DOMAIN ? 'Definido' : 'Não definido'
             } 
           }
         });
