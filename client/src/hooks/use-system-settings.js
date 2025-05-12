@@ -12,8 +12,8 @@ var __assign = (this && this.__assign) || function () {
 import { useQuery } from '@tanstack/react-query';
 // Valores padrão para as configurações do sistema
 var defaultSettings = {
-    companyName: 'Vix Brasil',
-    supportEmail: 'suporte@ticketlead.com.br',
+    companyName: 'Ticket Flow',
+    supportEmail: 'suporte@ticketflow.com.br',
     allowCustomerRegistration: true
 };
 export function useSystemSettings() {

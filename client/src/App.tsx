@@ -41,7 +41,7 @@ function AppContent() {
   
   // Definir título do documento com valor fixo para evitar loops de requisição
   useEffect(() => {
-    document.title = `Vix Brasil - Sistema de Gestão de Chamados`;
+    document.title = `Ticket Flow - Sistema de Gestão de Chamados`;
   }, []);
   
   return (

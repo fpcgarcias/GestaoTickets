@@ -8,6 +8,17 @@ export const ticketPriorityEnum = pgEnum('ticket_priority', ['low', 'medium', 'h
 export const userRoleEnum = pgEnum('user_role', ['admin', 'support', 'customer']);
 export const departmentEnum = pgEnum('department', ['technical', 'billing', 'general', 'sales', 'other']);
 
+// Companies table
+export const companies = pgTable("companies", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  domain: text("domain"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Users table for authentication
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -21,6 +32,7 @@ export const users = pgTable("users", {
   adUser: boolean("ad_user").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  companyId: integer("company_id").references(() => companies.id),
 });
 
 // Customers table for those who create tickets
@@ -34,6 +46,7 @@ export const customers = pgTable("customers", {
   avatarUrl: text("avatar_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  companyId: integer("company_id").references(() => companies.id),
 });
 
 // Support staff table
@@ -47,6 +60,7 @@ export const officials = pgTable("officials", {
   avatarUrl: text("avatar_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  companyId: integer("company_id").references(() => companies.id),
 });
 
 // Tabela para armazenar os departamentos de cada atendente (relação muitos-para-muitos)
@@ -65,6 +79,7 @@ export const slaDefinitions = pgTable("sla_definitions", {
   resolutionTimeHours: integer("resolution_time_hours").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  companyId: integer("company_id").references(() => companies.id),
 });
 
 // Tickets table
@@ -86,6 +101,7 @@ export const tickets = pgTable("tickets", {
   firstResponseAt: timestamp("first_response_at"),
   resolvedAt: timestamp("resolved_at"),
   slaBreached: boolean("sla_breached").default(false),
+  companyId: integer("company_id").references(() => companies.id),
 });
 
 // Ticket replies
@@ -115,15 +131,18 @@ export const systemSettings = pgTable("system_settings", {
   value: text("value").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  companyId: integer("company_id").references(() => companies.id),
 });
 
 // Nova tabela para tipos de incidentes
 export const incidentTypes = pgTable("incident_types", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  value: text("value").notNull(), // Adicionado conforme estrutura do banco
   departmentId: integer("department_id"), // Relacionamento com departamento
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  companyId: integer("company_id").references(() => companies.id),
 });
 
 // Schema for inserting users

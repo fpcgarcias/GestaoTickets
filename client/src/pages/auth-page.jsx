@@ -61,7 +61,7 @@ export default function AuthPage() {
     var _b = useAuth(), user = _b.user, login = _b.login, isLoading = _b.isLoading, error = _b.error;
     var toast = useToast().toast;
     // Usar valor fixo padrão para evitar loops de autenticação
-    var companyName = "Vix Brasil";
+    var companyName = "Ticket Flow";
     var _c = useState('login'), activeTab = _c[0], setActiveTab = _c[1];
     // Formulário de login
     var _d = useState({
@@ -226,7 +226,7 @@ export default function AuthPage() {
                   {loginData.useAD && (
                     <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 p-2 rounded">
                       <p>Digite seu nome de usuário do AD sem o domínio (ex: <strong>joao.silva</strong>)</p>
-                      <p>Se preferir, use o formato completo: <strong>usuario@vixbrasil.local</strong></p>
+                      <p>Se preferir, use o formato completo: <strong>usuario@seudominio.local</strong></p>
                     </div>
                   )}
                 </CardContent>
@@ -275,7 +275,7 @@ export default function AuthPage() {
       {/* Lado direito - Informações do produto */}
       <div className="flex-1 bg-primary text-white p-8 hidden md:flex flex-col justify-center">
         <div className="max-w-lg mx-auto">
-          <h1 className="text-4xl font-bold mb-4">Vix Brasil</h1>
+          <h1 className="text-4xl font-bold mb-4">Ticket Flow</h1>
           <h2 className="text-2xl font-semibold mb-6">Sistema Completo de Gestão de Chamados</h2>
           
           <ul className="space-y-4">
