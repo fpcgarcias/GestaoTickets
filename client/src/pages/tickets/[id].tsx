@@ -10,7 +10,7 @@ import { Ticket } from '@shared/schema';
 
 export default function TicketDetailPage() {
   const [, params] = useRoute('/tickets/:id');
-  const ticketId = params?.id ? parseInt(params.id) : 0;
+  const ticketId = params && typeof params === 'object' && 'id' in params ? parseInt((params as any).id) : 0;
 
   const { data: ticket, isLoading, error } = useQuery<Ticket>({
     queryKey: [`/api/tickets/${ticketId}`],

@@ -8,7 +8,8 @@ import {
   Users, 
   TicketIcon, 
   UserCog, 
-  Settings
+  Settings,
+  Building
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -47,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     { href: "/clients", icon: <Users size={20} />, label: "Clientes", roles: ['admin', 'support'] },
     { href: "/users", icon: <Users size={20} />, label: "Usuários", roles: ['admin'] },
     { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes", roles: ['admin'] },
+    { href: "/companies", icon: <Building size={20} />, label: "Empresas", roles: ['admin'] },
     { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin'] },
   ];
   

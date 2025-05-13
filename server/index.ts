@@ -69,14 +69,6 @@ app.use(session({
   }
 }));
 
-// Declarar tipos para sessão
-declare module 'express-session' {
-  interface SessionData {
-    userId?: number;
-    userRole?: 'admin' | 'support' | 'customer';
-  }
-}
-
 // Manter o middleware de log
 app.use((req, res, next) => {
   const start = Date.now();

@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Official } from '@shared/schema';
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -16,12 +15,20 @@ import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Estendendo a interface Official para incluir o user com username
-interface OfficialWithUser extends Official {
+// Interface definida manualmente para cobrir os campos necessários
+interface OfficialWithUser {
+  id?: number;
+  name: string;
+  email: string;
+  isActive: boolean;
+  department?: string;
+  departments?: any[]; // Usando any[] para evitar erros de tipo
+  userId?: number;
   user?: {
-    id: number;
+    id?: number;
     username: string;
     email?: string;
+    password?: string;
   };
 }
 
@@ -88,9 +95,22 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
       let currentDepartments: string[] = [];
       if (official.departments) {
         if (Array.isArray(official.departments)) {
-          currentDepartments = official.departments.map(d => 
-            typeof d === 'object' && d !== null && 'department' in d ? d.department : d
-          ).filter(d => typeof d === 'string') as string[];
+          // Extrair os departamentos de forma segura
+          currentDepartments = [];
+          
+          for (const item of official.departments) {
+            if (item === null || item === undefined) continue;
+            
+            if (typeof item === 'string') {
+              currentDepartments.push(item);
+            } else if (typeof item === 'object') {
+              // Tratando como any para evitar erros de tipo
+              const dept = (item as any).department;
+              if (typeof dept === 'string') {
+                currentDepartments.push(dept);
+              }
+            }
+          }
         } else {
           // Tratar caso inesperado onde official.departments não é array (opcional)
           console.warn("official.departments não é um array:", official.departments);

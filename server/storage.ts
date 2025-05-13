@@ -14,9 +14,25 @@ import {
   SLADefinition,
   OfficialDepartment,
   InsertOfficialDepartment,
-  ticketStatusEnum, ticketPriorityEnum, userRoleEnum, departmentEnum
+  ticketStatusEnum, ticketPriorityEnum, userRoleEnum, departmentEnum,
+  type SystemSetting,
+  type IncidentType
 } from "@shared/schema";
 import { generateTicketId } from "../client/src/lib/utils";
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+import { schema } from "./schema";
+
+// Definição do tipo para empresas
+export interface Company {
+  id: number;
+  name: string;
+  email: string;
+  domain: string | null;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 // Interface for storage operations
 export interface IStorage {
@@ -27,10 +43,10 @@ export interface IStorage {
   createUser(userData: InsertUser): Promise<User>;
   updateUser(id: number, userData: Partial<User>): Promise<User | undefined>;
   deleteUser(id: number): Promise<boolean>;
-  inactivateUser?(id: number): Promise<User | undefined>;
-  activateUser?(id: number): Promise<User | undefined>;
-  getActiveUsers?(): Promise<User[]>;
-  getAllUsers?(): Promise<User[]>;
+  inactivateUser(id: number): Promise<User | undefined>;
+  activateUser(id: number): Promise<User | undefined>;
+  getActiveUsers(): Promise<User[]>;
+  getAllUsers(): Promise<User[]>;
   
   // Customer operations
   getCustomers(): Promise<Customer[]>;
@@ -47,8 +63,8 @@ export interface IStorage {
   createOfficial(officialData: InsertOfficial): Promise<Official>;
   updateOfficial(id: number, officialData: Partial<Official>): Promise<Official | undefined>;
   deleteOfficial(id: number): Promise<boolean>;
-  inactivateOfficial?(id: number): Promise<Official | undefined>;
-  activateOfficial?(id: number): Promise<Official | undefined>;
+  inactivateOfficial(id: number): Promise<Official | undefined>;
+  activateOfficial(id: number): Promise<Official | undefined>;
   
   // Official departments operations
   getOfficialDepartments(officialId: number): Promise<OfficialDepartment[]>;
@@ -81,8 +97,23 @@ export interface IStorage {
     byPriority: Record<string, number>;
   }>;
   getRecentTickets(limit?: number): Promise<Ticket[]>;
-  getTicketStatsByUserRole?(userId: number, userRole: string): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
-  getRecentTicketsByUserRole?(userId: number, userRole: string, limit?: number): Promise<Ticket[]>;
+  getTicketStatsByUserRole(userId: number, userRole: string): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
+  getRecentTicketsByUserRole(userId: number, userRole: string, limit?: number): Promise<Ticket[]>;
+
+  // Company operations
+  getCompanies(): Promise<Company[]>;
+  getCompany(id: number): Promise<Company | undefined>;
+  getCompanyByDomain(domain: string): Promise<Company | undefined>;
+  createCompany(companyData: {
+    name: string;
+    email: string;
+    domain?: string | null;
+    active?: boolean;
+  }): Promise<Company>;
+  updateCompany(id: number, companyData: Partial<Company>): Promise<Company | undefined>;
+  deleteCompany(id: number): Promise<boolean>;
+  toggleCompanyStatus(id: number): Promise<Company | undefined>;
+  getActiveCompanies(): Promise<Company[]>;
 }
 
 // In-memory storage implementation
@@ -527,6 +558,32 @@ export class MemStorage implements IStorage {
     return this.officials.delete(id);
   }
 
+  async inactivateOfficial(id: number): Promise<Official | undefined> {
+    const official = this.officials.get(id);
+    if (!official) return undefined;
+    
+    const updatedOfficial: Official = {
+      ...official,
+      isActive: false,
+      updatedAt: new Date()
+    };
+    this.officials.set(id, updatedOfficial);
+    return updatedOfficial;
+  }
+
+  async activateOfficial(id: number): Promise<Official | undefined> {
+    const official = this.officials.get(id);
+    if (!official) return undefined;
+    
+    const updatedOfficial: Official = {
+      ...official,
+      isActive: true,
+      updatedAt: new Date()
+    };
+    this.officials.set(id, updatedOfficial);
+    return updatedOfficial;
+  }
+
   // Ticket operations
   async getTickets(): Promise<Ticket[]> {
     return Array.from(this.tickets.values());
@@ -786,6 +843,109 @@ export class MemStorage implements IStorage {
     
     // Se não for nenhum papel conhecido, retorna array vazio
     return [];
+  }
+
+  // Company operations
+  async getCompanies(): Promise<Company[]> {
+    // Buscar todas as empresas do banco de dados
+    const companies = await db.select().from(schema.companies);
+    return companies;
+  }
+
+  async getCompany(id: number): Promise<Company | undefined> {
+    // Buscar uma empresa específica pelo ID
+    const [company] = await db
+      .select()
+      .from(schema.companies)
+      .where(eq(schema.companies.id, id));
+    
+    return company;
+  }
+
+  async getCompanyByDomain(domain: string): Promise<Company | undefined> {
+    // Buscar uma empresa pelo domínio
+    const [company] = await db
+      .select()
+      .from(schema.companies)
+      .where(eq(schema.companies.domain, domain));
+    
+    return company;
+  }
+
+  async createCompany(companyData: {
+    name: string;
+    email: string;
+    domain?: string | null;
+    active?: boolean;
+  }): Promise<Company> {
+    // Criar uma nova empresa
+    const [company] = await db
+      .insert(schema.companies)
+      .values({
+        name: companyData.name,
+        email: companyData.email,
+        domain: companyData.domain || null,
+        active: companyData.active ?? true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      .returning();
+    
+    return company;
+  }
+
+  async updateCompany(id: number, companyData: Partial<Company>): Promise<Company | undefined> {
+    // Atualizar uma empresa existente
+    const [updatedCompany] = await db
+      .update(schema.companies)
+      .set({
+        ...companyData,
+        updatedAt: new Date()
+      })
+      .where(eq(schema.companies.id, id))
+      .returning();
+    
+    return updatedCompany;
+  }
+
+  async deleteCompany(id: number): Promise<boolean> {
+    // Excluir uma empresa
+    const result = await db
+      .delete(schema.companies)
+      .where(eq(schema.companies.id, id));
+    
+    return true;
+  }
+
+  async toggleCompanyStatus(id: number): Promise<Company | undefined> {
+    // Alternar o status (ativo/inativo) de uma empresa
+    const [company] = await db
+      .select()
+      .from(schema.companies)
+      .where(eq(schema.companies.id, id));
+    
+    if (!company) return undefined;
+    
+    const [updatedCompany] = await db
+      .update(schema.companies)
+      .set({
+        active: !company.active,
+        updatedAt: new Date()
+      })
+      .where(eq(schema.companies.id, id))
+      .returning();
+    
+    return updatedCompany;
+  }
+
+  async getActiveCompanies(): Promise<Company[]> {
+    // Buscar apenas empresas ativas
+    const companies = await db
+      .select()
+      .from(schema.companies)
+      .where(eq(schema.companies.active, true));
+    
+    return companies;
   }
 }
 

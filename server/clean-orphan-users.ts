@@ -4,7 +4,7 @@
  */
 
 import { db } from './db';
-import { users, officials } from '../shared/schema';
+import { users, officials, typeSafeInsert, typeSafeUpdate } from '../shared/schema';
 import { eq } from 'drizzle-orm';
 
 export async function findOrphanSupportUsers() {
@@ -46,8 +46,8 @@ export async function findOrphanSupportUsers() {
         
         // Atualizar o atendente com o userId correto
         try {
-          const [updated] = await db
-            .update(officials)
+          // Usando a função typeSafeUpdate
+          const [updated] = await typeSafeUpdate(officials)
             .set({ userId: user.id })
             .where(eq(officials.id, official.id))
             .returning();
@@ -86,8 +86,7 @@ export async function createOfficialForUser(userId: number, options: {
     console.log(`Criando atendente para usuário: ${user.name}`);
     
     // Criar registro de atendente usando dados do usuário como padrão
-    const [official] = await db
-      .insert(officials)
+    const [official] = await typeSafeInsert(officials)
       .values({
         name: options.name || user.name,
         email: options.email || user.email,
