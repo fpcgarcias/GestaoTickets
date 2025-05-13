@@ -36,7 +36,7 @@ function AppContent() {
     var user = useAuth().user;
     // Definir título do documento com valor fixo para evitar loops de requisição
     useEffect(function () {
-        document.title = "Vix Brasil - Sistema de Gest\u00E3o de Chamados";
+        document.title = "Oficina Muda - Sistema de Gestão de Chamados";
     }, []);
     return (<Switch>
       <Route path="/auth" component={AuthPage}/>
