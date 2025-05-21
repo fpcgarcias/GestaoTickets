@@ -1,4 +1,4 @@
-# Sistema de Gestão de Chamados - Oficina Muda
+# Sistema de Gestão de Chamados - Ticket Flow
 
 ## Visão Geral
 

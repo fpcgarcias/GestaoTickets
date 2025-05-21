@@ -1,15 +1,24 @@
 import express, { Response } from "express";
-import type { Express, Request } from "express";
-import { createServer, type Server } from "http";
+import type { Express, Request, NextFunction as NextFnExpress } from "express";
+import { createServer, type Server as HttpServer } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertTicketSchema, insertTicketReplySchema, slaDefinitions } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { insertTicketSchema, insertTicketReplySchema, slaDefinitions, departments as departmentsSchema } from "@shared/schema";
+import { eq, desc, isNull, sql, and, ne, or, inArray, type SQLWrapper } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import { db } from "./db";
 import { notificationService } from "./services/notification-service";
 import * as crypto from 'crypto';
+
+// Schemas Zod para validação de Departamentos (definidos aqui temporariamente)
+const insertDepartmentSchemaInternal = z.object({
+  name: z.string().min(1, "Nome é obrigatório"),
+  description: z.string().optional().nullable(),
+  company_id: z.number().int().positive().optional().nullable(),
+  is_active: z.boolean().optional(),
+});
+const updateDepartmentSchemaInternal = insertDepartmentSchemaInternal.partial();
 
 // Função auxiliar para salvar e carregar configurações
 async function saveSystemSetting(key: string, value: string): Promise<void> {
@@ -23,7 +32,7 @@ async function saveSystemSetting(key: string, value: string): Promise<void> {
       .update(schema.systemSettings)
       .set({ 
         value: value,
-        updatedAt: new Date()
+        updated_at: new Date()
       })
       .where(eq(schema.systemSettings.id, existing.id));
   } else {
@@ -32,8 +41,8 @@ async function saveSystemSetting(key: string, value: string): Promise<void> {
       .values({
         key: key,
         value: value,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        created_at: new Date(),
+        updated_at: new Date()
       });
   }
 }
@@ -47,10 +56,10 @@ async function getSystemSetting(key: string, defaultValue: string = ''): Promise
   return setting ? setting.value : defaultValue;
 }
 
-function validateRequest(schema: z.ZodType<any, any>) {
-  return (req: Request, res: Response, next: Function) => {
+function validateRequest(schemaToValidate: z.ZodType<any, any>) {
+  return (req: Request, res: Response, next: NextFnExpress) => {
     try {
-      req.body = schema.parse(req.body);
+      req.body = schemaToValidate.parse(req.body);
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -65,7 +74,7 @@ function validateRequest(schema: z.ZodType<any, any>) {
 }
 
 // Middleware para verificar se o usuário está autenticado
-function authRequired(req: Request, res: Response, next: Function) {
+function authRequired(req: Request, res: Response, next: NextFnExpress) {
   if (!req.session || !req.session.userId) {
     return res.status(401).json({ message: "Não autenticado" });
   }
@@ -73,14 +82,156 @@ function authRequired(req: Request, res: Response, next: Function) {
 }
 
 // Middleware para verificar se o usuário é admin
-function adminRequired(req: Request, res: Response, next: Function) {
+function adminRequired(req: Request, res: Response, next: NextFnExpress) {
   if (!req.session || !req.session.userId || req.session.userRole !== 'admin') {
+    return res.status(403).json({ message: "Acesso negado: Requer perfil de Administrador" });
+  }
+  next();
+}
+
+// Middleware para verificar se o usuário é company_admin ou admin geral
+function companyAdminRequired(req: Request, res: Response, next: NextFnExpress) {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ message: "Não autenticado" });
+  }
+  const userRole = req.session.userRole as string; // Cast para string para a comparação
+  if (userRole !== 'admin' && userRole !== 'company_admin') {
+    return res.status(403).json({ message: "Acesso negado: Requer perfil de Administrador da Empresa ou Administrador Geral" });
+  }
+  next();
+}
+
+// Middleware para verificar se o usuário é manager
+function managerRequired(req: Request, res: Response, next: NextFnExpress) {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ message: "Não autenticado" });
+  }
+  const userRole = req.session.userRole as string;
+  if (!userRole || !['admin', 'company_admin', 'manager'].includes(userRole)) {
     return res.status(403).json({ message: "Acesso negado" });
   }
   next();
 }
 
-export async function registerRoutes(app: Express): Promise<Server> {
+// Middleware para verificar se o usuário é supervisor ou superior
+function supervisorRequired(req: Request, res: Response, next: NextFnExpress) {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ message: "Não autenticado" });
+  }
+  const userRole = req.session.userRole as string;
+  if (!userRole || !['admin', 'company_admin', 'manager', 'supervisor'].includes(userRole)) {
+    return res.status(403).json({ message: "Acesso negado" });
+  }
+  next();
+}
+
+// Middleware para verificar se o usuário é triage ou superior
+function triageRequired(req: Request, res: Response, next: NextFnExpress) {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ message: "Não autenticado" });
+  }
+  const userRole = req.session.userRole as string;
+  if (!userRole || !['admin', 'company_admin', 'manager', 'supervisor', 'support', 'triage'].includes(userRole)) {
+    return res.status(403).json({ message: "Acesso negado" });
+  }
+  next();
+}
+
+// Middleware para verificar se o usuário pode visualizar tickets (todas as roles exceto integration_bot)
+function viewerRequired(req: Request, res: Response, next: NextFnExpress) {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ message: "Não autenticado" });
+  }
+  const userRole = req.session.userRole as string;
+  if (userRole === 'integration_bot') {
+    return res.status(403).json({ message: "Acesso negado" });
+  }
+  next();
+}
+
+// Middleware para verificar se o usuário tem acesso a um departamento específico
+async function departmentAccess(req: Request, res: Response, next: NextFnExpress) {
+  try {
+    if (!req.session || !req.session.userId) {
+      return res.status(401).json({ message: "Não autenticado" });
+    }
+    const userRole = req.session.userRole as string;
+    const userId = req.session.userId;
+
+    if (!userRole) {
+        return res.status(403).json({ message: "Acesso negado - Papel do usuário não definido" });
+    }
+
+    if (['admin', 'company_admin'].includes(userRole)) {
+      return next();
+    }
+
+    if (['manager', 'supervisor', 'support', 'triage'].includes(userRole)) {
+      const departmentId = parseInt(req.params.departmentId || req.body.department_id);
+      
+      if (!departmentId) {
+        return res.status(400).json({ message: "ID do departamento não especificado" });
+      }
+      
+      const [official] = await db
+        .select()
+        .from(schema.officials)
+        .where(eq(schema.officials.user_id, userId))
+        .limit(1);
+        
+      if (!official) {
+        return res.status(403).json({ message: "Acesso negado - Usuário não é um atendente" });
+      }
+      
+      const officialDepartments = await db
+        .select()
+        .from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+        
+      const hasDepartmentAccess = officialDepartments.some(
+        dept => dept.department === departmentId.toString()
+      );
+      
+      if (!hasDepartmentAccess) {
+        return res.status(403).json({ message: "Acesso negado - Sem permissão para este departamento" });
+      }
+      
+      return next();
+    }
+    
+    return res.status(403).json({ message: "Acesso negado" });
+  } catch (error) {
+    console.error("Erro ao verificar acesso ao departamento:", error);
+    return res.status(500).json({ message: "Erro ao verificar permissões" });
+  }
+}
+
+function fixEmailDomain(email: string, source: string): { email: string, wasFixed: boolean } {
+  if (!email || !email.includes('@') || !process.env.AD_EMAIL_DOMAIN) {
+    return { email, wasFixed: false };
+  }
+  
+  const parts = email.split('@');
+  const userPart = parts[0];
+  const domainPart = parts[1];
+  
+  if (domainPart && 
+      ((
+        process.env.AD_DOMAIN && domainPart.toLowerCase() === process.env.AD_DOMAIN.toLowerCase()
+      ) ||
+      domainPart.toLowerCase().includes('local') ||
+      domainPart.toLowerCase().includes('internal') ||
+      domainPart.toLowerCase().includes('ad') ||
+      domainPart.toLowerCase().includes('corp'))
+    ) {
+    const fixedEmail = `${userPart}@${process.env.AD_EMAIL_DOMAIN}`;
+    return { email: fixedEmail, wasFixed: true };
+  }
+  
+  return { email, wasFixed: false };
+}
+
+export async function registerRoutes(app: Express): Promise<void> {
   const router = express.Router();
   
   // Nova rota para diagnóstico de extração de email do AD (admin)
@@ -97,10 +248,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`[AD Email Test] Testando extração de email para usuário: ${username}`);
       
-      // Importar módulo AD para testar
       const { authenticateAD } = await import('./utils/active-directory');
       
-      // Configurar o AD para diagnosticar (sem autenticar, apenas buscar)
       if (!process.env.AD_URL || !process.env.AD_BASE_DN || !process.env.AD_USERNAME || !process.env.AD_PASSWORD) {
         return res.status(500).json({
           success: false,
@@ -118,118 +267,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           user: ['sAMAccountName', 'mail', 'displayName', 'userPrincipalName', 'proxyAddresses']
         }
       };
-      
-      // Função auxiliar para corrigir domínios de email
-      function fixEmailDomain(email: string, source: string): { email: string, wasFixed: boolean } {
-        if (!email || !email.includes('@') || !process.env.AD_EMAIL_DOMAIN) {
-          return { email, wasFixed: false };
-        }
-        
-        // Extrair o nome de usuário e o domínio do email
-        const parts = email.split('@');
-        const userPart = parts[0];
-        const domainPart = parts[1];
-        
-        // Verificar se o domínio parece ser um domínio interno do AD
-        if (domainPart && (
-            (process.env.AD_DOMAIN && domainPart.toLowerCase() === process.env.AD_DOMAIN.toLowerCase()) ||
-            domainPart.toLowerCase().includes('local') ||
-            domainPart.toLowerCase().includes('internal') ||
-            domainPart.toLowerCase().includes('ad') ||
-            domainPart.toLowerCase().includes('corp')
-          )) {
-          // Substituir o domínio pelo domínio de email configurado
-          const fixedEmail = `${userPart}@${process.env.AD_EMAIL_DOMAIN}`;
-          return { email: fixedEmail, wasFixed: true };
-        }
-        
-        return { email, wasFixed: false };
-      }
-      
       const ad = new AD(adConfig);
-      
-      // Formatar o nome de usuário com o domínio para busca
-      let formattedUsername = username;
-      if (!formattedUsername.includes('@') && process.env.AD_DOMAIN) {
-        formattedUsername = `${formattedUsername}@${process.env.AD_DOMAIN}`;
-      }
-      
-      // Buscar o usuário no AD
-      ad.findUser(formattedUsername, (err: Error | null, user: any) => {
-        if (err || !user) {
-          console.error('[AD Email Test] Erro ou usuário não encontrado:', err);
-          return res.status(404).json({ 
-            success: false, 
-            message: "Usuário não encontrado no AD",
-            error: err ? err.message : "Usuário não encontrado" 
-          });
+      // Lógica simplificada da rota test-ad-email para manter o foco
+      const formattedUsername = username.includes('@') ? username.split('@')[0] : username;
+      ad.findUser(formattedUsername, (err: any, userEntry: any) => {
+        if (err) {
+          console.error("[AD Email Test] Erro ao buscar usuário no AD:", err);
+          return res.status(500).json({ success: false, message: "Erro ao buscar usuário no AD", error: err });
         }
-        
-        // Analisar os dados disponíveis para o email
-        const emailSources = {
-          mail: user.mail || 'Não disponível',
-          userPrincipalName: user.userPrincipalName || 'Não disponível',
-          proxyAddresses: Array.isArray(user.proxyAddresses) ? user.proxyAddresses : 'Não disponível'
-        };
-        
-        // Fazer a extração como seria feita na autenticação
-        let userEmail = '';
-        let emailSource = '';
-        
-        if (user.mail && user.mail.trim()) {
-          userEmail = user.mail.trim();
-          emailSource = 'mail attribute';
-        } else if (user.proxyAddresses && Array.isArray(user.proxyAddresses) && user.proxyAddresses.length > 0) {
-          const primarySmtp = user.proxyAddresses.find((addr: string) => addr.startsWith('SMTP:'));
-          if (primarySmtp) {
-            userEmail = primarySmtp.substring(5);
-            emailSource = 'proxyAddresses (primary)';
-          } else if (user.proxyAddresses[0]) {
-            const proxy = user.proxyAddresses[0];
-            if (proxy.startsWith('smtp:')) {
-              userEmail = proxy.substring(5);
-            } else {
-              userEmail = proxy;
-            }
-            emailSource = 'proxyAddresses (first)';
-          }
-        } else if (user.userPrincipalName && user.userPrincipalName.includes('@')) {
-          userEmail = user.userPrincipalName;
-          emailSource = 'userPrincipalName';
+        if (!userEntry) {
+          return res.status(404).json({ success: false, message: "Usuário não encontrado no AD" });
         }
-        
-        // Resultado inicial sem correção
-        const originalEmail = userEmail;
-        
-        // Aplicar correção de domínio
-        const { email: correctedEmail, wasFixed } = fixEmailDomain(userEmail, emailSource);
-        
-        return res.json({
-          success: true,
-          username: formattedUsername,
-          displayName: user.displayName || 'Não disponível',
-          sAMAccountName: user.sAMAccountName || 'Não disponível',
-          availableAttributes: Object.keys(user),
-          emailSources,
-          extractedEmail: {
-            emailOriginal: originalEmail,
-            emailCorrigido: correctedEmail,
-            domínioSubstituído: wasFixed,
-            fonte: emailSource
-          },
-          adConfigs: {
-            AD_DOMAIN: process.env.AD_DOMAIN || '(não definido)',
-            AD_EMAIL_DOMAIN: process.env.AD_EMAIL_DOMAIN || '(não definido)'
-          }
-        });
+        res.json({ success: true, user: userEntry }); 
       });
+
     } catch (error) {
-      console.error('[AD Email Test] Erro:', error);
-      res.status(500).json({ 
-        success: false, 
-        message: 'Erro ao testar extração de email',
-        error: error instanceof Error ? error.message : String(error)
-      });
+      console.error("[AD Email Test] Erro inesperado:", error);
+      res.status(500).json({ success: false, message: "Erro inesperado no teste de email do AD" });
     }
   });
   
@@ -239,7 +293,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Rota para registro de novos usuários
   router.post("/register", async (req: Request, res: Response) => {
     try {
-      const { username, email, password, name, role } = req.body;
+      const { email, password, name, role, cnpj } = req.body;
+      
+      // Usar o email como nome de usuário
+      const username = email;
       
       // Verificar se o usuário já existe
       const existingUser = await storage.getUserByUsername(username);
@@ -252,6 +309,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Email já está em uso" });
       }
       
+      // Buscar empresa pelo CNPJ
+      let companyId = null;
+      if (cnpj) {
+        const [company] = await db
+          .select()
+          .from(schema.companies)
+          .where(eq(schema.companies.cnpj, cnpj))
+          .limit(1);
+        
+        if (company) {
+          // Verificar se a empresa está ativa
+          if (!company.active) {
+            return res.status(403).json({ message: "Empresa inativa. Contate o administrador." });
+          }
+          companyId = company.id;
+        } else {
+          return res.status(404).json({ message: "Empresa não encontrada com este CNPJ. Entre em contato com o administrador." });
+        }
+      }
+      
       // Criar usuário - por padrão, novos usuários terão o papel de 'customer' a menos que especificado diferente
       const userRole = role || 'customer';
       
@@ -259,19 +336,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { hashPassword } = await import('./utils/password');
       const hashedPassword = await hashPassword(password);
       
+      // Criar o usuário com o companyId
       const user = await storage.createUser({
         username,
         email,
         password: hashedPassword,
         name,
-        role: userRole,
-        avatarUrl: null
+        role: userRole as typeof schema.userRoleEnum.enumValues[number],
+        avatar_url: null,
+        company_id: companyId
       });
+      
+      // Criar um registro de cliente vinculado ao usuário
+      if (userRole === 'customer' && companyId) {
+        await storage.createCustomer({
+          name,
+          email,
+          user_id: user.id,
+          company_id: companyId
+        });
+      }
       
       // Autenticar o usuário recém-registrado
       if (req.session) {
         req.session.userId = user.id;
-        req.session.userRole = user.role;
+        // Garantir que o user.role é um dos tipos permitidos para req.session.userRole
+        if (user.role === 'admin' || user.role === 'support' || user.role === 'customer') {
+            req.session.userRole = user.role;
+        } else {
+             console.warn(`Papel de usuário '${user.role}' não diretamente mapeado para req.session.userRole durante registro. Sessão pode não refletir o papel completo.`);
+             // req.session.userRole permanecerá undefined ou o valor anterior
+        }
+        if (companyId) {
+          req.session.companyId = companyId;
+        }
       }
       
       // Não retornar a senha
@@ -287,10 +385,137 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Tickets endpoints - Todas as rotas abaixo dessa linha precisam de autenticação
   router.get("/tickets", authRequired, async (req: Request, res: Response) => {
     try {
-      const tickets = await storage.getTickets();
-      res.json(tickets);
+      const conditions: (SQLWrapper | undefined)[] = [];
+
+      const role = req.session.userRole as string; // Cast para string para uso em comparações
+      const userId = req.session.userId;
+      const companyId = req.session.companyId;
+
+      if (!userId) {
+        return res.status(401).json({ message: "Não autenticado" });
+      }
+
+      if (role === 'admin') {
+        // Admin vê todos os tickets
+      } else if (role === 'company_admin') {
+        if (companyId) {
+          conditions.push(eq(schema.tickets.company_id, companyId));
+        } else {
+           return res.json([]); // company_admin sem companyId não deve ver tickets
+        }
+      } else if (role === 'manager') {
+        if (companyId) {
+          conditions.push(eq(schema.tickets.company_id, companyId));
+        } else {
+            return res.json([]); // manager sem companyId não deve ver tickets
+        }
+      } else if (role === 'supervisor') {
+        if (companyId) {
+          conditions.push(eq(schema.tickets.company_id, companyId));
+          const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId)).limit(1);
+          if (official) {
+            const departments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, official.id));
+            if (departments.length > 0) {
+              const departmentIds = departments.map(d => parseInt(d.department));
+              conditions.push(inArray(schema.tickets.department_id, departmentIds));
+            } else {
+                 return res.json([]); // Supervisor sem departamentos associados não vê tickets
+            }
+          } else {
+             return res.json([]); // Usuário supervisor não é um atendente
+          }
+        } else {
+            return res.json([]); // supervisor sem companyId não deve ver tickets
+        }
+      } else if (role === 'support') {
+        if (companyId) {
+          conditions.push(eq(schema.tickets.company_id, companyId));
+          const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId)).limit(1);
+          if (official) {
+            const departments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, official.id));
+            if (departments.length > 0) {
+              const departmentIds = departments.map(d => parseInt(d.department));
+              conditions.push(
+                or(
+                  eq(schema.tickets.assigned_to_id, official.id),
+                  and(
+                    isNull(schema.tickets.assigned_to_id),
+                    inArray(schema.tickets.department_id, departmentIds)
+                  )
+                )
+              );
+            } else {
+              conditions.push(eq(schema.tickets.assigned_to_id, official.id));
+            }
+          } else {
+            return res.json([]); // Usuário support não é um atendente
+          }
+        } else {
+            return res.json([]); // support sem companyId não deve ver tickets
+        }
+      } else if (role === 'triage') {
+        if (companyId) {
+          conditions.push(eq(schema.tickets.company_id, companyId));
+          conditions.push(isNull(schema.tickets.assigned_to_id));
+        } else {
+            return res.json([]); // triage sem companyId não deve ver tickets
+        }
+      } else if (role === 'customer') {
+        const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId)).limit(1);
+        if (customer) {
+          conditions.push(eq(schema.tickets.customer_id, customer.id));
+        } else {
+          const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+          if (user && user.email) {
+            conditions.push(eq(schema.tickets.customer_email, user.email));
+          } else {
+             return res.json([]); // Customer sem registro ou email
+          }
+        }
+      } else if (role === 'viewer' || role === 'quality') {
+        if (companyId) {
+          conditions.push(eq(schema.tickets.company_id, companyId));
+        }
+         // Se for admin (que também é viewer/quality implicitamente e já tratado) ou se não tiver companyId, pode ver todos os globais (se aplicável)
+         // Se for viewer/quality SEM companyId e NÃO for admin, não deve ver tickets.
+         // A verificação de 'admin' já é feita acima, então se chegou aqui e é viewer/quality, não é admin.
+         else if (!companyId) { 
+            return res.json([]);
+         }
+      } else {
+        return res.status(403).json({ message: "Acesso negado - Papel sem permissão para visualizar tickets" });
+      }
+
+      let ticketsQuery = db
+        .select({
+          id: schema.tickets.id,
+          ticket_id: schema.tickets.ticket_id,
+          title: schema.tickets.title,
+          status: schema.tickets.status,
+          priority: schema.tickets.priority,
+          customer_email: schema.tickets.customer_email,
+          created_at: schema.tickets.created_at,
+          updated_at: schema.tickets.updated_at,
+          resolved_at: schema.tickets.resolved_at,
+          sla_breached: schema.tickets.sla_breached,
+          assigned_to_id: schema.tickets.assigned_to_id,
+          customer_id: schema.tickets.customer_id,
+          company_id: schema.tickets.company_id,
+          department_id: schema.tickets.department_id
+        })
+        .from(schema.tickets);
+
+      // Filtrar as condições válidas
+      const finalConditions = conditions.filter(c => c !== undefined) as SQLWrapper[];
+      if (finalConditions.length > 0) {
+        ticketsQuery = ticketsQuery.where(and(...finalConditions)) as typeof ticketsQuery;
+      }
+
+      const tickets = await ticketsQuery.orderBy(desc(schema.tickets.created_at));
+      return res.json(tickets);
     } catch (error) {
-      res.status(500).json({ message: "Falha ao buscar tickets" });
+      console.error('Erro ao obter tickets:', error);
+      res.status(500).json({ message: "Falha ao buscar tickets", error: String(error) });
     }
   });
   
@@ -300,7 +525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Obter o ID do usuário da sessão
       const userId = req.session.userId;
-      const userRole = req.session.userRole;
+      const userRole = req.session.userRole as string;
       
       if (!userId || !userRole) {
         return res.status(401).json({ message: "Usuário não autenticado" });
@@ -318,7 +543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Obter o ID do usuário da sessão
       const userId = req.session.userId;
-      const userRole = req.session.userRole;
+      const userRole = req.session.userRole as string;
       
       if (!userId || !userRole) {
         return res.status(401).json({ message: "Usuário não autenticado" });
@@ -337,7 +562,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Obter o ID do usuário da sessão
       const userId = req.session.userId;
-      const userRole = req.session.userRole;
+      const userRole = req.session.userRole as string;
       
       if (!userId || !userRole) {
         return res.status(401).json({ message: "Usuário não autenticado" });
@@ -388,11 +613,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Pegar apenas os campos permitidos para patch (ex: assignedToId)
-      const { assignedToId } = req.body;
-      const updateData: { assignedToId?: number | null } = {};
+      const { assigned_to_id } = req.body;
+      const updateData: { assigned_to_id?: number | null } = {};
 
       // Se o ticket estiver resolvido e estamos tentando mudar o atendente, rejeitar
-      if (existingTicket.status === 'resolved' && assignedToId !== undefined && assignedToId !== existingTicket.assignedToId) {
+      if (existingTicket.status === 'resolved' && assigned_to_id !== undefined && assigned_to_id !== existingTicket.assigned_to_id) {
         return res.status(403).json({ 
           message: "Operação não permitida", 
           details: "Não é possível alterar o atendente de um ticket resolvido." 
@@ -400,11 +625,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Validar assignedToId se fornecido
-      if (assignedToId !== undefined) {
-        if (assignedToId === null || typeof assignedToId === 'number') {
-          updateData.assignedToId = assignedToId;
+      if (assigned_to_id !== undefined) {
+        if (assigned_to_id === null || typeof assigned_to_id === 'number') {
+          updateData.assigned_to_id = assigned_to_id;
         } else {
-          return res.status(400).json({ message: "assignedToId inválido" });
+          return res.status(400).json({ message: "assigned_to_id inválido" });
         }
       }
 
@@ -422,7 +647,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: 'ticket_updated',
         ticketId: ticket.id,
         title: `Atribuição Atualizada: ${ticket.title}`,
-        message: `O ticket ${ticket.ticketId} foi atribuído/desatribuído.`,
+        message: `O ticket ${ticket.ticket_id} foi atribuído/desatribuído.`,
         timestamp: new Date()
       });
 
@@ -465,10 +690,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .insert(schema.tickets)
         .values({
           ...ticketData,
-          ticketId: ticketIdString,
+          ticket_id: ticketIdString,
           status: 'new',
-          createdAt: new Date(),
-          updatedAt: new Date()
         })
         .returning();
 
@@ -518,12 +741,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Se for uma atualização de status ou atribuição, notificar
-      if (req.body.status !== ticket.status || req.body.assignedToId !== ticket.assignedToId) {
+      if (req.body.status !== ticket.status || req.body.assigned_to_id !== ticket.assigned_to_id) {
         notificationService.sendNotificationToAll({
           type: 'ticket_updated',
           ticketId: ticket.id,
           title: `Ticket Atualizado: ${ticket.title}`,
-          message: `O status ou atribuição do ticket ${ticket.ticketId} foi atualizado.`,
+          message: `O status ou atribuição do ticket ${ticket.ticket_id} foi atualizado.`,
           timestamp: new Date()
         });
       }
@@ -538,9 +761,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Customer endpoints
   router.get("/customers", authRequired, async (req: Request, res: Response) => {
     try {
+      // Verificar se deve incluir clientes inativos
+      const includeInactive = req.query.includeInactive === 'true';
+      
+      // Buscar todos os clientes
       const customers = await storage.getCustomers();
-      res.json(customers);
+      
+      // Carregar as informações de cada cliente
+      const enrichedCustomers = await Promise.all(
+        customers.map(async (customer) => {
+          // Informações da empresa
+          let company = null;
+          if (customer.company_id) {
+            company = await storage.getCompany(customer.company_id);
+          }
+          
+          // Informações do usuário associado
+          let active = true;
+          if (customer.user_id) {
+            const user = await storage.getUser(customer.user_id);
+            active = user ? user.active : true;
+          }
+          
+          return {
+            ...customer,
+            company: company?.name || customer.company || '-',
+            active
+          };
+        })
+      );
+      
+      // Filtrar os clientes inativos se necessário
+      const filteredCustomers = includeInactive 
+        ? enrichedCustomers 
+        : enrichedCustomers.filter(customer => customer.active);
+      
+      res.json(filteredCustomers);
     } catch (error) {
+      console.error('Erro ao buscar clientes:', error);
       res.status(500).json({ message: "Falha ao buscar clientes" });
     }
   });
@@ -560,8 +818,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Email já cadastrado para outro usuário" });
       }
       
-      // Criar nome de usuário a partir do email (parte antes do @)
-      const username = email.split('@')[0];
+      // Usar o e-mail completo como nome de usuário
+      const username = email;
       
       // Gerar senha temporária (6 caracteres alfanuméricos)
       const tempPassword = Math.random().toString(36).substring(2, 8);
@@ -576,13 +834,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email,
         password: hashedPassword,
         name,
-        role: 'customer'
+        role: 'customer' as typeof schema.userRoleEnum.enumValues[number],
       });
       
       // Criar cliente associado ao usuário
       const customer = await storage.createCustomer({
         ...req.body,
-        userId: user.id
+        user_id: user.id
       });
       
       // Retornar o cliente com informações de acesso
@@ -617,13 +875,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(404).json({ message: "Cliente não encontrado" });
         }
         
-        if (customer.userId) {
+        if (customer.user_id) {
           // Criptografar a nova senha
           const { hashPassword } = await import('./utils/password');
           const hashedPassword = await hashPassword(password);
           
           // Atualizar a senha do usuário associado
-          await storage.updateUser(customer.userId, { password: hashedPassword });
+          await storage.updateUser(customer.user_id, { password: hashedPassword });
         }
       }
 
@@ -652,25 +910,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Cliente não encontrado" });
       }
       
-      // Armazenar o userId para inativação posterior
-      const userId = customer.userId;
+      // Armazenar o user_id para inativação/ativação posterior
+      const userId = customer.user_id;
 
-      // Duas opções:
-      // 1. Se quisermos manter o cliente na base para referência histórica, podemos inativar
-      //    apenas o usuário associado, impedindo o login
-      // 2. Se quisermos remover completamente o cliente, fazemos como está comentado abaixo
-      
-      // Opção 1: Inativar apenas o usuário (manter cliente para referência histórica)
       if (userId) {
-        const inactivatedUser = await storage.inactivateUser(userId);
-        if (!inactivatedUser) {
+        // Buscar o usuário para verificar seu status atual
+        const user = await storage.getUser(userId);
+        
+        if (!user) {
           return res.status(404).json({ message: "Usuário do cliente não encontrado" });
         }
-        res.json({ 
-          success: true, 
-          message: "Cliente inativado com sucesso",
-          inactive: true
-        });
+        
+        // Se o usuário estiver ativo, inativamos; se estiver inativo, ativamos
+        if (user.active) {
+          // Inativar o usuário
+          const inactivatedUser = await storage.inactivateUser(userId);
+          if (!inactivatedUser) {
+            return res.status(404).json({ message: "Usuário do cliente não encontrado" });
+          }
+          res.json({ 
+            success: true, 
+            message: "Cliente inativado com sucesso",
+            inactive: true,
+            active: false
+          });
+        } else {
+          // Ativar o usuário
+          const activatedUser = await storage.activateUser(userId);
+          if (!activatedUser) {
+            return res.status(404).json({ message: "Usuário do cliente não encontrado" });
+          }
+          res.json({ 
+            success: true, 
+            message: "Cliente ativado com sucesso",
+            inactive: false,
+            active: true
+          });
+        }
       } else {
         // Se não há usuário associado, remover o cliente
         const success = await storage.deleteCustomer(id);
@@ -679,25 +955,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         res.json({ success: true, message: "Cliente removido com sucesso" });
       }
-
-      /* 
-      // Opção 2: Excluir o cliente da base (remover completamente)
-      // Excluir o cliente primeiro
-      const success = await storage.deleteCustomer(id);
-      if (!success) {
-        return res.status(404).json({ message: "Cliente não encontrado" });
-      }
-
-      // Após excluir o cliente com sucesso, excluir o usuário associado, se houver
-      if (userId) {
-        await storage.deleteUser(userId);
-      }
-
-      res.json({ success: true });
-      */
     } catch (error) {
-      console.error('Erro ao excluir/inativar cliente:', error);
-      res.status(500).json({ message: "Falha ao excluir/inativar cliente", error: String(error) });
+      console.error('Erro ao ativar/inativar cliente:', error);
+      res.status(500).json({ message: "Falha ao ativar/inativar cliente", error: String(error) });
     }
   });
 
@@ -788,7 +1048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         for (const department of departments) {
           console.log(`Adicionando departamento ${department} ao atendente ${official.id}`);
           await storage.addOfficialDepartment({
-            officialId: official.id,
+            official_id: official.id, // Corrigido para official_id
             department
           });
         }
@@ -862,8 +1122,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Se recebemos dados do usuário e o atendente tem um usuário associado, atualizá-lo
-      if (user && official.userId) {
-        console.log(`Atualizando dados do usuário ${official.userId} associado ao atendente ${id}:`, user);
+      if (user && official.user_id) { // Corrigido para user_id
+        console.log(`Atualizando dados do usuário ${official.user_id} associado ao atendente ${id}:`, user); // Corrigido para user_id
         
         // Preparar os dados de atualização do usuário
         const userUpdateData: any = {};
@@ -898,17 +1158,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Se temos dados para atualizar, realizar a atualização
         if (Object.keys(userUpdateData).length > 0) {
-          await storage.updateUser(official.userId, userUpdateData);
+          await storage.updateUser(official.user_id, userUpdateData); // Corrigido para user_id
         }
       }
       // Se apenas a senha foi fornecida diretamente, atualizar apenas ela
-      else if (password && official.userId) {
+      else if (password && official.user_id) { // Corrigido para user_id
         // Criptografar a nova senha
         const { hashPassword } = await import('./utils/password');
         const hashedPassword = await hashPassword(password);
         
         // Atualizar a senha do usuário associado
-        await storage.updateUser(official.userId, { password: hashedPassword });
+        await storage.updateUser(official.user_id, { password: hashedPassword }); // Corrigido para user_id
       }
       
       // Atualizar dados básicos do atendente
@@ -928,7 +1188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Adicionar novos departamentos
         for (const department of departments) {
           await storage.addOfficialDepartment({
-            officialId: id,
+            official_id: id, // Corrigido para official_id
             department
           });
         }
@@ -938,12 +1198,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Buscar o usuário atualizado para incluir na resposta
-      if (updatedOfficial.userId) {
-        const userData = await storage.getUser(updatedOfficial.userId);
+      if (updatedOfficial.user_id) { // Corrigido para user_id
+        const userData = await storage.getUser(updatedOfficial.user_id); // Corrigido para user_id
         if (userData) {
           // Remover a senha do usuário antes de enviar
-          const { password: _, ...userWithoutPassword } = userData;
-          updatedOfficial.user = userWithoutPassword;
+          // const { password: _, ...userWithoutPassword } = userData; // Linha original comentada
+          // updatedOfficial.user = userWithoutPassword; // Linha problemática removida
         }
       }
 
@@ -968,17 +1228,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Atendente não encontrado" });
       }
       
-      const userId = official.userId;
-      const currentActiveStatus = official.isActive;
+      const userId = official.user_id; // Corrigido para user_id
+      const currentActiveStatus = official.is_active; // Corrigido para is_active
       
       let updatedOfficial;
       if (currentActiveStatus) {
         // Se está ativo, inativar
-        updatedOfficial = await storage.inactivateOfficial(id);
+        updatedOfficial = await storage.inactivateOfficial(id); // Removido ?
         
         // Também inativar o usuário associado, se existir
         if (userId) {
-          await storage.inactivateUser(userId);
+          await storage.inactivateUser(userId); // Removido ?
         }
         
         res.json({ 
@@ -988,11 +1248,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       } else {
         // Se está inativo, ativar
-        updatedOfficial = await storage.activateOfficial(id);
+        updatedOfficial = await storage.activateOfficial(id); // Removido ?
         
         // Também ativar o usuário associado, se existir
         if (userId) {
-          await storage.activateUser(userId);
+          await storage.activateUser(userId); // Removido ?
         }
         
         res.json({ 
@@ -1021,7 +1281,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Armazenar o userId para inativação posterior
-      const userId = official.userId;
+      const userId = official.user_id; // Corrigido para user_id
 
       // Duas opções:
       // 1. Se quisermos manter o atendente na base para referência histórica, podemos inativar
@@ -1030,13 +1290,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Opção 1: Inativar apenas o usuário (manter atendente para referência histórica)
       if (userId) {
-        const inactivatedUser = await storage.inactivateUser(userId);
+        const inactivatedUser = await storage.inactivateUser(userId); // Removido ?
         if (!inactivatedUser) {
           return res.status(404).json({ message: "Usuário do atendente não encontrado" });
         }
         
         // Também inativar o atendente na tabela de atendentes para consistência
-        await storage.updateOfficial(id, { isActive: false });
+        await storage.updateOfficial(id, { is_active: false }); // Corrigido para is_active
         
         res.json({ 
           success: true, 
@@ -1076,140 +1336,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Autenticação
   router.post("/auth/login", async (req: Request, res: Response) => {
     try {
-      const { username, password, useAD = false } = req.body;
+      const { username, password } = req.body;
       
       if (!username || !password) {
         return res.status(400).json({ message: "Usuário e senha são obrigatórios" });
       }
-      
-      // Se useAD = true, tentamos autenticação com Active Directory
-      if (useAD) {
-        // Importa o módulo de AD
-        const { authenticateAD, isUserInGroup } = await import('./utils/active-directory');
-        
-        // Tenta autenticar com AD
-        const adUser = await authenticateAD(username, password);
-        
-        if (!adUser) {
-          return res.status(401).json({ message: "Credenciais inválidas no Active Directory" });
-        }
-        
-        // Verificar se tivemos um erro específico de email não encontrado
-        if (adUser.error === 'EMAIL_NOT_FOUND') {
-          return res.status(400).json({ 
-            message: "E-mail não encontrado no Active Directory", 
-            details: "Seu usuário foi autenticado, mas não possui um e-mail válido cadastrado. Por favor, contate o administrador do sistema para atualizar seu cadastro no Active Directory."
-          });
-        }
-        
-        // Verifica se o usuário já existe no sistema por username ou email
-        let user = await storage.getUserByUsername(adUser.username) || 
-                   await storage.getUserByEmail(adUser.email);
-        
-        // Se não existir, verifica se existe algum usuário com o mesmo AD username 
-        // mas email diferente (caso de correção de domínio)
-        if (!user) {
-          console.log('[AD Debug] Usuário não encontrado pelo username ou email, verificando usuários AD existentes');
-          
-          // Buscar todos os usuários do AD no sistema
-          const allUsers = await storage.getAllUsers();
-          const adUsers = allUsers.filter(u => u.adUser === true);
-          
-          console.log(`[AD Debug] Encontrados ${adUsers.length} usuários do AD no sistema`);
-          
-          // Verificar se algum deles tem o mesmo nome de usuário do AD
-          // ou o mesmo email mas com domínio diferente
-          for (const existingUser of adUsers) {
-            const existingUsername = existingUser.username.toLowerCase();
-            const adUsername = adUser.username.toLowerCase();
-            
-            // Verificar por username
-            if (existingUsername === adUsername) {
-              console.log(`[AD Debug] Usuário encontrado pelo username do AD: ${existingUsername}`);
-              user = existingUser;
-              break;
-            }
-            
-            // Verificar por email sem considerar o domínio
-            if (existingUser.email && adUser.email) {
-              const existingEmailUser = existingUser.email.split('@')[0].toLowerCase();
-              const adEmailUser = adUser.email.split('@')[0].toLowerCase();
-              
-              if (existingEmailUser === adEmailUser) {
-                console.log(`[AD Debug] Usuário encontrado pela parte local do email: ${existingEmailUser}`);
-                user = existingUser;
-                break;
-              }
-            }
-          }
-        }
-        
-        // Se não existir, criamos um novo usuário com base nos dados do AD
-        if (!user) {
-          // Determinar o papel/função do usuário com base em grupos do AD ou definir um padrão
-          const isAdmin = await isUserInGroup(adUser.username, process.env.AD_ADMIN_GROUP || 'SistemaGestao-Admins');
-          const isSupport = await isUserInGroup(adUser.username, process.env.AD_SUPPORT_GROUP || 'SistemaGestao-Suporte');
-          
-          let role = 'customer'; // Papel padrão
-          if (isAdmin) role = 'admin';
-          else if (isSupport) role = 'support';
-          
-          // Gerar uma senha aleatória para o usuário local (não será usada com AD)
-          const { hashPassword } = await import('./utils/password');
-          const randomPassword = Math.random().toString(36).slice(-10);
-          const hashedPassword = await hashPassword(randomPassword);
-          
-          // Criar o usuário no sistema local
-          console.log(`[AD Debug] Criando novo usuário para ${adUser.username} (${adUser.email})`);
-          user = await storage.createUser({
-            username: adUser.username,
-            email: adUser.email,
-            password: hashedPassword,
-            name: adUser.name,
-            role: role,
-            active: true,
-            // Flag para indicar que este usuário foi importado do AD
-            adUser: true
-          });
-        } else {
-          // Verificar se o usuário está ativo
-          if (user.active === false) {
-            return res.status(401).json({ message: "Conta inativa. Contate o administrador do sistema." });
-          }
-          
-          // Atualizar dados do usuário com informações atualizadas do AD
-          console.log(`[AD Debug] Atualizando usuário existente: ${user.username} (ID: ${user.id})`);
-          try {
-            await storage.updateUser(user.id, {
-              name: adUser.name,
-              email: adUser.email,
-              updatedAt: new Date()
-            });
-            
-            // Recarregar o usuário com os dados atualizados
-            user = await storage.getUser(user.id);
-          } catch (updateError) {
-            console.error('[AD Debug] Erro ao atualizar usuário:', updateError);
-            // Continuar com o login mesmo se a atualização falhar
-            // para não bloquear o acesso ao usuário
-          }
-        }
-        
-        // Não enviamos a senha para o cliente
-        const { password: _, ...userWithoutPassword } = user;
-        
-        // Criar ou atualizar a sessão do usuário
-        if (req.session) {
-          req.session.userId = user.id;
-          req.session.userRole = user.role;
-          req.session.adUsername = adUser.username;
-          req.session.adData = adUser.adData;
-        }
-        
-        return res.json(userWithoutPassword);
-      }
-      
-      // Autenticação local (sistema existente)
+
+      // Buscar o usuário pelo username
       const user = await storage.getUserByUsername(username);
       
       if (!user) {
@@ -1218,35 +1351,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Verificar se o usuário está ativo
       if (user.active === false) {
-        return res.status(401).json({ message: "Conta inativa. Contate o administrador do sistema." });
+        return res.status(401).json({ message: "Conta inativa. Contate o administrador." });
       }
       
-      // --- DEBUG LOGIN ---
-      console.log('DEBUG: Senha recebida:', password); 
-      console.log('DEBUG: Hash do banco:', user.password);
-      // --- FIM DEBUG ---
+      // Verificar a senha - voltar para o import dinâmico que funcionava antes
+      const { verifyPassword } = await import('./utils/password');
+      const passwordValid = await verifyPassword(password, user.password);
       
-      // Verificar senha usando bcrypt
-      const { comparePasswords } = await import('./utils/password');
-      const passwordMatch = await comparePasswords(password, user.password);
-      
-      if (!passwordMatch) {
+      if (!passwordValid) {
         return res.status(401).json({ message: "Credenciais inválidas" });
       }
       
-      // Não enviamos a senha para o cliente
-      const { password: _, ...userWithoutPassword } = user;
-      
-      // Criar ou atualizar a sessão do usuário
-      if (req.session) {
-        req.session.userId = user.id;
-        req.session.userRole = user.role;
+      // Buscar a empresa do usuário, se não for admin
+      let company = null;
+      if (user.company_id) {
+        const [companyData] = await db
+          .select()
+          .from(schema.companies)
+          .where(eq(schema.companies.id, user.company_id))
+          .limit(1);
+          
+        if (companyData) {
+          // Verificar se a empresa está ativa
+          if (!companyData.active) {
+            return res.status(403).json({ message: "Empresa inativa. Contate o administrador." });
+          }
+          
+          company = companyData;
+        }
       }
       
-      res.json(userWithoutPassword);
+      // Se for admin sem empresa definida, permitir acesso sem restrição de empresa
+      if (user.role === 'admin' && !company) {
+        // Salvar na sessão que este admin tem acesso global
+        req.session.userId = user.id;
+        req.session.userRole = user.role;
+        
+        // Retornar o usuário sem empresa
+        return res.json(user);
+      }
+      
+      // Para usuários não-admin, é obrigatório ter uma empresa
+      if (!company && user.role !== 'admin') {
+        return res.status(403).json({ 
+          message: "Usuário não possui empresa associada. Contate o administrador." 
+        });
+      }
+      
+      // Salvar informações na sessão
+      req.session.userId = user.id;
+      // req.session.userRole = user.role as string; // Comentado para usar a lógica abaixo
+      if (user.role === 'admin' || user.role === 'support' || user.role === 'customer') {
+        req.session.userRole = user.role;
+      } else {
+        console.warn(`Papel de usuário '${user.role}' não diretamente mapeado para req.session.userRole durante login. Sessão pode não refletir o papel completo.`);
+        // req.session.userRole permanecerá undefined ou o valor anterior
+      }
+
+      if (company) {
+        req.session.companyId = company.id;
+      }
+      
+      // Adicionar a informação da empresa ao objeto do usuário para retornar ao cliente
+      if (company) {
+        return res.json({
+          ...user,
+          company: {
+            id: company.id,
+            name: company.name,
+            email: company.email,
+            domain: company.domain || '',
+            cnpj: company.cnpj || '',
+            phone: company.phone || ''
+          }
+        });
+      } else {
+        return res.json(user);
+      }
     } catch (error) {
-      console.error('Erro de login:', error);
-      res.status(500).json({ message: "Erro ao processar login" });
+      console.error('Erro no login:', error);
+      res.status(500).json({ message: "Erro no login" });
     }
   });
 
@@ -1345,7 +1529,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Tentando criar usuário: ${name}, email: ${email}, username: ${username}, role: ${role}`);
       
-      // Verificar se o usuário já existe
       const existingUser = await storage.getUserByUsername(username);
       if (existingUser) {
         console.log(`Erro: Nome de usuário '${username}' já existe`);
@@ -1358,22 +1541,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Email já está em uso" });
       }
       
-      // Criptografar senha antes de salvar
       const { hashPassword } = await import('./utils/password');
       const hashedPassword = await hashPassword(password);
       
-      // Criar usuário
       const user = await storage.createUser({
         username,
         email,
         password: hashedPassword,
         name,
-        role,
-        avatarUrl,
-        active: true // Garantir que novos usuários são criados como ativos por padrão
+        role: role as typeof schema.userRoleEnum.enumValues[number],
+        avatar_url: avatarUrl,
+        active: true 
       });
       
-      // Não retornar a senha
       const { password: _, ...userWithoutPassword } = user;
       
       res.status(201).json(userWithoutPassword);
@@ -1553,13 +1733,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: "Conta inativa. Contate o administrador do sistema." });
       }
       
-      // Não enviamos a senha para o cliente
-      const { password: _, ...userWithoutPassword } = user;
+      // Se o usuário tem uma empresa associada, carregar os dados dela
+      if (req.session.companyId) {
+        const [companyData] = await db // Renomeado para companyData para evitar conflito de nome
+          .select()
+          .from(schema.companies)
+          .where(eq(schema.companies.id, req.session.companyId))
+          .limit(1);
+        
+        if (companyData) {
+          // Anexar a empresa ao usuário
+          return res.json({
+            ...user,
+            company: { // Apenas campos existentes no schema.companies
+              id: companyData.id,
+              name: companyData.name,
+              email: companyData.email,
+              domain: companyData.domain || '',
+              active: companyData.active,
+              cnpj: companyData.cnpj || '',
+              phone: companyData.phone || ''
+            }
+          });
+        }
+      }
       
-      res.json(userWithoutPassword);
+      return res.json(user);
     } catch (error) {
-      console.error('Erro ao obter usuário:', error);
-      res.status(500).json({ message: "Erro ao obter dados do usuário" });
+      console.error('Erro ao obter perfil:', error);
+      res.status(500).json({ message: "Erro ao obter perfil do usuário" });
     }
   });
   
@@ -1663,43 +1865,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Rota para usuários não-admin obterem tipos de incidentes
+  router.get("/incident-types", authRequired, async (req: Request, res: Response) => {
+    try {
+      // Verificar se o usuário tem uma empresa associada
+      if (!req.session.companyId && (req.session.userRole as string) !== 'admin') {
+        return res.status(400).json({ message: "Usuário sem empresa associada" });
+      }
+      
+      let query = db
+        .select()
+        .from(schema.incidentTypes);
+      
+      // Se não for admin, filtrar pela empresa
+      if ((req.session.userRole as string) !== 'admin' && req.session.companyId) {
+        query = query.where(
+          or( // Adicionado OR para incluir globais (company_id IS NULL)
+             isNull(schema.incidentTypes.company_id),
+             eq(schema.incidentTypes.company_id, req.session.companyId)
+          )
+        ) as typeof query;
+      }
+      
+      const incidentTypes = await query.orderBy(schema.incidentTypes.id);
+      
+      return res.json(incidentTypes);
+    } catch (error) {
+      console.error('Erro ao obter tipos de incidentes para usuário:', error);
+      res.status(500).json({ message: "Falha ao buscar tipos de incidentes", error: String(error) });
+    }
+  });
+  
+  // Rota para usuários não-admin obterem departamentos
+  router.get("/departments", authRequired, async (req: Request, res: Response) => {
+    try {
+      // Buscar configurações de departamentos
+      const departmentsJson = await getSystemSetting('departments', '[]');
+      
+      try {
+        const allDepartments = JSON.parse(departmentsJson);
+        
+        // Se for admin, retornar todos os departamentos
+        if ((req.session.userRole as string) === 'admin') {
+          return res.json(allDepartments);
+        }
+        
+        // Para outros usuários, filtrar departamentos pela empresa (se implementado)
+        // Por enquanto, retornar todos os departamentos para qualquer usuário autenticado
+        return res.json(allDepartments);
+      } catch (parseError) {
+        console.error('Erro ao fazer parse dos departamentos:', parseError);
+        const defaultDepartments = [
+          { id: 1, name: "Suporte Técnico", description: "Para problemas técnicos e de produto" },
+          { id: 2, name: "Faturamento", description: "Para consultas de pagamento e faturamento" },
+          { id: 3, name: "Atendimento ao Cliente", description: "Para consultas gerais e assistência" }
+        ];
+        return res.json(defaultDepartments);
+      }
+    } catch (error) {
+      console.error('Erro ao obter departamentos para usuário:', error);
+      res.status(500).json({ message: "Falha ao buscar departamentos", error: String(error) });
+    }
+  });
+  
   router.post("/settings/incident-types", adminRequired, async (req: Request, res: Response) => {
     try {
-      const incidentTypes = req.body;
+      const incidentTypesData = req.body; // Renomeado para evitar conflito com schema.incidentTypes
       
-      if (!Array.isArray(incidentTypes)) {
+      if (!Array.isArray(incidentTypesData)) {
         return res.status(400).json({ message: "Formato inválido. Envie um array de tipos de incidentes." });
       }
 
       // Transação para atualizar tipos de incidentes
       await db.transaction(async (tx) => {
-        // 1. Excluir todos os tipos existentes
+        // 1. Excluir todos os tipos existentes da tabela incidentTypes
         await tx.delete(schema.incidentTypes);
         
         // 2. Inserir os novos tipos
-        if (incidentTypes.length > 0) {
-          const typesToInsert = incidentTypes.map(type => ({
+        if (incidentTypesData.length > 0) {
+          const typesToInsert = incidentTypesData.map(type => ({
             id: type.id,
             name: type.name,
-            value: type.value,
-            departmentId: type.departmentId,
-            createdAt: new Date(),
-            updatedAt: new Date()
+            // Gerar valor automaticamente, caso não exista, para manter a compatibilidade
+            value: type.value || type.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
+            department_id: type.departmentId, // Usar department_id conforme schema
+            company_id: type.company_id,    // Usar company_id conforme schema (se existir no frontend)
+            created_at: new Date(),         // Usar created_at
+            updated_at: new Date()          // Usar updated_at
           }));
           
           await tx.insert(schema.incidentTypes).values(typesToInsert);
         }
       });
       
-      // Também atualizar a configuração na tabela system_settings para compatibilidade
-      const legacyFormat = incidentTypes.map(type => ({
-        id: type.id,
-        name: type.name,
-        departmentId: type.departmentId
-      }));
-      await saveSystemSetting('incidentTypes', JSON.stringify(legacyFormat));
+      // A configuração legacy em system_settings para incidentTypes não é mais necessária aqui.
+      // O frontend (incident-types-settings.tsx) deve interagir diretamente com a tabela incident_types.
       
-      res.json(incidentTypes);
+      res.json(incidentTypesData);
     } catch (error) {
       console.error('Erro ao salvar tipos de incidentes:', error);
       res.status(500).json({ message: "Falha ao salvar tipos de incidentes", error: String(error) });
@@ -1750,9 +2012,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await db
           .update(schema.slaDefinitions)
           .set({ 
-            responseTimeHours: responseTimeHours || existingSla.responseTimeHours,
-            resolutionTimeHours: resolutionTimeHours || existingSla.resolutionTimeHours,
-            updatedAt: new Date()
+            response_time_hours: responseTimeHours || existingSla.response_time_hours, 
+            resolution_time_hours: resolutionTimeHours || existingSla.resolution_time_hours, 
+            updated_at: new Date() // Corrigido para snake_case
           })
           .where(eq(schema.slaDefinitions.id, existingSla.id));
           
@@ -1769,10 +2031,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .insert(schema.slaDefinitions)
           .values({
             priority,
-            responseTimeHours: responseTimeHours || 0,
-            resolutionTimeHours: resolutionTimeHours || 0,
-            createdAt: new Date(),
-            updatedAt: new Date()
+            response_time_hours: responseTimeHours || 0, 
+            resolution_time_hours: resolutionTimeHours || 0
+            // createdAt e updatedAt são gerenciados pelo banco de dados via defaultNow()
           })
           .returning();
           
@@ -1784,45 +2045,310 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Montar o router em /api
-  app.use("/api", router);
-
-  // Criar o servidor HTTP
-  const httpServer = createServer(app);
-  
-  // Configurar o servidor WebSocket
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-  
-  // Lidar com conexões WebSocket
-  wss.on('connection', (ws) => {
-    console.log('Nova conexão WebSocket recebida');
-    
-    // Autenticar o usuário e configurar a conexão
-    ws.on('message', (message) => {
+  // --- ROTAS DE DEPARTAMENTOS ---
+  router.post(
+    "/api/departments",
+    authRequired, 
+    companyAdminRequired, 
+    validateRequest(insertDepartmentSchemaInternal), // Usando o schema interno
+    async (req: Request, res: Response) => {
       try {
-        const data = JSON.parse(message.toString());
+        const { name, description, company_id, is_active } = req.body;
         
-        // Processar mensagem de autenticação
-        if (data.type === 'auth') {
-          const userId = data.userId;
-          const userRole = data.userRole;
-          
-          if (userId && userRole) {
-            // Adicionar o cliente ao serviço de notificações
-            notificationService.addClient(ws, userId, userRole);
+        let effectiveCompanyId = company_id;
+        if ((req.session.userRole as string) !== 'admin') {
+          if (!req.session.companyId) {
+            return res.status(400).json({ message: "ID da empresa não encontrado na sessão para company_admin" });
+          }
+          effectiveCompanyId = req.session.companyId;
+          if (company_id !== undefined && company_id !== null && company_id !== req.session.companyId) {
+             return res.status(403).json({ message: "Company admin só pode criar departamentos para sua própria empresa." });
           }
         }
+        
+        const existingQueryConditions = [
+          eq(departmentsSchema.name, name),
+          effectiveCompanyId ? eq(departmentsSchema.company_id, effectiveCompanyId) : isNull(departmentsSchema.company_id)
+        ];
+        const [existingByName] = await db.select().from(departmentsSchema).where(and(...existingQueryConditions.filter(c => c !== undefined) as SQLWrapper[])); // Adicionado filter e cast
+        
+        if (existingByName) {
+          return res.status(409).json({ message: `Já existe um departamento com este nome ${effectiveCompanyId ? 'nesta empresa' : 'globalmente'}.` });
+        }
+
+        const [newDepartment] = await db
+          .insert(departmentsSchema)
+          .values({
+            name,
+            description,
+            company_id: (req.session.userRole as string) === 'admin' ? (effectiveCompanyId || null) : effectiveCompanyId, 
+            is_active: is_active !== undefined ? is_active : true,
+          })
+          .returning();
+        
+        res.status(201).json(newDepartment);
       } catch (error) {
-        console.error('Erro ao processar mensagem WebSocket:', error);
+        console.error("Erro ao criar departamento:", error);
+        res.status(500).json({ message: "Erro interno ao criar departamento" });
       }
-    });
-    
-    // Lidar com fechamento da conexão
-    ws.on('close', () => {
-      notificationService.removeClient(ws);
-      console.log('Conexão WebSocket fechada');
-    });
+    }
+  );
+
+  router.get("/api/departments", authRequired, async (req: Request, res: Response) => {
+    try {
+      const { active_only, company_id: queryCompanyId } = req.query;
+      const conditions: (SQLWrapper | undefined)[] = []; // Tipado para SQLWrapper | undefined
+
+      if (active_only === 'true') {
+        conditions.push(eq(departmentsSchema.is_active, true));
+      }
+
+      const userRole = req.session.userRole as string;
+      const userCompanyId = req.session.companyId;
+
+      if (userRole === 'company_admin') {
+        if (!userCompanyId) {
+          return res.status(400).json({ message: "ID da empresa não encontrado na sessão para company_admin" });
+        }
+        conditions.push(eq(departmentsSchema.company_id, userCompanyId));
+      } else if (userRole === 'admin' && queryCompanyId) {
+        conditions.push(eq(departmentsSchema.company_id, Number(queryCompanyId)));
+      } else if (userRole !== 'admin') {
+         if (userCompanyId) {
+            conditions.push(eq(departmentsSchema.company_id, userCompanyId));
+         } else {
+            return res.json([]); 
+         }
+      }
+      
+      const finalQueryConditions = conditions.filter(c => c !== undefined) as SQLWrapper[];
+      const finalQuery = finalQueryConditions.length > 0 ? and(...finalQueryConditions) : undefined;
+      let queryBuilder = db.select().from(departmentsSchema);
+      if (finalQuery) {
+        queryBuilder = queryBuilder.where(finalQuery) as typeof queryBuilder; // Cast para manter o tipo do builder
+      }
+      const departments = await queryBuilder.orderBy(desc(departmentsSchema.created_at));
+      res.json(departments);
+    } catch (error) {
+      console.error("Erro ao buscar departamentos:", error);
+      res.status(500).json({ message: "Erro interno ao buscar departamentos" });
+    }
   });
-  
-  return httpServer;
+
+  router.get("/api/departments/:id", authRequired, async (req: Request, res: Response) => {
+    try {
+      const departmentId = parseInt(req.params.id);
+      if (isNaN(departmentId)) {
+        return res.status(400).json({ message: "ID do departamento inválido" });
+      }
+
+      const [department] = await db
+        .select()
+        .from(departmentsSchema)
+        .where(eq(departmentsSchema.id, departmentId));
+
+      if (!department) {
+        return res.status(404).json({ message: "Departamento não encontrado" });
+      }
+      
+      const userRole = req.session.userRole as string;
+      const userCompanyId = req.session.companyId;
+
+      if (userRole === 'company_admin') {
+        if (!userCompanyId) {
+          return res.status(403).json({ message: "ID da empresa não encontrado na sessão para company_admin" });
+        }
+        if (department.company_id !== userCompanyId) {
+          return res.status(403).json({ message: "Acesso negado a este departamento" });
+        }
+      } else if (userRole !== 'admin') {
+        // Se não for admin e não for company_admin (já tratado), verificar se o departamento pertence à empresa do usuário (se houver)
+        if (!userCompanyId || department.company_id !== userCompanyId) {
+             return res.status(403).json({ message: "Acesso não permitido para este perfil ou departamento." });
+        }
+      }
+      // Admin tem acesso a qualquer departamento
+
+      res.json(department);
+    } catch (error) {
+      console.error("Erro ao buscar departamento:", error);
+      res.status(500).json({ message: "Erro interno ao buscar departamento" });
+    }
+  });
+
+  router.put(
+    "/api/departments/:id",
+    authRequired,
+    companyAdminRequired,
+    validateRequest(updateDepartmentSchemaInternal), // Usando o schema interno
+    async (req: Request, res: Response) => {
+      try {
+        const departmentId = parseInt(req.params.id);
+        if (isNaN(departmentId)) {
+          return res.status(400).json({ message: "ID do departamento inválido" });
+        }
+        const { name, description, company_id, is_active } = req.body;
+
+        const [departmentToUpdate] = await db
+          .select()
+          .from(departmentsSchema)
+          .where(eq(departmentsSchema.id, departmentId));
+
+        if (!departmentToUpdate) {
+          return res.status(404).json({ message: "Departamento não encontrado" });
+        }
+
+        let effectiveCompanyId = departmentToUpdate.company_id;
+        const userRole = req.session.userRole as string;
+        const userCompanyId = req.session.companyId;
+
+        if (userRole === 'admin') {
+          // Admin pode mudar o company_id para qualquer valor ou null
+          effectiveCompanyId = company_id !== undefined ? company_id : departmentToUpdate.company_id;
+        } else { // company_admin
+          if (!userCompanyId) {
+            return res.status(403).json({ message: "ID da empresa não encontrado na sessão para company_admin" });
+          }
+          if (departmentToUpdate.company_id !== userCompanyId) {
+             return res.status(403).json({ message: "Você não pode editar um departamento de outra empresa." });
+          }
+          effectiveCompanyId = userCompanyId; // Garante que company_admin não mude o company_id
+          if (company_id !== undefined && company_id !== null && company_id !== userCompanyId) {
+            return res.status(400).json({ message: "Company admin não pode alterar o ID da empresa do departamento."});
+          }
+        }
+        
+        if (name && name !== departmentToUpdate.name) {
+          const existingNameQueryConditions = [
+            eq(departmentsSchema.name, name),
+            effectiveCompanyId ? eq(departmentsSchema.company_id, effectiveCompanyId) : isNull(departmentsSchema.company_id),
+            ne(departmentsSchema.id, departmentId)
+          ];
+          const [existingByName] = await db.select().from(departmentsSchema).where(and(...existingNameQueryConditions.filter(c => c !== undefined) as SQLWrapper[])); // Adicionado filter e cast
+
+          if (existingByName) {
+            return res.status(409).json({ message: `Já existe outro departamento com este nome ${effectiveCompanyId ? 'nesta empresa' : 'globalmente'}.` });
+          }
+        }
+
+        const updatePayload: Partial<typeof departmentsSchema.$inferInsert> = {};
+        if (name !== undefined) updatePayload.name = name;
+        if (description !== undefined) updatePayload.description = description;
+        
+        // Apenas admin pode alterar company_id. Company_admin opera dentro da sua empresa.
+        if (userRole === 'admin' && company_id !== undefined) {
+            updatePayload.company_id = company_id === null ? null : Number(company_id);
+        }
+        // Não permitir que company_admin altere, pois effectiveCompanyId já está definido para sua empresa.
+        // Se for admin e não fornecer company_id, manterá o existente (ou definido por effectiveCompanyId no início).
+
+        if (is_active !== undefined) updatePayload.is_active = is_active;
+        
+        // Só adicionar updatedAt se houver outras alterações além dela mesma
+        const hasOtherChanges = Object.keys(updatePayload).length > 0;
+        if (hasOtherChanges) {
+            updatePayload.updated_at = new Date();
+        }
+
+        if (!hasOtherChanges) {
+            return res.json(departmentToUpdate); // Nada para atualizar
+        }
+
+        const [updatedDepartment] = await db
+          .update(departmentsSchema)
+          .set(updatePayload)
+          .where(eq(departmentsSchema.id, departmentId))
+          .returning();
+        
+        res.json(updatedDepartment);
+      } catch (error) {
+        console.error("Erro ao atualizar departamento:", error);
+        res.status(500).json({ message: "Erro interno ao atualizar departamento" });
+      }
+    }
+  );
+
+  router.delete(
+    "/api/departments/:id",
+    authRequired,
+    companyAdminRequired,
+    async (req: Request, res: Response) => {
+      try {
+        const departmentId = parseInt(req.params.id);
+        if (isNaN(departmentId)) {
+          return res.status(400).json({ message: "ID do departamento inválido" });
+        }
+
+        const [departmentToDelete] = await db
+          .select()
+          .from(departmentsSchema)
+          .where(eq(departmentsSchema.id, departmentId));
+
+        if (!departmentToDelete) {
+          return res.status(404).json({ message: "Departamento não encontrado" });
+        }
+
+        const userRole = req.session.userRole as string;
+        const userCompanyId = req.session.companyId;
+
+        if (userRole === 'company_admin') {
+          if (!userCompanyId) {
+             return res.status(403).json({ message: "ID da empresa não encontrado na sessão para company_admin" });
+          }
+          if (departmentToDelete.company_id !== userCompanyId) {
+            return res.status(403).json({ message: "Acesso negado para excluir este departamento" });
+          }
+        }
+        
+        const [officialLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
+                                       .from(schema.officialDepartments)
+                                       .where(eq(schema.officialDepartments.department, departmentId.toString())); // Corrigido para department e toString()
+        if(officialLink && officialLink.count > 0) {
+            return res.status(400).json({ message: "Departamento não pode ser excluído pois está vinculado a atendentes." });
+        }
+        
+        const [ticketLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
+                                     .from(schema.tickets)
+                                     .where(eq(schema.tickets.department_id, departmentId));
+        if(ticketLink && ticketLink.count > 0) {
+            return res.status(400).json({ message: "Departamento não pode ser excluído pois está vinculado a chamados." });
+        }
+
+        const [incidentTypeLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
+                                     .from(schema.incidentTypes)
+                                     .where(eq(schema.incidentTypes.department_id, departmentId));
+        if(incidentTypeLink && incidentTypeLink.count > 0) {
+            return res.status(400).json({ message: "Departamento não pode ser excluído pois está vinculado a tipos de incidentes." });
+        }
+        
+        const [ticketTypeLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
+                                     .from(schema.ticketTypes)
+                                     .where(eq(schema.ticketTypes.department_id, departmentId));
+        if(ticketTypeLink && ticketTypeLink.count > 0) {
+            return res.status(400).json({ message: "Departamento não pode ser excluído pois está vinculado a tipos de chamados (ticket types)." });
+        }
+
+
+        await db.delete(departmentsSchema).where(eq(departmentsSchema.id, departmentId));
+        res.status(204).send();
+      } catch (error) {
+        console.error("Erro ao excluir departamento:", error);
+        res.status(500).json({ message: "Erro interno ao excluir departamento" });
+      }
+    }
+  );
+
+  // --- ROTAS DE EMPRESAS ---
+  router.get("/api/companies", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const companiesList = await db.select().from(schema.companies).orderBy(desc(schema.companies.id));
+      res.json(companiesList);
+    } catch (error) {
+      console.error("Erro ao buscar empresas:", error);
+      res.status(500).json({ message: "Erro interno ao buscar empresas" });
+    }
+  });
+
+  app.use("/api", router); 
+  // ... (setupVite e listen)
 }

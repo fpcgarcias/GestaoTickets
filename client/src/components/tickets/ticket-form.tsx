@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/use-auth';
 
 // Definir tipos para os dados buscados
 interface Customer {
@@ -51,6 +52,7 @@ export const TicketForm = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
+  const { user } = useAuth();
 
   // Adicionar uma consulta para buscar os clientes
   const { data: customersData, isLoading: isLoadingCustomers } = useQuery<Customer[]>({
@@ -67,12 +69,12 @@ export const TicketForm = () => {
     defaultValues: {
       title: '',
       description: '',
-      customerEmail: '',
+      customer_email: '',
       customerId: undefined,
       type: '',
       priority: 'medium' as const,
-      departmentId: undefined,
-      incidentTypeId: undefined,
+      department_id: undefined,
+      incident_type_id: undefined,
     },
   });
 
@@ -107,7 +109,7 @@ export const TicketForm = () => {
       // Usar 'customers' que é garantido como array
       const selectedCustomer = customers.find((c: Customer) => c.id === data.customerId);
       if (selectedCustomer) {
-        data.customerEmail = selectedCustomer.email;
+        data.customer_email = selectedCustomer.email;
       }
     }
     
@@ -118,7 +120,7 @@ export const TicketForm = () => {
 
   // Buscar dados de departamentos
   const { data: departmentsData } = useQuery<Department[]>({
-    queryKey: ["/api/settings/departments"],
+    queryKey: ["/api/departments"],
     initialData: DEPARTMENTS.map(dept => ({ id: parseInt(dept.value), name: dept.label }))
   });
 
@@ -127,17 +129,44 @@ export const TicketForm = () => {
 
   // Buscar dados de tipos de incidentes
   const { data: incidentTypesData } = useQuery<IncidentType[]>({
-    queryKey: ["/api/settings/incident-types"],
+    queryKey: ["/api/incident-types"],
   });
 
   // Garantir que incidentTypes é um array
   const incidentTypes = Array.isArray(incidentTypesData) ? incidentTypesData : [];
 
   // Filtrar tipos de incidentes pelo departamento selecionado
-  const selectedDepartmentId = form.watch('departmentId');
+  const selectedDepartmentId = form.watch('department_id');
   const filteredIncidentTypes = selectedDepartmentId 
     ? incidentTypes.filter((type: IncidentType) => type.departmentId === selectedDepartmentId)
     : incidentTypes;
+
+  // Efeito para pré-selecionar o cliente quando o usuário for customer
+  useEffect(() => {
+    // Se o usuário for customer e os clientes estiverem carregados
+    if (user?.role === 'customer' && customers.length > 0) {
+      // Tentar encontrar o cliente correspondente ao usuário atual
+      const userClient = customers.find(customer => 
+        // Comparação por email é mais confiável
+        customer.email.toLowerCase() === user.email.toLowerCase()
+      );
+      
+      if (userClient) {
+        console.log("Cliente encontrado:", userClient);
+        // Pré-selecionar o cliente no formulário
+        form.setValue('customerId', userClient.id);
+        form.setValue('customer_email', userClient.email);
+        
+        // Forçar atualização da interface com o email
+        setTimeout(() => {
+          const emailInput = document.querySelector('input[name="customer_email"]');
+          if (emailInput instanceof HTMLInputElement) {
+            emailInput.value = userClient.email;
+          }
+        }, 100);
+      }
+    }
+  }, [user, customers, form]);
 
   return (
     <Card>
@@ -154,33 +183,43 @@ export const TicketForm = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Cliente</FormLabel>
-                    <Select
-                      onValueChange={(value) => {
-                        const customerId = parseInt(value);
-                        field.onChange(customerId);
-                        
-                        // Atualizar automaticamente o email
-                        // Usar 'customers' que é garantido como array
-                        const selectedCustomer = customers.find((c: Customer) => c.id === customerId);
-                        if (selectedCustomer) {
-                          form.setValue('customerEmail', selectedCustomer.email);
-                        }
-                      }}
-                      defaultValue={field.value?.toString()}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione um cliente" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {customers.map((customer: Customer) => (
-                          <SelectItem key={customer.id} value={customer.id.toString()}>
-                            {customer.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {user?.role === 'customer' ? (
+                      // Se for cliente, mostrar o nome do próprio cliente sem opção de mudança
+                      <Input 
+                        value={customers.find(c => c.id === field.value)?.name || user?.name || ''}
+                        disabled
+                        className="bg-gray-100"
+                      />
+                    ) : (
+                      // Se for admin/support, mostrar a lista de seleção
+                      <Select
+                        onValueChange={(value) => {
+                          const customerId = parseInt(value);
+                          field.onChange(customerId);
+                          
+                          // Atualizar automaticamente o email
+                          // Usar 'customers' que é garantido como array
+                          const selectedCustomer = customers.find((c: Customer) => c.id === customerId);
+                          if (selectedCustomer) {
+                            form.setValue('customer_email', selectedCustomer.email);
+                          }
+                        }}
+                        defaultValue={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione um cliente" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {customers.map((customer: Customer) => (
+                            <SelectItem key={customer.id} value={customer.id.toString()}>
+                              {customer.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -188,12 +227,21 @@ export const TicketForm = () => {
               
               <FormField
                 control={form.control}
-                name="customerEmail"
+                name="customer_email"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Email do Cliente</FormLabel>
                     <FormControl>
-                      <Input placeholder="Digite o email" {...field} />
+                      <Input 
+                        placeholder="Digite o email" 
+                        value={field.value} 
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        ref={field.ref}
+                        disabled={user?.role === 'customer'}
+                        className={user?.role === 'customer' ? "bg-gray-100" : ""}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -202,7 +250,7 @@ export const TicketForm = () => {
               
               <FormField
                 control={form.control}
-                name="departmentId"
+                name="department_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Departamento</FormLabel>
@@ -214,7 +262,7 @@ export const TicketForm = () => {
                         
                         // Limpar o tipo de incidente quando o departamento muda
                         form.setValue('type', '');
-                        form.setValue('incidentTypeId', undefined);
+                        form.setValue('incident_type_id', undefined);
                       }} 
                       defaultValue={field.value?.toString()}
                     >
@@ -251,12 +299,12 @@ export const TicketForm = () => {
                         const selectedType = incidentTypes.find((type: IncidentType) => type.value === value);
                         if (selectedType) {
                           // Atualizar o ID do tipo de incidente
-                          form.setValue('incidentTypeId', selectedType.id);
+                          form.setValue('incident_type_id', selectedType.id);
                           
                           // Se o departamento não estiver selecionado, selecionar automaticamente
                           // baseado no tipo de incidente
-                          if (!form.getValues('departmentId') && selectedType.departmentId) {
-                            form.setValue('departmentId', selectedType.departmentId);
+                          if (!form.getValues('department_id') && selectedType.departmentId) {
+                            form.setValue('department_id', selectedType.departmentId);
                           }
                         }
                       }} 

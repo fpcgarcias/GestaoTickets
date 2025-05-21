@@ -7,9 +7,13 @@
     "dev": "tsx server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "node dist/index.js",
+    "migrate": "tsx server/migrate.ts",
+    "postinstall": "npm run migrate",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "migrate:ad-field": "node server/migrate-ad-user-field.js"
+    "migrate:ad-field": "node server/migrate-ad-user-field.js",
+    "migrate:roles": "node server/simple-migrate.js",
+    "db:check-roles": "node server/check-enum.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -45,6 +49,7 @@
     "@tailwindcss/vite": "^4.1.3",
     "@tanstack/react-query": "^5.75.0",
     "activedirectory2": "^2.2.0",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -96,7 +101,7 @@
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
-    "drizzle-kit": "^0.30.4",
+    "drizzle-kit": "^0.31.1",
     "esbuild": "^0.25.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.17",

@@ -1,16 +1,4 @@
-import { 
-  tickets, type Ticket, type InsertTicket,
-  ticketReplies, type TicketReply, type InsertTicketReply,
-  users, type User, type InsertUser,
-  officials, type Official, type InsertOfficial,
-  customers, type Customer, type InsertCustomer,
-  officialDepartments, type OfficialDepartment, type InsertOfficialDepartment,
-  ticketStatusHistory, type TicketStatusHistory,
-  slaDefinitions, type SLADefinition,
-  ticketStatusEnum, ticketPriorityEnum, userRoleEnum, departmentEnum,
-  systemSettings, type SystemSetting,
-  incidentTypes, type IncidentType
-} from "@shared/schema";
+import {   tickets, type Ticket, type InsertTicket,  ticketReplies, type TicketReply, type InsertTicketReply,  users, type User, type InsertUser,  officials, type Official, type InsertOfficial,  customers, type Customer, type InsertCustomer,  officialDepartments, type OfficialDepartment, type InsertOfficialDepartment,  ticketStatusHistory, type TicketStatusHistory,  slaDefinitions, type SLADefinition,  ticketStatusEnum, ticketPriorityEnum, userRoleEnum, departmentEnum,  systemSettings, type SystemSetting,  incidentTypes, type IncidentType,  companies} from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, ilike } from "drizzle-orm";
@@ -58,7 +46,7 @@ export class DatabaseStorage implements IStorage {
       const dataWithDefaults = {
         ...userData,
         active: userData.active !== false,
-        avatarUrl: userData.avatarUrl || null,
+        avatar_url: userData.avatar_url || null,
       };
       
       console.log('DatabaseStorage.createUser - Inserindo no banco com dados tratados:', JSON.stringify(dataWithDefaults, null, 2));
@@ -93,7 +81,7 @@ export class DatabaseStorage implements IStorage {
   async inactivateUser(id: number): Promise<User | undefined> {
     const [user] = await db
       .update(users)
-      .set({ active: false, updatedAt: new Date() })
+      .set({ active: false, updated_at: new Date() })
       .where(eq(users.id, id))
       .returning();
     return user || undefined;
@@ -102,7 +90,7 @@ export class DatabaseStorage implements IStorage {
   async activateUser(id: number): Promise<User | undefined> {
     const [user] = await db
       .update(users)
-      .set({ active: true, updatedAt: new Date() })
+      .set({ active: true, updated_at: new Date() })
       .where(eq(users.id, id))
       .returning();
     return user || undefined;
@@ -116,6 +104,18 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(users);
   }
 
+  // Company operations
+  async getCompany(id: number): Promise<{id: number, name: string} | undefined> {
+    const [company] = await db
+      .select({
+        id: companies.id,
+        name: companies.name
+      })
+      .from(companies)
+      .where(eq(companies.id, id));
+    return company || undefined;
+  }
+  
   // Customer operations
   async getCustomers(): Promise<Customer[]> {
     return db.select().from(customers);
@@ -159,7 +159,7 @@ export class DatabaseStorage implements IStorage {
         user: users,
       })
       .from(officials)
-      .leftJoin(users, eq(officials.userId, users.id));
+      .leftJoin(users, eq(officials.user_id, users.id));
     
     // Transformar o resultado em um formato mais amigável
     const mappedOfficials = allOfficials.map(({ official, user }) => {
@@ -207,8 +207,8 @@ export class DatabaseStorage implements IStorage {
       // Garantir que isActive tem um valor padrão verdadeiro
       const dataWithDefaults = {
         ...officialData,
-        isActive: officialData.isActive !== false, // default para true
-        avatarUrl: officialData.avatarUrl || null
+        is_active: officialData.is_active !== false, // default para true
+        avatar_url: officialData.avatar_url || null
       };
       
       console.log('DatabaseStorage.createOfficial - Inserindo no banco com dados tratados:', JSON.stringify(dataWithDefaults, null, 2));
@@ -237,7 +237,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteOfficial(id: number): Promise<boolean> {
     // Primeiro removemos os departamentos relacionados
-    await db.delete(officialDepartments).where(eq(officialDepartments.officialId, id));
+    await db.delete(officialDepartments).where(eq(officialDepartments.official_id, id));
     
     // Depois removemos o oficial
     await db.delete(officials).where(eq(officials.id, id));
@@ -247,7 +247,7 @@ export class DatabaseStorage implements IStorage {
   async inactivateOfficial(id: number): Promise<Official | undefined> {
     const [official] = await db
       .update(officials)
-      .set({ isActive: false, updatedAt: new Date() })
+      .set({ is_active: false, updated_at: new Date() })
       .where(eq(officials.id, id))
       .returning();
     return official || undefined;
@@ -256,7 +256,7 @@ export class DatabaseStorage implements IStorage {
   async activateOfficial(id: number): Promise<Official | undefined> {
     const [official] = await db
       .update(officials)
-      .set({ isActive: true, updatedAt: new Date() })
+      .set({ is_active: true, updated_at: new Date() })
       .where(eq(officials.id, id))
       .returning();
     return official || undefined;
@@ -267,7 +267,7 @@ export class DatabaseStorage implements IStorage {
     return db
       .select()
       .from(officialDepartments)
-      .where(eq(officialDepartments.officialId, officialId));
+      .where(eq(officialDepartments.official_id, officialId));
   }
   
   async addOfficialDepartment(officialDepartment: InsertOfficialDepartment): Promise<OfficialDepartment> {
@@ -283,8 +283,8 @@ export class DatabaseStorage implements IStorage {
       .delete(officialDepartments)
       .where(
         and(
-          eq(officialDepartments.officialId, officialId),
-          eq(officialDepartments.department, department as any)
+          eq(officialDepartments.official_id, officialId),
+          eq(officialDepartments.department, department)
         )
       );
     return true;
@@ -294,8 +294,8 @@ export class DatabaseStorage implements IStorage {
     const departmentOfficials = await db
       .select()
       .from(officialDepartments)
-      .innerJoin(officials, eq(officialDepartments.officialId, officials.id))
-      .where(eq(officialDepartments.department, department as any));
+      .innerJoin(officials, eq(officialDepartments.official_id, officials.id))
+      .where(eq(officialDepartments.department, department));
     
     return departmentOfficials.map(row => row.officials);
   }
@@ -335,8 +335,8 @@ export class DatabaseStorage implements IStorage {
       const incidentTypeMap: Record<string, number> = {};
       incidentTypesList.forEach(type => {
         // Associar o NOME do tipo ao departamento correspondente
-        if (type.name && type.departmentId) {
-          incidentTypeMap[type.name.toLowerCase()] = type.departmentId;
+        if (type.name && type.department_id) {
+          incidentTypeMap[type.name.toLowerCase()] = type.department_id;
         }
       });
       
@@ -354,7 +354,7 @@ export class DatabaseStorage implements IStorage {
     } else if (userRole === 'customer') {
       console.log('Papel: customer - buscando tickets do cliente');
       // Clientes veem apenas seus próprios tickets
-      const [customer] = await db.select().from(customers).where(eq(customers.userId, userId));
+      const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
       if (!customer) {
         console.log(`Não foi encontrado nenhum cliente para o usuário ID ${userId}`);
         return [];
@@ -365,7 +365,7 @@ export class DatabaseStorage implements IStorage {
     } else if (userRole === 'support') {
       console.log('Papel: support - buscando tickets do atendente');
       // Atendentes veem tickets de seus departamentos
-      const [official] = await db.select().from(officials).where(eq(officials.userId, userId));
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
       if (!official) {
         console.log(`Não foi encontrado nenhum atendente para o usuário ID ${userId}`);
         return [];
@@ -404,11 +404,11 @@ export class DatabaseStorage implements IStorage {
         const conditions = [];
         if (departmentIds.length > 0) {
             // Condição para tickets pertencentes a qualquer um dos IDs de departamento
-            conditions.push(inArray(tickets.departmentId, departmentIds));
+            conditions.push(inArray(tickets.department_id, departmentIds));
         }
         
         // Condição para tickets atribuídos diretamente ao oficial
-        conditions.push(eq(tickets.assignedToId, official.id));
+        conditions.push(eq(tickets.assigned_to_id, official.id));
         
         // Executamos a consulta com OR de todas as condições
         const ticketsData = await db
@@ -441,25 +441,25 @@ export class DatabaseStorage implements IStorage {
     const enrichedTickets = await Promise.all(
       ticketsData.map(async (ticket) => {
         let customerData: Customer | undefined = undefined;
-        if (ticket.customerId) { // Verificar se customerId não é null
+        if (ticket.customer_id) { // Verificar se customer_id não é null
           [customerData] = await db
             .select()
             .from(customers)
-            .where(eq(customers.id, ticket.customerId)); // Agora seguro
+            .where(eq(customers.id, ticket.customer_id)); // Agora seguro
         }
         
         let officialData: Official | undefined = undefined;
-        if (ticket.assignedToId) { // Verificar se assignedToId não é null
+        if (ticket.assigned_to_id) { // Verificar se assigned_to_id não é null
           [officialData] = await db
             .select()
             .from(officials)
-            .where(eq(officials.id, ticket.assignedToId)); // Agora seguro
+            .where(eq(officials.id, ticket.assigned_to_id)); // Agora seguro
             
           if (officialData) {
             const officialDepartmentsData = await db
               .select()
               .from(officialDepartments)
-              .where(eq(officialDepartments.officialId, officialData.id));
+              .where(eq(officialDepartments.official_id, officialData.id));
               
             const departments = officialDepartmentsData.map((od) => od.department);
             officialData = { ...officialData, departments };
@@ -488,27 +488,27 @@ export class DatabaseStorage implements IStorage {
         customer: getTableColumns(customers)
       })
       .from(tickets)
-      .leftJoin(customers, eq(customers.id, tickets.customerId))
+      .leftJoin(customers, eq(customers.id, tickets.customer_id))
       .where(eq(tickets.id, id));
     
     if (!result) return undefined;
     const ticket = result.ticket; // Separar dados do ticket
     const customerData = result.customer; // Separar dados do cliente (pode ser null)
     
-    console.log(`[DEBUG getTicket] Ticket ID: ${id}, CustomerId: ${ticket.customerId}, Customer data:`, customerData);
+    console.log(`[DEBUG getTicket] Ticket ID: ${id}, CustomerId: ${ticket.customer_id}, Customer data:`, customerData);
     
     let officialData: Official | undefined = undefined;
-    if (ticket.assignedToId) { // Verificar null
+    if (ticket.assigned_to_id) { // Verificar null
       [officialData] = await db
         .select()
         .from(officials)
-        .where(eq(officials.id, ticket.assignedToId)); // Seguro
+        .where(eq(officials.id, ticket.assigned_to_id)); // Seguro
         
       if (officialData) {
         const officialDepartmentsData = await db
           .select()
           .from(officialDepartments)
-          .where(eq(officialDepartments.officialId, officialData.id));
+          .where(eq(officialDepartments.official_id, officialData.id));
           
         const departments = officialDepartmentsData.map((od) => od.department);
         officialData = { ...officialData, departments };
@@ -532,8 +532,8 @@ export class DatabaseStorage implements IStorage {
         customer: getTableColumns(customers)
       })
       .from(tickets)
-      .leftJoin(customers, eq(customers.id, tickets.customerId))
-      .where(eq(tickets.ticketId, ticketId));
+      .leftJoin(customers, eq(customers.id, tickets.customer_id))
+      .where(eq(tickets.ticket_id, ticketId));
     
     if (!result) return undefined;
     
@@ -558,7 +558,7 @@ export class DatabaseStorage implements IStorage {
     const ticketsData = await db
       .select()
       .from(tickets)
-      .where(eq(tickets.customerId, customerId));
+      .where(eq(tickets.customer_id, customerId));
     
     const enrichedTickets = await Promise.all(
       ticketsData.map(ticket => this.getTicket(ticket.id))
@@ -571,7 +571,7 @@ export class DatabaseStorage implements IStorage {
     const ticketsData = await db
       .select()
       .from(tickets)
-      .where(eq(tickets.assignedToId, officialId));
+      .where(eq(tickets.assigned_to_id, officialId));
     
     const enrichedTickets = await Promise.all(
       ticketsData.map(ticket => this.getTicket(ticket.id))
@@ -586,13 +586,13 @@ export class DatabaseStorage implements IStorage {
       
       const ticketInsertData = {
         ...ticketData,
-        ticketId: ticketId,
+        ticket_id: ticketId,
         status: ticketStatusEnum.enumValues[0], // Definir status inicial explicitamente se necessário
         priority: ticketData.priority || ticketPriorityEnum.enumValues[1], // Definir prioridade padrão
-        // Garantir que departmentId, incidentTypeId e customerId são números ou null
-        departmentId: ticketData.departmentId ? Number(ticketData.departmentId) : null,
-        incidentTypeId: ticketData.incidentTypeId ? Number(ticketData.incidentTypeId) : null,
-        customerId: ticketData.customerId ? Number(ticketData.customerId) : null,
+        // Garantir que department_id, incident_type_id e customer_id são números ou null
+        department_id: ticketData.department_id ? Number(ticketData.department_id) : null,
+        incident_type_id: ticketData.incident_type_id ? Number(ticketData.incident_type_id) : null,
+        customer_id: ticketData.customer_id ? Number(ticketData.customer_id) : null,
       };
 
       console.log("[DEBUG] Dados para inserção de ticket:", JSON.stringify(ticketInsertData));
@@ -627,8 +627,8 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    if (ticketData.assignedToId !== undefined) {
-      console.log(`[DEBUG] Atualizando assignedToId do ticket ${id} para ${ticketData.assignedToId === null ? 'null' : ticketData.assignedToId}`);
+    if (ticketData.assigned_to_id !== undefined) {
+      console.log(`[DEBUG] Atualizando assigned_to_id do ticket ${id} para ${ticketData.assigned_to_id === null ? 'null' : ticketData.assigned_to_id}`);
     }
     
     try {
@@ -636,7 +636,7 @@ export class DatabaseStorage implements IStorage {
         .update(tickets)
         .set({
           ...ticketData,
-          updatedAt: new Date()
+          updated_at: new Date()
         })
         .where(eq(tickets.id, id))
         .returning();
@@ -659,8 +659,8 @@ export class DatabaseStorage implements IStorage {
 
   async deleteTicket(id: number): Promise<boolean> {
     // Primeiro removemos as dependências (respostas e histórico)
-    await db.delete(ticketReplies).where(eq(ticketReplies.ticketId, id));
-    await db.delete(ticketStatusHistory).where(eq(ticketStatusHistory.ticketId, id));
+    await db.delete(ticketReplies).where(eq(ticketReplies.ticket_id, id));
+    await db.delete(ticketStatusHistory).where(eq(ticketStatusHistory.ticket_id, id));
     
     // Depois removemos o ticket
     await db.delete(tickets).where(eq(tickets.id, id));
@@ -672,17 +672,17 @@ export class DatabaseStorage implements IStorage {
     const replies = await db
       .select()
       .from(ticketReplies)
-      .where(eq(ticketReplies.ticketId, ticketId))
-      .orderBy(ticketReplies.createdAt);
+      .where(eq(ticketReplies.ticket_id, ticketId))
+      .orderBy(ticketReplies.created_at);
     
     // Enriquecer com dados do usuário
     const enrichedReplies = await Promise.all(
       replies.map(async (reply) => {
-        if (reply.userId) {
+        if (reply.user_id) {
           const [user] = await db
             .select()
             .from(users)
-            .where(eq(users.id, reply.userId));
+            .where(eq(users.id, reply.user_id));
           
           return {
             ...reply,
@@ -704,44 +704,44 @@ export class DatabaseStorage implements IStorage {
     
     // Se estamos atualizando o status do ticket junto com a resposta
     if (replyData.status) {
-      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, reply.ticketId));
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, reply.ticket_id));
       
       if (ticket && ticket.status !== replyData.status) {
         ticketUpdates.status = replyData.status;
         
         // Se o status estiver sendo alterado para 'resolved', marcamos a data de resolução
         if (replyData.status === 'resolved') {
-          ticketUpdates.resolvedAt = new Date();
+          ticketUpdates.resolved_at = new Date();
         }
       }
     }
     
     // Se estamos atribuindo o ticket a um atendente
-    if (replyData.assignedToId) {
-      ticketUpdates.assignedToId = replyData.assignedToId;
+    if (replyData.assigned_to_id) {
+      ticketUpdates.assigned_to_id = replyData.assigned_to_id;
     }
     
     // Aplicar as atualizações ao ticket se houver alguma
     if (Object.keys(ticketUpdates).length > 0) {
-      await this.updateTicket(reply.ticketId, ticketUpdates);
+      await this.updateTicket(reply.ticket_id, ticketUpdates);
     }
     
-    // Se esta é a primeira resposta, atualizar firstResponseAt
+    // Se esta é a primeira resposta, atualizar first_response_at
     const ticketRepliesCount = await db
       .select({ count: sql`count(*)` })
       .from(ticketReplies)
-      .where(eq(ticketReplies.ticketId, reply.ticketId));
+      .where(eq(ticketReplies.ticket_id, reply.ticket_id));
     
     if (ticketRepliesCount[0]?.count === 1) {
-      await this.updateTicket(reply.ticketId, { firstResponseAt: reply.createdAt });
+      await this.updateTicket(reply.ticket_id, { first_response_at: reply.created_at });
     }
     
     // Incluímos dados do usuário
-    if (reply.userId) {
+    if (reply.user_id) {
       const [user] = await db
         .select()
         .from(users)
-        .where(eq(users.id, reply.userId));
+        .where(eq(users.id, reply.user_id));
       
       return {
         ...reply,
@@ -760,11 +760,11 @@ export class DatabaseStorage implements IStorage {
     changedById?: number
   ): Promise<void> {
     await db.insert(ticketStatusHistory).values({
-      ticketId,
-      oldStatus: oldStatus as any,
-      newStatus: newStatus as any,
-      changedById,
-      createdAt: new Date()
+      ticket_id: ticketId,
+      old_status: oldStatus as any,
+      new_status: newStatus as any,
+      changed_by_id: changedById,
+      created_at: new Date()
     });
   }
 
@@ -850,7 +850,7 @@ export class DatabaseStorage implements IStorage {
       const recentTickets = await db
         .select()
         .from(tickets)
-        .orderBy(desc(tickets.createdAt))
+        .orderBy(desc(tickets.created_at))
         .limit(limit);
       
       const enrichedTickets = await Promise.all(
@@ -872,7 +872,7 @@ export class DatabaseStorage implements IStorage {
       
       // Ordenar tickets por data de criação (mais recentes primeiro) e limitar
       return userTickets
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, limit);
     } catch (error) {
       console.error('Erro ao obter tickets recentes por papel do usuário:', error);

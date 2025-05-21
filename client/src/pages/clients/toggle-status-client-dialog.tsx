@@ -1,17 +1,17 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useMutation } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { queryClient } from '@/lib/queryClient';
-import { Loader2, UserCog } from 'lucide-react';
+import { Loader2, UserCog, UserX, UserCheck } from 'lucide-react';
 import { Customer } from '@shared/schema';
 
 interface ToggleStatusClientDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  client: Customer | null;
+  client: (Customer & { active?: boolean }) | null;
   onStatusChanged?: () => void;
 }
 
@@ -23,6 +23,9 @@ export default function ToggleStatusClientDialog({
 }: ToggleStatusClientDialogProps) {
   const { toast } = useToast();
   
+  // Verificar se o cliente está ativo
+  const isActive = client ? 'active' in client ? client.active !== false : !!client.user_id : false;
+  
   const toggleStatusMutation = useMutation({
     mutationFn: async () => {
       if (!client) throw new Error('Cliente não selecionado');
@@ -33,15 +36,25 @@ export default function ToggleStatusClientDialog({
       queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
       onOpenChange(false);
       if (onStatusChanged) onStatusChanged();
-      toast({
-        title: data.inactive ? 'Cliente inativado com sucesso' : 'Cliente removido com sucesso',
-        description: data.inactive ? 'O cliente foi inativado e não poderá mais acessar o sistema' : 'O cliente foi removido do sistema',
-        variant: 'default',
-      });
+      
+      // Mensagem específica para ativação/inativação
+      if (isActive) {
+        toast({
+          title: 'Cliente inativado com sucesso',
+          description: 'O cliente foi inativado e não poderá mais acessar o sistema',
+          variant: 'default',
+        });
+      } else {
+        toast({
+          title: 'Cliente ativado com sucesso',
+          description: 'O cliente agora pode acessar o sistema normalmente',
+          variant: 'default',
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
-        title: 'Erro ao inativar/remover cliente',
+        title: isActive ? 'Erro ao inativar cliente' : 'Erro ao ativar cliente',
         description: error.message,
         variant: 'destructive',
       });
@@ -56,9 +69,14 @@ export default function ToggleStatusClientDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle>Inativar Cliente</DialogTitle>
+          <DialogTitle>
+            {isActive ? "Inativar Cliente" : "Ativar Cliente"}
+          </DialogTitle>
           <DialogDescription>
-            Ao inativar um cliente, ele não poderá mais acessar o sistema, mas seus dados serão mantidos para fins de histórico.
+            {isActive 
+              ? "Ao inativar um cliente, ele não poderá mais acessar o sistema, mas seus dados serão mantidos para fins de histórico."
+              : "Ao ativar um cliente, ele voltará a ter acesso ao sistema com suas mesmas permissões anteriores."
+            }
           </DialogDescription>
         </DialogHeader>
 
@@ -77,7 +95,10 @@ export default function ToggleStatusClientDialog({
           </div>
           
           <p className="text-sm text-neutral-600 mb-6">
-            Esta ação não exclui o cliente permanentemente. Os dados serão mantidos para histórico, mas o cliente não poderá mais acessar o sistema.
+            {isActive 
+              ? "Esta ação não exclui o cliente permanentemente. Os dados serão mantidos para histórico, mas o cliente não poderá mais acessar o sistema."
+              : "Ao ativar o cliente, ele poderá realizar login novamente no sistema."
+            }
           </p>
 
           <div className="flex justify-end space-x-2">
@@ -85,7 +106,8 @@ export default function ToggleStatusClientDialog({
               Cancelar
             </Button>
             <Button 
-              variant="destructive" 
+              variant={isActive ? "destructive" : "default"}
+              className={isActive ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
               onClick={handleConfirm}
               disabled={toggleStatusMutation.isPending || !client}
             >
@@ -94,8 +116,16 @@ export default function ToggleStatusClientDialog({
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Processando...
                 </>
+              ) : isActive ? (
+                <>
+                  <UserX className="h-4 w-4 mr-2" />
+                  Confirmar Inativação
+                </>
               ) : (
-                'Confirmar Inativação'
+                <>
+                  <UserCheck className="h-4 w-4 mr-2" />
+                  Confirmar Ativação
+                </>
               )}
             </Button>
           </div>

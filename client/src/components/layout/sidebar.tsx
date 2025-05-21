@@ -5,10 +5,13 @@ import { cn } from '@/lib/utils';
 import { Link } from 'wouter';
 import { 
   LayoutDashboard, 
-  Users, 
   TicketIcon, 
+  Users, 
   UserCog, 
-  Settings
+  Settings,
+  Building2,
+  FolderIcon,
+  TagIcon
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -47,6 +50,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     { href: "/clients", icon: <Users size={20} />, label: "Clientes", roles: ['admin', 'support'] },
     { href: "/users", icon: <Users size={20} />, label: "Usuários", roles: ['admin'] },
     { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes", roles: ['admin'] },
+    { href: "/companies", icon: <Building2 size={20} />, label: "Empresas", roles: ['admin'] },
+    { href: "/departments", icon: <FolderIcon size={20} />, label: "Departamentos", roles: ['admin', 'company_admin'] },
+    { href: "/ticket-types", icon: <TagIcon size={20} />, label: "Tipos de Chamado", roles: ['admin', 'company_admin'] },
     { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin'] },
   ];
   

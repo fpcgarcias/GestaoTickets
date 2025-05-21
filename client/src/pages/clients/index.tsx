@@ -12,6 +12,9 @@ import AddClientDialog from './add-client-dialog';
 import EditClientDialog from './edit-client-dialog';
 import ToggleStatusClientDialog from './toggle-status-client-dialog';
 import { useAuth } from '@/hooks/use-auth';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 
 export default function ClientsIndex() {
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -19,10 +22,18 @@ export default function ClientsIndex() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [includeInactive, setIncludeInactive] = useState(false);
   const { user } = useAuth();
   
   const { data: clients = [], isLoading } = useQuery<Customer[]>({
-    queryKey: ['/api/customers'],
+    queryKey: ['/api/customers', includeInactive ? 'all' : 'active'],
+    queryFn: async () => {
+      const url = includeInactive ? '/api/customers?includeInactive=true' : '/api/customers';
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Erro ao carregar clientes');
+      return res.json();
+    },
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
   
   const handleEditClient = (client: Customer) => {
@@ -63,6 +74,21 @@ export default function ClientsIndex() {
       </Card>
     );
   }
+  
+  // Verificar o status do cliente com base no usuário associado
+  const getClientStatus = (client: Customer & { active?: boolean }) => {
+    // Se já tiver a propriedade active, usar diretamente
+    if ('active' in client) {
+      return client.active !== false;
+    }
+    
+    // Caso contrário, verificar com base no usuário
+    // Podemos assumir que o cliente está ativo se não temos informação contrária
+    if (!client.user_id) return true;
+    
+    // Se o cliente estiver com user_id mas o status não vier do backend, assumimos que está ativo
+    return true;
+  };
   
   return (
     <div>
@@ -110,14 +136,24 @@ export default function ClientsIndex() {
         </CardHeader>
         <CardContent>
           <div className="flex justify-between mb-6">
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
-              <Input 
-                placeholder="Pesquisar clientes" 
-                className="pl-10"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+            <div className="flex items-center gap-4">
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
+                <Input 
+                  placeholder="Pesquisar clientes" 
+                  className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="includeInactive" 
+                  checked={includeInactive} 
+                  onCheckedChange={setIncludeInactive}
+                />
+                <Label htmlFor="includeInactive">Incluir inativos</Label>
+              </div>
             </div>
           </div>
 
@@ -128,7 +164,8 @@ export default function ClientsIndex() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Telefone</TableHead>
-                  <TableHead>Empresa</TableHead>
+                  {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -136,46 +173,58 @@ export default function ClientsIndex() {
                 {isLoading ? (
                   Array(5).fill(0).map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell><Skeleton className="h-6 w-full" /></TableCell>
-                      <TableCell><Skeleton className="h-6 w-full" /></TableCell>
-                      <TableCell><Skeleton className="h-6 w-full" /></TableCell>
-                      <TableCell><Skeleton className="h-6 w-full" /></TableCell>
-                      <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
+                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-6 w-20 ml-auto" /></TableCell>
                     </TableRow>
                   ))
                 ) : filteredClients.length > 0 ? (
-                  filteredClients.map((client) => (
-                    <TableRow key={client.id}>
-                      <TableCell className="font-medium">{client.name}</TableCell>
-                      <TableCell>{client.email}</TableCell>
-                      <TableCell>{client.phone || '-'}</TableCell>
-                      <TableCell>{client.company || '-'}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleEditClient(client)}
-                            title="Editar cliente"
+                  filteredClients.map((client) => {
+                    const isActive = getClientStatus(client);
+                    return (
+                      <TableRow key={client.id} className={!isActive ? "opacity-60" : ""}>
+                        <TableCell className="font-medium">{client.name}</TableCell>
+                        <TableCell>{client.email}</TableCell>
+                        <TableCell>{client.phone || '-'}</TableCell>
+                        {user?.role === 'admin' && <TableCell>{client.company || '-'}</TableCell>}
+                        <TableCell>
+                          <Badge 
+                            variant={isActive ? "default" : "outline"}
+                            className={isActive ? "bg-green-500 hover:bg-green-500/80" : "text-neutral-500"}
                           >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button 
-                            variant="destructive" 
-                            size="sm"
-                            title="Desativar/ativar cliente"
-                            onClick={() => handleToggleStatusClient(client)}
-                            className="bg-amber-500 hover:bg-amber-500/90"
-                          >
-                            <UserX className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                            {isActive ? "Ativo" : "Inativo"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end space-x-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleEditClient(client)}
+                              title="Editar cliente"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button 
+                              variant={isActive ? "destructive" : "default"}
+                              size="sm"
+                              title={isActive ? "Desativar cliente" : "Ativar cliente"}
+                              onClick={() => handleToggleStatusClient(client)}
+                              className={isActive ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
+                            >
+                              {isActive ? <UserX className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-10 text-neutral-500">
+                    <TableCell colSpan={6} className="text-center py-10 text-neutral-500">
                       Nenhum cliente encontrado. Adicione seu primeiro cliente para começar.
                     </TableCell>
                   </TableRow>

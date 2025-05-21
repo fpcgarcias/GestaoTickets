@@ -1,11 +1,31 @@
+import "./loadEnv"; // Importar PRIMEIRO para carregar variáveis de ambiente
+
 // Carregar variáveis de ambiente PRIMEIRO!
-import dotenv from "dotenv";
-dotenv.config();
+// import dotenv from "dotenv"; // Movido para loadEnv.ts
+// import path from "path"; // Movido para loadEnv.ts
+
+// Determinar o caminho para o arquivo .env na raiz do projeto
+// const envPath = path.resolve(process.cwd(), '.env'); // Movido para loadEnv.ts
+// console.log(`[index.ts] Tentando carregar .env de: ${envPath}`); // Movido para loadEnv.ts
+// const dotenvResult = dotenv.config({ path: envPath }); // Movido para loadEnv.ts
+
+// if (dotenvResult.error) {
+//   console.error('[index.ts] Erro ao carregar .env:', dotenvResult.error); // Movido para loadEnv.ts
+// } else {
+//   console.log('[index.ts] .env carregado com sucesso.'); // Movido para loadEnv.ts
+//   if (dotenvResult.parsed) {
+//     console.log('[index.ts] Variáveis carregadas do .env:', Object.keys(dotenvResult.parsed)); // Movido para loadEnv.ts
+//   }
+// }
+
+console.log('[index.ts] Verificando DATABASE_URL (este log é após a importação de loadEnv.ts):');
+console.log('[index.ts] process.env.DATABASE_URL:', process.env.DATABASE_URL ? 'DEFINIDA' : 'NÃO DEFINIDA');
+console.log('[index.ts] process.cwd():', process.cwd());
 
 // --- DEBUG --- 
-console.log('DEBUG: Após dotenv.config()');
-console.log('DEBUG: DATABASE_URL:', process.env.DATABASE_URL);
-console.log('DEBUG: PORT:', process.env.PORT);
+// console.log('DEBUG: Após dotenv.config()');
+// console.log('DEBUG: DATABASE_URL:', process.env.DATABASE_URL);
+// console.log('DEBUG: PORT:', process.env.PORT);
 // --- FIM DEBUG ---
 
 import express, { type Request, Response, NextFunction } from "express";
@@ -14,9 +34,10 @@ import { migrateDepartmentsToJunctionTable } from "./migrate-departments";
 import { migrateActiveField } from "./migrate-active-field";
 import session from "express-session";
 import crypto from "crypto";
-import path from "path";
+import path from "path"; // RESTAURAR esta importação, pois é usada abaixo
 import { fileURLToPath } from 'url';
 import http from 'http'; // Importar http
+import { migrate } from './migrate';
 
 // Calcular __dirname para ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -74,6 +95,7 @@ declare module 'express-session' {
   interface SessionData {
     userId?: number;
     userRole?: 'admin' | 'support' | 'customer';
+    companyId?: number;
   }
 }
 
@@ -112,8 +134,13 @@ app.use((req, res, next) => {
 // app.use(express.static(path.join(__dirname, "public"))); // Comentar ou remover esta linha
 
 // Função start agora configura tudo
-const start = async () => {
+async function startServer() {
   try {
+    // Executar migrações antes de iniciar o servidor
+    console.log('Executando migrações automáticas...');
+    await migrate();
+    
+    // Continuar com o código de inicialização do servidor
     console.log("Iniciando o servidor...");
     
     // Importar dinamicamente DEPOIS de dotenv.config()
@@ -136,9 +163,9 @@ const start = async () => {
       console.log(`Servidor rodando na porta ${PORT}`);
     });
   } catch (error) {
-    console.error("Erro ao iniciar o servidor:", error);
+    console.error('Erro ao iniciar o servidor:', error);
     process.exit(1);
   }
-};
+}
 
-start();
+startServer();

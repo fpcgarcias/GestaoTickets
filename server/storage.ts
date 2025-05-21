@@ -27,10 +27,10 @@ export interface IStorage {
   createUser(userData: InsertUser): Promise<User>;
   updateUser(id: number, userData: Partial<User>): Promise<User | undefined>;
   deleteUser(id: number): Promise<boolean>;
-  inactivateUser?(id: number): Promise<User | undefined>;
-  activateUser?(id: number): Promise<User | undefined>;
-  getActiveUsers?(): Promise<User[]>;
-  getAllUsers?(): Promise<User[]>;
+  inactivateUser(id: number): Promise<User | undefined>;
+  activateUser(id: number): Promise<User | undefined>;
+  getActiveUsers(): Promise<User[]>;
+  getAllUsers(): Promise<User[]>;
   
   // Customer operations
   getCustomers(): Promise<Customer[]>;
@@ -47,8 +47,8 @@ export interface IStorage {
   createOfficial(officialData: InsertOfficial): Promise<Official>;
   updateOfficial(id: number, officialData: Partial<Official>): Promise<Official | undefined>;
   deleteOfficial(id: number): Promise<boolean>;
-  inactivateOfficial?(id: number): Promise<Official | undefined>;
-  activateOfficial?(id: number): Promise<Official | undefined>;
+  inactivateOfficial(id: number): Promise<Official | undefined>;
+  activateOfficial(id: number): Promise<Official | undefined>;
   
   // Official departments operations
   getOfficialDepartments(officialId: number): Promise<OfficialDepartment[]>;
@@ -81,8 +81,11 @@ export interface IStorage {
     byPriority: Record<string, number>;
   }>;
   getRecentTickets(limit?: number): Promise<Ticket[]>;
-  getTicketStatsByUserRole?(userId: number, userRole: string): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
-  getRecentTicketsByUserRole?(userId: number, userRole: string, limit?: number): Promise<Ticket[]>;
+  getTicketStatsByUserRole(userId: number, userRole: string): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
+  getRecentTicketsByUserRole(userId: number, userRole: string, limit?: number): Promise<Ticket[]>;
+
+  // Company operations (adicionar se não existir)
+  getCompany(id: number): Promise<any | undefined>;
 }
 
 // In-memory storage implementation
@@ -96,6 +99,7 @@ export class MemStorage implements IStorage {
   private ticketStatusHistory: Map<number, TicketStatusHistory>;
   private slaDefinitions: Map<number, SLADefinition>;
   private officialDepartments: Map<number, OfficialDepartment>;
+  private companies: Map<number, any>;
   
   private userId: number;
   private customerId: number;
@@ -116,6 +120,7 @@ export class MemStorage implements IStorage {
     this.ticketStatusHistory = new Map();
     this.slaDefinitions = new Map();
     this.officialDepartments = new Map();
+    this.companies = new Map();
     
     // Initialize auto-increment IDs
     this.userId = 1;
@@ -212,7 +217,7 @@ export class MemStorage implements IStorage {
       name: 'Support User',
       email: 'support@example.com',
       userId: supportUser.id,
-      isActive: true,
+      is_active: true,
       avatarUrl: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -527,6 +532,32 @@ export class MemStorage implements IStorage {
     return this.officials.delete(id);
   }
 
+  async inactivateOfficial(id: number): Promise<Official | undefined> {
+    const official = this.officials.get(id);
+    if (!official) return undefined;
+    
+    const updatedOfficial: Official = {
+      ...official,
+      is_active: false,
+      updatedAt: new Date()
+    };
+    this.officials.set(id, updatedOfficial);
+    return updatedOfficial;
+  }
+
+  async activateOfficial(id: number): Promise<Official | undefined> {
+    const official = this.officials.get(id);
+    if (!official) return undefined;
+    
+    const updatedOfficial: Official = {
+      ...official,
+      is_active: true,
+      updatedAt: new Date()
+    };
+    this.officials.set(id, updatedOfficial);
+    return updatedOfficial;
+  }
+
   // Ticket operations
   async getTickets(): Promise<Ticket[]> {
     return Array.from(this.tickets.values());
@@ -786,6 +817,37 @@ export class MemStorage implements IStorage {
     
     // Se não for nenhum papel conhecido, retorna array vazio
     return [];
+  }
+
+  async getTicketStatsByUserRole(userId: number, userRole: string): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+    // Simulação: Filtrar tickets pelo usuário/papel e depois calcular estatísticas
+    const userTickets = await this.getTicketsByUserRole(userId, userRole);
+    const stats = { total: userTickets.length, byStatus: {}, byPriority: {} };
+    userTickets.forEach(ticket => {
+      stats.byStatus[ticket.status] = (stats.byStatus[ticket.status] || 0) + 1;
+      stats.byPriority[ticket.priority] = (stats.byPriority[ticket.priority] || 0) + 1;
+    });
+    return stats;
+  }
+
+  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 5): Promise<Ticket[]> {
+    const userTickets = await this.getTicketsByUserRole(userId, userRole);
+    return userTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
+  }
+
+  async getCompany(id: number): Promise<any | undefined> {
+    // Simulação para MemStorage - Em uma implementação real, buscaria de this.companies
+    // Este método pode precisar ser implementado de forma mais completa se companies for uma Map
+    console.warn(`[MemStorage] getCompany(${id}) não totalmente implementado para Map, retornando placeholder.`);
+    // Adicionando uma simulação de mapa de empresas para MemStorage
+    if (!this.companies) { // Se this.companies não existir, inicialize-o.
+        this.companies = new Map<number, any>();
+        this.companies.set(1, { id: 1, name: "Empresa Padrão", email: "padrao@empresa.com", domain: "empresa.com", active: true, cnpj: "00000000000100", phone: "123456789", createdAt: new Date(), updatedAt: new Date() });
+    }
+    for (const company of this.companies.values()) { // Assumindo que this.companies existe e é um Map
+        if (company.id === id) return company;
+    }
+    return undefined;
   }
 }
 

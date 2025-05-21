@@ -3,12 +3,25 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { queryClient } from '@/lib/queryClient';
 import { Loader2 } from 'lucide-react';
 import { Customer } from '@shared/schema';
+import { useAuth } from '@/hooks/use-auth';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface Company {
+  id: number;
+  name: string;
+}
 
 interface EditClientDialogProps {
   open: boolean;
@@ -19,13 +32,21 @@ interface EditClientDialogProps {
 
 export default function EditClientDialog({ open, onOpenChange, client, onSaved }: EditClientDialogProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     company: '',
+    company_id: 0,
     password: '',
     confirmPassword: ''
+  });
+
+  // Buscar lista de empresas (apenas para admin)
+  const { data: companies, isLoading: isLoadingCompanies } = useQuery<Company[]>({
+    queryKey: ['/api/admin/companies'],
+    enabled: user?.role === 'admin', // Apenas buscar empresas se o usuário for admin
   });
 
   // Atualizar o formulário quando o cliente selecionado mudar
@@ -36,17 +57,35 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
         email: client.email || '',
         phone: client.phone || '',
         company: client.company || '',
+        company_id: client.company_id || (user?.company?.id || 0),
         password: '',
         confirmPassword: ''
       });
     }
-  }, [client]);
+  }, [client, user]);
+
+  // Garantir que a company_id seja sempre definida para usuários não-admin
+  useEffect(() => {
+    if (user && user.role !== 'admin' && user.company?.id) {
+      setFormData(prev => ({
+        ...prev,
+        company_id: user.company?.id ?? 0
+      }));
+    }
+  }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  const handleCompanyChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      company_id: parseInt(value)
     }));
   };
 
@@ -60,6 +99,11 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
       if (!data.password) {
         delete dataToSend.password;
         delete dataToSend.confirmPassword;
+      }
+      
+      // Remover campo company se estamos usando company_id
+      if (dataToSend.company_id) {
+        delete dataToSend.company;
       }
       
       const res = await apiRequest('PATCH', `/api/customers/${client.id}`, dataToSend);
@@ -108,6 +152,16 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
       toast({
         title: 'Erro de validação',
         description: 'Email inválido',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validar que empresa foi selecionada
+    if (!formData.company_id) {
+      toast({
+        title: 'Erro de validação',
+        description: 'Selecione uma empresa',
         variant: 'destructive',
       });
       return;
@@ -180,14 +234,33 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="company">Empresa</Label>
-            <Input
-              id="company"
-              name="company"
-              placeholder="Digite o nome da empresa"
-              value={formData.company}
-              onChange={handleChange}
-            />
+            <Label htmlFor="company_id">Empresa *</Label>
+            {user?.role === 'admin' ? (
+              // Admin pode selecionar qualquer empresa
+              <Select 
+                value={formData.company_id.toString()} 
+                onValueChange={handleCompanyChange}
+                disabled={isLoadingCompanies}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies?.map(company => (
+                    <SelectItem key={company.id} value={company.id.toString()}>
+                      {company.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              // Usuários não-admin veem apenas sua própria empresa
+              <Input
+                value={user?.company?.name || ""}
+                disabled
+                className="bg-gray-100"
+              />
+            )}
           </div>
           
           <div className="pt-4">

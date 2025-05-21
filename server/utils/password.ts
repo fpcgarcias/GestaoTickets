@@ -1,30 +1,24 @@
-import bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcrypt';
 
 // Número de rounds para o algoritmo de hash - quanto maior, mais seguro, mas também mais lento
 const SALT_ROUNDS = 10;
 
 /**
  * Criptografa uma senha usando bcrypt
- * @param password Senha em texto puro
+ * @param password Senha em texto plano
  * @returns Senha criptografada
  */
 export async function hashPassword(password: string): Promise<string> {
-  const salt = await bcrypt.genSalt(SALT_ROUNDS);
-  const hash = await bcrypt.hash(password, salt);
-  return hash;
+  const saltRounds = 10;
+  return bcrypt.hash(password, saltRounds);
 }
 
 /**
- * Verifica se uma senha em texto puro corresponde a uma senha criptografada
- * @param password Senha em texto puro
- * @param hashedPassword Senha criptografada armazenada
- * @returns true se a senha corresponde, false caso contrário
+ * Verifica se uma senha em texto plano corresponde à senha criptografada
+ * @param plainPassword Senha em texto plano
+ * @param hashedPassword Senha criptografada
+ * @returns True se a senha corresponder, false caso contrário
  */
-export async function comparePasswords(password: string, hashedPassword: string): Promise<boolean> {
-  try {
-    return await bcrypt.compare(password, hashedPassword);
-  } catch (error) {
-    console.error('Erro ao comparar senhas:', error);
-    return false;
-  }
+export async function verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
+  return bcrypt.compare(plainPassword, hashedPassword);
 }

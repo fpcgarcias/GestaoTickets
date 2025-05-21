@@ -15,6 +15,13 @@ import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function UsersIndex() {
   const { toast } = useToast();
@@ -34,6 +41,7 @@ export default function UsersIndex() {
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editUsername, setEditUsername] = useState('');
+  const [editRole, setEditRole] = useState('');
 
   // Abrir gerenciador de status
   const handleStatusChange = (user: any) => {
@@ -56,6 +64,7 @@ export default function UsersIndex() {
     setEditName(user.name);
     setEditEmail(user.email);
     setEditUsername(user.username);
+    setEditRole(user.role);
     setEditDialogOpen(true);
   };
 
@@ -144,21 +153,26 @@ export default function UsersIndex() {
   
   // Lidar com envio do formulário de edição
   const handleEditUserSubmit = () => {
-    if (!editName || !editEmail || !editUsername) {
+    if (!selectedUser) return;
+    
+    // Verificar se o email é válido
+    if (!editEmail || !editEmail.includes('@')) {
       toast({
-        title: "Dados incompletos",
-        description: "Nome, nome de usuário e email são obrigatórios.",
+        title: "Email inválido",
+        description: "Por favor, forneça um email válido.",
         variant: "destructive",
       });
       return;
     }
     
+    // Enviar a requisição para atualizar o usuário
     updateUserMutation.mutate({
       id: selectedUser.id,
       userData: {
         name: editName,
         email: editEmail,
-        username: editUsername
+        username: editUsername,
+        role: editRole
       }
     });
   };
@@ -199,6 +213,13 @@ export default function UsersIndex() {
       case 'admin': return 'Administrador';
       case 'support': return 'Suporte';
       case 'customer': return 'Cliente';
+      case 'manager': return 'Gestor';
+      case 'supervisor': return 'Supervisor';
+      case 'viewer': return 'Visualizador';
+      case 'company_admin': return 'Admin Empresa';
+      case 'triage': return 'Triagem';
+      case 'quality': return 'Qualidade';
+      case 'integration_bot': return 'Bot Integração';
       default: return role;
     }
   };
@@ -519,6 +540,30 @@ export default function UsersIndex() {
                     onChange={(e) => setEditUsername(e.target.value)}
                     placeholder="Nome de usuário"
                   />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="editRole">Perfil do Usuário</Label>
+                  <Select 
+                    value={editRole} 
+                    onValueChange={setEditRole}
+                  >
+                    <SelectTrigger id="editRole">
+                      <SelectValue placeholder="Selecione o perfil" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administrador</SelectItem>
+                      <SelectItem value="company_admin">Admin de Empresa</SelectItem>
+                      <SelectItem value="manager">Gestor</SelectItem>
+                      <SelectItem value="supervisor">Supervisor</SelectItem>
+                      <SelectItem value="support">Suporte</SelectItem>
+                      <SelectItem value="triage">Triagem</SelectItem>
+                      <SelectItem value="customer">Cliente</SelectItem>
+                      <SelectItem value="viewer">Visualizador</SelectItem>
+                      <SelectItem value="quality">Qualidade</SelectItem>
+                      <SelectItem value="integration_bot">Bot de Integração</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>

@@ -2,6 +2,16 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 
+interface Company {
+  id: number;
+  name: string;
+  email: string;
+  domain?: string;
+  active: boolean;
+  cnpj?: string;
+  phone?: string;
+}
+
 interface User {
   id: number;
   username: string;
@@ -10,6 +20,8 @@ interface User {
   name: string;
   avatarUrl?: string;
   initials?: string;
+  companyId?: number;
+  company?: Company;
 }
 
 interface AuthContextType {
@@ -19,12 +31,14 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
+  company: Company | null;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [company, setCompany] = useState<Company | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
@@ -39,10 +53,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (data) {
       setUser(data as User);
+      if ((data as User).company) {
+        setCompany((data as User).company as Company);
+      }
       setError(null);
     } else if (queryError) {
       console.error('Erro ao verificar usuário:', queryError);
       setUser(null);
+      setCompany(null);
     }
     setIsInitializing(false);
   }, [data, queryError]);
@@ -50,7 +68,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (username: string, password: string) => {
     try {
       setError(null);
-      const response = await apiRequest('POST', '/api/auth/login', { username, password });
+      const response = await apiRequest('POST', '/api/auth/login', { 
+        username, 
+        password
+      });
       
       // --- DEBUG LOGIN FRONTEND ---
       console.log('DEBUG FE: Login Response Status:', response.status);
@@ -63,6 +84,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('DEBUG FE: Parsed User Data:', userData); // Logar dados parseados
 
       setUser(userData);
+      if (userData.company) {
+        setCompany(userData.company);
+      }
+      
       // Atualiza o cache do React Query com os dados do usuário
       queryClient.setQueryData(['/api/auth/me'], userData);
       return userData;
@@ -76,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await apiRequest('POST', '/api/auth/logout', {});
       setUser(null);
+      setCompany(null);
       // Limpa o cache do React Query para o usuário
       queryClient.setQueryData(['/api/auth/me'], null);
     } catch (err) {
@@ -86,6 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = {
     user,
+    company,
     isLoading: isInitializing,
     error,
     login,

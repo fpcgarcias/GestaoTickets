@@ -26,15 +26,15 @@ interface TicketCardProps {
 export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, isAssigning }) => {
   const {
     id,
-    ticketId,
+    ticket_id: ticketId,
     title,
     description,
     status,
     priority,
-    createdAt,
+    created_at: createdAt,
     customer,
-    assignedToId,
-    departmentId,
+    assigned_to_id: assignedToId,
+    department_id: departmentId,
   } = ticket;
   
   const { data: allOfficialsData, isLoading: isOfficialsLoading } = useQuery<Official[]>({
@@ -42,27 +42,11 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
     staleTime: 5 * 60 * 1000,
   });
 
-  const filteredOfficials = React.useMemo(() => {
-    const allOfficials = Array.isArray(allOfficialsData) ? allOfficialsData : [];
-    if (!departmentId || !allOfficials.length) {
-      return allOfficials; 
-    }
-
-    return allOfficials.filter(official => {
-      if (!official.departments || !Array.isArray(official.departments)) {
-        return false;
-      }
-      return official.departments.some((dept: any) => {
-        const deptIdStr = departmentId.toString();
-        if (typeof dept === 'string') return dept === deptIdStr;
-        if (typeof dept === 'object' && dept !== null) {
-          if ('id' in dept) return dept.id?.toString() === deptIdStr;
-          if ('department' in dept) return dept.department === deptIdStr;
-        }
-        return false;
-      });
-    });
-  }, [allOfficialsData, departmentId]);
+  // Simplificando completamente a lógica - mostrar TODOS os atendentes
+  // Não filtrar por departamento para garantir que SEMPRE apareça atendentes
+  const officials = React.useMemo(() => {
+    return Array.isArray(allOfficialsData) ? allOfficialsData : [];
+  }, [allOfficialsData]);
 
   const handleSelectChange = (value: string) => {
     const officialId = value === "unassigned" ? null : parseInt(value);
@@ -80,7 +64,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
           <div className="flex items-center">
             {priority && <PriorityBadge priority={priority} />}
             <div className="text-sm text-neutral-500">
-              Criado em {formatDate(createdAt)}
+              Criado em {createdAt ? formatDate(createdAt) : 'Data desconhecida'}
             </div>
           </div>
         </div>
@@ -93,7 +77,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
         <div className="flex justify-between items-center mt-3 pt-3 border-t border-neutral-100">
           <div className="flex items-center">
             <Avatar className="w-7 h-7 mr-2">
-              <AvatarImage src={customer.avatarUrl || ""} alt={customer.name} />
+              <AvatarImage src={customer.avatar_url || ""} alt={customer.name} />
               <AvatarFallback>{customer.name?.charAt(0) || "C"}</AvatarFallback>
             </Avatar>
             <span className="text-sm text-neutral-700">{customer.name || 'Cliente não informado'}</span>
@@ -102,9 +86,9 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
           <div className="flex items-center gap-2">
             {isOfficialsLoading ? (
               <div className="text-xs text-gray-500">Carregando atendentes...</div>
-            ) : filteredOfficials.length === 0 ? (
-              <div className="text-xs text-red-500 bg-red-50 px-2 py-1 rounded border border-red-200">
-                Sem atendentes ({departmentId ? `Depto #${departmentId}` : 'Sem Depto'})
+            ) : officials.length === 0 ? (
+              <div className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                Sem atendentes cadastrados
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -123,7 +107,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                     <SelectItem value="unassigned" className="text-gray-500 font-medium">
                       Não atribuído
                     </SelectItem>
-                    {filteredOfficials.map((official) => (
+                    {officials.map((official) => (
                       <SelectItem 
                         key={official.id} 
                         value={official.id.toString()} 
@@ -147,10 +131,10 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
           </div>
         </div>
         
-        {status !== 'resolved' && (
+        {status !== 'resolved' && createdAt && (
           <div className="mt-3">
             <SLAIndicator 
-              ticketCreatedAt={createdAt.toString()} 
+              ticketCreatedAt={typeof createdAt === 'string' ? createdAt : new Date(createdAt).toISOString()} 
               ticketPriority={priority} 
               ticketStatus={status} 
             />
