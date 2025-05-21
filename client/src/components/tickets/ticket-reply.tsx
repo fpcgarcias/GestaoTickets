@@ -100,7 +100,18 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   });
 
   const onSubmit = (data: InsertTicketReply) => {
-    replyMutation.mutate(data);
+    // Verificar se o status foi alterado para registrar no histórico
+    const statusChanged = data.status !== ticket.status;
+    
+    // Adicionar informação sobre mudança de status (para o backend usar no histórico)
+    const requestData = {
+      ...data,
+      statusChanged: statusChanged,
+      previousStatus: statusChanged ? ticket.status : undefined,
+    };
+    
+    // Enviar a resposta com os dados adicionais
+    replyMutation.mutate(requestData as any);
   };
 
   return (

@@ -3,11 +3,24 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { queryClient } from '@/lib/queryClient';
 import { Loader2, Copy, CheckCircle } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface Company {
+  id: number;
+  name: string;
+}
 
 interface AddClientDialogProps {
   open: boolean;
@@ -17,11 +30,19 @@ interface AddClientDialogProps {
 
 export default function AddClientDialog({ open, onOpenChange, onCreated }: AddClientDialogProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    company: ''
+    company: '',
+    company_id: user?.company?.id || 0
+  });
+  
+  // Buscar lista de empresas (apenas para admin)
+  const { data: companies, isLoading: isLoadingCompanies } = useQuery<Company[]>({
+    queryKey: ['/api/admin/companies'],
+    enabled: user?.role === 'admin', // Apenas buscar empresas se o usuário for admin
   });
   
   const [clientCreated, setClientCreated] = useState(false);
@@ -38,9 +59,22 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
     }));
   };
 
+  const handleCompanyChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      company_id: parseInt(value)
+    }));
+  };
+
   const addClientMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const res = await apiRequest('POST', '/api/customers', data);
+      // Remover campo company se estamos usando company_id
+      const dataToSend: any = {...data};
+      if (dataToSend.company_id) {
+        delete dataToSend.company;
+      }
+      
+      const res = await apiRequest('POST', '/api/customers', dataToSend);
       return res.json();
     },
     onSuccess: (data) => {
@@ -96,6 +130,16 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
       return;
     }
     
+    // Validar que empresa foi selecionada
+    if (!formData.company_id) {
+      toast({
+        title: 'Erro de validação',
+        description: 'Selecione uma empresa',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     addClientMutation.mutate(formData);
   };
   
@@ -105,7 +149,8 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
       name: '',
       email: '',
       phone: '',
-      company: ''
+      company: '',
+      company_id: user?.company?.id || 0
     });
     setClientCreated(false);
     setCredentials({ username: '', password: '' });
@@ -159,14 +204,33 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="company">Empresa</Label>
-                <Input
-                  id="company"
-                  name="company"
-                  placeholder="Digite o nome da empresa"
-                  value={formData.company}
-                  onChange={handleChange}
-                />
+                <Label htmlFor="company_id">Empresa *</Label>
+                {user?.role === 'admin' ? (
+                  // Admin pode selecionar qualquer empresa
+                  <Select 
+                    value={formData.company_id.toString()} 
+                    onValueChange={handleCompanyChange}
+                    disabled={isLoadingCompanies}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a empresa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies?.map(company => (
+                        <SelectItem key={company.id} value={company.id.toString()}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  // Usuários não-admin veem apenas sua própria empresa
+                  <Input
+                    value={user?.company?.name || ""}
+                    disabled
+                    className="bg-gray-100"
+                  />
+                )}
               </div>
               <div className="flex justify-end space-x-2 pt-4">
                 <Button type="button" variant="outline" onClick={handleCloseDialog}>
@@ -249,7 +313,9 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
             </div>
             
             <DialogFooter>
-              <Button onClick={handleCloseDialog}>Fechar</Button>
+              <Button onClick={handleCloseDialog}>
+                Fechar
+              </Button>
             </DialogFooter>
           </>
         )}

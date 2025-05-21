@@ -100,22 +100,31 @@ export default function TicketsIndex() {
     }
     
     // Apply time filter
-    if (timeFilter && ticket.createdAt) {
-      const ticketDate = new Date(ticket.createdAt);
+    if (timeFilter && ticket.created_at) {
+      const ticketDate = new Date(ticket.created_at);
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      // Corrigindo o cálculo do início da semana (domingo → segunda)
       const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - today.getDay()); // Início da semana (domingo)
+      weekStart.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Segunda-feira
+      weekStart.setHours(0, 0, 0, 0); // Começo do dia
+      
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       
       switch (timeFilter) {
         case 'this-week':
+          // Não mostrar tickets se criados antes do início da semana atual
           if (ticketDate < weekStart) return false;
           break;
         case 'last-week':
           const lastWeekStart = new Date(weekStart);
-          lastWeekStart.setDate(weekStart.getDate() - 7);
-          if (ticketDate < lastWeekStart || ticketDate >= weekStart) return false;
+          lastWeekStart.setDate(weekStart.getDate() - 7); // Segunda-feira da semana passada
+          
+          const lastWeekEnd = new Date(weekStart);
+          lastWeekEnd.setHours(0, 0, 0, -1); // Um milissegundo antes do início desta semana
+          
+          if (ticketDate < lastWeekStart || ticketDate > lastWeekEnd) return false;
           break;
         case 'this-month':
           if (ticketDate < monthStart) return false;

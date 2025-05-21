@@ -12,6 +12,7 @@ import TicketDetail from "@/pages/tickets/[id]";
 import UsersIndex from "@/pages/users/index";
 import OfficialsIndex from "@/pages/officials/index";
 import ClientsIndex from "@/pages/clients/index";
+import CompaniesIndex from "@/pages/companies/index";
 import Settings from "@/pages/settings";
 import AuthPage from "@/pages/auth-page";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -19,6 +20,8 @@ import { Header } from "@/components/layout/header";
 import { AuthProvider } from "./hooks/use-auth";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/hooks/use-auth";
+import DepartmentManagement from "@/pages/DepartmentManagement";
+import TicketTypeManagement from "@/pages/TicketTypeManagement";
 
 function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -41,7 +44,7 @@ function AppContent() {
   
   // Definir título do documento com valor fixo para evitar loops de requisição
   useEffect(() => {
-    document.title = `Oficina Muda - Sistema de Gerenciamento de Chamados`;
+    document.title = `Ticket Flow - Sistema de Gerenciamento de Chamados`;
   }, []);
   
   return (
@@ -90,9 +93,27 @@ function AppContent() {
         </MainLayout>
       )} />
       
+      <ProtectedRoute path="/companies" component={() => (
+        <MainLayout>
+          <CompaniesIndex />
+        </MainLayout>
+      )} />
+      
       <ProtectedRoute path="/settings" component={() => (
         <MainLayout>
           <Settings />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/departments" component={() => (
+        <MainLayout>
+          <DepartmentManagement />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/ticket-types" component={() => (
+        <MainLayout>
+          <TicketTypeManagement />
         </MainLayout>
       )} />
       

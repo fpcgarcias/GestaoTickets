@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { DepartmentsSettings } from '@/components/settings/departments-settings';
-import { IncidentTypesSettings } from '@/components/settings/incident-types-settings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,13 +16,17 @@ import { Plus, Loader2 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
+import { Link } from 'wouter';
+import { useLocation } from 'wouter';
 
 // Definir tipos para os dados das consultas
 interface SLASetting {
   id?: number; // ID pode ser opcional dependendo da resposta da API
   priority: string;
-  responseTimeHours: number;
-  resolutionTimeHours: number;
+  responseTimeHours?: number; // Formato camelCase (usado no frontend)
+  response_time_hours?: number; // Formato snake_case (usado no backend)
+  resolutionTimeHours?: number; // Formato camelCase (usado no frontend) 
+  resolution_time_hours?: number; // Formato snake_case (usado no backend)
 }
 
 interface GeneralSettings {
@@ -35,6 +37,18 @@ interface GeneralSettings {
 
 export default function Settings() {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
+  const url = new URL(window.location.href);
+  const hash = url.hash.substring(1); // remove o # do início
+  
+  // Redirecionar para as novas páginas se tentar acessar as abas antigas por URL
+  useEffect(() => {
+    if (hash === 'departments') {
+      navigate('/departments');
+    } else if (hash === 'ticket-types') {
+      navigate('/ticket-types');
+    }
+  }, [hash, navigate]);
 
   // Carregar configurações de SLA
   const { data: slaSettingsData, isLoading: isLoadingSla } = useQuery<SLASetting[]>({
@@ -70,10 +84,11 @@ export default function Settings() {
       const high = slaSettings.find((s: SLASetting) => s.priority === 'high');
       const critical = slaSettings.find((s: SLASetting) => s.priority === 'critical');
 
-      if (low) setLowPriority(low.resolutionTimeHours.toString());
-      if (medium) setMediumPriority(medium.resolutionTimeHours.toString());
-      if (high) setHighPriority(high.resolutionTimeHours.toString());
-      if (critical) setCriticalPriority(critical.resolutionTimeHours.toString());
+      // Verificar se existe o campo camelCase ou snake_case e utilizar o que estiver disponível
+      if (low) setLowPriority((low.resolutionTimeHours || low.resolution_time_hours || 0).toString());
+      if (medium) setMediumPriority((medium.resolutionTimeHours || medium.resolution_time_hours || 0).toString());
+      if (high) setHighPriority((high.resolutionTimeHours || high.resolution_time_hours || 0).toString());
+      if (critical) setCriticalPriority((critical.resolutionTimeHours || critical.resolution_time_hours || 0).toString());
     }
   }, [slaSettings]); // Depender de slaSettings
 
@@ -129,10 +144,26 @@ export default function Settings() {
   // Handler para salvar configurações de SLA
   const handleSaveSlaSettings = async () => {
     const prioritySettings = [
-      { priority: 'low', responseTimeHours: 72, resolutionTimeHours: parseInt(lowPriority) || 120 },
-      { priority: 'medium', responseTimeHours: 48, resolutionTimeHours: parseInt(mediumPriority) || 72 },
-      { priority: 'high', responseTimeHours: 24, resolutionTimeHours: parseInt(highPriority) || 48 },
-      { priority: 'critical', responseTimeHours: 4, resolutionTimeHours: parseInt(criticalPriority) || 24 },
+      { 
+        priority: 'low', 
+        response_time_hours: 72, 
+        resolution_time_hours: parseInt(lowPriority) || 120 
+      },
+      { 
+        priority: 'medium', 
+        response_time_hours: 48, 
+        resolution_time_hours: parseInt(mediumPriority) || 72 
+      },
+      { 
+        priority: 'high', 
+        response_time_hours: 24, 
+        resolution_time_hours: parseInt(highPriority) || 48 
+      },
+      { 
+        priority: 'critical', 
+        response_time_hours: 4, 
+        resolution_time_hours: parseInt(criticalPriority) || 24 
+      },
     ];
 
     // Salvar cada configuração de SLA em sequência e esperar cada uma ser concluída
@@ -175,12 +206,6 @@ export default function Settings() {
           <TabsTrigger value="sla" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             Configurações de SLA
           </TabsTrigger>
-          <TabsTrigger value="departments" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
-            Departamentos
-          </TabsTrigger>
-          <TabsTrigger value="ticket-types" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
-            Tipos de Chamado
-          </TabsTrigger>
           <TabsTrigger value="notifications" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             Notificações
           </TabsTrigger>
@@ -222,6 +247,22 @@ export default function Settings() {
                   checked={allowCustomerRegistration} 
                   onCheckedChange={setAllowCustomerRegistration}
                 />
+              </div>
+              
+              <div className="border-t pt-4 mt-4">
+                <h3 className="font-medium">Gerenciamento de Departamentos e Tipos de Chamado</h3>
+                <p className="text-sm text-neutral-500 mt-1 mb-3">
+                  As configurações de departamentos e tipos de chamado foram movidas para páginas dedicadas, 
+                  acessíveis pelo menu lateral ou pelos links abaixo:
+                </p>
+                <div className="flex flex-wrap gap-3 mt-2">
+                  <Button variant="outline" asChild>
+                    <Link href="/departments">Gerenciar Departamentos</Link>
+                  </Button>
+                  <Button variant="outline" asChild>
+                    <Link href="/ticket-types">Gerenciar Tipos de Chamado</Link>
+                  </Button>
+                </div>
               </div>
               
               <div className="flex justify-end">
@@ -319,14 +360,6 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-        
-        <TabsContent value="departments">
-          <DepartmentsSettings />
-        </TabsContent>
-        
-        <TabsContent value="ticket-types">
-          <IncidentTypesSettings />
         </TabsContent>
         
         <TabsContent value="notifications">
