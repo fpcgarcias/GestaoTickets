@@ -1,0 +1,55 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Sistema de Comunicação e Respostas
+
+O sistema permite comunicação entre clientes e atendentes através de respostas aos tickets, incluindo suporte a notas internas.
+
+## Tabela de Respostas
+
+```sql
+CREATE TABLE ticket_replies (
+  id SERIAL PRIMARY KEY,
+  ticket_id INTEGER NOT NULL,
+  user_id INTEGER,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  is_internal BOOLEAN DEFAULT false
+);
+```
+
+## Tipos de Respostas
+
+- **Respostas Públicas**: Visíveis tanto para clientes quanto para atendentes
+- **Notas Internas**: Visíveis apenas para atendentes (quando `is_internal` é `true`)
+
+## Histórico de Status
+
+O sistema mantém um histórico de alterações de status dos tickets:
+
+```sql
+CREATE TABLE ticket_status_history (
+  id SERIAL PRIMARY KEY,
+  ticket_id INTEGER NOT NULL,
+  old_status ticket_status,
+  new_status ticket_status NOT NULL,
+  changed_by_id INTEGER,
+  created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+```
+
+## Fluxo de Comunicação
+
+1. Cliente abre um ticket (`status = 'new'`)
+2. Atendente assume o ticket (`status = 'in_progress'`)
+3. Comunicação ocorre através de respostas na tabela `ticket_replies`
+4. Atendentes podem adicionar notas internas para outros atendentes
+5. Cada mudança de status é registrada na tabela `ticket_status_history`
+6. Quando o problema é resolvido, o ticket recebe status 'resolved'
+
+## Rastreamento de SLA
+
+A primeira resposta ao cliente é rastreada para fins de SLA, atualizando o campo `first_response_at` na tabela `tickets`.
+

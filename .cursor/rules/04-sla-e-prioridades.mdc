@@ -1,0 +1,48 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Sistema de SLA e Prioridades
+
+O sistema implementa controle de SLA (Service Level Agreement) baseado em prioridades para garantir tempos de resposta e resolução adequados.
+
+## Tabela de Definições de SLA
+
+```sql
+CREATE TABLE sla_definitions (
+  id SERIAL PRIMARY KEY,
+  priority ticket_priority NOT NULL,
+  response_time_hours INTEGER NOT NULL,
+  resolution_time_hours INTEGER NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now(),
+  company_id INTEGER
+);
+```
+
+## Prioridades
+
+O sistema utiliza um tipo enumerado `ticket_priority` com os seguintes valores:
+- **low**: Prioridade baixa
+- **medium**: Prioridade média (padrão)
+- **high**: Prioridade alta
+- **critical**: Prioridade crítica
+
+## Monitoramento de SLA
+
+Na tabela `tickets`, os seguintes campos são usados para monitoramento de SLA:
+- **first_response_at**: Marca temporal da primeira resposta
+- **resolved_at**: Marca temporal da resolução
+- **sla_breached**: Indica se o SLA foi violado
+
+## Cálculo de Violação de SLA
+
+O SLA é violado quando:
+1. O tempo entre `created_at` e `first_response_at` excede o `response_time_hours` definido para a prioridade
+2. O tempo entre `created_at` e `resolved_at` excede o `resolution_time_hours` definido para a prioridade
+
+## Personalização por Empresa
+
+Os SLAs podem ser personalizados por empresa através do campo `company_id`.
+

@@ -1,0 +1,150 @@
+---
+Rule Type: Always
+alwaysApply: true
+globs:
+  - "**/*.sql"
+  - "**/migrations/**/*.sql"
+  - "**/models/**/*.ts"
+---
+
+# Database Naming & Typing Enforcement
+
+## Preserve Exact Identifiers
+- Nunca altere nomes de tabelas ou colunas. Use sempre o mesmo case e underscores conforme o schema.
+
+## Preserve Data Types
+- Nunca altere tipos de dados. Se a coluna for `timestamp without time zone`, `integer`, `boolean`, etc., mantenha exatamente.
+
+## Schema Reference
+### Tabela `companies`
+- `id` : `integer`
+- `name` : `text`
+- `email` : `text`
+- `domain` : `text`
+- `active` : `boolean`
+- `createdAt` : `timestamp without time zone`
+- `updatedAt` : `timestamp without time zone`
+- `cnpj` : `text`
+- `phone` : `text`
+
+### Tabela `customers`
+- `id` : `integer`
+- `name` : `text`
+- `email` : `text`
+- `phone` : `text`
+- `company` : `text`
+- `user_id` : `integer`
+- `avatar_url` : `text`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+- `company_id` : `integer`
+
+### Tabela `departments`
+- `id` : `integer`
+- `name` : `text`
+- `description` : `text`
+- `company_id` : `integer`
+- `is_active` : `boolean`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+
+### Tabela `incident_types`
+- `id` : `integer`
+- `name` : `text`
+- `value` : `text`
+- `department_id` : `integer`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+- `company_id` : `integer`
+- `is_active` : `boolean`
+
+### Tabela `migrations`
+- `id` : `integer`
+- `name` : `text`
+- `executed_at` : `timestamp without time zone`
+
+### Tabela `official_departments`
+- `id` : `integer`
+- `official_id` : `integer`
+- `department` : `text`
+- `created_at` : `timestamp with time zone`
+
+### Tabela `officials`
+- `id` : `integer`
+- `name` : `text`
+- `email` : `text`
+- `department` : `USER-DEFINED`
+- `user_id` : `integer`
+- `is_active` : `boolean`
+- `avatar_url` : `text`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+- `company_id` : `integer`
+
+### Tabela `sla_definitions`
+- `id` : `integer`
+- `priority` : `USER-DEFINED`
+- `response_time_hours` : `integer`
+- `resolution_time_hours` : `integer`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+- `company_id` : `integer`
+
+### Tabela `system_settings`
+- `id` : `integer`
+- `key` : `text`
+- `value` : `text`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+- `company_id` : `integer`
+
+### Tabela `ticket_replies`
+- `id` : `integer`
+- `ticket_id` : `integer`
+- `user_id` : `integer`
+- `message` : `text`
+- `created_at` : `timestamp without time zone`
+- `is_internal` : `boolean`
+
+### Tabela `ticket_status_history`
+- `id` : `integer`
+- `ticket_id` : `integer`
+- `old_status` : `USER-DEFINED`
+- `new_status` : `USER-DEFINED`
+- `changed_by_id` : `integer`
+- `created_at` : `timestamp without time zone`
+
+### Tabela `tickets`
+- `id` : `integer`
+- `ticket_id` : `text`
+- `title` : `text`
+- `description` : `text`
+- `status` : `USER-DEFINED`
+- `priority` : `USER-DEFINED`
+- `type` : `text`
+- `customer_id` : `integer`
+- `customer_email` : `text`
+- `assigned_to_id` : `integer`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+- `first_response_at` : `timestamp without time zone`
+- `resolved_at` : `timestamp without time zone`
+- `sla_breached` : `boolean`
+- `department_id` : `integer`
+- `incident_type_id` : `integer`
+- `company_id` : `integer`
+
+### Tabela `users`
+- `id` : `integer`
+- `username` : `text`
+- `password` : `text`
+- `email` : `text`
+- `name` : `text`
+- `role` : `USER-DEFINED`
+- `avatar_url` : `text`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+- `active` : `boolean`
+- `ad_user` : `boolean`
+- `company_id` : `integer`
+

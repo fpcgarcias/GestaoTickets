@@ -4,7 +4,7 @@ import { createServer, type Server as HttpServer } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertTicketSchema, insertTicketReplySchema, slaDefinitions, departments as departmentsSchema } from "@shared/schema";
+import { insertTicketSchema, insertTicketReplySchema, slaDefinitions, departments as departmentsSchema, userRoleEnum } from "@shared/schema";
 import { eq, desc, isNull, sql, and, ne, or, inArray, type SQLWrapper } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import { db } from "./db";
@@ -75,17 +75,23 @@ function validateRequest(schemaToValidate: z.ZodType<any, any>) {
 
 // Middleware para verificar se o usuário está autenticado
 function authRequired(req: Request, res: Response, next: NextFnExpress) {
+  console.log('[AUTH_REQUIRED] Session:', JSON.stringify(req.session));
   if (!req.session || !req.session.userId) {
+    console.log('[AUTH_REQUIRED] Falha na autenticação - retornando 401');
     return res.status(401).json({ message: "Não autenticado" });
   }
+  console.log('[AUTH_REQUIRED] Autenticação OK');
   next();
 }
 
 // Middleware para verificar se o usuário é admin
 function adminRequired(req: Request, res: Response, next: NextFnExpress) {
+  console.log('[ADMIN_REQUIRED] Session:', JSON.stringify(req.session));
   if (!req.session || !req.session.userId || req.session.userRole !== 'admin') {
+    console.log('[ADMIN_REQUIRED] Falha na autorização - retornando 403');
     return res.status(403).json({ message: "Acesso negado: Requer perfil de Administrador" });
   }
+  console.log('[ADMIN_REQUIRED] Autorização OK');
   next();
 }
 
@@ -229,6 +235,20 @@ function fixEmailDomain(email: string, source: string): { email: string, wasFixe
   }
   
   return { email, wasFixed: false };
+}
+
+// Middleware para verificar se o usuário tem um dos papéis especificados
+function authorize(allowedRoles: string[]) {
+  return (req: Request, res: Response, next: NextFnExpress) => {
+    if (!req.session || !req.session.userId) {
+      return res.status(401).json({ message: "Não autenticado" });
+    }
+    const userRole = req.session.userRole as string;
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+    next();
+  };
 }
 
 export async function registerRoutes(app: Express): Promise<void> {
@@ -1896,456 +1916,952 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
   
+  // Rota para criar um novo Tipo de Chamado (Incident Type)
+  router.post(
+    "/incident-types",
+    authRequired,
+    authorize(['admin', 'manager']),
+    async (req: Request, res: Response) => {
+      try {
+        const { name, value, department_id, company_id: company_id_from_body, is_active } = req.body;
+        const userRole = req.session.userRole as string;
+        const sessionCompanyId = req.session.companyId;
+
+        let effectiveCompanyId: number | null = null; // Default para NULL (global) se admin não especificar
+
+        if (userRole === 'admin') {
+          if (company_id_from_body !== undefined) { // Admin pode explicitamente setar company_id ou null
+            effectiveCompanyId = company_id_from_body;
+          }
+          // Se company_id_from_body for undefined, effectiveCompanyId permanece null (global)
+        } else if (userRole === 'manager') {
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: "Manager não possui uma empresa associada na sessão." });
+          }
+          effectiveCompanyId = sessionCompanyId;
+          if (company_id_from_body !== undefined && company_id_from_body !== sessionCompanyId) {
+            console.warn("Manager tentou especificar um company_id diferente do seu na criação do tipo de chamado. Ação ignorada, usando o company_id da sessão.");
+          }
+        } else {
+          return res.status(403).json({ message: "Acesso negado." });
+        }
+
+        if (!name || !value) {
+          return res.status(400).json({ message: "Nome e Valor do tipo de chamado são obrigatórios." });
+        }
+        if (department_id === undefined) {
+            return res.status(400).json({ message: "Department ID é obrigatório." });
+        }
+        
+        // Opcional: Verificar se o department_id fornecido pertence à effectiveCompanyId (se não for global)
+        if (effectiveCompanyId !== null && department_id) {
+            const [department] = await db.select().from(departmentsSchema).where(and(eq(departmentsSchema.id, department_id), eq(departmentsSchema.company_id, effectiveCompanyId)));
+            if(!department){
+                return res.status(400).json({ message: `Departamento ID ${department_id} não encontrado ou não pertence à empresa ID ${effectiveCompanyId}.` });
+            }
+        }
+
+
+        // Verificar duplicidade (nome + company_id) ou (nome + global)
+        const existingConditions: SQLWrapper[] = [eq(schema.incidentTypes.name, name)];
+        if (effectiveCompanyId === null) {
+          existingConditions.push(isNull(schema.incidentTypes.company_id));
+        } else {
+          existingConditions.push(eq(schema.incidentTypes.company_id, effectiveCompanyId));
+        }
+        const [existingIncidentType] = await db.select().from(schema.incidentTypes).where(and(...existingConditions));
+
+        if (existingIncidentType) {
+          return res.status(409).json({ message: `Já existe um tipo de chamado com o nome "${name}" ${effectiveCompanyId === null ? 'globalmente' : 'nesta empresa'}.` });
+        }
+
+        const newIncidentType = await db
+          .insert(schema.incidentTypes)
+          .values({
+            name,
+            value,
+            department_id,
+            company_id: effectiveCompanyId,
+            is_active: is_active !== undefined ? is_active : true,
+            created_at: new Date(),
+            updated_at: new Date(),
+          })
+          .returning();
+        res.status(201).json(newIncidentType[0]);
+      } catch (error: any) {
+        console.error("Error creating incident type:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ message: "Validation failed", errors: error.errors });
+        }
+        // Tratar erro de FK para department_id, se aplicável (embora já tenhamos checado)
+        if (error && error.code === '23503' && error.constraint && error.constraint.includes('incident_types_department_id_fkey')) {
+            return res.status(400).json({ message: "Department ID inválido ou não existente."});
+        }
+        res.status(500).json({ message: "Failed to create incident type" });
+      }
+    }
+  );
+
   // Rota para usuários não-admin obterem departamentos
   router.get("/departments", authRequired, async (req: Request, res: Response) => {
     try {
-      // Buscar configurações de departamentos
-      const departmentsJson = await getSystemSetting('departments', '[]');
-      
-      try {
-        const allDepartments = JSON.parse(departmentsJson);
-        
-        // Se for admin, retornar todos os departamentos
-        if ((req.session.userRole as string) === 'admin') {
-          return res.json(allDepartments);
+      const { active_only, company_id: queryCompanyId } = req.query;
+      const sessionCompanyId = req.session.companyId;
+      const userRole = req.session?.userRole as string;
+
+      const conditions: SQLWrapper[] = [];
+
+      if (userRole === 'admin') {
+        // Admin: se queryCompanyId for fornecido, filtra por ele. Caso contrário, não filtra por company_id (vê todos).
+        if (queryCompanyId) {
+          conditions.push(eq(departmentsSchema.company_id, parseInt(queryCompanyId as string, 10)));
         }
-        
-        // Para outros usuários, filtrar departamentos pela empresa (se implementado)
-        // Por enquanto, retornar todos os departamentos para qualquer usuário autenticado
-        return res.json(allDepartments);
-      } catch (parseError) {
-        console.error('Erro ao fazer parse dos departamentos:', parseError);
-        const defaultDepartments = [
-          { id: 1, name: "Suporte Técnico", description: "Para problemas técnicos e de produto" },
-          { id: 2, name: "Faturamento", description: "Para consultas de pagamento e faturamento" },
-          { id: 3, name: "Atendimento ao Cliente", description: "Para consultas gerais e assistência" }
-        ];
-        return res.json(defaultDepartments);
-      }
-    } catch (error) {
-      console.error('Erro ao obter departamentos para usuário:', error);
-      res.status(500).json({ message: "Falha ao buscar departamentos", error: String(error) });
-    }
-  });
-  
-  router.post("/settings/incident-types", adminRequired, async (req: Request, res: Response) => {
-    try {
-      const incidentTypesData = req.body; // Renomeado para evitar conflito com schema.incidentTypes
-      
-      if (!Array.isArray(incidentTypesData)) {
-        return res.status(400).json({ message: "Formato inválido. Envie um array de tipos de incidentes." });
+        // Se queryCompanyId não for fornecido, NENHUMA condição de company_id é adicionada para o admin.
+      } else {
+        // Não Admin: requer um companyId da sessão.
+        if (sessionCompanyId) {
+          conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
+        } else {
+          // Usuário não-admin sem companyId na sessão não pode ver departamentos.
+          return res.status(403).json({ message: "Acesso negado: ID da empresa não encontrado na sessão." });
+        }
       }
 
-      // Transação para atualizar tipos de incidentes
-      await db.transaction(async (tx) => {
-        // 1. Excluir todos os tipos existentes da tabela incidentTypes
-        await tx.delete(schema.incidentTypes);
-        
-        // 2. Inserir os novos tipos
-        if (incidentTypesData.length > 0) {
-          const typesToInsert = incidentTypesData.map(type => ({
-            id: type.id,
-            name: type.name,
-            // Gerar valor automaticamente, caso não exista, para manter a compatibilidade
-            value: type.value || type.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-            department_id: type.departmentId, // Usar department_id conforme schema
-            company_id: type.company_id,    // Usar company_id conforme schema (se existir no frontend)
-            created_at: new Date(),         // Usar created_at
-            updated_at: new Date()          // Usar updated_at
-          }));
-          
-          await tx.insert(schema.incidentTypes).values(typesToInsert);
-        }
-      });
-      
-      // A configuração legacy em system_settings para incidentTypes não é mais necessária aqui.
-      // O frontend (incident-types-settings.tsx) deve interagir diretamente com a tabela incident_types.
-      
-      res.json(incidentTypesData);
-    } catch (error) {
-      console.error('Erro ao salvar tipos de incidentes:', error);
-      res.status(500).json({ message: "Falha ao salvar tipos de incidentes", error: String(error) });
-    }
-  });
-  
-  // Endpoints para configurações de SLA
-  router.get("/settings/sla", adminRequired, async (_req: Request, res: Response) => {
-    try {
-      // Buscar configurações de SLA do banco de dados
-      const slaSettings = await db.select().from(schema.slaDefinitions);
-      
-      // Se não existirem configurações, retornar valores padrão
-      if (!slaSettings || slaSettings.length === 0) {
-        const defaultSlaSettings = [
-          { id: 1, priority: 'low', responseTimeHours: 72, resolutionTimeHours: 120 },
-          { id: 2, priority: 'medium', responseTimeHours: 48, resolutionTimeHours: 72 },
-          { id: 3, priority: 'high', responseTimeHours: 24, resolutionTimeHours: 48 },
-          { id: 4, priority: 'critical', responseTimeHours: 4, resolutionTimeHours: 24 },
-        ];
-        return res.json(defaultSlaSettings);
+      if (active_only === "true") {
+        conditions.push(eq(departmentsSchema.is_active, true));
       }
-      
-      res.json(slaSettings);
-    } catch (error) {
-      console.error('Erro ao obter configurações de SLA:', error);
-      res.status(500).json({ message: "Falha ao buscar configurações de SLA", error: String(error) });
-    }
-  });
-  
-  router.post("/settings/sla", adminRequired, async (req: Request, res: Response) => {
-    try {
-      const slaData = req.body;
-      const { priority, responseTimeHours, resolutionTimeHours } = slaData;
-      
-      if (!priority || !['low', 'medium', 'high', 'critical'].includes(priority)) {
-        return res.status(400).json({ message: "Prioridade inválida" });
-      }
-      
-      // Verificar se já existe uma configuração para esta prioridade
-      const [existingSla] = await db
+
+      let queryBuilder = db
         .select()
-        .from(schema.slaDefinitions)
-        .where(eq(schema.slaDefinitions.priority, priority));
-      
-      if (existingSla) {
-        // Atualizar configuração existente
-        await db
-          .update(schema.slaDefinitions)
-          .set({ 
-            response_time_hours: responseTimeHours || existingSla.response_time_hours, 
-            resolution_time_hours: resolutionTimeHours || existingSla.resolution_time_hours, 
-            updated_at: new Date() // Corrigido para snake_case
-          })
-          .where(eq(schema.slaDefinitions.id, existingSla.id));
-          
-        // Buscar a configuração atualizada
-        const [updatedSla] = await db
-          .select()
-          .from(schema.slaDefinitions)
-          .where(eq(schema.slaDefinitions.id, existingSla.id));
-          
-        res.json(updatedSla);
-      } else {
-        // Criar nova configuração de SLA
-        const [newSla] = await db
-          .insert(schema.slaDefinitions)
-          .values({
-            priority,
-            response_time_hours: responseTimeHours || 0, 
-            resolution_time_hours: resolutionTimeHours || 0
-            // createdAt e updatedAt são gerenciados pelo banco de dados via defaultNow()
-          })
-          .returning();
-          
-        res.status(201).json(newSla);
+        .from(departmentsSchema); // Corrigido para encadear o .from() corretamente
+
+      if (conditions.length > 0) {
+        queryBuilder = queryBuilder.where(and(...conditions)) as typeof queryBuilder;
       }
+
+      const departments = await queryBuilder.orderBy(desc(departmentsSchema.created_at));
+      res.json(departments);
     } catch (error) {
-      console.error('Erro ao salvar configurações de SLA:', error);
-      res.status(500).json({ message: "Falha ao salvar configurações de SLA", error: String(error) });
+      console.error("Error fetching departments:", error);
+      res.status(500).json({ message: "Failed to fetch departments" });
     }
   });
-  
-  // --- ROTAS DE DEPARTAMENTOS ---
-  router.post(
-    "/api/departments",
-    authRequired, 
-    companyAdminRequired, 
-    validateRequest(insertDepartmentSchemaInternal), // Usando o schema interno
+
+  // Rota para buscar um único departamento pelo ID
+  router.get(
+    "/departments/:id",
+    authRequired,
     async (req: Request, res: Response) => {
       try {
-        const { name, description, company_id, is_active } = req.body;
-        
-        let effectiveCompanyId = company_id;
-        if ((req.session.userRole as string) !== 'admin') {
-          if (!req.session.companyId) {
-            return res.status(400).json({ message: "ID da empresa não encontrado na sessão para company_admin" });
-          }
-          effectiveCompanyId = req.session.companyId;
-          if (company_id !== undefined && company_id !== null && company_id !== req.session.companyId) {
-             return res.status(403).json({ message: "Company admin só pode criar departamentos para sua própria empresa." });
-          }
-        }
-        
-        const existingQueryConditions = [
-          eq(departmentsSchema.name, name),
-          effectiveCompanyId ? eq(departmentsSchema.company_id, effectiveCompanyId) : isNull(departmentsSchema.company_id)
-        ];
-        const [existingByName] = await db.select().from(departmentsSchema).where(and(...existingQueryConditions.filter(c => c !== undefined) as SQLWrapper[])); // Adicionado filter e cast
-        
-        if (existingByName) {
-          return res.status(409).json({ message: `Já existe um departamento com este nome ${effectiveCompanyId ? 'nesta empresa' : 'globalmente'}.` });
+        const { id } = req.params;
+        const company_id = req.session.companyId;
+        if (!company_id) {
+          return res.status(400).json({ message: "Company ID is required" });
         }
 
-        const [newDepartment] = await db
+        const department = await db
+          .select()
+          .from(departmentsSchema)
+          .where(
+            and(
+              eq(departmentsSchema.id, parseInt(id, 10)),
+              eq(departmentsSchema.company_id, company_id)
+            )
+          )
+          .limit(1);
+
+        if (department.length === 0) {
+          return res.status(404).json({ message: "Department not found" });
+        }
+        res.json(department[0]);
+      } catch (error) {
+        console.error("Error fetching department:", error);
+        res.status(500).json({ message: "Failed to fetch department" });
+      }
+    }
+  );
+
+  // Rota para criar um novo departamento
+  router.post(
+    "/departments",
+    authRequired,
+    authorize(['admin', 'manager']), 
+    async (req: Request, res: Response) => {
+      try {
+        const { name, description, is_active, company_id: company_id_from_body } = req.body;
+        const userRole = req.session.userRole as string;
+        const sessionCompanyId = req.session.companyId;
+
+        let effectiveCompanyId: number;
+
+        if (userRole === 'admin') {
+          if (company_id_from_body === undefined || company_id_from_body === null) {
+            return res.status(400).json({ message: "Para administradores, o campo company_id é obrigatório no corpo da requisição ao criar um departamento." });
+          }
+          // TODO: Validar se a company_id_from_body existe na tabela companies
+          effectiveCompanyId = company_id_from_body;
+        } else if (userRole === 'manager') {
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: "Manager não possui uma empresa associada na sessão." });
+          }
+          effectiveCompanyId = sessionCompanyId;
+          if (company_id_from_body !== undefined && company_id_from_body !== sessionCompanyId) {
+            console.warn("Manager tentou especificar um company_id diferente do seu na criação do departamento. Ação ignorada, usando o company_id da sessão.");
+          }
+        } else {
+          // Este caso não deve ser alcançado devido ao middleware authorize
+          return res.status(403).json({ message: "Acesso negado." });
+        }
+
+        if (!name) {
+          return res.status(400).json({ message: "Nome do departamento é obrigatório." });
+        }
+
+        // Verificar se já existe um departamento com o mesmo nome na mesma empresa
+        const [existingDepartment] = await db
+          .select()
+          .from(departmentsSchema)
+          .where(and(
+            eq(departmentsSchema.name, name),
+            eq(departmentsSchema.company_id, effectiveCompanyId)
+          ));
+        
+        if (existingDepartment) {
+          return res.status(409).json({ message: `Já existe um departamento com o nome "${name}" nesta empresa.` });
+        }
+
+        const newDepartment = await db
           .insert(departmentsSchema)
           .values({
             name,
             description,
-            company_id: (req.session.userRole as string) === 'admin' ? (effectiveCompanyId || null) : effectiveCompanyId, 
+            company_id: effectiveCompanyId,
             is_active: is_active !== undefined ? is_active : true,
+            created_at: new Date(),
+            updated_at: new Date(),
           })
           .returning();
-        
-        res.status(201).json(newDepartment);
+        res.status(201).json(newDepartment[0]);
       } catch (error) {
-        console.error("Erro ao criar departamento:", error);
-        res.status(500).json({ message: "Erro interno ao criar departamento" });
+        console.error("Error creating department:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({
+            message: "Validation failed",
+            errors: error.errors,
+          });
+        }
+        res.status(500).json({ message: "Failed to create department" });
       }
     }
   );
 
-  router.get("/api/departments", authRequired, async (req: Request, res: Response) => {
-    try {
-      const { active_only, company_id: queryCompanyId } = req.query;
-      const conditions: (SQLWrapper | undefined)[] = []; // Tipado para SQLWrapper | undefined
-
-      if (active_only === 'true') {
-        conditions.push(eq(departmentsSchema.is_active, true));
-      }
-
-      const userRole = req.session.userRole as string;
-      const userCompanyId = req.session.companyId;
-
-      if (userRole === 'company_admin') {
-        if (!userCompanyId) {
-          return res.status(400).json({ message: "ID da empresa não encontrado na sessão para company_admin" });
-        }
-        conditions.push(eq(departmentsSchema.company_id, userCompanyId));
-      } else if (userRole === 'admin' && queryCompanyId) {
-        conditions.push(eq(departmentsSchema.company_id, Number(queryCompanyId)));
-      } else if (userRole !== 'admin') {
-         if (userCompanyId) {
-            conditions.push(eq(departmentsSchema.company_id, userCompanyId));
-         } else {
-            return res.json([]); 
-         }
-      }
-      
-      const finalQueryConditions = conditions.filter(c => c !== undefined) as SQLWrapper[];
-      const finalQuery = finalQueryConditions.length > 0 ? and(...finalQueryConditions) : undefined;
-      let queryBuilder = db.select().from(departmentsSchema);
-      if (finalQuery) {
-        queryBuilder = queryBuilder.where(finalQuery) as typeof queryBuilder; // Cast para manter o tipo do builder
-      }
-      const departments = await queryBuilder.orderBy(desc(departmentsSchema.created_at));
-      res.json(departments);
-    } catch (error) {
-      console.error("Erro ao buscar departamentos:", error);
-      res.status(500).json({ message: "Erro interno ao buscar departamentos" });
-    }
-  });
-
-  router.get("/api/departments/:id", authRequired, async (req: Request, res: Response) => {
-    try {
-      const departmentId = parseInt(req.params.id);
-      if (isNaN(departmentId)) {
-        return res.status(400).json({ message: "ID do departamento inválido" });
-      }
-
-      const [department] = await db
-        .select()
-        .from(departmentsSchema)
-        .where(eq(departmentsSchema.id, departmentId));
-
-      if (!department) {
-        return res.status(404).json({ message: "Departamento não encontrado" });
-      }
-      
-      const userRole = req.session.userRole as string;
-      const userCompanyId = req.session.companyId;
-
-      if (userRole === 'company_admin') {
-        if (!userCompanyId) {
-          return res.status(403).json({ message: "ID da empresa não encontrado na sessão para company_admin" });
-        }
-        if (department.company_id !== userCompanyId) {
-          return res.status(403).json({ message: "Acesso negado a este departamento" });
-        }
-      } else if (userRole !== 'admin') {
-        // Se não for admin e não for company_admin (já tratado), verificar se o departamento pertence à empresa do usuário (se houver)
-        if (!userCompanyId || department.company_id !== userCompanyId) {
-             return res.status(403).json({ message: "Acesso não permitido para este perfil ou departamento." });
-        }
-      }
-      // Admin tem acesso a qualquer departamento
-
-      res.json(department);
-    } catch (error) {
-      console.error("Erro ao buscar departamento:", error);
-      res.status(500).json({ message: "Erro interno ao buscar departamento" });
-    }
-  });
-
+  // Rota para atualizar um departamento existente
   router.put(
-    "/api/departments/:id",
+    "/departments/:id",
     authRequired,
-    companyAdminRequired,
-    validateRequest(updateDepartmentSchemaInternal), // Usando o schema interno
+    authorize(['admin', 'manager']), // Papéis que podem acessar a rota
     async (req: Request, res: Response) => {
       try {
-        const departmentId = parseInt(req.params.id);
-        if (isNaN(departmentId)) {
-          return res.status(400).json({ message: "ID do departamento inválido" });
-        }
-        const { name, description, company_id, is_active } = req.body;
-
-        const [departmentToUpdate] = await db
-          .select()
-          .from(departmentsSchema)
-          .where(eq(departmentsSchema.id, departmentId));
-
-        if (!departmentToUpdate) {
-          return res.status(404).json({ message: "Departamento não encontrado" });
+        const departmentIdParam = parseInt(req.params.id, 10);
+        if (isNaN(departmentIdParam)) {
+          return res.status(400).json({ message: "ID de departamento inválido." });
         }
 
-        let effectiveCompanyId = departmentToUpdate.company_id;
+        const { name, description, is_active, company_id: new_company_id } = req.body; // Captura company_id do corpo
         const userRole = req.session.userRole as string;
-        const userCompanyId = req.session.companyId;
+        const sessionCompanyId = req.session.companyId;
 
-        if (userRole === 'admin') {
-          // Admin pode mudar o company_id para qualquer valor ou null
-          effectiveCompanyId = company_id !== undefined ? company_id : departmentToUpdate.company_id;
-        } else { // company_admin
-          if (!userCompanyId) {
-            return res.status(403).json({ message: "ID da empresa não encontrado na sessão para company_admin" });
-          }
-          if (departmentToUpdate.company_id !== userCompanyId) {
-             return res.status(403).json({ message: "Você não pode editar um departamento de outra empresa." });
-          }
-          effectiveCompanyId = userCompanyId; // Garante que company_admin não mude o company_id
-          if (company_id !== undefined && company_id !== null && company_id !== userCompanyId) {
-            return res.status(400).json({ message: "Company admin não pode alterar o ID da empresa do departamento."});
-          }
-        }
-        
-        if (name && name !== departmentToUpdate.name) {
-          const existingNameQueryConditions = [
-            eq(departmentsSchema.name, name),
-            effectiveCompanyId ? eq(departmentsSchema.company_id, effectiveCompanyId) : isNull(departmentsSchema.company_id),
-            ne(departmentsSchema.id, departmentId)
-          ];
-          const [existingByName] = await db.select().from(departmentsSchema).where(and(...existingNameQueryConditions.filter(c => c !== undefined) as SQLWrapper[])); // Adicionado filter e cast
+        const updatePayload: any = { updated_at: new Date() };
 
-          if (existingByName) {
-            return res.status(409).json({ message: `Já existe outro departamento com este nome ${effectiveCompanyId ? 'nesta empresa' : 'globalmente'}.` });
-          }
-        }
-
-        const updatePayload: Partial<typeof departmentsSchema.$inferInsert> = {};
         if (name !== undefined) updatePayload.name = name;
         if (description !== undefined) updatePayload.description = description;
-        
-        // Apenas admin pode alterar company_id. Company_admin opera dentro da sua empresa.
-        if (userRole === 'admin' && company_id !== undefined) {
-            updatePayload.company_id = company_id === null ? null : Number(company_id);
-        }
-        // Não permitir que company_admin altere, pois effectiveCompanyId já está definido para sua empresa.
-        // Se for admin e não fornecer company_id, manterá o existente (ou definido por effectiveCompanyId no início).
-
         if (is_active !== undefined) updatePayload.is_active = is_active;
-        
-        // Só adicionar updatedAt se houver outras alterações além dela mesma
-        const hasOtherChanges = Object.keys(updatePayload).length > 0;
-        if (hasOtherChanges) {
-            updatePayload.updated_at = new Date();
+
+        const conditions: SQLWrapper[] = [eq(departmentsSchema.id, departmentIdParam)];
+
+        if (userRole === 'admin') {
+          // Admin pode tentar mudar o company_id do departamento
+          if (new_company_id !== undefined) {
+            updatePayload.company_id = new_company_id;
+          }
+          // Nenhuma condição de company_id no WHERE para admin, ele pode editar qualquer depto pelo ID.
+        } else if (userRole === 'manager') {
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: "Manager deve ter um ID de empresa na sessão." });
+          }
+          // Manager só pode editar departamentos da sua própria empresa.
+          conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
+          // Manager não pode mudar o company_id do departamento.
+          if (new_company_id !== undefined) {
+            console.warn("Manager tentou alterar company_id do departamento. Esta ação foi ignorada.");
+          }
+        } else {
+          return res.status(403).json({ message: "Acesso negado." });
         }
 
-        if (!hasOtherChanges) {
-            return res.json(departmentToUpdate); // Nada para atualizar
-        }
-
-        const [updatedDepartment] = await db
+        const updatedDepartment = await db
           .update(departmentsSchema)
           .set(updatePayload)
-          .where(eq(departmentsSchema.id, departmentId))
+          .where(and(...conditions))
           .returning();
-        
-        res.json(updatedDepartment);
+
+        if (updatedDepartment.length === 0) {
+          return res
+            .status(404)
+            .json({ message: "Departamento não encontrado ou não autorizado para esta operação." });
+        }
+        res.json(updatedDepartment[0]);
       } catch (error) {
-        console.error("Erro ao atualizar departamento:", error);
-        res.status(500).json({ message: "Erro interno ao atualizar departamento" });
+        console.error("Error updating department:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({
+            message: "Validation failed",
+            errors: error.errors,
+          });
+        }
+        res.status(500).json({ message: "Failed to update department" });
       }
     }
   );
 
+  // Rota para excluir um departamento
   router.delete(
-    "/api/departments/:id",
+    "/departments/:id",
     authRequired,
-    companyAdminRequired,
+    authorize(['admin', 'manager']), // Apenas admin e manager podem tentar excluir
     async (req: Request, res: Response) => {
       try {
-        const departmentId = parseInt(req.params.id);
-        if (isNaN(departmentId)) {
-          return res.status(400).json({ message: "ID do departamento inválido" });
-        }
-
-        const [departmentToDelete] = await db
-          .select()
-          .from(departmentsSchema)
-          .where(eq(departmentsSchema.id, departmentId));
-
-        if (!departmentToDelete) {
-          return res.status(404).json({ message: "Departamento não encontrado" });
+        const departmentIdParam = parseInt(req.params.id, 10);
+        if (isNaN(departmentIdParam)) {
+          return res.status(400).json({ message: "ID de departamento inválido." });
         }
 
         const userRole = req.session.userRole as string;
-        const userCompanyId = req.session.companyId;
+        const sessionCompanyId = req.session.companyId;
 
-        if (userRole === 'company_admin') {
-          if (!userCompanyId) {
-             return res.status(403).json({ message: "ID da empresa não encontrado na sessão para company_admin" });
+        const conditions: SQLWrapper[] = [eq(departmentsSchema.id, departmentIdParam)];
+
+        if (userRole === 'manager') {
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: "Manager deve ter um ID de empresa na sessão para excluir departamentos." });
           }
-          if (departmentToDelete.company_id !== userCompanyId) {
-            return res.status(403).json({ message: "Acesso negado para excluir este departamento" });
-          }
+          conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
+        } else if (userRole === 'admin') {
+          // Admin pode excluir depto de qualquer empresa, a condição é apenas o ID do departamento.
+        } else {
+          return res.status(403).json({ message: "Acesso negado." });
         }
-        
-        const [officialLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
-                                       .from(schema.officialDepartments)
-                                       .where(eq(schema.officialDepartments.department, departmentId.toString())); // Corrigido para department e toString()
-        if(officialLink && officialLink.count > 0) {
-            return res.status(400).json({ message: "Departamento não pode ser excluído pois está vinculado a atendentes." });
-        }
-        
+
+        // Antes de deletar, verificar se o departamento não está vinculado a nada
+        // Ex: tickets, incident_types, etc. (ESSA LÓGICA DE VERIFICAÇÃO PRECISA SER IMPLEMENTADA CONFORME REGRAS DE NEGÓCIO)
+        // Por exemplo:
         const [ticketLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
-                                     .from(schema.tickets)
-                                     .where(eq(schema.tickets.department_id, departmentId));
+                                       .from(schema.tickets)
+                                       .where(eq(schema.tickets.department_id, departmentIdParam));
         if(ticketLink && ticketLink.count > 0) {
             return res.status(400).json({ message: "Departamento não pode ser excluído pois está vinculado a chamados." });
         }
+        // Adicionar verificações para incident_types, official_departments, etc.
 
-        const [incidentTypeLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
-                                     .from(schema.incidentTypes)
-                                     .where(eq(schema.incidentTypes.department_id, departmentId));
-        if(incidentTypeLink && incidentTypeLink.count > 0) {
-            return res.status(400).json({ message: "Departamento não pode ser excluído pois está vinculado a tipos de incidentes." });
-        }
-        
-        const [ticketTypeLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
-                                     .from(schema.ticketTypes)
-                                     .where(eq(schema.ticketTypes.department_id, departmentId));
-        if(ticketTypeLink && ticketTypeLink.count > 0) {
-            return res.status(400).json({ message: "Departamento não pode ser excluído pois está vinculado a tipos de chamados (ticket types)." });
+        const deleteResult = await db
+          .delete(departmentsSchema)
+          .where(and(...conditions))
+          .returning(); // Para saber se algo foi realmente deletado
+
+        if (deleteResult.length === 0) {
+          return res
+            .status(404)
+            .json({ message: "Departamento não encontrado ou não autorizado para exclusão." });
         }
 
-
-        await db.delete(departmentsSchema).where(eq(departmentsSchema.id, departmentId));
-        res.status(204).send();
-      } catch (error) {
-        console.error("Erro ao excluir departamento:", error);
-        res.status(500).json({ message: "Erro interno ao excluir departamento" });
+        res.status(200).json({ message: "Departamento excluído com sucesso." });
+      } catch (error: any) {
+        console.error("Error deleting department:", error);
+        // Verificar se o erro é por violação de FK (embora já tenhamos tentado verificar antes)
+        if (error && typeof error === 'object' && 'code' in error && error.code === '23503') { // Código de erro PostgreSQL para foreign_key_violation
+          return res.status(400).json({ message: "Departamento não pode ser excluído pois possui vínculos existentes (ex: chamados, tipos de incidentes)." });
+        }
+        res.status(500).json({ message: "Failed to delete department" });
       }
     }
   );
 
   // --- ROTAS DE EMPRESAS ---
-  router.get("/api/companies", authRequired, adminRequired, async (req: Request, res: Response) => {
+  router.get("/companies", authRequired, adminRequired, async (req: Request, res: Response) => {
+    console.log('[/API/COMPANIES] Session no início da rota:', JSON.stringify(req.session)); // Mantendo o log original dos middlewares
     try {
-      const companiesList = await db.select().from(schema.companies).orderBy(desc(schema.companies.id));
-      res.json(companiesList);
+        console.log("[DEBUG] Iniciando busca de empresas");
+        
+        // Verificar conexão com o banco
+        console.log("[DEBUG] Verificando conexão com o banco...");
+        const testConnection = await db.select().from(schema.companies).limit(1);
+        console.log("[DEBUG] Teste de conexão:", testConnection.length > 0 ? "OK" : "Nenhum dado retornado");
+        
+        // Exibir estrutura da tabela para diagnóstico
+        console.log("[DEBUG] Estrutura da tabela companies:", Object.keys(schema.companies));
+        
+        // Buscar todas as empresas
+        console.log("[DEBUG] Executando query completa...");
+        const companies = await db.select().from(schema.companies).orderBy(desc(schema.companies.id));
+        
+        console.log("[DEBUG] Query executada. Número de empresas encontradas:", companies.length);
+        if (companies.length > 0) {
+            console.log("[DEBUG] Primeira empresa:", JSON.stringify(companies[0], null, 2));
+            console.log("[DEBUG] Tipos dos campos:", {
+                id: typeof companies[0].id,
+                name: typeof companies[0].name,
+                email: typeof companies[0].email,
+                active: typeof companies[0].active,
+                createdAt: typeof companies[0].createdAt,
+                updatedAt: typeof companies[0].updatedAt
+            });
+        } else {
+            console.log("[DEBUG] Nenhuma empresa encontrada na tabela");
+        }
+        
+        res.json(companies);
     } catch (error) {
-      console.error("Erro ao buscar empresas:", error);
-      res.status(500).json({ message: "Erro interno ao buscar empresas" });
+        console.error("[ERROR] Erro completo ao buscar empresas:", error);
+        res.status(500).json({ 
+            message: "Erro interno ao buscar empresas",
+            error: error instanceof Error ? error.message : String(error)
+        });
+    }
+  });
+
+  // Criar nova empresa
+  router.post("/companies", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const { name, email, domain, cnpj, phone, active = true } = req.body;
+
+      // Validações básicas
+      if (!name || !email) {
+        return res.status(400).json({ message: "Nome e email são obrigatórios" });
+      }
+
+      // Verificar se já existe empresa com este CNPJ
+      if (cnpj) {
+        const [existingCompany] = await db
+          .select()
+          .from(schema.companies)
+          .where(eq(schema.companies.cnpj, cnpj));
+
+        if (existingCompany) {
+          return res.status(409).json({ message: "Já existe uma empresa com este CNPJ" });
+        }
+      }
+
+      // Criar nova empresa
+      const [newCompany] = await db
+        .insert(schema.companies)
+        .values({
+          name,
+          email,
+          domain: domain || null,
+          cnpj: cnpj || null,
+          phone: phone || null,
+          active: active === false ? false : true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })
+        .returning();
+
+      res.status(201).json(newCompany);
+    } catch (error) {
+      console.error("Erro ao criar empresa:", error);
+      res.status(500).json({ message: "Erro interno ao criar empresa" });
+    }
+  });
+
+  // Atualizar empresa existente
+  router.put("/companies/:id", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const companyId = parseInt(req.params.id);
+      if (isNaN(companyId)) {
+        return res.status(400).json({ message: "ID da empresa inválido" });
+      }
+
+      const { name, email, domain, cnpj, phone, active } = req.body;
+
+      // Verificar se a empresa existe
+      const [existingCompany] = await db
+        .select()
+        .from(schema.companies)
+        .where(eq(schema.companies.id, companyId));
+
+      if (!existingCompany) {
+        return res.status(404).json({ message: "Empresa não encontrada" });
+      }
+
+      // Verificar se já existe outra empresa com este CNPJ
+      if (cnpj && cnpj !== existingCompany.cnpj) {
+        const [duplicateCnpj] = await db
+          .select()
+          .from(schema.companies)
+          .where(and(
+            eq(schema.companies.cnpj, cnpj),
+            ne(schema.companies.id, companyId)
+          ));
+
+        if (duplicateCnpj) {
+          return res.status(409).json({ message: "Já existe outra empresa com este CNPJ" });
+        }
+      }
+
+      // Montar objeto de atualização
+      const updateData: Record<string, any> = {};
+      if (name !== undefined) updateData.name = name;
+      if (email !== undefined) updateData.email = email;
+      if (domain !== undefined) updateData.domain = domain;
+      if (cnpj !== undefined) updateData.cnpj = cnpj;
+      if (phone !== undefined) updateData.phone = phone;
+      if (active !== undefined) updateData.active = active;
+      updateData.updatedAt = new Date();
+
+      // Atualizar empresa
+      const [updatedCompany] = await db
+        .update(schema.companies)
+        .set(updateData)
+        .where(eq(schema.companies.id, companyId))
+        .returning();
+
+      res.json(updatedCompany);
+    } catch (error) {
+      console.error("Erro ao atualizar empresa:", error);
+      res.status(500).json({ message: "Erro interno ao atualizar empresa" });
+    }
+  });
+
+  // Alternar status da empresa (ativar/desativar)
+  router.put("/companies/:id/toggle-status", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const companyId = parseInt(req.params.id);
+      if (isNaN(companyId)) {
+        return res.status(400).json({ message: "ID da empresa inválido" });
+      }
+
+      // Obter empresa atual
+      const [existingCompany] = await db
+        .select()
+        .from(schema.companies)
+        .where(eq(schema.companies.id, companyId));
+
+      if (!existingCompany) {
+        return res.status(404).json({ message: "Empresa não encontrada" });
+      }
+
+      // Inverter status
+      const newStatus = !existingCompany.active;
+
+      // Atualizar status
+      const [updatedCompany] = await db
+        .update(schema.companies)
+        .set({
+          active: newStatus,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.companies.id, companyId))
+        .returning();
+
+      res.json(updatedCompany);
+    } catch (error) {
+      console.error("Erro ao alterar status da empresa:", error);
+      res.status(500).json({ message: "Erro interno ao alterar status da empresa" });
+    }
+  });
+
+  // Rota para atualizar um Tipo de Chamado (Incident Type) existente
+  router.put(
+    "/incident-types/:id",
+    authRequired,
+    authorize(['admin', 'manager']),
+    async (req: Request, res: Response) => {
+      try {
+        const incidentTypeId = parseInt(req.params.id, 10);
+        if (isNaN(incidentTypeId)) {
+          return res.status(400).json({ message: "ID de tipo de chamado inválido." });
+        }
+
+        const { name, value, department_id, company_id: new_company_id_from_body, is_active } = req.body;
+        const userRole = req.session.userRole as string;
+        const sessionCompanyId = req.session.companyId; // This is number | undefined
+
+        const updatePayload: any = { updated_at: new Date() };
+        if (name !== undefined) updatePayload.name = name;
+        if (value !== undefined) updatePayload.value = value;
+        if (department_id !== undefined) updatePayload.department_id = department_id;
+        if (is_active !== undefined) updatePayload.is_active = is_active;
+
+        const conditions: SQLWrapper[] = [eq(schema.incidentTypes.id, incidentTypeId)];
+        
+        // Fetch the current incident type to know its original company_id
+        const [currentIncidentType] = await db
+          .select({ id: schema.incidentTypes.id, company_id: schema.incidentTypes.company_id })
+          .from(schema.incidentTypes)
+          .where(eq(schema.incidentTypes.id, incidentTypeId));
+
+        if (!currentIncidentType) {
+          return res.status(404).json({ message: "Tipo de chamado não encontrado." });
+        }
+
+        let effectiveCompanyIdForUpdateLogic: number | null; // This will be number or null for logic checks
+
+        if (userRole === 'admin') {
+          if (new_company_id_from_body !== undefined) { // Admin explicitly wants to change company_id
+            updatePayload.company_id = new_company_id_from_body; // Can be number or null
+            effectiveCompanyIdForUpdateLogic = new_company_id_from_body;
+          } else {
+            // Admin is not changing company_id, so use the original one for logic checks
+            effectiveCompanyIdForUpdateLogic = currentIncidentType.company_id;
+          }
+          // Admin can edit any incident type, so `conditions` only has the ID check.
+        } else if (userRole === 'manager') {
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: "Manager deve ter um ID de empresa na sessão." });
+          }
+          // Manager can edit types belonging to their company OR global types.
+          if (currentIncidentType.company_id !== null && currentIncidentType.company_id !== sessionCompanyId) {
+            return res.status(403).json({ message: "Manager não pode editar este tipo de chamado específico da empresa." });
+          }
+          // Add condition to ensure manager only updates their own company's types or global ones
+          const managerCondition = or(
+              isNull(schema.incidentTypes.company_id), 
+              eq(schema.incidentTypes.company_id, sessionCompanyId)
+          );
+          if (managerCondition) { // Check if or() returned a valid SQLWrapper
+            conditions.push(managerCondition);
+          } else {
+            // This case should ideally not happen if `or` is always given valid conditions
+            console.error("Error generating manager condition for incident type update");
+            return res.status(500).json({ message: "Erro interno ao processar permissões." });
+          }
+          
+          // Manager cannot change company_id. If sent in body, it's ignored.
+          if (new_company_id_from_body !== undefined && new_company_id_from_body !== currentIncidentType.company_id) {
+            console.warn("Manager tentou alterar company_id do tipo de chamado. Esta ação foi ignorada. O company_id original será mantido.");
+          }
+          effectiveCompanyIdForUpdateLogic = currentIncidentType.company_id; // Use original for department/name checks
+          // updatePayload.company_id is NOT set for manager, so it remains unchanged.
+        } else {
+          return res.status(403).json({ message: "Acesso negado." });
+        }
+        
+        // Validação do department_id
+        if (department_id !== undefined) {
+          if (effectiveCompanyIdForUpdateLogic !== null) { // Tipo de chamado é/será específico de uma empresa
+            const [department] = await db.select()
+                                         .from(departmentsSchema)
+                                         .where(and(eq(departmentsSchema.id, department_id), eq(departmentsSchema.company_id, effectiveCompanyIdForUpdateLogic)));
+            if(!department){
+                return res.status(400).json({ message: `Departamento ID ${department_id} não encontrado ou não pertence à empresa ID ${effectiveCompanyIdForUpdateLogic}.` });
+            }
+          } else { // Tipo de chamado é/será global
+            const [department] = await db.select().from(departmentsSchema).where(eq(departmentsSchema.id, department_id));
+            if(!department){ // Se global, o depto precisa existir, mas não precisa ser global (pode pertencer a uma empresa)
+                return res.status(400).json({ message: `Departamento ID ${department_id} não encontrado.`});
+            }
+          }
+        }
+
+        // Verificar duplicidade de nome se o nome estiver sendo alterado
+        if (name !== undefined) {
+            const duplicateCheckConditions: SQLWrapper[] = [
+                eq(schema.incidentTypes.name, name),
+                ne(schema.incidentTypes.id, incidentTypeId)
+            ];
+            if (effectiveCompanyIdForUpdateLogic === null) {
+                duplicateCheckConditions.push(isNull(schema.incidentTypes.company_id));
+            } else {
+                duplicateCheckConditions.push(eq(schema.incidentTypes.company_id, effectiveCompanyIdForUpdateLogic));
+            }
+            const [existingIncidentTypeWithName] = await db.select().from(schema.incidentTypes).where(and(...duplicateCheckConditions));
+            if (existingIncidentTypeWithName) {
+                return res.status(409).json({ message: `Já existe um tipo de chamado com o nome "${name}" ${effectiveCompanyIdForUpdateLogic === null ? 'globalmente' : 'nesta empresa'}.` });
+            }
+        }
+
+        const updatedIncidentType = await db
+          .update(schema.incidentTypes)
+          .set(updatePayload)
+          .where(and(...conditions))
+          .returning();
+
+        if (updatedIncidentType.length === 0) {
+          return res.status(404).json({ message: "Tipo de chamado não encontrado ou não autorizado para esta operação." });
+        }
+        res.json(updatedIncidentType[0]);
+      } catch (error: any) {
+        console.error("Error updating incident type:", error);
+        if (error instanceof z.ZodError) {
+          return res.status(400).json({ message: "Validation failed", errors: error.errors });
+        }
+        if (error && error.code === '23503' && error.constraint && error.constraint.includes('incident_types_department_id_fkey')) {
+            return res.status(400).json({ message: "Department ID inválido ou não existente ao atualizar."});
+        }
+        res.status(500).json({ message: "Failed to update incident type" });
+      }
+    }
+  );
+
+  // Rota para excluir um Tipo de Chamado (Incident Type)
+  router.delete(
+    "/incident-types/:id",
+    authRequired,
+    authorize(['admin', 'manager']),
+    async (req: Request, res: Response) => {
+      try {
+        const incidentTypeId = parseInt(req.params.id, 10);
+        if (isNaN(incidentTypeId)) {
+          return res.status(400).json({ message: "ID de tipo de chamado inválido." });
+        }
+
+        const userRole = req.session.userRole as string;
+        const sessionCompanyId = req.session.companyId;
+
+        // Primeiro, verificar a qual empresa (se houver) o tipo de chamado pertence
+        const [incidentTypeToDelete] = await db
+          .select({ id: schema.incidentTypes.id, company_id: schema.incidentTypes.company_id })
+          .from(schema.incidentTypes)
+          .where(eq(schema.incidentTypes.id, incidentTypeId));
+
+        if (!incidentTypeToDelete) {
+          return res.status(404).json({ message: "Tipo de chamado não encontrado." });
+        }
+
+        const conditions: SQLWrapper[] = [eq(schema.incidentTypes.id, incidentTypeId)];
+
+        if (userRole === 'manager') {
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: "Manager deve ter um ID de empresa na sessão para excluir." });
+          }
+          // Manager só pode excluir tipos da sua empresa ou tipos globais.
+          // Se o tipo não é global E não pertence à empresa do manager, negar.
+          if (incidentTypeToDelete.company_id !== null && incidentTypeToDelete.company_id !== sessionCompanyId) {
+            return res.status(403).json({ message: "Manager não tem permissão para excluir este tipo de chamado específico da empresa." });
+          }
+          // Adiciona a condição para garantir que o manager só delete da sua empresa ou globais
+           const managerDeleteCondition = or(
+              isNull(schema.incidentTypes.company_id),
+              eq(schema.incidentTypes.company_id, sessionCompanyId)
+            );
+            if (managerDeleteCondition) {
+                conditions.push(managerDeleteCondition);
+            } else {
+                console.error("Error generating manager condition for incident type delete");
+                return res.status(500).json({ message: "Erro interno ao processar permissões." });
+            }
+        } else if (userRole === 'admin') {
+          // Admin pode excluir qualquer tipo, condição já tem o ID.
+        } else {
+          return res.status(403).json({ message: "Acesso negado." });
+        }
+
+        // Verificar vínculos antes de deletar (Ex: tickets)
+        const [ticketLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
+                                       .from(schema.tickets)
+                                       .where(eq(schema.tickets.incident_type_id, incidentTypeId));
+        if(ticketLink && ticketLink.count > 0) {
+            return res.status(400).json({ message: "Tipo de chamado não pode ser excluído pois está vinculado a chamados existentes." });
+        }
+        // Adicionar mais verificações de FK aqui conforme necessário
+
+        const deleteResult = await db
+          .delete(schema.incidentTypes)
+          .where(and(...conditions))
+          .returning(); 
+
+        if (deleteResult.length === 0) {
+          return res.status(404).json({ message: "Tipo de chamado não encontrado ou não autorizado para exclusão (após verificação de permissão)." });
+        }
+
+        res.status(200).json({ message: "Tipo de chamado excluído com sucesso." });
+      } catch (error: any) {
+        console.error("Error deleting incident type:", error);
+        if (error && typeof error === 'object' && 'code' in error && error.code === '23503') { 
+          return res.status(400).json({ message: "Tipo de chamado não pode ser excluído devido a vínculos existentes (erro de banco de dados)." });
+        }
+        res.status(500).json({ message: "Failed to delete incident type" });
+      }
+    }
+  );
+
+  // --- ROTAS DE SLA DEFINITIONS ---
+  router.get("/settings/sla", authRequired, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+    let effectiveCompanyId: number | undefined = undefined; // Inicializada e tipo ajustado
+    try {
+      const userRole = req.session.userRole as string;
+      const sessionCompanyId = req.session.companyId; // Pode ser undefined
+      let queryCompanyId = req.query.company_id ? parseInt(req.query.company_id as string, 10) : undefined;
+
+      if (userRole === 'admin') {
+        effectiveCompanyId = queryCompanyId; // Admin usa o company_id da query, se fornecido
+        if (effectiveCompanyId === undefined) {
+          // Se admin não fornecer company_id, pode-se decidir retornar da primeira empresa com SLA
+          // ou da empresa do próprio admin (se ele tiver uma), ou vazio para o frontend solicitar seleção.
+          // Por agora, retornaremos vazio se não especificado, para forçar seleção no frontend.
+          return res.json([]);
+        }
+      } else if (userRole === 'manager') {
+        if (!sessionCompanyId) {
+          return res.status(403).json({ message: "Manager não está associado a nenhuma empresa." });
+        }
+        effectiveCompanyId = sessionCompanyId; // Manager sempre usa o seu companyId da sessão
+      } else {
+        return res.status(403).json({ message: "Usuário sem permissão para acessar definições de SLA." });
+      }
+
+      if (effectiveCompanyId === undefined || isNaN(effectiveCompanyId)) {
+        // Se mesmo após a lógica acima, não temos um company ID válido (ex: admin não forneceu)
+        return res.status(400).json({ message: "ID da empresa não especificado ou inválido." });
+      }
+
+      const slaRules = await db
+        .select()
+        .from(schema.slaDefinitions)
+        .where(eq(schema.slaDefinitions.company_id, effectiveCompanyId))
+        .orderBy(schema.slaDefinitions.priority); // Ordenar pode ser útil, mas prioridades são fixas
+      
+      // Estruturar a resposta para ser facilmente consumida pelo frontend
+      // (ex: um objeto com prioridades como chaves)
+      const slaSettings: Record<string, { response_time_hours?: number, resolution_time_hours?: number }> = {};
+      const priorities = schema.ticketPriorityEnum.enumValues; // ['low', 'medium', 'high', 'critical']
+
+      priorities.forEach(prio => {
+        const rule = slaRules.find(r => r.priority === prio);
+        if (rule) {
+          slaSettings[prio] = {
+            response_time_hours: rule.response_time_hours,
+            resolution_time_hours: rule.resolution_time_hours
+          };
+        } else {
+          // Se não houver regra definida para uma prioridade, pode-se enviar null/undefined ou valores padrão
+          slaSettings[prio] = { response_time_hours: undefined, resolution_time_hours: undefined }; 
+        }
+      });
+
+      res.json({ company_id: effectiveCompanyId, settings: slaSettings });
+
+    } catch (error) {
+      console.error("Error fetching SLA definitions:", error);
+      res.status(500).json({ message: "Falha ao buscar definições de SLA." });
+    }
+  });
+
+  type DrizzleReturningQuery = any; // Placeholder para tipo de query Drizzle com .returning()
+  router.post("/settings/sla", authRequired, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+    let effectiveCompanyId: number | undefined = undefined; // Inicializada e tipo ajustado
+    try {
+      const userRole = req.session.userRole as string;
+      const sessionCompanyId = req.session.companyId;
+      const { company_id: company_id_from_body, settings } = req.body;
+
+      if (userRole === 'admin') {
+        if (company_id_from_body === undefined || company_id_from_body === null) {
+          return res.status(400).json({ message: "Admin deve fornecer company_id no corpo da requisição." });
+        }
+        effectiveCompanyId = parseInt(company_id_from_body, 10);
+        if (isNaN(effectiveCompanyId)) {
+            return res.status(400).json({ message: "company_id inválido fornecido no corpo da requisição." });
+        }
+        const [companyExists] = await db.select({id: schema.companies.id}).from(schema.companies).where(eq(schema.companies.id, effectiveCompanyId));
+        if (!companyExists) {
+            return res.status(404).json({ message: `Empresa com ID ${effectiveCompanyId} não encontrada.` });
+        }
+      } else if (userRole === 'manager') {
+        if (!sessionCompanyId) {
+          return res.status(403).json({ message: "Manager não está associado a nenhuma empresa." });
+        }
+        effectiveCompanyId = sessionCompanyId;
+        if (company_id_from_body !== undefined && company_id_from_body !== sessionCompanyId) {
+          console.warn("Manager tentou salvar SLA para company_id diferente da sua sessão. Usando company_id da sessão.");
+        }
+      } else {
+        return res.status(403).json({ message: "Usuário sem permissão para salvar definições de SLA." });
+      }
+
+      if (!settings || typeof settings !== 'object') {
+        return res.status(400).json({ message: "Formato inválido. 'settings' deve ser um objeto com as prioridades." });
+      }
+
+      const priorities = schema.ticketPriorityEnum.enumValues;
+      const results: Array<any> = []; // Tipagem mais explícita para results
+
+      await db.transaction(async (tx) => {
+        for (const priority of priorities) {
+          const ruleData = settings[priority];
+          
+          const existingRule = await tx.query.slaDefinitions.findFirst({
+            where: and(
+              eq(schema.slaDefinitions.company_id, effectiveCompanyId as number), // Cast para number aqui, pois já validamos
+              eq(schema.slaDefinitions.priority, priority as typeof schema.ticketPriorityEnum.enumValues[number])
+            )
+          });
+
+          if (ruleData && ruleData.response_time_hours !== undefined && ruleData.resolution_time_hours !== undefined &&
+              ruleData.response_time_hours !== '' && ruleData.resolution_time_hours !== '') {
+            
+            const response_time_hours = parseInt(ruleData.response_time_hours, 10);
+            const resolution_time_hours = parseInt(ruleData.resolution_time_hours, 10);
+
+            if (isNaN(response_time_hours) || response_time_hours < 0) {
+              // Lançar erro para abortar a transação
+              throw new Error(`Tempo de resposta inválido para prioridade ${priority}. Deve ser um número não negativo.`);
+            }
+            if (isNaN(resolution_time_hours) || resolution_time_hours < 0) {
+              // Lançar erro para abortar a transação
+              throw new Error(`Tempo de resolução inválido para prioridade ${priority}. Deve ser um número não negativo.`);
+            }
+
+            let opResult;
+            if (existingRule) {
+              opResult = await tx.update(schema.slaDefinitions)
+                .set({
+                  response_time_hours: response_time_hours,
+                  resolution_time_hours: resolution_time_hours,
+                  updated_at: new Date(),
+                })
+                .where(eq(schema.slaDefinitions.id, existingRule.id))
+                .returning();
+              results.push(opResult[0] || { priority, status: 'updated_error' });
+            } else {
+              opResult = await tx.insert(schema.slaDefinitions)
+                .values({
+                  company_id: effectiveCompanyId as number, // Cast para number
+                  priority: priority as typeof schema.ticketPriorityEnum.enumValues[number],
+                  response_time_hours: response_time_hours,
+                  resolution_time_hours: resolution_time_hours,
+                  created_at: new Date(),
+                  updated_at: new Date(),
+                })
+                .returning();
+              results.push(opResult[0] || { priority, status: 'inserted_error' });
+            }
+          } else if (existingRule) {
+            await tx.delete(schema.slaDefinitions)
+              .where(eq(schema.slaDefinitions.id, existingRule.id));
+            results.push({ priority, status: 'deleted' });
+          } else {
+            results.push({ priority, status: 'not_set' });
+          }
+        }
+      }); // Fim da db.transaction
+      
+      res.status(200).json({ company_id: effectiveCompanyId, outcome: results });
+
+    } catch (error) {
+      console.error("Error saving SLA definitions:", error);
+      // @ts-ignore: Verificar se o erro é uma instância de Error para acessar message
+      if (error instanceof Error && (error.message.includes('Tempo de resposta inválido') || error.message.includes('Tempo de resolução inválido'))) {
+        return res.status(400).json({ message: error.message });
+      }
+      // @ts-ignore: Acessar error.code e error.constraint se existirem
+      if (error && typeof error === 'object' && 'code' in error && error.code === '23503') { 
+        // @ts-ignore
+        if ('constraint' in error && error.constraint && typeof error.constraint === 'string' && error.constraint.includes('sla_definitions_company_id_fkey')) {
+            return res.status(400).json({ message: `ID da empresa ${effectiveCompanyId !== undefined ? effectiveCompanyId : 'desconhecido'} inválido ou não existente.` });
+        }
+      }
+      res.status(500).json({ message: "Falha ao salvar definições de SLA." });
     }
   });
 

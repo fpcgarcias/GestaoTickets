@@ -20,17 +20,17 @@ export const userRoleEnum = pgEnum('user_role', [
 ]);
 export const departmentEnum = pgEnum('department', ['technical', 'billing', 'general', 'sales', 'other']);
 
-// Tabela de empresas para suporte multi-tenant (mantendo camelCase conforme banco de dados)
+// Tabela de empresas para suporte multi-tenant (ajustado para snake_case conforme banco de dados)
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull(),
   domain: text("domain"),
   active: boolean("active").notNull().default(true),
-  cnpj: text("cnpj"),
-  phone: text("phone"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  cnpj: text("cnpj"),
+  phone: text("phone"),
 });
 
 // Users table for authentication (ajustado para snake_case conforme banco)

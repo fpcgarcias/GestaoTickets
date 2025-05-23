@@ -16,7 +16,7 @@ interface User {
   id: number;
   username: string;
   email: string;
-  role: 'admin' | 'support' | 'customer';
+  role: 'admin' | 'support' | 'customer' | 'manager';
   name: string;
   avatarUrl?: string;
   initials?: string;

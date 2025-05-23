@@ -1,0 +1,53 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Tabela de Tickets
+
+A tabela `tickets` é o componente central do sistema, armazenando todos os chamados de suporte.
+
+## Estrutura da Tabela
+
+```sql
+CREATE TABLE tickets (
+  id SERIAL PRIMARY KEY,
+  ticket_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  status ticket_status NOT NULL DEFAULT 'new',
+  priority ticket_priority NOT NULL DEFAULT 'medium',
+  type TEXT NOT NULL,
+  customer_id INTEGER,
+  customer_email TEXT NOT NULL,
+  assigned_to_id INTEGER,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now(),
+  first_response_at TIMESTAMP,
+  resolved_at TIMESTAMP,
+  sla_breached BOOLEAN DEFAULT false,
+  department_id INTEGER,
+  incident_type_id INTEGER,
+  company_id INTEGER
+);
+```
+
+## Campos Principais
+
+- **id**: Identificador único interno (auto-incremento)
+- **ticket_id**: Identificador único visível ao usuário (ex: "TK-2023-001")
+- **status**: Status atual do ticket (`new`, `in_progress`, `resolved`, etc.)
+- **priority**: Prioridade do ticket (`low`, `medium`, `high`, `critical`)
+- **assigned_to_id**: Referência ao técnico responsável pelo atendimento
+- **first_response_at**: Marca temporal da primeira resposta (para SLA)
+- **resolved_at**: Marca temporal da resolução do ticket
+- **sla_breached**: Indica se o SLA foi violado
+
+## Relacionamentos
+
+- `customer_id` → `customers.id`
+- `assigned_to_id` → `officials.id`
+- `department_id` → `departments.id`
+- `incident_type_id` → `incident_types.id`
+- `company_id` → `companies.id`
+
