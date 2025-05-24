@@ -1,0 +1,129 @@
+[{
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id",
+  "constraint_name": "customers_company_id_fkey"
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "user_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "users",
+  "foreign_column_name": "id",
+  "constraint_name": "customers_user_id_users_id_fk"
+}, {
+  "table_schema": "public",
+  "table_name": "departments",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id",
+  "constraint_name": "departments_company_id_fkey"
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id",
+  "constraint_name": "incident_types_company_id_fkey"
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id",
+  "constraint_name": "officials_company_id_fkey"
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "user_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "users",
+  "foreign_column_name": "id",
+  "constraint_name": "officials_user_id_users_id_fk"
+}, {
+  "table_schema": "public",
+  "table_name": "sla_definitions",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id",
+  "constraint_name": "sla_definitions_company_id_fkey"
+}, {
+  "table_schema": "public",
+  "table_name": "system_settings",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id",
+  "constraint_name": "system_settings_company_id_fkey"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_replies",
+  "column_name": "ticket_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "tickets",
+  "foreign_column_name": "id",
+  "constraint_name": "ticket_replies_ticket_id_tickets_id_fk"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_replies",
+  "column_name": "user_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "users",
+  "foreign_column_name": "id",
+  "constraint_name": "ticket_replies_user_id_users_id_fk"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "changed_by_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "users",
+  "foreign_column_name": "id",
+  "constraint_name": "ticket_status_history_changed_by_id_users_id_fk"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "ticket_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "tickets",
+  "foreign_column_name": "id",
+  "constraint_name": "ticket_status_history_ticket_id_tickets_id_fk"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "assigned_to_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "officials",
+  "foreign_column_name": "id",
+  "constraint_name": "tickets_assigned_to_id_officials_id_fk"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id",
+  "constraint_name": "tickets_company_id_fkey"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "customer_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "customers",
+  "foreign_column_name": "id",
+  "constraint_name": "tickets_customer_id_customers_id_fk"
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id",
+  "constraint_name": "users_company_id_fkey"
+}]

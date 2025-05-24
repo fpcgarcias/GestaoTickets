@@ -1,0 +1,50 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Sistema de Usuários e Autenticação
+
+O sistema utiliza diferentes tipos de usuários e suporta autenticação via Active Directory.
+
+## Tabela Users
+
+```sql
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  username TEXT NOT NULL,
+  password TEXT NOT NULL,
+  email TEXT NOT NULL,
+  name TEXT NOT NULL,
+  role user_role NOT NULL DEFAULT 'customer',
+  avatar_url TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now(),
+  active BOOLEAN NOT NULL DEFAULT true,
+  ad_user BOOLEAN DEFAULT false,
+  company_id INTEGER
+);
+```
+
+## Níveis de Acesso (Roles)
+
+O sistema utiliza um tipo enumerado `user_role` com os seguintes valores:
+- **admin**: Acesso total ao sistema
+- **support**: Técnicos e atendentes que respondem tickets
+- **customer**: Usuários que abrem tickets
+
+## Autenticação Active Directory
+
+O sistema suporta integração com Active Directory para autenticação de usuários corporativos. Quando a coluna `ad_user` é `true`, o login é realizado contra o servidor AD.
+
+## Tabelas Relacionadas
+
+- **customers**: Perfis de clientes finais
+- **officials**: Perfis de técnicos/atendentes
+
+## Segurança
+
+- Senhas armazenadas com hash criptográfico
+- Controle de acesso baseado em funções
+- Suporte a sessões com expiração
+

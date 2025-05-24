@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { TicketDetail } from '@/components/tickets/ticket-detail';
 import { TicketReplyForm } from '@/components/tickets/ticket-reply';
+import { TicketHistory } from '@/components/tickets/ticket-history';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Ticket } from '@shared/schema';
 
@@ -41,7 +42,10 @@ export default function TicketDetailPage() {
       ) : ticket ? (
         <div className="space-y-6">
           <TicketDetail ticketId={ticketId} />
-          <TicketReplyForm ticket={ticket} />
+          {ticket.status !== 'resolved' && (
+            <TicketReplyForm ticket={ticket} />
+          )}
+          <TicketHistory ticketId={ticketId} />
         </div>
       ) : null}
     </div>

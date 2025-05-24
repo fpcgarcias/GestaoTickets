@@ -1,0 +1,65 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Sistema Multitenancy
+
+O sistema suporta múltiplas empresas (multitenancy), permitindo que diferentes organizações utilizem a mesma instância do software com dados isolados.
+
+## Tabela de Empresas
+
+```sql
+CREATE TABLE companies (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  domain TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
+  createdAt TIMESTAMP NOT NULL DEFAULT now(),
+  updatedAt TIMESTAMP NOT NULL DEFAULT now(),
+  cnpj TEXT,
+  phone TEXT
+);
+```
+
+## Isolamento de Dados
+
+O campo `company_id` está presente nas principais tabelas do sistema:
+- `users`
+- `customers`
+- `officials`
+- `tickets`
+- `departments`
+- `incident_types`
+- `sla_definitions`
+- `system_settings`
+
+## Autenticação e Acesso
+
+- Usuários são associados a uma empresa específica
+- O acesso aos dados é filtrado pelo `company_id` do usuário autenticado
+- O domínio de email pode ser usado para identificar automaticamente a empresa durante o registro
+
+## Configurações Específicas
+
+Cada empresa pode ter suas próprias configurações através da tabela `system_settings`:
+
+```sql
+CREATE TABLE system_settings (
+  id SERIAL PRIMARY KEY,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now(),
+  company_id INTEGER
+);
+```
+
+## Personalização por Empresa
+
+- Departamentos
+- Tipos de incidentes
+- Definições de SLA
+- Configurações do sistema
+

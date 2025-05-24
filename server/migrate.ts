@@ -32,6 +32,7 @@ import { sql } from 'drizzle-orm';
 const migrations = [
   '20240526-create-departments-table',
   '20240526-add-is-active-to-incident-types',
+  '20241225-create-user-notification-settings-table',
 ];
 
 // Função para verificar se uma migração já foi executada

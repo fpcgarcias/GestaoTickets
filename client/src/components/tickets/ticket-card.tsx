@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { StatusDot, PriorityBadge } from './status-badge';
+import { StatusDot, StatusBadge, PriorityBadge } from './status-badge';
 import { SLAIndicator } from './sla-indicator';
 import { formatDate } from '@/lib/utils';
 import { Ticket, Official } from '@shared/schema';
@@ -70,7 +70,10 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
         </div>
         
         <div className="mb-3">
-          <h3 className="text-lg font-medium mb-2">{title}</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-lg font-medium">{title}</h3>
+            <StatusBadge status={status} />
+          </div>
           <p className="text-neutral-600 line-clamp-2">{description}</p>
         </div>
         

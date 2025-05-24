@@ -47,7 +47,7 @@ const DepartmentManagement: React.FC = () => {
 
   // Buscar a lista de empresas (apenas para admin)
   const { data: companies = [] } = useQuery<any[]>({
-    queryKey: ['/companies'],
+    queryKey: ['/api/companies'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/companies');
       if (!response.ok) {

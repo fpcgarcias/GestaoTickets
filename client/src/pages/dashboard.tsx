@@ -36,9 +36,9 @@ interface TicketStats {
 interface RecentTicket {
   id: number;
   title: string;
-  customerEmail: string;
-  createdAt: string;
-  status: 'new' | 'ongoing' | 'resolved'; // Tipo mais específico
+  customer: { email?: string };
+  created_at: string;
+  status: 'new' | 'ongoing' | 'resolved';
   priority: string;
 }
 
@@ -64,9 +64,9 @@ export default function Dashboard() {
 
   // Dados de status transformados para português
   const statusData = [
-    { name: 'Novos', value: ticketStats.byStatus.new, color: '#42A5F5' }, // Acesso direto agora é seguro
-    { name: 'Em Andamento', value: ticketStats.byStatus.ongoing, color: '#FFA726' }, // Acesso direto agora é seguro
-    { name: 'Resolvidos', value: ticketStats.byStatus.resolved, color: '#66BB6A' }, // Acesso direto agora é seguro
+    { name: 'Novos', value: ticketStats.byStatus.new, color: '#F59E0B' },
+    { name: 'Em Andamento', value: ticketStats.byStatus.ongoing, color: '#3B82F6' },
+    { name: 'Resolvidos', value: ticketStats.byStatus.resolved, color: '#10B981' },
   ];
 
   const priorityData = [
@@ -192,7 +192,7 @@ export default function Dashboard() {
                     <div>
                       <p className="font-medium">{ticket.title}</p>
                       <p className="text-sm text-neutral-500">
-                        {ticket.customerEmail} • {new Date(ticket.createdAt).toLocaleDateString('pt-BR')}
+                        {ticket.customer.email} • {new Date(ticket.created_at).toLocaleDateString('pt-BR')}
                       </p>
                     </div>
                   </div>

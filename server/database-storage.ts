@@ -481,7 +481,7 @@ export class DatabaseStorage implements IStorage {
     return enrichedTickets as Ticket[];
   }
 
-  async getTicket(id: number): Promise<Ticket | undefined> {
+  async getTicket(id: number, userRole?: string, userCompanyId?: number): Promise<Ticket | undefined> {
     const [result] = await db
       .select({ // Usar getTableColumns para selecionar explicitamente
         ticket: getTableColumns(tickets),
@@ -496,6 +496,20 @@ export class DatabaseStorage implements IStorage {
     const customerData = result.customer; // Separar dados do cliente (pode ser null)
     
     console.log(`[DEBUG getTicket] Ticket ID: ${id}, CustomerId: ${ticket.customer_id}, Customer data:`, customerData);
+    console.log(`[DEBUG getTicket] UserRole: ${userRole}, UserCompanyId: ${userCompanyId}, TicketCompanyId: ${ticket.company_id}, CustomerCompanyId: ${customerData?.company_id}`);
+    
+    // ADMIN SEMPRE VÊ TUDO - sem exceções!
+    if (userRole === 'admin') {
+      console.log(`[DEBUG getTicket] Admin detectado - acesso liberado para todos os dados`);
+    } else if (userRole && userCompanyId) {
+      // Apenas para usuários não-admin verificar restrições de empresa
+      const ticketCompanyId = ticket.company_id || customerData?.company_id;
+      
+      if (ticketCompanyId && ticketCompanyId !== userCompanyId) {
+        console.log(`[DEBUG getTicket] Acesso negado: Ticket pertence à empresa ${ticketCompanyId}, usuário pertence à empresa ${userCompanyId}`);
+        return undefined; // Usuário não pode ver este ticket
+      }
+    }
     
     let officialData: Official | undefined = undefined;
     if (ticket.assigned_to_id) { // Verificar null
@@ -537,8 +551,51 @@ export class DatabaseStorage implements IStorage {
     
     if (!result) return undefined;
     
-    // Como getTicket agora lida com o enriquecimento, podemos chamá-lo
-    return this.getTicket(result.ticket.id); // result.ticket.id é number
+    // Chamada interna - não precisa de controle de acesso de empresa
+    return this.getTicketInternal(result.ticket.id);
+  }
+
+  // Método interno sem controle de empresa para uso em outras funções
+  private async getTicketInternal(id: number): Promise<Ticket | undefined> {
+    const [result] = await db
+      .select({
+        ticket: getTableColumns(tickets),
+        customer: getTableColumns(customers)
+      })
+      .from(tickets)
+      .leftJoin(customers, eq(customers.id, tickets.customer_id))
+      .where(eq(tickets.id, id));
+    
+    if (!result) return undefined;
+    const ticket = result.ticket;
+    const customerData = result.customer;
+    
+    let officialData: Official | undefined = undefined;
+    if (ticket.assigned_to_id) {
+      [officialData] = await db
+        .select()
+        .from(officials)
+        .where(eq(officials.id, ticket.assigned_to_id));
+        
+      if (officialData) {
+        const officialDepartmentsData = await db
+          .select()
+          .from(officialDepartments)
+          .where(eq(officialDepartments.official_id, officialData.id));
+          
+        const departments = officialDepartmentsData.map((od) => od.department);
+        officialData = { ...officialData, departments };
+      }
+    }
+
+    const replies = await this.getTicketReplies(ticket.id);
+    
+    return {
+      ...ticket,
+      customer: customerData || {},
+      official: officialData, 
+      replies: replies || []
+    } as Ticket;
   }
 
   async getTicketsByStatus(status: string): Promise<Ticket[]> {
@@ -548,7 +605,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tickets.status, status as any));
     
     const enrichedTickets = await Promise.all(
-      ticketsData.map(ticket => this.getTicket(ticket.id))
+      ticketsData.map(ticket => this.getTicketInternal(ticket.id))
     );
     
     return enrichedTickets.filter(Boolean) as Ticket[];
@@ -561,7 +618,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tickets.customer_id, customerId));
     
     const enrichedTickets = await Promise.all(
-      ticketsData.map(ticket => this.getTicket(ticket.id))
+      ticketsData.map(ticket => this.getTicketInternal(ticket.id))
     );
     
     return enrichedTickets.filter(Boolean) as Ticket[];
@@ -574,7 +631,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tickets.assigned_to_id, officialId));
     
     const enrichedTickets = await Promise.all(
-      ticketsData.map(ticket => this.getTicket(ticket.id))
+      ticketsData.map(ticket => this.getTicketInternal(ticket.id))
     );
     
     return enrichedTickets.filter(Boolean) as Ticket[];
@@ -599,14 +656,14 @@ export class DatabaseStorage implements IStorage {
 
       // @ts-ignore - Ignorar erro de tipo temporariamente se status não bater exatamente
       const [insertedTicket] = await db.insert(tickets).values(ticketInsertData).returning();
-      return this.getTicket(insertedTicket.id) as Promise<Ticket>; // insertedTicket.id é number
+      return this.getTicketInternal(insertedTicket.id) as Promise<Ticket>; // Usar método interno
     } catch (error) {
       console.error("Error creating ticket:", error);
       throw error;
     }
   }
 
-  async updateTicket(id: number, ticketData: Partial<Ticket>): Promise<Ticket | undefined> {
+  async updateTicket(id: number, ticketData: Partial<Ticket>, changedById?: number): Promise<Ticket | undefined> {
     console.log(`[DEBUG] Iniciando updateTicket para ticket ID ${id}. Dados recebidos:`, JSON.stringify(ticketData));
     
     // Se estamos atualizando o status, primeiro adicionamos ao histórico
@@ -619,11 +676,9 @@ export class DatabaseStorage implements IStorage {
           id,
           currentTicket.status,
           ticketData.status,
-          // Na versão atual, o usuário que fez a atualização não é salvo
-          // Seria necessário adicionar mais um campo no schema para isso
-          undefined
+          changedById
         );
-        console.log(`[DEBUG] Adicionado ao histórico a mudança de status de ${currentTicket.status} para ${ticketData.status}`);
+        console.log(`[DEBUG] Adicionado ao histórico a mudança de status de ${currentTicket.status} para ${ticketData.status} pelo usuário ${changedById}`);
       }
     }
     
@@ -648,7 +703,7 @@ export class DatabaseStorage implements IStorage {
         return undefined;
       }
       
-      const updatedTicket = await this.getTicket(ticket.id);
+      const updatedTicket = await this.getTicketInternal(ticket.id); // Usar método interno
       console.log(`[DEBUG] Ticket completo após atualização:`, JSON.stringify(updatedTicket));
       return updatedTicket;
     } catch (error) {
@@ -697,33 +752,44 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTicketReply(replyData: InsertTicketReply): Promise<TicketReply> {
-    const [reply] = await db.insert(ticketReplies).values(replyData).returning();
+    console.log("[DEBUG createTicketReply] Dados recebidos:", JSON.stringify(replyData, null, 2));
+    
+    // 🎯 SEPARAR campos da REPLY dos campos do TICKET
+    const { status, assigned_to_id, type, ...replyOnlyData } = replyData;
+    
+    console.log("[DEBUG createTicketReply] Dados APENAS da reply:", JSON.stringify(replyOnlyData, null, 2));
+    console.log("[DEBUG createTicketReply] Dados do ticket:", { status, assigned_to_id, type });
+    
+    // ✅ INSERIR APENAS OS CAMPOS QUE PERTENCEM À TABELA ticket_replies
+    const [reply] = await db.insert(ticketReplies).values(replyOnlyData).returning();
+    
+    console.log("[DEBUG createTicketReply] Reply salva no banco:", JSON.stringify(reply, null, 2));
     
     // Atualizações do ticket a serem feitas
     const ticketUpdates: Partial<Ticket> = {};
     
     // Se estamos atualizando o status do ticket junto com a resposta
-    if (replyData.status) {
+    if (status) {
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, reply.ticket_id));
       
-      if (ticket && ticket.status !== replyData.status) {
-        ticketUpdates.status = replyData.status;
+      if (ticket && ticket.status !== status) {
+        ticketUpdates.status = status;
         
         // Se o status estiver sendo alterado para 'resolved', marcamos a data de resolução
-        if (replyData.status === 'resolved') {
+        if (status === 'resolved') {
           ticketUpdates.resolved_at = new Date();
         }
       }
     }
     
     // Se estamos atribuindo o ticket a um atendente
-    if (replyData.assigned_to_id) {
-      ticketUpdates.assigned_to_id = replyData.assigned_to_id;
+    if (assigned_to_id) {
+      ticketUpdates.assigned_to_id = assigned_to_id;
     }
     
-    // Aplicar as atualizações ao ticket se houver alguma
+    // ✅ APLICAR AS ATUALIZAÇÕES PASSANDO O USER_ID PARA O HISTÓRICO
     if (Object.keys(ticketUpdates).length > 0) {
-      await this.updateTicket(reply.ticket_id, ticketUpdates);
+      await this.updateTicket(reply.ticket_id, ticketUpdates, reply.user_id || undefined);
     }
     
     // Se esta é a primeira resposta, atualizar first_response_at
@@ -733,7 +799,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(ticketReplies.ticket_id, reply.ticket_id));
     
     if (ticketRepliesCount[0]?.count === 1) {
-      await this.updateTicket(reply.ticket_id, { first_response_at: reply.created_at });
+      await this.updateTicket(reply.ticket_id, { first_response_at: reply.created_at }, reply.user_id || undefined);
     }
     
     // Incluímos dados do usuário
@@ -854,7 +920,7 @@ export class DatabaseStorage implements IStorage {
         .limit(limit);
       
       const enrichedTickets = await Promise.all(
-        recentTickets.map(ticket => this.getTicket(ticket.id))
+        recentTickets.map(ticket => this.getTicketInternal(ticket.id)) // Usar método interno
       );
       
       return enrichedTickets.filter(Boolean) as Ticket[];

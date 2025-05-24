@@ -1,0 +1,40 @@
+[{
+  "table_schema": "public",
+  "table_name": "companies"
+}, {
+  "table_schema": "public",
+  "table_name": "customers"
+}, {
+  "table_schema": "public",
+  "table_name": "departments"
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types"
+}, {
+  "table_schema": "public",
+  "table_name": "migrations"
+}, {
+  "table_schema": "public",
+  "table_name": "official_departments"
+}, {
+  "table_schema": "public",
+  "table_name": "officials"
+}, {
+  "table_schema": "public",
+  "table_name": "sla_definitions"
+}, {
+  "table_schema": "public",
+  "table_name": "system_settings"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_replies"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets"
+}, {
+  "table_schema": "public",
+  "table_name": "users"
+}]

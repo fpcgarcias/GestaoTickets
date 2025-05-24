@@ -41,7 +41,7 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
   
   // Buscar lista de empresas (apenas para admin)
   const { data: companies, isLoading: isLoadingCompanies } = useQuery<Company[]>({
-    queryKey: ['/api/admin/companies'],
+    queryKey: ['/api/companies'],
     enabled: user?.role === 'admin', // Apenas buscar empresas se o usuário for admin
   });
   

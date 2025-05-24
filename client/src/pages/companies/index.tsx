@@ -25,12 +25,15 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
 import { useLocation } from 'wouter';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { Search, Pencil, UserX, UserCheck, PlusCircle } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { formatCNPJ, cleanCNPJ, isValidCNPJ } from '@/lib/utils';
 
 interface Company {
   id: number;
@@ -46,14 +49,15 @@ interface Company {
 
 export default function CompaniesPage() {
   const { user, isLoading: authLoading } = useAuth();
-  const [location, setLocation] = useLocation();
+  const [_location, setLocation] = useLocation();
   const { toast } = useToast();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [includeInactive, setIncludeInactive] = useState(false);
   
-  // Formulário de nova empresa
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -63,7 +67,6 @@ export default function CompaniesPage() {
     active: true
   });
   
-  // Verificar se o usuário é admin
   useEffect(() => {
     if (!authLoading && (!user || user.role !== 'admin')) {
       toast({
@@ -75,26 +78,40 @@ export default function CompaniesPage() {
     }
   }, [user, authLoading, toast, setLocation]);
   
-  // Carregar lista de empresas
   useEffect(() => {
     const fetchCompanies = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/admin/companies');
+        const response = await fetch('/api/companies'); 
         
         if (!response.ok) {
+          console.error('Resposta não foi OK:', response.status, response.statusText);
           throw new Error('Falha ao carregar empresas');
         }
         
-        const data = await response.json();
-        setCompanies(data);
+        let data = await response.json();
+        
+        const formattedData = Array.isArray(data) ? data.map(company => ({
+          ...company,
+          id: company.id || 0,
+          name: company.name || '',
+          email: company.email || '',
+          domain: company.domain || '',
+          active: company.active !== undefined ? company.active : true,
+          cnpj: company.cnpj || '',
+          phone: company.phone || '',
+          createdAt: company.createdAt || new Date().toISOString(),
+          updatedAt: company.updatedAt || new Date().toISOString()
+        })) : [];
+        
+        setCompanies(formattedData);
       } catch (error) {
+        console.error('Erro completo ao carregar empresas:', error);
         toast({
           title: "Erro",
           description: "Não foi possível carregar a lista de empresas.",
           variant: "destructive",
         });
-        console.error(error);
       } finally {
         setIsLoading(false);
       }
@@ -113,6 +130,12 @@ export default function CompaniesPage() {
         ...formData,
         [name]: (e.target as HTMLInputElement).checked
       });
+    } else if (name === 'cnpj') {
+      const formatted = formatCNPJ(value);
+      setFormData({
+        ...formData,
+        [name]: formatted
+      });
     } else {
       setFormData({
         ...formData,
@@ -124,54 +147,65 @@ export default function CompaniesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (formData.cnpj && !isValidCNPJ(formData.cnpj)) {
+      toast({
+        title: "CNPJ Inválido",
+        description: "Por favor, insira um CNPJ válido.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       const method = editingCompany ? 'PUT' : 'POST';
       const endpoint = editingCompany 
-        ? `/api/admin/companies/${editingCompany.id}` 
-        : '/api/admin/companies';
+        ? `/api/companies/${editingCompany.id}` 
+        : '/api/companies';
+      
+      const dataToSend = {
+        ...formData,
+        cnpj: formData.cnpj ? cleanCNPJ(formData.cnpj) : ''
+      };
       
       const response = await fetch(endpoint, {
         method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataToSend),
       });
       
       if (!response.ok) {
-        throw new Error('Falha ao salvar empresa');
+        const errorData = await response.json().catch(() => ({ message: 'Falha ao salvar empresa' }));
+        throw new Error(errorData.message || 'Falha ao salvar empresa');
       }
       
       const savedCompany = await response.json();
       
-      if (editingCompany) {
-        // Atualizar a empresa existente na lista
-        setCompanies(companies.map(c => 
-          c.id === editingCompany.id ? savedCompany : c
-        ));
-        toast({
-          title: "Empresa atualizada",
-          description: `A empresa "${formData.name}" foi atualizada com sucesso.`,
-        });
-      } else {
-        // Adicionar nova empresa à lista
-        setCompanies([...companies, savedCompany]);
-        toast({
-          title: "Empresa criada",
-          description: `A empresa "${formData.name}" foi criada com sucesso.`,
-        });
-      }
+      const fetchResponse = await fetch('/api/companies');
+      const updatedData = await fetchResponse.json();
+      const formattedData = Array.isArray(updatedData) ? updatedData.map(company => ({
+        ...company,
+        id: company.id || 0,
+        name: company.name || '',
+        email: company.email || '',
+        active: company.active !== undefined ? company.active : true,
+        createdAt: company.createdAt || new Date().toISOString(),
+        updatedAt: company.updatedAt || new Date().toISOString()
+      })) : [];
+      setCompanies(formattedData);
+
+      toast({
+        title: editingCompany ? "Empresa atualizada" : "Empresa criada",
+        description: `A empresa "${formData.name}" foi ${editingCompany ? 'atualizada' : 'criada'} com sucesso.`,
+      });
       
-      // Resetar formulário e fechar dialog
       resetForm();
       setOpenDialog(false);
     } catch (error) {
       toast({
-        title: "Erro",
-        description: error instanceof Error ? error.message : "Falha ao salvar empresa.",
+        title: "Erro ao Salvar",
+        description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
         variant: "destructive",
       });
-      console.error(error);
     }
   };
   
@@ -181,7 +215,7 @@ export default function CompaniesPage() {
       name: company.name,
       email: company.email,
       domain: company.domain || '',
-      cnpj: company.cnpj || '',
+      cnpj: company.cnpj ? formatCNPJ(company.cnpj) : '',
       phone: company.phone || '',
       active: company.active
     });
@@ -190,35 +224,32 @@ export default function CompaniesPage() {
   
   const handleToggleStatus = async (company: Company) => {
     try {
-      const response = await fetch(`/api/admin/companies/${company.id}/toggle-status`, {
+      const response = await fetch(`/api/companies/${company.id}/toggle-status`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
       });
       
       if (!response.ok) {
-        throw new Error('Falha ao alterar status da empresa');
+        const errorData = await response.json().catch(() => ({ message: 'Falha ao alterar status' }));
+        throw new Error(errorData.message || 'Falha ao alterar status');
       }
       
       const updatedCompany = await response.json();
       
-      // Atualizar a empresa na lista
-      setCompanies(companies.map(c => 
-        c.id === company.id ? updatedCompany : c
-      ));
+      setCompanies(prevCompanies => 
+        prevCompanies.map(c => (c.id === company.id ? updatedCompany : c))
+      );
       
       toast({
         title: "Status alterado",
         description: `A empresa "${company.name}" foi ${updatedCompany.active ? 'ativada' : 'desativada'}.`,
       });
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: error instanceof Error ? error.message : "Falha ao alterar status da empresa.",
+       toast({
+        title: "Erro ao Alterar Status",
+        description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
         variant: "destructive",
       });
-      console.error(error);
     }
   };
   
@@ -233,191 +264,185 @@ export default function CompaniesPage() {
     });
     setEditingCompany(null);
   };
-  
-  // Redirecionamento se usuário não for admin
-  if (authLoading || !user || user.role !== 'admin') {
-    return null;
+
+  const filteredCompanies = companies
+    .filter(company => includeInactive ? true : company.active)
+    .filter(company => 
+      company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      company.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (company.cnpj && company.cnpj.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (company.domain && company.domain.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+  if (authLoading) {
+    return <div className="container mx-auto py-10 text-center"><p>Carregando autenticação...</p></div>;
+  }
+  if (!user || user.role !== 'admin') {
+    return null; 
   }
   
   return (
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Gerenciamento de Empresas</h1>
-        <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-          <DialogTrigger asChild>
-            <Button onClick={() => {
-              resetForm();
-              setOpenDialog(true);
-            }}>
-              Nova Empresa
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>
-                {editingCompany ? 'Editar Empresa' : 'Nova Empresa'}
-              </DialogTitle>
-              <DialogDescription>
-                {editingCompany 
-                  ? 'Edite os detalhes da empresa selecionada.' 
-                  : 'Preencha os detalhes para criar uma nova empresa.'}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="name" className="col-span-1">Nome</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="email" className="col-span-1">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="domain" className="col-span-1">Domínio</Label>
-                  <Input
-                    id="domain"
-                    name="domain"
-                    value={formData.domain}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    placeholder="ex: minha-empresa.com"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="cnpj" className="col-span-1">CNPJ</Label>
-                  <Input
-                    id="cnpj"
-                    name="cnpj"
-                    value={formData.cnpj}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    placeholder="ex: 12.345.678/0001-90"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="phone" className="col-span-1">Telefone</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    className="col-span-3"
-                    placeholder="(11) 1234-5678"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="active" className="col-span-1">Ativo</Label>
-                  <div className="flex items-center space-x-2 col-span-3">
-                    <Switch
-                      id="active"
-                      name="active"
-                      checked={formData.active}
-                      onCheckedChange={(checked) => 
-                        setFormData({...formData, active: checked})
-                      }
-                    />
-                    <span>{formData.active ? 'Sim' : 'Não'}</span>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => {
-                  resetForm();
-                  setOpenDialog(false);
-                }}>
-                  Cancelar
-                </Button>
-                <Button type="submit">
-                  {editingCompany ? 'Salvar Alterações' : 'Criar Empresa'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
       </div>
       
       <Card>
         <CardHeader>
-          <CardTitle>Empresas Cadastradas</CardTitle>
-          <CardDescription>
-            Lista de todas as empresas no sistema.
-          </CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Empresas Cadastradas</CardTitle>
+              <CardDescription>
+                Lista de todas as empresas no sistema.
+              </CardDescription>
+            </div>
+            <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+              <DialogTrigger asChild>
+                <Button onClick={() => { resetForm(); setOpenDialog(true); }}>
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  Nova Empresa
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>{editingCompany ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle>
+                  <DialogDescription>
+                    {editingCompany ? 'Edite os detalhes da empresa.' : 'Preencha os detalhes para criar uma nova empresa.'}
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit}>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="name" className="text-right">Nome</Label>
+                      <Input id="name" name="name" value={formData.name} onChange={handleInputChange} className="col-span-3" required />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="email" className="text-right">Email</Label>
+                      <Input id="email" name="email" type="email" value={formData.email} onChange={handleInputChange} className="col-span-3" required />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="domain" className="text-right">Domínio</Label>
+                      <Input id="domain" name="domain" value={formData.domain} onChange={handleInputChange} className="col-span-3" placeholder="ex: minhaempresa.com"/>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="cnpj" className="text-right">CNPJ</Label>
+                      <Input id="cnpj" name="cnpj" value={formData.cnpj} onChange={handleInputChange} className="col-span-3" placeholder="XX.XXX.XXX/0001-XX"/>
+                    </div>
+                     <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="phone" className="text-right">Telefone</Label>
+                      <Input id="phone" name="phone" value={formData.phone} onChange={handleInputChange} className="col-span-3" placeholder="(XX) XXXXX-XXXX"/>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="active" className="text-right">Ativo</Label>
+                      <Switch id="active" name="active" checked={formData.active} onCheckedChange={(checked) => setFormData({...formData, active: checked})} className="col-span-3 justify-self-start" />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => { resetForm(); setOpenDialog(false); }}>Cancelar</Button>
+                    <Button type="submit">{editingCompany ? 'Salvar Alterações' : 'Criar Empresa'}</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="py-10 text-center">
-              <p>Carregando empresas...</p>
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2">
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
+                <Input 
+                  placeholder="Buscar por nome, email, CNPJ..." 
+                  className="pl-10" 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="includeInactive" 
+                  checked={includeInactive} 
+                  onCheckedChange={setIncludeInactive}
+                />
+                <Label htmlFor="includeInactive">Incluir inativas</Label>
+              </div>
             </div>
-          ) : companies.length === 0 ? (
-            <div className="py-10 text-center">
-              <p>Nenhuma empresa cadastrada.</p>
-            </div>
-          ) : (
+          </div>
+
+          <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>CNPJ</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Data de Criação</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {companies.map((company) => (
-                  <TableRow key={company.id}>
-                    <TableCell className="font-medium">{company.name}</TableCell>
-                    <TableCell>{company.email}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded text-sm ${
-                        company.active 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' 
-                          : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
-                      }`}>
-                        {company.active ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(company.createdAt).toLocaleDateString('pt-BR')}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleEditCompany(company)}
-                        >
-                          Editar
-                        </Button>
-                        <Button 
-                          variant={company.active ? "destructive" : "default"} 
-                          size="sm"
-                          onClick={() => handleToggleStatus(company)}
-                        >
-                          {company.active ? 'Desativar' : 'Ativar'}
-                        </Button>
-                      </div>
+                {isLoading ? (
+                  Array(5).fill(0).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : filteredCompanies.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10 text-neutral-500">
+                      {searchTerm ? "Nenhuma empresa encontrada para sua busca." : "Nenhuma empresa cadastrada."}
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredCompanies.map((company) => (
+                    <TableRow key={company.id} className={!company.active ? "opacity-60" : ""}>
+                      <TableCell className="font-medium">{company.name}</TableCell>
+                      <TableCell>{company.email}</TableCell>
+                      <TableCell>{company.cnpj ? formatCNPJ(company.cnpj) : '-'}</TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={company.active ? "default" : "outline"}
+                          className={company.active ? "bg-green-500 hover:bg-green-500/80" : "text-neutral-500"}
+                        >
+                          {company.active ? 'Ativo' : 'Inativo'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(company.createdAt).toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleEditCompany(company)}
+                            title="Editar Empresa"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button 
+                            variant={company.active ? "destructive" : "default"} 
+                            size="sm"
+                            className={company.active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
+                            onClick={() => handleToggleStatus(company)}
+                            title={company.active ? "Desativar Empresa" : "Ativar Empresa"}
+                          >
+                            {company.active ? <UserX className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
-          )}
+          </div>
         </CardContent>
       </Card>
     </div>

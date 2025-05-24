@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { insertTicketSchema, type InsertTicket } from '@shared/schema';
-import { TICKET_TYPES, PRIORITY_LEVELS, DEPARTMENTS } from '@/lib/utils';
+import { TICKET_TYPES, PRIORITY_LEVELS } from '@/lib/utils';
 import { z } from 'zod';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -40,7 +40,7 @@ interface IncidentType {
   id: number;
   name: string;
   value: string;
-  departmentId: number;
+  department_id: number;
 }
 
 interface Department {
@@ -104,16 +104,18 @@ export const TicketForm = () => {
   });
 
   const onSubmit = (data: InsertTicket & { customerId?: number }) => {
-    // Se um cliente foi selecionado, usar seu email
+    // Se um cliente foi selecionado, usar seu email e ID
     if (data.customerId) {
       // Usar 'customers' que é garantido como array
       const selectedCustomer = customers.find((c: Customer) => c.id === data.customerId);
       if (selectedCustomer) {
         data.customer_email = selectedCustomer.email;
+        // Adicionar customer_id ao ticket
+        (data as any).customer_id = selectedCustomer.id;
       }
     }
     
-    // Remover customerId que não faz parte do schema
+    // Remover customerId que não faz parte do schema, mas manter customer_id se foi definido
     const { customerId, ...ticketData } = data;
     createTicketMutation.mutate(ticketData);
   };
@@ -121,7 +123,6 @@ export const TicketForm = () => {
   // Buscar dados de departamentos
   const { data: departmentsData } = useQuery<Department[]>({
     queryKey: ["/api/departments"],
-    initialData: DEPARTMENTS.map(dept => ({ id: parseInt(dept.value), name: dept.label }))
   });
 
   // Garantir que departments é um array
@@ -138,7 +139,7 @@ export const TicketForm = () => {
   // Filtrar tipos de incidentes pelo departamento selecionado
   const selectedDepartmentId = form.watch('department_id');
   const filteredIncidentTypes = selectedDepartmentId 
-    ? incidentTypes.filter((type: IncidentType) => type.departmentId === selectedDepartmentId)
+    ? incidentTypes.filter((type: IncidentType) => type.department_id === selectedDepartmentId)
     : incidentTypes;
 
   // Efeito para pré-selecionar o cliente quando o usuário for customer
@@ -303,8 +304,8 @@ export const TicketForm = () => {
                           
                           // Se o departamento não estiver selecionado, selecionar automaticamente
                           // baseado no tipo de incidente
-                          if (!form.getValues('department_id') && selectedType.departmentId) {
-                            form.setValue('department_id', selectedType.departmentId);
+                          if (!form.getValues('department_id') && selectedType.department_id) {
+                            form.setValue('department_id', selectedType.department_id);
                           }
                         }
                       }} 

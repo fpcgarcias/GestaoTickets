@@ -1,0 +1,54 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Departamentos e Tipos de Incidentes
+
+O sistema organiza o atendimento em departamentos e categoriza os chamados por tipos de incidentes.
+
+## Tabela de Departamentos
+
+```sql
+CREATE TABLE departments (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  company_id INTEGER,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
+```
+
+## Tabela de Tipos de Incidentes
+
+```sql
+CREATE TABLE incident_types (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  value TEXT NOT NULL,
+  department_id INTEGER,
+  created_at TIMESTAMP NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP NOT NULL DEFAULT now(),
+  company_id INTEGER,
+  is_active BOOLEAN NOT NULL DEFAULT true
+);
+```
+
+## Organização do Atendimento
+
+- Cada `official` (atendente) pode ser associado a um ou mais departamentos
+- Cada `incident_type` (tipo de incidente) é associado a um departamento específico
+- Os tickets são associados a um `department_id` e `incident_type_id`
+
+## Roteamento de Tickets
+
+1. Quando um ticket é criado, o cliente seleciona um tipo de incidente
+2. Com base no tipo de incidente, o sistema determina o departamento responsável
+3. O ticket é então direcionado para técnicos daquele departamento
+
+## Personalização por Empresa
+
+Departamentos e tipos de incidentes podem ser personalizados por empresa através do campo `company_id`, permitindo que cada empresa tenha sua própria estrutura de atendimento.
+

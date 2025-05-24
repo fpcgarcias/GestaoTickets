@@ -1,0 +1,53 @@
+[{
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "departments",
+  "column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types",
+  "column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "migrations",
+  "column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "official_departments",
+  "column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "sla_definitions",
+  "column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "system_settings",
+  "column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_replies",
+  "column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "id"
+}]

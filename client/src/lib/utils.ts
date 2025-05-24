@@ -46,9 +46,9 @@ export const PRIORITY_COLORS = {
 };
 
 export const STATUS_COLORS = {
-  [TICKET_STATUS.NEW]: 'bg-status-new',
-  [TICKET_STATUS.ONGOING]: 'bg-status-ongoing',
-  [TICKET_STATUS.RESOLVED]: 'bg-status-resolved'
+  [TICKET_STATUS.NEW]: 'bg-amber-100 text-amber-800',
+  [TICKET_STATUS.ONGOING]: 'bg-blue-100 text-blue-800',
+  [TICKET_STATUS.RESOLVED]: 'bg-green-100 text-green-800'
 };
 
 export const TICKET_TYPES = [
@@ -70,3 +70,79 @@ export const PERIOD_OPTIONS = [
   { value: 'month', label: '30 dias' },
   { value: 'custom', label: 'Período Personalizado' }
 ];
+
+// Função para traduzir status para português brasileiro
+export function translateTicketStatus(status: string): string {
+  const statusTranslations: Record<string, string> = {
+    'new': 'Novo',
+    'ongoing': 'Em Andamento', 
+    'resolved': 'Resolvido',
+    'in_progress': 'Em Andamento',
+    'closed': 'Fechado',
+    'cancelled': 'Cancelado',
+    'pending': 'Pendente'
+  };
+  
+  return statusTranslations[status] || status;
+}
+
+// 🆕 Funções para formatação de CNPJ
+export function formatCNPJ(cnpj: string): string {
+  // Remove todos os caracteres não numéricos
+  const numbers = cnpj.replace(/\D/g, '');
+  
+  // Se não tiver números suficientes, retorna como está
+  if (numbers.length !== 14) {
+    return cnpj;
+  }
+  
+  // Aplica a formatação: XX.XXX.XXX/0001-XX
+  return numbers.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+}
+
+export function cleanCNPJ(cnpj: string): string {
+  // Remove todos os caracteres não numéricos para salvar no banco
+  return cnpj.replace(/\D/g, '');
+}
+
+export function isValidCNPJ(cnpj: string): boolean {
+  // Remove formatação
+  const numbers = cleanCNPJ(cnpj);
+  
+  // Verifica se tem 14 dígitos
+  if (numbers.length !== 14) {
+    return false;
+  }
+  
+  // Verifica se não são todos iguais (ex: 11111111111111)
+  if (/^(\d)\1+$/.test(numbers)) {
+    return false;
+  }
+  
+  // Validação dos dígitos verificadores do CNPJ
+  let soma = 0;
+  let resto;
+  
+  // Primeiro dígito verificador
+  const pesos1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  for (let i = 0; i < 12; i++) {
+    soma += parseInt(numbers[i]) * pesos1[i];
+  }
+  resto = soma % 11;
+  const digito1 = resto < 2 ? 0 : 11 - resto;
+  
+  if (parseInt(numbers[12]) !== digito1) {
+    return false;
+  }
+  
+  // Segundo dígito verificador
+  soma = 0;
+  const pesos2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  for (let i = 0; i < 13; i++) {
+    soma += parseInt(numbers[i]) * pesos2[i];
+  }
+  resto = soma % 11;
+  const digito2 = resto < 2 ? 0 : 11 - resto;
+  
+  return parseInt(numbers[13]) === digito2;
+}

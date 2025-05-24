@@ -1,6 +1,6 @@
 import { WebSocket } from 'ws';
 import { db } from '../db';
-import { tickets, users, ticketStatusHistory } from '@shared/schema';
+import { tickets, users, ticketStatusHistory, userNotificationSettings } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
 interface NotificationPayload {
@@ -84,8 +84,77 @@ class NotificationService {
     console.log(`Total de clientes WebSocket conectados: ${this.getTotalClients()}`);
   }
   
-  // Enviar notificação para um usuário específico
-  public sendNotificationToUser(userId: number, payload: NotificationPayload): void {
+  // Verificar se o usuário deve receber notificação baseado nas configurações
+  private async shouldNotifyUser(userId: number, notificationType: string): Promise<boolean> {
+    try {
+      // Buscar configurações do usuário
+      const [settings] = await db
+        .select()
+        .from(userNotificationSettings)
+        .where(eq(userNotificationSettings.user_id, userId))
+        .limit(1);
+
+      // Se não tem configurações, usar padrões (permitir tudo)
+      if (!settings) {
+        return true;
+      }
+
+      // Verificar se está no horário permitido
+      const now = new Date();
+      const currentHour = now.getHours();
+      const currentDay = now.getDay(); // 0 = domingo, 6 = sábado
+      const isWeekend = currentDay === 0 || currentDay === 6;
+
+      // Verificar fins de semana
+      if (isWeekend && !settings.weekend_notifications) {
+        console.log(`Notificação bloqueada para usuário ${userId}: fins de semana desabilitados`);
+        return false;
+      }
+
+      // Verificar horário
+      const startHour = settings.notification_hours_start || 9;
+      const endHour = settings.notification_hours_end || 18;
+      
+      if (currentHour < startHour || currentHour >= endHour) {
+        console.log(`Notificação bloqueada para usuário ${userId}: fora do horário (${currentHour}h, permitido: ${startHour}h-${endHour}h)`);
+        return false;
+      }
+
+      // Verificar tipo de notificação
+      switch (notificationType) {
+        case 'new_ticket':
+          return settings.new_ticket_assigned ?? true;
+        case 'status_update':
+          return settings.ticket_status_changed ?? true;
+        case 'new_reply':
+          return settings.new_reply_received ?? true;
+        case 'ticket_escalated':
+          return settings.ticket_escalated ?? true;
+        case 'ticket_due_soon':
+          return settings.ticket_due_soon ?? true;
+        case 'new_customer':
+          return settings.new_customer_registered ?? true;
+        case 'new_user':
+          return settings.new_user_created ?? true;
+        case 'system_maintenance':
+          return settings.system_maintenance ?? true;
+        default:
+          return true;
+      }
+    } catch (error) {
+      console.error('Erro ao verificar configurações de notificação:', error);
+      return true; // Em caso de erro, permitir notificação
+    }
+  }
+
+  // Enviar notificação para um usuário específico (com verificação de configurações)
+  public async sendNotificationToUser(userId: number, payload: NotificationPayload): Promise<void> {
+    const shouldNotify = await this.shouldNotifyUser(userId, payload.type);
+    
+    if (!shouldNotify) {
+      return;
+    }
+
     if (!this.clients.has(userId)) return;
     
     const userClients = this.clients.get(userId)!;
@@ -94,38 +163,102 @@ class NotificationService {
         client.send(JSON.stringify(payload));
       }
     }
+
+    // Se as notificações por email estão habilitadas, enviar também por email
+    await this.sendEmailNotification(userId, payload);
+  }
+
+  // Enviar notificação por email (implementação básica)
+  private async sendEmailNotification(userId: number, payload: NotificationPayload): Promise<void> {
+    try {
+      // Verificar se o usuário tem email habilitado
+      const [settings] = await db
+        .select()
+        .from(userNotificationSettings)
+        .where(eq(userNotificationSettings.user_id, userId))
+        .limit(1);
+
+      const emailEnabled = settings?.email_notifications ?? true;
+      if (!emailEnabled) {
+        return;
+      }
+
+      // Buscar dados do usuário
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user || !user.email) {
+        return;
+      }
+
+      // TODO: Implementar envio real de email
+      // Por enquanto, apenas log
+      console.log(`📧 Email seria enviado para ${user.email}:`);
+      console.log(`   Título: ${payload.title}`);
+      console.log(`   Mensagem: ${payload.message}`);
+      console.log(`   Tipo: ${payload.type}`);
+      
+      // Aqui você pode integrar com:
+      // - Nodemailer
+      // - SendGrid
+      // - AWS SES
+      // - Outro provedor de email
+      
+    } catch (error) {
+      console.error('Erro ao enviar notificação por email:', error);
+    }
   }
   
   // Enviar notificação para todos os administradores
-  public sendNotificationToAdmins(payload: NotificationPayload): void {
+  public async sendNotificationToAdmins(payload: NotificationPayload): Promise<void> {
     for (const client of this.adminClients) {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(payload));
+      if (client.readyState === WebSocket.OPEN && client.userId) {
+        // Verificar configurações individuais de cada admin
+        const shouldNotify = await this.shouldNotifyUser(client.userId, payload.type);
+        if (shouldNotify) {
+          client.send(JSON.stringify(payload));
+          // Enviar email também se habilitado
+          await this.sendEmailNotification(client.userId, payload);
+        }
       }
     }
   }
   
   // Enviar notificação para todos os agentes de suporte
-  public sendNotificationToSupport(payload: NotificationPayload): void {
+  public async sendNotificationToSupport(payload: NotificationPayload): Promise<void> {
     for (const client of this.supportClients) {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(payload));
+      if (client.readyState === WebSocket.OPEN && client.userId) {
+        // Verificar configurações individuais de cada agente
+        const shouldNotify = await this.shouldNotifyUser(client.userId, payload.type);
+        if (shouldNotify) {
+          client.send(JSON.stringify(payload));
+          // Enviar email também se habilitado
+          await this.sendEmailNotification(client.userId, payload);
+        }
       }
     }
   }
   
   // Enviar notificação para todos os usuários
-  public sendNotificationToAll(payload: NotificationPayload): void {
+  public async sendNotificationToAll(payload: NotificationPayload): Promise<void> {
     // Coletar todos os clientes em um único array
     const allClients: WebSocketWithUser[] = [];
     this.clients.forEach(clientArray => {
       allClients.push(...clientArray);
     });
     
-    // Enviar para todos os clientes abertos
+    // Enviar para todos os clientes abertos (verificando configurações individuais)
     for (const client of allClients) {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(payload));
+      if (client.readyState === WebSocket.OPEN && client.userId) {
+        const shouldNotify = await this.shouldNotifyUser(client.userId, payload.type);
+        if (shouldNotify) {
+          client.send(JSON.stringify(payload));
+          // Enviar email também se habilitado
+          await this.sendEmailNotification(client.userId, payload);
+        }
       }
     }
   }

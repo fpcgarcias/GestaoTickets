@@ -1,0 +1,29 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Estrutura do Banco de Dados
+
+Este projeto utiliza um banco de dados PostgreSQL com várias tabelas relacionadas. O arquivo [banco de dados/Colunas.json](mdc:banco de dados/Colunas.json) contém a definição completa de todas as colunas.
+
+## Principais Tabelas
+
+- **users**: Armazena informações de todos os usuários do sistema com diferentes níveis de acesso
+- **companies**: Empresas cadastradas no sistema
+- **customers**: Clientes que abrem tickets de suporte
+- **officials**: Técnicos/atendentes responsáveis pelo atendimento
+- **departments**: Departamentos da empresa para categorização
+- **tickets**: Chamados/tickets de suporte abertos pelos clientes
+- **ticket_replies**: Respostas e comunicações relacionadas aos tickets
+- **ticket_status_history**: Histórico das alterações de status dos tickets
+- **sla_definitions**: Definições de SLA por prioridade
+- **incident_types**: Tipos de incidentes que podem ser relatados
+
+## Relacionamentos Principais
+
+- Tickets são associados a clientes (customers) e podem ser atribuídos a técnicos (officials)
+- Officials são vinculados a departamentos
+- Cada ticket pertence a um tipo de incidente e departamento
+- Tickets e usuários podem pertencer a diferentes empresas (multitenancy)
+
