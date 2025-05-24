@@ -53,8 +53,8 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const incidentTypes = Array.isArray(incidentTypesData) ? incidentTypesData : [];
 
   // Filtrar tipos de incidentes pelo departamento do ticket
-  const filteredIncidentTypes = ticket.departmentId && Array.isArray(incidentTypes)
-    ? incidentTypes.filter((type: IncidentType) => type.departmentId === ticket.departmentId)
+  const filteredIncidentTypes = ticket.department_id && Array.isArray(incidentTypes)
+    ? incidentTypes.filter((type: IncidentType) => type.department_id === ticket.department_id)
     : (incidentTypes || []);
 
   // Estender o tipo do formulário para incluir incidentTypeId
@@ -64,15 +64,15 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   });
   type FormValues = z.infer<typeof formSchema>;
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useForm({
+    resolver: zodResolver(insertTicketReplySchema),
     defaultValues: {
-      ticketId: ticket.id,
+      ticket_id: ticket.id,
       message: '',
       status: ticket.status,
-      assignedToId: ticket.assignedToId || undefined,
+      assigned_to_id: ticket.assigned_to_id || undefined,
       type: ticket.type,
-      incidentTypeId: ticket.incidentTypeId || undefined,
+      is_internal: false,
     },
   });
 
@@ -87,6 +87,8 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
         description: "Resposta enviada com sucesso.",
       });
       queryClient.invalidateQueries({ queryKey: [`/api/tickets/${ticket.id}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tickets/${ticket.id}/replies`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/tickets/${ticket.id}/status-history`] });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
       navigate('/tickets');
     },
@@ -99,20 +101,44 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     },
   });
 
-  const onSubmit = (data: InsertTicketReply) => {
+  const onSubmit = (data: any) => {
+    console.log("🚀 onSubmit chamado com dados:", data);
+    
+    // Verificar se o formulário é válido
+    const formErrors = form.formState.errors;
+    console.log("❌ Erros do formulário:", formErrors);
+    
     // Verificar se o status foi alterado para registrar no histórico
     const statusChanged = data.status !== ticket.status;
+    console.log("📊 Status mudou?", statusChanged, "De:", ticket.status, "Para:", data.status);
     
-    // Adicionar informação sobre mudança de status (para o backend usar no histórico)
+    // Transformar os dados para o formato esperado pela API
     const requestData = {
-      ...data,
+      ticket_id: data.ticket_id || ticket.id,
+      message: data.message || "Status atualizado automaticamente",
+      status: data.status,
+      assigned_to_id: data.assigned_to_id,
+      type: data.type,
+      is_internal: false,
       statusChanged: statusChanged,
       previousStatus: statusChanged ? ticket.status : undefined,
     };
     
-    // Enviar a resposta com os dados adicionais
+    console.log("📤 Dados que serão enviados:", requestData);
+    
+    // Enviar a resposta com os dados transformados
     replyMutation.mutate(requestData as any);
   };
+
+  // Adicionar log para verificar se o formulário está sendo criado corretamente
+  console.log("🎯 Ticket carregado:", ticket);
+  console.log("🎯 Valores padrão do formulário:", {
+    ticket_id: ticket.id,
+    message: '',
+    status: ticket.status,
+    assigned_to_id: ticket.assigned_to_id || undefined,
+    type: ticket.type,
+  });
 
   return (
     <Card>
@@ -125,7 +151,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
               <FormItem>
                 <FormLabel>E-mail do Cliente</FormLabel>
                 <Input 
-                  value={ticket.customerEmail} 
+                  value={ticket.customer_email} 
                   readOnly 
                   className="bg-neutral-50"
                 />
@@ -177,9 +203,9 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value={TICKET_STATUS.NEW}>Novo</SelectItem>
-                        <SelectItem value={TICKET_STATUS.ONGOING}>Em Andamento</SelectItem>
-                        <SelectItem value={TICKET_STATUS.RESOLVED}>Resolvido</SelectItem>
+                        <SelectItem value={TICKET_STATUS.NEW}>🔵 Novo</SelectItem>
+                        <SelectItem value={TICKET_STATUS.ONGOING}>🟡 Em Andamento</SelectItem>
+                        <SelectItem value={TICKET_STATUS.RESOLVED}>🟢 Resolvido</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -191,7 +217,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
             <div className="grid grid-cols-1 gap-6">
               <FormField
                 control={form.control}
-                name="assignedToId"
+                name="assigned_to_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Atendente Responsável</FormLabel>

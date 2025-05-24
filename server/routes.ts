@@ -251,7 +251,7 @@ function authorize(allowedRoles: string[]) {
   };
 }
 
-export async function registerRoutes(app: Express): Promise<void> {
+export async function registerRoutes(app: Express): Promise<HttpServer> {
   const router = express.Router();
   
   // Nova rota para diagnóstico de extração de email do AD (admin)
@@ -607,7 +607,11 @@ export async function registerRoutes(app: Express): Promise<void> {
         return res.status(400).json({ message: "ID de ticket inválido" });
       }
 
-      const ticket = await storage.getTicket(id);
+      // Passar informações da sessão para controle de empresa
+      const userRole = req.session?.userRole as string;
+      const userCompanyId = req.session?.companyId;
+
+      const ticket = await storage.getTicket(id, userRole, userCompanyId);
       if (!ticket) {
         return res.status(404).json({ message: "Ticket não encontrado" });
       }
@@ -615,6 +619,96 @@ export async function registerRoutes(app: Express): Promise<void> {
       res.json(ticket);
     } catch (error) {
       res.status(500).json({ message: "Falha ao buscar ticket" });
+    }
+  });
+
+  // Buscar replies de um ticket específico
+  router.get("/tickets/:id/replies", authRequired, async (req: Request, res: Response) => {
+    try {
+      const ticketId = parseInt(req.params.id);
+      if (isNaN(ticketId)) {
+        return res.status(400).json({ message: "ID de ticket inválido" });
+      }
+
+      // ✅ VERIFICAR ACESSO COM CONTROLE DE EMPRESA
+      const userRole = req.session?.userRole as string;
+      const userCompanyId = req.session?.companyId;
+      
+      const ticket = await storage.getTicket(ticketId, userRole, userCompanyId);
+      if (!ticket) {
+        return res.status(404).json({ message: "Ticket não encontrado" });
+      }
+
+      // Buscar replies do ticket
+      const replies = await db
+        .select({
+          id: schema.ticketReplies.id,
+          ticket_id: schema.ticketReplies.ticket_id,
+          user_id: schema.ticketReplies.user_id,
+          message: schema.ticketReplies.message,
+          created_at: schema.ticketReplies.created_at,
+          is_internal: schema.ticketReplies.is_internal,
+          user: {
+            id: schema.users.id,
+            name: schema.users.name,
+            role: schema.users.role,
+            avatar_url: schema.users.avatar_url,
+          }
+        })
+        .from(schema.ticketReplies)
+        .leftJoin(schema.users, eq(schema.ticketReplies.user_id, schema.users.id))
+        .where(eq(schema.ticketReplies.ticket_id, ticketId))
+        .orderBy(desc(schema.ticketReplies.created_at)); // Mais recentes primeiro
+
+      res.json(replies);
+    } catch (error) {
+      console.error('Erro ao buscar replies do ticket:', error);
+      res.status(500).json({ message: "Erro ao buscar respostas do ticket" });
+    }
+  });
+
+  // Buscar histórico de status de um ticket específico
+  router.get("/tickets/:id/status-history", authRequired, async (req: Request, res: Response) => {
+    try {
+      const ticketId = parseInt(req.params.id);
+      if (isNaN(ticketId)) {
+        return res.status(400).json({ message: "ID de ticket inválido" });
+      }
+
+      // ✅ VERIFICAR ACESSO COM CONTROLE DE EMPRESA
+      const userRole = req.session?.userRole as string;
+      const userCompanyId = req.session?.companyId;
+      
+      const ticket = await storage.getTicket(ticketId, userRole, userCompanyId);
+      if (!ticket) {
+        return res.status(404).json({ message: "Ticket não encontrado" });
+      }
+
+      // Buscar histórico de status do ticket
+      const statusHistory = await db
+        .select({
+          id: schema.ticketStatusHistory.id,
+          ticket_id: schema.ticketStatusHistory.ticket_id,
+          old_status: schema.ticketStatusHistory.old_status,
+          new_status: schema.ticketStatusHistory.new_status,
+          changed_by_id: schema.ticketStatusHistory.changed_by_id,
+          created_at: schema.ticketStatusHistory.created_at,
+          user: {
+            id: schema.users.id,
+            name: schema.users.name,
+            role: schema.users.role,
+            avatar_url: schema.users.avatar_url,
+          }
+        })
+        .from(schema.ticketStatusHistory)
+        .leftJoin(schema.users, eq(schema.ticketStatusHistory.changed_by_id, schema.users.id))
+        .where(eq(schema.ticketStatusHistory.ticket_id, ticketId))
+        .orderBy(desc(schema.ticketStatusHistory.created_at)); // Mais recentes primeiro
+
+      res.json(statusHistory);
+    } catch (error) {
+      console.error('Erro ao buscar histórico de status do ticket:', error);
+      res.status(500).json({ message: "Erro ao buscar histórico de status do ticket" });
     }
   });
   
@@ -626,8 +720,11 @@ export async function registerRoutes(app: Express): Promise<void> {
         return res.status(400).json({ message: "ID de ticket inválido" });
       }
 
-      // Verificar se o ticket está resolvido
-      const existingTicket = await storage.getTicket(id);
+      // ✅ VERIFICAR ACESSO COM CONTROLE DE EMPRESA
+      const userRole = req.session?.userRole as string;
+      const userCompanyId = req.session?.companyId;
+      
+      const existingTicket = await storage.getTicket(id, userRole, userCompanyId);
       if (!existingTicket) {
         return res.status(404).json({ message: "Ticket não encontrado" });
       }
@@ -684,6 +781,18 @@ export async function registerRoutes(app: Express): Promise<void> {
       // Validar os dados recebidos
       const ticketData = insertTicketSchema.parse(req.body);
       
+      // ✅ BUSCAR O CUSTOMER_ID BASEADO NO EMAIL FORNECIDO
+      let customerId: number | null = null;
+      if (ticketData.customer_email) {
+        const existingCustomer = await storage.getCustomerByEmail(ticketData.customer_email);
+        if (existingCustomer) {
+          customerId = existingCustomer.id;
+          console.log(`[DEBUG] Cliente encontrado: ID ${customerId} para email ${ticketData.customer_email}`);
+        } else {
+          console.log(`[DEBUG] Cliente não encontrado para email ${ticketData.customer_email} - ticket criado sem customer_id`);
+        }
+      }
+      
       // Gerar um ID legível (YYYY-TIPO##)
       const currentYear = new Date().getFullYear();
       
@@ -705,15 +814,18 @@ export async function registerRoutes(app: Express): Promise<void> {
       const nextId = lastTicket ? lastTicket.id + 1 : 1;
       const ticketIdString = `${currentYear}-${typePrefix}${nextId.toString().padStart(3, '0')}`;
       
-      // Criar o novo ticket
+      // ✅ CRIAR O TICKET COM CUSTOMER_ID CORRETAMENTE VINCULADO
       const [newTicket] = await db
         .insert(schema.tickets)
         .values({
           ...ticketData,
           ticket_id: ticketIdString,
           status: 'new',
+          customer_id: customerId, // ✅ Vincular o customer_id automaticamente
         })
         .returning();
+
+      console.log(`[DEBUG] Ticket criado: ID ${newTicket.id}, Customer ID: ${customerId}, Email: ${ticketData.customer_email}`);
 
       // Responder com o ticket criado
       res.status(201).json(newTicket);
@@ -744,16 +856,50 @@ export async function registerRoutes(app: Express): Promise<void> {
   
   router.post("/ticket-replies", authRequired, validateRequest(insertTicketReplySchema), async (req: Request, res: Response) => {
     try {
-      const ticketId = req.body.ticketId;
-      const userId = req.body.userId;
+      const ticketId = req.body.ticket_id;
+      const userId = req.session?.userId;
       
-      // Verificar se o ticket existe
-      const ticket = await storage.getTicket(ticketId);
+      // 🔍 DIAGNÓSTICO COMPLETO
+      console.log("=== DIAGNÓSTICO TICKET REPLY ===");
+      console.log("1. Body ANTES da validação:", JSON.stringify(req.body, null, 2));
+      console.log("2. UserId da sessão:", userId);
+      console.log("3. Sessão completa:", JSON.stringify(req.session, null, 2));
+      
+      if (!userId) {
+        console.error("❌ ERRO: userId é null/undefined!");
+        return res.status(401).json({ message: "Usuário não identificado" });
+      }
+      
+      // Verificar acesso
+      const userRole = req.session?.userRole as string;
+      const userCompanyId = req.session?.companyId;
+      
+      const ticket = await storage.getTicket(ticketId, userRole, userCompanyId);
       if (!ticket) {
         return res.status(404).json({ message: "Ticket não encontrado" });
       }
       
-      const reply = await storage.createTicketReply(req.body);
+      // Dados finais para o storage
+      const replyDataWithUser = {
+        ...req.body,
+        user_id: userId
+      };
+      
+      console.log("4. Dados FINAIS enviados para storage:", JSON.stringify(replyDataWithUser, null, 2));
+      
+      const reply = await storage.createTicketReply(replyDataWithUser);
+      
+      console.log("5. Reply RETORNADO do storage:", JSON.stringify(reply, null, 2));
+      
+      // 🔍 VERIFICAR SE FOI SALVO NO BANCO
+      console.log("6. VERIFICANDO DIRETAMENTE NO BANCO...");
+      const [directCheck] = await db
+        .select()
+        .from(schema.ticketReplies)
+        .where(eq(schema.ticketReplies.id, reply.id));
+        
+      console.log("7. Dados DIRETOS do banco:", JSON.stringify(directCheck, null, 2));
+      console.log("=== FIM DIAGNÓSTICO ===");
       
       // Enviar notificação após salvar a resposta
       if (userId) {
@@ -2865,6 +3011,180 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  app.use("/api", router); 
-  // ... (setupVite e listen)
+  // --- ROTAS DE CONFIGURAÇÕES DE NOTIFICAÇÃO ---
+  // Obter configurações de notificação do usuário atual
+  router.get("/notification-settings", authRequired, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      // Buscar configurações existentes do usuário
+      const [settings] = await db
+        .select()
+        .from(schema.userNotificationSettings)
+        .where(eq(schema.userNotificationSettings.user_id, userId))
+        .limit(1);
+
+      if (!settings) {
+        // Se não existe, criar configurações padrão
+        const [newSettings] = await db
+          .insert(schema.userNotificationSettings)
+          .values({
+            user_id: userId,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .returning();
+        
+        return res.json(newSettings);
+      }
+
+      res.json(settings);
+    } catch (error) {
+      console.error("Erro ao buscar configurações de notificação:", error);
+      res.status(500).json({ message: "Erro interno ao buscar configurações de notificação" });
+    }
+  });
+
+  // Atualizar configurações de notificação do usuário atual
+  router.put("/notification-settings", authRequired, async (req: Request, res: Response) => {
+    try {
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const {
+        new_ticket_assigned,
+        ticket_status_changed,
+        new_reply_received,
+        ticket_escalated,
+        ticket_due_soon,
+        new_customer_registered,
+        new_user_created,
+        system_maintenance,
+        email_notifications,
+        notification_hours_start,
+        notification_hours_end,
+        weekend_notifications,
+        digest_frequency
+      } = req.body;
+
+      // Validações básicas
+      if (notification_hours_start !== undefined) {
+        const start = parseInt(notification_hours_start);
+        if (isNaN(start) || start < 0 || start > 23) {
+          return res.status(400).json({ message: "Horário de início inválido (0-23)" });
+        }
+      }
+
+      if (notification_hours_end !== undefined) {
+        const end = parseInt(notification_hours_end);
+        if (isNaN(end) || end < 0 || end > 23) {
+          return res.status(400).json({ message: "Horário de fim inválido (0-23)" });
+        }
+      }
+
+      if (digest_frequency !== undefined && !['never', 'daily', 'weekly'].includes(digest_frequency)) {
+        return res.status(400).json({ message: "Frequência de resumo inválida" });
+      }
+
+      // Preparar dados para atualização
+      const updateData: Record<string, any> = {
+        updated_at: new Date()
+      };
+
+      // Adicionar apenas os campos que foram enviados
+      if (new_ticket_assigned !== undefined) updateData.new_ticket_assigned = new_ticket_assigned;
+      if (ticket_status_changed !== undefined) updateData.ticket_status_changed = ticket_status_changed;
+      if (new_reply_received !== undefined) updateData.new_reply_received = new_reply_received;
+      if (ticket_escalated !== undefined) updateData.ticket_escalated = ticket_escalated;
+      if (ticket_due_soon !== undefined) updateData.ticket_due_soon = ticket_due_soon;
+      if (new_customer_registered !== undefined) updateData.new_customer_registered = new_customer_registered;
+      if (new_user_created !== undefined) updateData.new_user_created = new_user_created;
+      if (system_maintenance !== undefined) updateData.system_maintenance = system_maintenance;
+      if (email_notifications !== undefined) updateData.email_notifications = email_notifications;
+      if (notification_hours_start !== undefined) updateData.notification_hours_start = parseInt(notification_hours_start);
+      if (notification_hours_end !== undefined) updateData.notification_hours_end = parseInt(notification_hours_end);
+      if (weekend_notifications !== undefined) updateData.weekend_notifications = weekend_notifications;
+      if (digest_frequency !== undefined) updateData.digest_frequency = digest_frequency;
+
+      // Verificar se o usuário já tem configurações
+      const [existingSettings] = await db
+        .select()
+        .from(schema.userNotificationSettings)
+        .where(eq(schema.userNotificationSettings.user_id, userId))
+        .limit(1);
+
+      let updatedSettings;
+      if (existingSettings) {
+        // Atualizar configurações existentes
+        [updatedSettings] = await db
+          .update(schema.userNotificationSettings)
+          .set(updateData)
+          .where(eq(schema.userNotificationSettings.user_id, userId))
+          .returning();
+      } else {
+        // Criar novas configurações
+        [updatedSettings] = await db
+          .insert(schema.userNotificationSettings)
+          .values({
+            user_id: userId,
+            ...updateData,
+            created_at: new Date()
+          })
+          .returning();
+      }
+
+      res.json(updatedSettings);
+    } catch (error) {
+      console.error("Erro ao atualizar configurações de notificação:", error);
+      res.status(500).json({ message: "Erro interno ao atualizar configurações de notificação" });
+    }
+  });
+
+  // --- FIM DAS ROTAS DE CONFIGURAÇÕES DE NOTIFICAÇÃO ---
+
+  app.use("/api", router);
+  
+  // Criar servidor HTTP
+  const httpServer = createServer(app);
+  
+  // Configurar o servidor WebSocket
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  
+  // Lidar com conexões WebSocket
+  wss.on('connection', (ws) => {
+    console.log('Nova conexão WebSocket recebida');
+    
+    // Autenticar o usuário e configurar a conexão
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        
+        // Processar mensagem de autenticação
+        if (data.type === 'auth') {
+          const userId = data.userId;
+          const userRole = data.userRole;
+          
+          if (userId && userRole) {
+            // Adicionar o cliente ao serviço de notificações
+            notificationService.addClient(ws, userId, userRole);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao processar mensagem WebSocket:', error);
+      }
+    });
+    
+    // Lidar com fechamento da conexão
+    ws.on('close', () => {
+      notificationService.removeClient(ws);
+      console.log('Conexão WebSocket fechada');
+    });
+  });
+  
+  return httpServer;
 }

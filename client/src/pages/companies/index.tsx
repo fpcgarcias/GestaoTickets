@@ -33,6 +33,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Search, Pencil, UserX, UserCheck, PlusCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatCNPJ, cleanCNPJ, isValidCNPJ } from '@/lib/utils';
 
 interface Company {
   id: number;
@@ -129,6 +130,12 @@ export default function CompaniesPage() {
         ...formData,
         [name]: (e.target as HTMLInputElement).checked
       });
+    } else if (name === 'cnpj') {
+      const formatted = formatCNPJ(value);
+      setFormData({
+        ...formData,
+        [name]: formatted
+      });
     } else {
       setFormData({
         ...formData,
@@ -139,16 +146,31 @@ export default function CompaniesPage() {
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (formData.cnpj && !isValidCNPJ(formData.cnpj)) {
+      toast({
+        title: "CNPJ Inválido",
+        description: "Por favor, insira um CNPJ válido.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       const method = editingCompany ? 'PUT' : 'POST';
       const endpoint = editingCompany 
         ? `/api/companies/${editingCompany.id}` 
         : '/api/companies';
       
+      const dataToSend = {
+        ...formData,
+        cnpj: formData.cnpj ? cleanCNPJ(formData.cnpj) : ''
+      };
+      
       const response = await fetch(endpoint, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(dataToSend),
       });
       
       if (!response.ok) {
@@ -193,7 +215,7 @@ export default function CompaniesPage() {
       name: company.name,
       email: company.email,
       domain: company.domain || '',
-      cnpj: company.cnpj || '',
+      cnpj: company.cnpj ? formatCNPJ(company.cnpj) : '',
       phone: company.phone || '',
       active: company.active
     });
@@ -382,7 +404,7 @@ export default function CompaniesPage() {
                     <TableRow key={company.id} className={!company.active ? "opacity-60" : ""}>
                       <TableCell className="font-medium">{company.name}</TableCell>
                       <TableCell>{company.email}</TableCell>
-                      <TableCell>{company.cnpj || '-'}</TableCell>
+                      <TableCell>{company.cnpj ? formatCNPJ(company.cnpj) : '-'}</TableCell>
                       <TableCell>
                         <Badge 
                           variant={company.active ? "default" : "outline"}

@@ -61,7 +61,7 @@ export interface IStorage {
   
   // Ticket operations
   getTickets(): Promise<Ticket[]>;
-  getTicket(id: number): Promise<Ticket | undefined>;
+  getTicket(id: number, userRole?: string, userCompanyId?: number): Promise<Ticket | undefined>;
   getTicketByTicketId(ticketId: string): Promise<Ticket | undefined>;
   getTicketsByStatus(status: string): Promise<Ticket[]>;
   getTicketsByCustomerId(customerId: number): Promise<Ticket[]>;
@@ -563,7 +563,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.tickets.values());
   }
 
-  async getTicket(id: number): Promise<Ticket | undefined> {
+  async getTicket(id: number, userRole?: string, userCompanyId?: number): Promise<Ticket | undefined> {
     const ticket = this.tickets.get(id);
     if (!ticket) return undefined;
     

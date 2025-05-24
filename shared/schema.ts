@@ -185,6 +185,38 @@ export const ticketTypes = pgTable("ticket_types", {
   is_active: boolean("is_active").default(true).notNull(),
 });
 
+// User notification settings table
+export const userNotificationSettings = pgTable('user_notification_settings', {
+  id: serial('id').primaryKey(),
+  user_id: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // Notificações de tickets
+  new_ticket_assigned: boolean('new_ticket_assigned').default(true),
+  ticket_status_changed: boolean('ticket_status_changed').default(true),
+  new_reply_received: boolean('new_reply_received').default(true),
+  ticket_escalated: boolean('ticket_escalated').default(true),
+  ticket_due_soon: boolean('ticket_due_soon').default(true),
+  
+  // Notificações administrativas
+  new_customer_registered: boolean('new_customer_registered').default(true),
+  new_user_created: boolean('new_user_created').default(true),
+  system_maintenance: boolean('system_maintenance').default(true),
+  
+  // Preferências de entrega
+  email_notifications: boolean('email_notifications').default(true),
+  
+  // Configurações de horário
+  notification_hours_start: integer('notification_hours_start').default(9), // 9:00
+  notification_hours_end: integer('notification_hours_end').default(18),   // 18:00
+  weekend_notifications: boolean('weekend_notifications').default(false),
+  
+  // Configurações de frequência
+  digest_frequency: text('digest_frequency', { enum: ['never', 'daily', 'weekly'] }).default('never'),
+  
+  created_at: timestamp('created_at', { withTimezone: false }).notNull().defaultNow(),
+  updated_at: timestamp('updated_at', { withTimezone: false }).notNull().defaultNow(),
+});
+
 // Schema for inserting companies
 export const insertCompanySchema = createInsertSchema(companies).omit({
   id: true,
@@ -240,6 +272,7 @@ export const insertTicketReplySchema = z.object({
   type: z.string().optional(),
   is_internal: z.boolean().default(false),
   assigned_to_id: z.number().optional(),
+  user_id: z.number().optional(),
 });
 
 // Schema for inserting ticket status history
@@ -313,7 +346,9 @@ export type TicketReply = typeof ticketReplies.$inferSelect & {
 };
 export type InsertTicketReply = z.infer<typeof insertTicketReplySchema>;
 
-export type TicketStatusHistory = typeof ticketStatusHistory.$inferSelect;
+export type TicketStatusHistory = typeof ticketStatusHistory.$inferSelect & {
+  user?: Partial<User>;
+};
 
 export type SLADefinition = typeof slaDefinitions.$inferSelect;
 

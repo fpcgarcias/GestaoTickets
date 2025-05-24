@@ -1,12 +1,13 @@
 ---
+description: 
+globs: 
+alwaysApply: false
+---
+---
 Rule Type: Always
 alwaysApply: true
 globs:
   - "**/*.sql"
-  - "**/migrations/**/*.sql"
-  - "**/models/**/*.ts"
----
-
 # Database Naming & Typing Enforcement
 
 ## Preserve Exact Identifiers
@@ -146,5 +147,27 @@ globs:
 - `updated_at` : `timestamp without time zone`
 - `active` : `boolean`
 - `ad_user` : `boolean`
+- `company_id` : `integer`
+
+### Tabela `user_notification_settings`
+- `id` : `integer`
+- `user_id` : `integer`
+- `new_ticket_assigned` : `boolean`
+- `ticket_status_changed` : `boolean`
+- `new_reply_received` : `boolean`
+- `ticket_escalated` : `boolean`
+- `ticket_due_soon` : `boolean`
+- `new_customer_registered` : `boolean`
+- `new_user_created` : `boolean`
+- `system_maintenance` : `boolean`
+- `email_notifications` : `boolean`
+- `notification_hours_start` : `integer`
+- `notification_hours_end` : `integer`
+- `weekend_notifications` : `boolean`
+- `digest_frequency` : `text`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+
+
 - `company_id` : `integer`
 

@@ -28,7 +28,7 @@ const navItems = [
   { icon: Users, href: '/users', title: 'Usuários', roles: ['admin', 'company_admin'] },
   { icon: UserCog, href: '/officials', title: 'Atendentes', roles: ['admin', 'company_admin', 'manager'] },
   { icon: User, href: '/customers', title: 'Clientes', roles: ['admin', 'company_admin', 'support', 'manager', 'supervisor'] },
-  { icon: Settings, href: '/settings', title: 'Configurações', roles: ['admin', 'company_admin'] },
+  { icon: Settings, href: '/settings', title: 'Configurações', roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'customer', 'viewer'] },
 ];
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {}

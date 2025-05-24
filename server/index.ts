@@ -36,7 +36,6 @@ import session from "express-session";
 import crypto from "crypto";
 import path from "path"; // RESTAURAR esta importação, pois é usada abaixo
 import { fileURLToPath } from 'url';
-import http from 'http'; // Importar http
 import { migrate } from './migrate';
 
 // Calcular __dirname para ES Modules
@@ -49,9 +48,6 @@ const generateSecret = () => crypto.randomBytes(32).toString('hex');
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
-// Criar o servidor HTTP ANTES de setupVite
-const server = http.createServer(app);
 
 // Inicializar serviço de notificações 
 const notificationService = {
@@ -89,15 +85,6 @@ app.use(session({
     maxAge: 24 * 60 * 60 * 1000 // 1 dia
   }
 }));
-
-// Declarar tipos para sessão
-declare module 'express-session' {
-  interface SessionData {
-    userId?: number;
-    userRole?: 'admin' | 'support' | 'customer';
-    companyId?: number;
-  }
-}
 
 // Manter o middleware de log
 app.use((req, res, next) => {
@@ -147,8 +134,8 @@ async function startServer() {
     const { registerRoutes } = await import("./routes");
     const { migratePasswords } = await import("./migrate-passwords");
 
-    // 1. Registrar rotas da API PRIMEIRO
-    await registerRoutes(app);
+    // 1. Registrar rotas da API e obter o servidor HTTP configurado
+    const server = await registerRoutes(app);
     
     // 2. Configurar o Vite DEPOIS das rotas da API
     await setupVite(app, server);
@@ -159,7 +146,7 @@ async function startServer() {
     
     // 4. Iniciar servidor na porta especificada
     const PORT = process.env.PORT || 5173; 
-    server.listen(PORT, () => { // Usar a instância 'server' criada anteriormente
+    server.listen(PORT, () => {
       console.log(`Servidor rodando na porta ${PORT}`);
     });
   } catch (error) {

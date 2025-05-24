@@ -27,7 +27,7 @@ import { TicketCard } from '@/components/tickets/ticket-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
-import { Ticket, Official } from '@shared/schema';
+import { Ticket, Official, Department } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -39,6 +39,8 @@ export default function TicketsIndex() {
   const [timeFilter, setTimeFilter] = useState('this-week');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [assignedToFilter, setAssignedToFilter] = useState('');
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ 
     from: undefined, 
     to: undefined 
@@ -54,10 +56,22 @@ export default function TicketsIndex() {
     enabled: !!user,
   });
 
+  // 🆕 Busca departamentos (filtrado por empresa automaticamente no backend)
+  const { data: departments, isLoading: isDepartmentsLoading } = useQuery<Department[]>({
+    queryKey: ['/api/departments'],
+    enabled: !!user,
+  });
+
+  // 🆕 Busca atendentes (filtrado por empresa automaticamente no backend)  
+  const { data: officials, isLoading: isOfficialsLoading } = useQuery<Official[]>({
+    queryKey: ['/api/officials'],
+    enabled: !!user,
+  });
+
   // Mutação para atribuir atendente
   const assignTicketMutation = useMutation({
     mutationFn: async ({ ticketId, assignedToId }: { ticketId: number; assignedToId: number | null }) => {
-      const response = await apiRequest('PATCH', `/api/tickets/${ticketId}`, { assignedToId });
+      const response = await apiRequest('PATCH', `/api/tickets/${ticketId}`, { assigned_to_id: assignedToId });
       return response.json();
     },
     onSuccess: (data, variables) => {
@@ -97,6 +111,21 @@ export default function TicketsIndex() {
     // Apply priority filter
     if (priorityFilter && priorityFilter !== 'all' && ticket.priority !== priorityFilter) {
       return false;
+    }
+    
+    // 🆕 Apply department filter
+    if (departmentFilter && departmentFilter !== 'all' && ticket.department_id !== parseInt(departmentFilter)) {
+      return false;
+    }
+    
+    // 🆕 Apply assigned to filter
+    if (assignedToFilter && assignedToFilter !== 'all') {
+      if (assignedToFilter === 'unassigned' && ticket.assigned_to_id !== null) {
+        return false;
+      }
+      if (assignedToFilter !== 'unassigned' && ticket.assigned_to_id !== parseInt(assignedToFilter)) {
+        return false;
+      }
     }
     
     // Apply time filter
@@ -170,10 +199,18 @@ export default function TicketsIndex() {
           <Skeleton className="h-8 w-32" />
           <Skeleton className="h-10 w-36" />
         </div>
-        <div className="flex flex-wrap items-center gap-4 mb-6">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-10 w-44" />
-          <Skeleton className="h-10 w-44" />
+        <div className="space-y-4 mb-6">
+          {/* Primeira linha de filtros */}
+          <div className="flex flex-wrap items-center gap-4">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-10 w-44" />
+          </div>
+          {/* Segunda linha de filtros */}
+          <div className="flex flex-wrap items-center gap-4">
+            <Skeleton className="h-10 w-[200px]" />
+            <Skeleton className="h-10 w-[200px]" />
+            <Skeleton className="h-10 w-[200px]" />
+          </div>
         </div>
         <Skeleton className="h-10 w-full mb-6" /> {/* Tabs */}
         <Skeleton className="h-16 w-full mb-6" /> {/* Legend */}
@@ -208,97 +245,144 @@ export default function TicketsIndex() {
       </div>
 
       {/* Filters Section */}
-      <div className="flex flex-wrap items-center gap-4 mb-6">
-        <div className="relative w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
-          <Input 
-            placeholder="Buscar chamado" 
-            className="pl-10"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      <div className="space-y-4 mb-6">
+        {/* Primeira linha: Busca e Período */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
+            <Input 
+              placeholder="Buscar chamado" 
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
+          {timeFilter === 'custom' ? (
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-[280px] justify-start text-left font-normal"
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {dateRange.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} {' - '} 
+                        {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
+                      </>
+                    ) : (
+                      format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
+                    )
+                  ) : (
+                    <span>Período Personalizado</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="range"
+                  selected={{
+                    from: dateRange.from,
+                    to: dateRange.to
+                  }}
+                  onSelect={(range: DateRange | undefined) => {
+                    setDateRange({ 
+                      from: range?.from,
+                      to: range?.to
+                    });
+                    if (range?.from && range?.to) {
+                      setTimeout(() => setCalendarOpen(false), 500);
+                    }
+                  }}
+                  locale={ptBR}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <Select
+              value={timeFilter}
+              onValueChange={(value) => {
+                setTimeFilter(value);
+                if (value === 'custom') {
+                  setTimeout(() => setCalendarOpen(true), 100);
+                }
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="this-week">Esta Semana</SelectItem>
+                <SelectItem value="last-week">Semana Passada</SelectItem>
+                <SelectItem value="this-month">Este Mês</SelectItem>
+                <SelectItem value="custom">Período Personalizado</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
-        {timeFilter === 'custom' ? (
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-[280px] justify-start text-left font-normal"
-              >
-                <Calendar className="mr-2 h-4 w-4" />
-                {dateRange.from ? (
-                  dateRange.to ? (
-                    <>
-                      {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} {' - '} 
-                      {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
-                    </>
-                  ) : (
-                    format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
-                  )
-                ) : (
-                  <span>Período Personalizado</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <CalendarComponent
-                mode="range"
-                selected={{
-                  from: dateRange.from,
-                  to: dateRange.to
-                }}
-                onSelect={(range: DateRange | undefined) => {
-                  setDateRange({ 
-                    from: range?.from,
-                    to: range?.to
-                  });
-                  if (range?.from && range?.to) {
-                    setTimeout(() => setCalendarOpen(false), 500);
-                  }
-                }}
-                locale={ptBR}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        ) : (
+        {/* Segunda linha: Filtros de Prioridade, Departamento e Atendente */}
+        <div className="flex flex-wrap items-center gap-4">
           <Select
-            value={timeFilter}
-            onValueChange={(value) => {
-              setTimeFilter(value);
-              if (value === 'custom') {
-                setTimeout(() => setCalendarOpen(true), 100);
-              }
-            }}
+            value={priorityFilter}
+            onValueChange={setPriorityFilter}
           >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Período" />
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Prioridade" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="this-week">Esta Semana</SelectItem>
-              <SelectItem value="last-week">Semana Passada</SelectItem>
-              <SelectItem value="this-month">Este Mês</SelectItem>
-              <SelectItem value="custom">Período Personalizado</SelectItem>
+              <SelectItem value="all">Todas as Prioridades</SelectItem>
+              <SelectItem value={PRIORITY_LEVELS.LOW}>Baixa</SelectItem>
+              <SelectItem value={PRIORITY_LEVELS.MEDIUM}>Média</SelectItem>
+              <SelectItem value={PRIORITY_LEVELS.HIGH}>Alta</SelectItem>
+              <SelectItem value={PRIORITY_LEVELS.CRITICAL}>Crítica</SelectItem>
             </SelectContent>
           </Select>
-        )}
 
-        <Select
-          value={priorityFilter}
-          onValueChange={setPriorityFilter}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Selecionar Prioridade" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as Prioridades</SelectItem>
-            <SelectItem value={PRIORITY_LEVELS.LOW}>Baixa</SelectItem>
-            <SelectItem value={PRIORITY_LEVELS.MEDIUM}>Média</SelectItem>
-            <SelectItem value={PRIORITY_LEVELS.HIGH}>Alta</SelectItem>
-            <SelectItem value={PRIORITY_LEVELS.CRITICAL}>Crítica</SelectItem>
-          </SelectContent>
-        </Select>
+          {/* 🆕 Filtro de Departamento */}
+          <Select
+            value={departmentFilter}
+            onValueChange={setDepartmentFilter}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Departamento" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Departamentos</SelectItem>
+              {departments && departments.length > 0 && (
+                departments.map((department) => (
+                  <SelectItem key={department.id} value={department.id.toString()}>
+                    {department.name}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+
+          {/* 🆕 Filtro de Atendente */}
+          <Select
+            value={assignedToFilter}
+            onValueChange={setAssignedToFilter}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Atendente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Atendentes</SelectItem>
+              <SelectItem value="unassigned">Não Atribuídos</SelectItem>
+              {officials && officials.length > 0 && (
+                officials.map((official) => (
+                  <SelectItem key={official.id} value={official.id.toString()}>
+                    {official.name}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Status Tabs */}
@@ -328,15 +412,15 @@ export default function TicketsIndex() {
       <div className="mb-6 bg-white p-4 rounded-md border border-neutral-200 shadow-sm">
         <div className="flex flex-wrap gap-4">
           <div className="flex items-center">
-            <div className="w-3 h-3 rounded-full bg-status-new mr-2"></div>
+            <div className="w-3 h-3 rounded-full bg-amber-500 mr-2"></div>
             <span className="text-sm text-neutral-700">Chamados Novos</span>
           </div>
           <div className="flex items-center">
-            <div className="w-3 h-3 rounded-full bg-status-ongoing mr-2"></div>
+            <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
             <span className="text-sm text-neutral-700">Chamados em Andamento</span>
           </div>
           <div className="flex items-center">
-            <div className="w-3 h-3 rounded-full bg-status-resolved mr-2"></div>
+            <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
             <span className="text-sm text-neutral-700">Chamados Resolvidos</span>
           </div>
         </div>

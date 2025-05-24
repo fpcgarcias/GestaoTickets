@@ -53,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     { href: "/companies", icon: <Building2 size={20} />, label: "Empresas", roles: ['admin'] },
     { href: "/departments", icon: <FolderIcon size={20} />, label: "Departamentos", roles: ['admin', 'company_admin'] },
     { href: "/ticket-types", icon: <TagIcon size={20} />, label: "Tipos de Chamado", roles: ['admin', 'company_admin'] },
-    { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin'] },
+    { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'customer'] },
   ];
   
   // Filtrar itens de navegação com base no papel do usuário atual

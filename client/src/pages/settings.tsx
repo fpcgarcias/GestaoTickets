@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from 'wouter';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth'; // Importar o hook global
+import NotificationSettings from "@/components/notification-settings";
 
 // A interface User local pode ser removida se a do hook global for suficiente.
 // A interface Company local pode ser removida.
@@ -348,172 +349,202 @@ export default function Settings() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-neutral-900 mb-6">Configurações do Sistema</h1>
+      <h1 className="text-2xl font-semibold text-neutral-900 mb-6">
+        {user?.role === 'customer' 
+          ? 'Minhas Configurações' 
+          : user?.role === 'support'
+          ? 'Configurações de Atendimento'
+          : 'Configurações do Sistema'
+        }
+      </h1>
       
-      <Tabs defaultValue="general" className="w-full">
+      <Tabs defaultValue={user?.role === 'customer' || user?.role === 'support' ? "notifications" : "general"} className="w-full">
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent mb-6">
-          <TabsTrigger value="general" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
-            Geral
-          </TabsTrigger>
-          <TabsTrigger value="sla" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
-            Configurações de SLA
-          </TabsTrigger>
+          {/* Aba Geral - apenas para admin e company_admin */}
+          {(user?.role === 'admin' || user?.role === 'company_admin') && (
+            <TabsTrigger value="general" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+              Geral
+            </TabsTrigger>
+          )}
+          
+          {/* Aba SLA - apenas para admin e manager */}
+          {(user?.role === 'admin' || user?.role === 'manager') && (
+            <TabsTrigger value="sla" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+              Configurações de SLA
+            </TabsTrigger>
+          )}
+          
+          {/* Aba Notificações - para todas as roles */}
           <TabsTrigger value="notifications" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             Notificações
           </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="general">
-          <Card>
-            <CardHeader>
-              <CardTitle>Configurações Gerais</CardTitle>
-              <CardDescription>Configure as configurações básicas para seu sistema de chamados</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="company-name">Nome da Empresa</Label>
-                  <Input 
-                    id="company-name" 
-                    value={companyName} 
-                    onChange={(e) => setCompanyName(e.target.value)}
+        {/* Conteúdo da aba Geral - apenas para admin e company_admin */}
+        {(user?.role === 'admin' || user?.role === 'company_admin') && (
+          <TabsContent value="general">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configurações Gerais</CardTitle>
+                <CardDescription>Configure as configurações básicas para seu sistema de chamados</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="company-name">Nome da Empresa</Label>
+                    <Input 
+                      id="company-name" 
+                      value={companyName} 
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      disabled={isLoadingGeneral || saveGeneralSettingsMutation.isPending}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="support-email">Email de Suporte</Label>
+                    <Input 
+                      id="support-email" 
+                      value={supportEmail} 
+                      onChange={(e) => setSupportEmail(e.target.value)}
+                      type="email" 
+                      disabled={isLoadingGeneral || saveGeneralSettingsMutation.isPending}
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between border-t pt-4">
+                  <div>
+                    <h3 className="font-medium">Permitir Registro de Clientes</h3>
+                    <p className="text-sm text-neutral-500">Permitir que clientes se registrem e criem suas próprias contas</p>
+                  </div>
+                  <Switch 
+                    checked={allowCustomerRegistration} 
+                    onCheckedChange={setAllowCustomerRegistration}
                     disabled={isLoadingGeneral || saveGeneralSettingsMutation.isPending}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="support-email">Email de Suporte</Label>
-                  <Input 
-                    id="support-email" 
-                    value={supportEmail} 
-                    onChange={(e) => setSupportEmail(e.target.value)}
-                    type="email" 
-                    disabled={isLoadingGeneral || saveGeneralSettingsMutation.isPending}
-                  />
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between border-t pt-4">
-                <div>
-                  <h3 className="font-medium">Permitir Registro de Clientes</h3>
-                  <p className="text-sm text-neutral-500">Permitir que clientes se registrem e criem suas próprias contas</p>
-                </div>
-                <Switch 
-                  checked={allowCustomerRegistration} 
-                  onCheckedChange={setAllowCustomerRegistration}
-                  disabled={isLoadingGeneral || saveGeneralSettingsMutation.isPending}
-                />
-              </div>
-              
-              <div className="border-t pt-4 mt-4">
-                <h3 className="font-medium">Gerenciamento de Departamentos e Tipos de Chamado</h3>
-                <p className="text-sm text-neutral-500 mt-1 mb-3">
-                  As configurações de departamentos e tipos de chamado foram movidas para páginas dedicadas, 
-                  acessíveis pelo menu lateral ou pelos links abaixo:
-                </p>
-                <div className="flex flex-wrap gap-3 mt-2">
-                  <Button variant="outline" asChild>
-                    <Link href="/departments">Gerenciar Departamentos</Link>
-                  </Button>
-                  <Button variant="outline" asChild>
-                    <Link href="/ticket-types">Gerenciar Tipos de Chamado</Link>
-                  </Button>
-                </div>
-              </div>
-              
-              <div className="flex justify-end">
-                <Button 
-                  onClick={handleSaveGeneralSettings}
-                  disabled={isLoadingGeneral || saveGeneralSettingsMutation.isPending}
-                >
-                  {saveGeneralSettingsMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Salvando...
-                    </>
-                  ) : (
-                    'Salvar Configurações'
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="sla">
-          <Card>
-            <CardHeader>
-              <CardTitle>Configuração de SLA</CardTitle>
-              <CardDescription>Configure requisitos de tempo de resposta e resolução por prioridade</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {isLoadingAuth && <div className="flex items-center justify-center p-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><span className="ml-2">Carregando usuário...</span></div>}
-
-              {!isLoadingAuth && user?.role === 'admin' && (
-                <>
-                  {((): null => { 
-                    console.log("[Settings] Rendering company select check: isLoadingAuth:", isLoadingAuth, "user.role:", user?.role, "isLoadingCompanies:", isLoadingCompanies, "companies state:", companies, "companiesData:", companiesData);
-                    return null; 
-                  })()}
-                  <div className="mb-6">
-                    <Label htmlFor="company-select-sla" className="mb-1 block text-sm font-medium">Empresa</Label>
-                    <Select value={selectedCompanyId?.toString() ?? ''} onValueChange={(v) => setSelectedCompanyId(v ? parseInt(v) : undefined)} disabled={isLoadingCompanies}>
-                      <SelectTrigger id="company-select-sla" className="w-full md:w-1/2">
-                        <SelectValue placeholder={isLoadingCompanies ? "Carregando..." : "Selecione uma empresa"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {!isLoadingCompanies && companies.length === 0 && <SelectItem value="" disabled>Nenhuma empresa</SelectItem>}
-                        {companies.map((c) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-
-              {isLoadingSla && !isLoadingAuth && <div className="flex items-center justify-center p-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><span className="ml-2">Carregando SLA...</span></div>}
-              
-              {!isLoadingAuth && !isLoadingSla && !slaQueryEnabled && user?.role === 'admin' && (
-                 <div className="text-center text-neutral-500 p-6 rounded-md border border-dashed">
-                   Selecione uma empresa para configurar os SLAs.
-                 </div>
-              )}
-              {!isLoadingAuth && !isLoadingSla && !slaQueryEnabled && user?.role === 'manager' && !userCompany?.id && (
-                 <div className="text-center text-red-600 p-6 rounded-md border border-red-200 bg-red-50">
-                   Usuário manager sem empresa associada. Não é possível configurar SLAs.
-                 </div>
-              )}
-
-              {!isLoadingAuth && !isLoadingSla && slaQueryEnabled && (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {slaPriorities.map(p => (
-                      <div key={p.key} className="p-4 border rounded-lg shadow-sm">
-                        <h3 className="font-semibold text-md mb-2">Prioridade {p.label}</h3>
-                        <div className="space-y-3">
-                          <div>
-                            <Label htmlFor={`sla-response-${p.key}`} className="text-xs">Tempo de 1ª Resposta (h)</Label>
-                            <Input id={`sla-response-${p.key}`} type="number" value={slaResponseTimes[p.key] || ''} onChange={(e) => handleSlaInputChange(p.key, 'response', e.target.value)} placeholder="Ex: 4" min="0" className="mt-1" disabled={saveSlaSettingsMutation.isPending}/>
-                          </div>
-                          <div>
-                            <Label htmlFor={`sla-resolution-${p.key}`} className="text-xs">Tempo de Resolução (h)</Label>
-                            <Input id={`sla-resolution-${p.key}`} type="number" value={slaResolutionTimes[p.key] || ''} onChange={(e) => handleSlaInputChange(p.key, 'resolution', e.target.value)} placeholder="Ex: 24" min="0" className="mt-1" disabled={saveSlaSettingsMutation.isPending}/>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex justify-end mt-6">
-                    <Button onClick={handleSaveSlaSettings} disabled={saveSlaSettingsMutation.isPending || isLoadingSla} size="lg">
-                      {saveSlaSettingsMutation.isPending ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Salvando...</> : 'Salvar SLAs'}
+                
+                <div className="border-t pt-4 mt-4">
+                  <h3 className="font-medium">Gerenciamento de Departamentos e Tipos de Chamado</h3>
+                  <p className="text-sm text-neutral-500 mt-1 mb-3">
+                    As configurações de departamentos e tipos de chamado foram movidas para páginas dedicadas, 
+                    acessíveis pelo menu lateral ou pelos links abaixo:
+                  </p>
+                  <div className="flex flex-wrap gap-3 mt-2">
+                    <Button variant="outline" asChild>
+                      <Link href="/departments">Gerenciar Departamentos</Link>
+                    </Button>
+                    <Button variant="outline" asChild>
+                      <Link href="/ticket-types">Gerenciar Tipos de Chamado</Link>
                     </Button>
                   </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                </div>
+                
+                <div className="flex justify-end">
+                  <Button 
+                    onClick={handleSaveGeneralSettings}
+                    disabled={isLoadingGeneral || saveGeneralSettingsMutation.isPending}
+                  >
+                    {saveGeneralSettingsMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Salvando...
+                      </>
+                    ) : (
+                      'Salvar Configurações'
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+        
+        {/* Conteúdo da aba SLA - apenas para admin e manager */}
+        {(user?.role === 'admin' || user?.role === 'manager') && (
+          <TabsContent value="sla">
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuração de SLA</CardTitle>
+                <CardDescription>Configure requisitos de tempo de resposta e resolução por prioridade</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {isLoadingAuth && <div className="flex items-center justify-center p-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><span className="ml-2">Carregando usuário...</span></div>}
+
+                {!isLoadingAuth && user?.role === 'admin' && (
+                  <>
+                    {((): null => { 
+                      console.log("[Settings] Rendering company select check: isLoadingAuth:", isLoadingAuth, "user.role:", user?.role, "isLoadingCompanies:", isLoadingCompanies, "companies state:", companies, "companiesData:", companiesData);
+                      return null; 
+                    })()}
+                    <div className="mb-6">
+                      <Label htmlFor="company-select-sla" className="mb-1 block text-sm font-medium">Empresa</Label>
+                      <Select value={selectedCompanyId?.toString() ?? ''} onValueChange={(v) => setSelectedCompanyId(v ? parseInt(v) : undefined)} disabled={isLoadingCompanies}>
+                        <SelectTrigger id="company-select-sla" className="w-full md:w-1/2">
+                          <SelectValue placeholder={isLoadingCompanies ? "Carregando..." : "Selecione uma empresa"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {!isLoadingCompanies && companies.length === 0 && <SelectItem value="" disabled>Nenhuma empresa</SelectItem>}
+                          {companies.map((c) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+
+                {isLoadingSla && !isLoadingAuth && <div className="flex items-center justify-center p-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><span className="ml-2">Carregando SLA...</span></div>}
+                
+                {!isLoadingAuth && !isLoadingSla && !slaQueryEnabled && user?.role === 'admin' && (
+                   <div className="text-center text-neutral-500 p-6 rounded-md border border-dashed">
+                     Selecione uma empresa para configurar os SLAs.
+                   </div>
+                )}
+                {!isLoadingAuth && !isLoadingSla && !slaQueryEnabled && user?.role === 'manager' && !userCompany?.id && (
+                   <div className="text-center text-red-600 p-6 rounded-md border border-red-200 bg-red-50">
+                     Usuário manager sem empresa associada. Não é possível configurar SLAs.
+                   </div>
+                )}
+
+                {!isLoadingAuth && !isLoadingSla && slaQueryEnabled && (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {slaPriorities.map(p => (
+                        <div key={p.key} className="p-4 border rounded-lg shadow-sm">
+                          <h3 className="font-semibold text-md mb-2">Prioridade {p.label}</h3>
+                          <div className="space-y-3">
+                            <div>
+                              <Label htmlFor={`sla-response-${p.key}`} className="text-xs">Tempo de 1ª Resposta (h)</Label>
+                              <Input id={`sla-response-${p.key}`} type="number" value={slaResponseTimes[p.key] || ''} onChange={(e) => handleSlaInputChange(p.key, 'response', e.target.value)} placeholder="Ex: 4" min="0" className="mt-1" disabled={saveSlaSettingsMutation.isPending}/>
+                            </div>
+                            <div>
+                              <Label htmlFor={`sla-resolution-${p.key}`} className="text-xs">Tempo de Resolução (h)</Label>
+                              <Input id={`sla-resolution-${p.key}`} type="number" value={slaResolutionTimes[p.key] || ''} onChange={(e) => handleSlaInputChange(p.key, 'resolution', e.target.value)} placeholder="Ex: 24" min="0" className="mt-1" disabled={saveSlaSettingsMutation.isPending}/>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-end mt-6">
+                      <Button onClick={handleSaveSlaSettings} disabled={saveSlaSettingsMutation.isPending || isLoadingSla} size="lg">
+                        {saveSlaSettingsMutation.isPending ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Salvando...</> : 'Salvar SLAs'}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
         
         <TabsContent value="notifications">
-         {/* ... Conteúdo da aba Notificações ... */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações de Notificação</CardTitle>
+              <CardDescription>Personalize como e quando você deseja receber notificações</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <NotificationSettings />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
