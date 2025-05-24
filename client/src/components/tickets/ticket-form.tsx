@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
+import { FileUpload } from './file-upload';
 
 // Definir tipos para os dados buscados
 interface Customer {
@@ -53,6 +54,10 @@ export const TicketForm = () => {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const { user } = useAuth();
+
+  // Estado para gerenciar arquivos pendentes
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
 
   // Adicionar uma consulta para buscar os clientes
   const { data: customersData, isLoading: isLoadingCustomers } = useQuery<Customer[]>({
@@ -83,11 +88,47 @@ export const TicketForm = () => {
       const response = await apiRequest('POST', '/api/tickets', data);
       return response.json();
     },
-    onSuccess: () => {
-      toast({
-        title: "Sucesso!",
-        description: "Chamado criado com sucesso.",
-      });
+    onSuccess: async (createdTicket) => {
+      // Se há arquivos pendentes, fazer upload
+      if (pendingFiles.length > 0) {
+        setIsUploadingFiles(true);
+        try {
+          for (const file of pendingFiles) {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const uploadResponse = await fetch(`/api/tickets/${createdTicket.id}/attachments`, {
+              method: 'POST',
+              body: formData,
+            });
+            
+            if (!uploadResponse.ok) {
+              const errorData = await uploadResponse.json();
+              throw new Error(`Erro no upload de ${file.name}: ${errorData.message || 'Erro desconhecido'}`);
+            }
+          }
+          
+          toast({
+            title: "Sucesso!",
+            description: `Chamado criado com sucesso e ${pendingFiles.length} arquivo(s) anexado(s).`,
+          });
+        } catch (error) {
+          toast({
+            title: "Chamado criado com aviso",
+            description: `Chamado criado, mas houve erro no upload de arquivos: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+            variant: "destructive",
+          });
+        } finally {
+          setIsUploadingFiles(false);
+          setPendingFiles([]);
+        }
+      } else {
+        toast({
+          title: "Sucesso!",
+          description: "Chamado criado com sucesso.",
+        });
+      }
+      
       queryClient.invalidateQueries({ queryKey: ['/api/tickets/user-role'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets/stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets/recent'] });
@@ -389,14 +430,91 @@ export const TicketForm = () => {
                 </FormItem>
               )}
             />
+
+            {/* Upload de Arquivos */}
+            <div className="border-t pt-6">
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-900">Anexar Arquivos (Opcional)</h4>
+                <p className="text-xs text-gray-500 mt-1">
+                  Adicione documentos, imagens ou outros arquivos que ajudem a descrever o problema.
+                  Os arquivos serão anexados após a criação do chamado.
+                </p>
+              </div>
+
+              {/* Preview simples dos arquivos selecionados */}
+              {pendingFiles.length > 0 && (
+                <div className="mb-4">
+                  <h5 className="text-sm font-medium text-gray-700 mb-2">
+                    Arquivos selecionados ({pendingFiles.length}):
+                  </h5>
+                  <div className="space-y-2">
+                    {pendingFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm text-gray-600">{file.name}</span>
+                          <span className="text-xs text-gray-400">
+                            ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setPendingFiles(prev => prev.filter((_, i) => i !== index));
+                          }}
+                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Área de seleção de arquivos */}
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                <input
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.zip,.rar"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    setPendingFiles(prev => [...prev, ...files]);
+                    e.target.value = ''; // Limpar para permitir reenvio
+                  }}
+                  className="hidden"
+                  id="file-input"
+                />
+                <label htmlFor="file-input" className="cursor-pointer">
+                  <div className="flex flex-col items-center">
+                    <svg className="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <span className="mt-2 text-sm font-medium text-gray-900">
+                      Clique para selecionar arquivos
+                    </span>
+                    <span className="text-xs text-gray-500 mt-1">
+                      PDF, DOC, TXT, imagens, ZIP (máx. 10MB cada)
+                    </span>
+                  </div>
+                </label>
+              </div>
+            </div>
             
             <div className="flex justify-end">
               <Button 
                 type="submit" 
                 className="px-6"
-                disabled={createTicketMutation.isPending}
+                disabled={createTicketMutation.isPending || isUploadingFiles}
               >
-                {createTicketMutation.isPending ? "Criando..." : "Enviar Chamado"}
+                {createTicketMutation.isPending 
+                  ? "Criando..." 
+                  : isUploadingFiles 
+                    ? "Anexando arquivos..." 
+                    : "Enviar Chamado"
+                }
               </Button>
             </div>
           </form>

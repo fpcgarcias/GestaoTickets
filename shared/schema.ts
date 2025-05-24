@@ -218,6 +218,72 @@ export const userNotificationSettings = pgTable('user_notification_settings', {
   updated_at: timestamp('updated_at', { withTimezone: false }).notNull().defaultNow(),
 });
 
+// Tabela para anexos de tickets
+export const ticketAttachments = pgTable("ticket_attachments", {
+  id: serial("id").primaryKey(),
+  ticket_id: integer("ticket_id").references(() => tickets.id, { onDelete: 'cascade' }).notNull(),
+  user_id: integer("user_id").references(() => users.id).notNull(),
+  
+  // Informações do arquivo
+  filename: text("filename").notNull(),
+  original_filename: text("original_filename").notNull(),
+  file_size: integer("file_size").notNull(),
+  mime_type: text("mime_type").notNull(),
+  
+  // Chaves do S3/Wasabi
+  s3_key: text("s3_key").notNull(),
+  s3_bucket: text("s3_bucket").notNull(),
+  
+  // Metadados
+  uploaded_at: timestamp("uploaded_at").defaultNow().notNull(),
+  is_deleted: boolean("is_deleted").default(false).notNull(),
+  deleted_at: timestamp("deleted_at"),
+  deleted_by_id: integer("deleted_by_id").references(() => users.id),
+});
+
+// Enum para tipos de templates de email
+export const emailTemplateTypeEnum = pgEnum('email_template_type', [
+  'new_ticket',           // Novo ticket criado
+  'ticket_assigned',      // Ticket atribuído
+  'ticket_reply',         // Nova resposta
+  'status_changed',       // Status alterado
+  'ticket_resolved',      // Ticket resolvido
+  'ticket_escalated',     // Ticket escalado
+  'ticket_due_soon',      // Vencimento próximo
+  'customer_registered',  // Novo cliente registrado
+  'user_created',         // Novo usuário criado
+  'system_maintenance'    // Manutenção do sistema
+]);
+
+// Tabela para templates de email
+export const emailTemplates = pgTable("email_templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: emailTemplateTypeEnum("type").notNull(),
+  description: text("description"),
+  
+  // Templates
+  subject_template: text("subject_template").notNull(),
+  html_template: text("html_template").notNull(),
+  text_template: text("text_template"),
+  
+  // Configurações
+  is_active: boolean("is_active").default(true).notNull(),
+  is_default: boolean("is_default").default(false).notNull(),
+  
+  // Variáveis disponíveis (JSON)
+  available_variables: text("available_variables"), // JSON string
+  
+  // Multi-tenant
+  company_id: integer("company_id").references(() => companies.id),
+  
+  // Metadados
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+  created_by_id: integer("created_by_id").references(() => users.id),
+  updated_by_id: integer("updated_by_id").references(() => users.id),
+});
+
 // Schema for inserting companies
 export const insertCompanySchema = createInsertSchema(companies).omit({
   id: true,
@@ -314,6 +380,27 @@ export const insertTicketTypeSchema = createInsertSchema(ticketTypes).omit({
   updated_at: true,
 });
 
+// Schema for inserting ticket attachments
+export const insertTicketAttachmentSchema = createInsertSchema(ticketAttachments).omit({
+  id: true,
+  uploaded_at: true,
+  is_deleted: true,
+  deleted_at: true,
+  deleted_by_id: true,
+});
+
+// Schema for inserting email templates
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+  created_by_id: true,
+  updated_by_id: true,
+});
+
+// Schema for updating email templates
+export const updateEmailTemplateSchema = insertEmailTemplateSchema.partial();
+
 // Types
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -344,6 +431,7 @@ export type Ticket = typeof tickets.$inferSelect & {
   official?: Partial<Official>;
   replies?: TicketReply[];
   incidentType?: IncidentType;
+  attachments?: TicketAttachment[];
 };
 export type InsertTicket = z.infer<typeof insertTicketSchema>;
 
@@ -368,6 +456,19 @@ export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
 export type TicketType = typeof ticketTypes.$inferSelect;
 export type InsertTicketType = z.infer<typeof insertTicketTypeSchema>;
 
+export type TicketAttachment = typeof ticketAttachments.$inferSelect & {
+  user?: Partial<User>;
+};
+export type InsertTicketAttachment = z.infer<typeof insertTicketAttachmentSchema>;
+
+export type EmailTemplate = typeof emailTemplates.$inferSelect & {
+  created_by?: Partial<User>;
+  updated_by?: Partial<User>;
+  company?: Partial<Company>;
+};
+export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
+export type UpdateEmailTemplate = z.infer<typeof updateEmailTemplateSchema>;
+
 // Relation declarations
 
 // Relações para a tabela de tickets
@@ -382,6 +483,7 @@ export const ticketsRelations = relations(tickets, ({ one, many }) => ({
   }),
   replies: many(ticketReplies),
   statusHistory: many(ticketStatusHistory),
+  attachments: many(ticketAttachments),
 }));
 
 // Relações para a tabela de respostas de tickets
@@ -426,5 +528,37 @@ export const ticketTypesRelations = relations(ticketTypes, ({ one }) => ({
   company: one(companies, {
     fields: [ticketTypes.company_id],
     references: [companies.id],
+  }),
+}));
+
+// Relações para a tabela de anexos de tickets
+export const ticketAttachmentsRelations = relations(ticketAttachments, ({ one }) => ({
+  ticket: one(tickets, {
+    fields: [ticketAttachments.ticket_id],
+    references: [tickets.id],
+  }),
+  user: one(users, {
+    fields: [ticketAttachments.user_id],
+    references: [users.id],
+  }),
+  deleted_by: one(users, {
+    fields: [ticketAttachments.deleted_by_id],
+    references: [users.id],
+  }),
+}));
+
+// Relações para a tabela de templates de email
+export const emailTemplatesRelations = relations(emailTemplates, ({ one }) => ({
+  company: one(companies, {
+    fields: [emailTemplates.company_id],
+    references: [companies.id],
+  }),
+  created_by: one(users, {
+    fields: [emailTemplates.created_by_id],
+    references: [users.id],
+  }),
+  updated_by: one(users, {
+    fields: [emailTemplates.updated_by_id],
+    references: [users.id],
   }),
 }));

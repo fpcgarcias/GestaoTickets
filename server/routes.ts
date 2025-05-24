@@ -10,6 +10,9 @@ import * as schema from "@shared/schema";
 import { db } from "./db";
 import { notificationService } from "./services/notification-service";
 import * as crypto from 'crypto';
+import multer from 'multer';
+import s3Service from './services/s3-service';
+import { emailConfigService, type EmailConfig, type SMTPConfigInput } from './services/email-config-service';
 
 // Schemas Zod para validação de Departamentos (definidos aqui temporariamente)
 const insertDepartmentSchemaInternal = z.object({
@@ -3104,6 +3107,326 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // --- FIM DAS ROTAS DE CONFIGURAÇÕES DE NOTIFICAÇÃO ---
+
+  // --- ROTAS DE ANEXOS DE TICKETS ---
+
+  // Configuração do multer para upload em memória
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760'), // 10MB padrão
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = (process.env.ALLOWED_FILE_TYPES || 'pdf,doc,docx,txt,jpg,jpeg,png,gif,zip,rar').split(',');
+      const extension = file.originalname.split('.').pop()?.toLowerCase();
+      
+      if (extension && allowedTypes.includes(extension)) {
+        cb(null, true);
+      } else {
+        cb(new Error(`Tipo de arquivo não permitido. Tipos aceitos: ${allowedTypes.join(', ')}`));
+      }
+    }
+  });
+
+  // Upload de anexo para um ticket
+  router.post("/tickets/:ticketId/attachments", authRequired, upload.single('file'), async (req: Request, res: Response) => {
+    try {
+      const ticketId = parseInt(req.params.ticketId);
+      const userId = req.session.userId!;
+      const file = req.file;
+
+      if (!file) {
+        return res.status(400).json({ message: "Nenhum arquivo enviado" });
+      }
+
+      // Verificar se o ticket existe
+      const [ticket] = await db
+        .select()
+        .from(schema.tickets)
+        .where(eq(schema.tickets.id, ticketId))
+        .limit(1);
+
+      if (!ticket) {
+        return res.status(404).json({ message: "Ticket não encontrado" });
+      }
+
+      // Fazer upload do arquivo
+      const fileData = {
+        buffer: file.buffer,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size
+      };
+
+      const uploadResult = await s3Service.uploadFile(fileData, ticketId, userId);
+
+      // Salvar metadados no banco
+      const [attachment] = await db
+        .insert(schema.ticketAttachments)
+        .values({
+          ticket_id: ticketId,
+          user_id: userId,
+          filename: uploadResult.filename,
+          original_filename: uploadResult.originalFilename,
+          file_size: uploadResult.fileSize,
+          mime_type: uploadResult.mimeType,
+          s3_key: uploadResult.s3Key,
+          s3_bucket: uploadResult.bucket,
+          uploaded_at: new Date()
+        })
+        .returning();
+
+      res.status(201).json(attachment);
+    } catch (error) {
+      console.error('Erro ao fazer upload de anexo:', error);
+      if (error instanceof Error) {
+        return res.status(400).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Erro interno ao fazer upload do arquivo" });
+    }
+  });
+
+  // Gerar URL de download para um anexo
+  router.get("/attachments/:attachmentId/download", authRequired, async (req: Request, res: Response) => {
+    try {
+      const attachmentId = parseInt(req.params.attachmentId);
+
+      // Buscar anexo
+      const [attachment] = await db
+        .select()
+        .from(schema.ticketAttachments)
+        .where(
+          and(
+            eq(schema.ticketAttachments.id, attachmentId),
+            eq(schema.ticketAttachments.is_deleted, false)
+          )
+        )
+        .limit(1);
+
+      if (!attachment) {
+        return res.status(404).json({ message: "Anexo não encontrado" });
+      }
+
+      // Gerar URL de download assinada
+      const downloadUrl = await s3Service.getDownloadUrl(attachment.s3_key);
+
+      res.json({
+        download_url: downloadUrl,
+        filename: attachment.original_filename,
+        expires_in: parseInt(process.env.FILE_URL_EXPIRATION || '3600')
+      });
+    } catch (error) {
+      console.error('Erro ao gerar URL de download:', error);
+      res.status(500).json({ message: "Erro interno ao gerar URL de download" });
+    }
+  });
+
+  // Listar anexos de um ticket
+  router.get("/tickets/:ticketId/attachments", authRequired, async (req: Request, res: Response) => {
+    try {
+      const ticketId = parseInt(req.params.ticketId);
+
+      // Verificar se o ticket existe
+      const [ticket] = await db
+        .select()
+        .from(schema.tickets)
+        .where(eq(schema.tickets.id, ticketId))
+        .limit(1);
+
+      if (!ticket) {
+        return res.status(404).json({ message: "Ticket não encontrado" });
+      }
+
+      // Buscar anexos não deletados
+      const attachments = await db
+        .select({
+          id: schema.ticketAttachments.id,
+          ticket_id: schema.ticketAttachments.ticket_id,
+          user_id: schema.ticketAttachments.user_id,
+          filename: schema.ticketAttachments.filename,
+          original_filename: schema.ticketAttachments.original_filename,
+          file_size: schema.ticketAttachments.file_size,
+          mime_type: schema.ticketAttachments.mime_type,
+          uploaded_at: schema.ticketAttachments.uploaded_at,
+          user_name: schema.users.name,
+          user_email: schema.users.email
+        })
+        .from(schema.ticketAttachments)
+        .leftJoin(schema.users, eq(schema.ticketAttachments.user_id, schema.users.id))
+        .where(
+          and(
+            eq(schema.ticketAttachments.ticket_id, ticketId),
+            eq(schema.ticketAttachments.is_deleted, false)
+          )
+        )
+        .orderBy(desc(schema.ticketAttachments.uploaded_at));
+
+      // Formatar resposta
+      const formattedAttachments = attachments.map(attachment => ({
+        id: attachment.id,
+        ticket_id: attachment.ticket_id,
+        user_id: attachment.user_id,
+        filename: attachment.filename,
+        original_filename: attachment.original_filename,
+        file_size: attachment.file_size,
+        mime_type: attachment.mime_type,
+        uploaded_at: attachment.uploaded_at,
+        user: {
+          id: attachment.user_id,
+          name: attachment.user_name,
+          email: attachment.user_email
+        }
+      }));
+
+      res.json(formattedAttachments);
+    } catch (error) {
+      console.error('Erro ao buscar anexos:', error);
+      res.status(500).json({ message: "Erro interno ao buscar anexos" });
+    }
+  });
+
+  // Endpoint para testar conexão com S3/Wasabi (apenas admins)
+  router.get("/test-s3-connection", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const result = await s3Service.testConnection();
+      res.json(result);
+    } catch (error) {
+      console.error('Erro ao testar conexão S3:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Erro interno ao testar conexão" 
+      });
+    }
+  });
+
+  // Buscar configurações de email
+  router.get("/email-config", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const companyId = req.session.companyId;
+      const config = await emailConfigService.getEmailConfigForFrontend(companyId);
+      res.json(config);
+    } catch (error) {
+      console.error('Erro ao buscar configurações de email:', error);
+      res.status(500).json({ message: "Erro interno ao buscar configurações de email" });
+    }
+  });
+
+  // Salvar configurações de email
+  router.post("/email-config", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const companyId = req.session.companyId;
+      const config: SMTPConfigInput = req.body;
+      
+      // Debug: Logar o que está chegando
+      console.log('[DEBUG] Dados recebidos no backend:', JSON.stringify(config, null, 2));
+      console.log('[DEBUG] Provider:', config.provider);
+      console.log('[DEBUG] From email:', config.from_email);
+      console.log('[DEBUG] API Key:', config.api_key ? '***mascarado***' : 'vazio');
+      
+      await emailConfigService.saveEmailConfigFromFrontend(config, companyId);
+      
+      res.json({ 
+        success: true, 
+        message: "Configurações de email salvas com sucesso" 
+      });
+    } catch (error) {
+      console.error('Erro ao salvar configurações de email:', error);
+      res.status(500).json({ message: "Erro interno ao salvar configurações de email" });
+    }
+  });
+
+  // Buscar templates de email
+  router.get("/email-templates", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const companyId = req.session.companyId;
+      const type = req.query.type as string;
+      
+      const templates = await emailConfigService.getEmailTemplates(companyId, type);
+      res.json(templates);
+    } catch (error) {
+      console.error('Erro ao buscar templates de email:', error);
+      res.status(500).json({ message: "Erro interno ao buscar templates de email" });
+    }
+  });
+
+  // Criar template de email
+  router.post("/email-templates", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const companyId = req.session.companyId;
+      const userId = req.session.userId;
+      
+      const template = await emailConfigService.saveEmailTemplate({
+        ...req.body,
+        company_id: companyId,
+        created_by_id: userId,
+        updated_by_id: userId
+      });
+      
+      res.status(201).json(template);
+    } catch (error) {
+      console.error('Erro ao criar template de email:', error);
+      res.status(500).json({ message: "Erro interno ao criar template de email" });
+    }
+  });
+
+  // Atualizar template de email
+  router.put("/email-templates/:id", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const templateId = parseInt(req.params.id);
+      const userId = req.session.userId;
+      
+      const template = await emailConfigService.updateEmailTemplate(templateId, {
+        ...req.body,
+        updated_by_id: userId
+      });
+      
+      if (!template) {
+        return res.status(404).json({ message: "Template não encontrado" });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      console.error('Erro ao atualizar template de email:', error);
+      res.status(500).json({ message: "Erro interno ao atualizar template de email" });
+    }
+  });
+
+  // Deletar template de email
+  router.delete("/email-templates/:id", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const templateId = parseInt(req.params.id);
+      
+      const success = await emailConfigService.deleteEmailTemplate(templateId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Template não encontrado" });
+      }
+      
+      res.json({ success: true, message: "Template deletado com sucesso" });
+    } catch (error) {
+      console.error('Erro ao deletar template de email:', error);
+      res.status(500).json({ message: "Erro interno ao deletar template de email" });
+    }
+  });
+
+  // Testar conexão de email
+  router.post("/email-config/test", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const config: SMTPConfigInput = req.body;
+      
+      const result = await emailConfigService.testEmailConnection(config);
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Erro ao testar conexão de email:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: "Erro interno ao testar conexão de email" 
+      });
+    }
+  });
+
+  // --- FIM DAS ROTAS DE ANEXOS ---
 
   app.use("/api", router);
   

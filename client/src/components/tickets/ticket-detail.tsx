@@ -6,6 +6,7 @@ import { formatDate } from '@/lib/utils';
 import { Ticket } from '@shared/schema';
 import { StatusDot } from './status-badge';
 import { SLAStatus } from './sla-status';
+import { AttachmentsList } from './attachments-list';
 import { Building, UserCircle2 } from 'lucide-react';
 
 interface TicketDetailProps {
@@ -123,6 +124,14 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
         
         <div className="mb-8 text-neutral-700 space-y-4 whitespace-pre-line">
           {ticket.description}
+        </div>
+
+        {/* Lista de Anexos */}
+        <div className="mt-6 border-t pt-6">
+          <AttachmentsList 
+            ticketId={ticket.id} 
+            attachments={ticket.attachments}
+          />
         </div>
       </CardContent>
     </Card>

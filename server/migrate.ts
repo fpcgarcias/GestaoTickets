@@ -35,6 +35,8 @@ const migrations = [
   '20241225-create-user-notification-settings-table',
   '20241226-add-hierarchy-to-officials',
   '20241226-fix-officials-department-field',
+  '20241227-create-ticket-attachments-table',
+  '20241227-create-email-templates-table',
 ];
 
 // Função para verificar se uma migração já foi executada

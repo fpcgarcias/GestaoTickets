@@ -29,6 +29,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Ticket, Official, IncidentType } from '@shared/schema';
 import { Loader2 } from 'lucide-react';
 import { z } from 'zod';
+import { FileUpload } from './file-upload';
 
 interface TicketReplyFormProps {
   ticket: Ticket;
@@ -272,6 +273,28 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 </FormItem>
               )}
             />
+
+            {/* Upload de Arquivos */}
+            <div className="border-t pt-6">
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-900">Anexar Arquivos</h4>
+                <p className="text-xs text-gray-500 mt-1">
+                  Adicione documentos, imagens ou outros arquivos relacionados à sua resposta.
+                </p>
+              </div>
+              <FileUpload 
+                ticketId={ticket.id}
+                onUploadSuccess={(attachment) => {
+                  toast({
+                    title: "Arquivo anexado",
+                    description: `${attachment.original_filename} foi anexado com sucesso.`,
+                  });
+                }}
+                onUploadError={(error) => {
+                  console.error('Erro no upload:', error);
+                }}
+              />
+            </div>
             
             <div className="flex justify-end">
               <Button 
