@@ -18,7 +18,6 @@ export const userRoleEnum = pgEnum('user_role', [
   'quality',        // Avaliação de qualidade
   'integration_bot' // Bots e integrações
 ]);
-export const departmentEnum = pgEnum('department', ['technical', 'billing', 'general', 'sales', 'other']);
 
 // Tabela de empresas para suporte multi-tenant (ajustado para snake_case conforme banco de dados)
 export const companies = pgTable("companies", {
@@ -63,16 +62,29 @@ export const customers = pgTable("customers", {
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Support staff table (ajustado para snake_case)
+// Departamentos por empresa - substituindo o enum departmentEnum
+export const departments = pgTable("departments", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  company_id: integer("company_id").references(() => companies.id),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+  is_active: boolean("is_active").default(true).notNull(),
+});
+
+// Support staff table (ajustado para usar department_id ao invés de enum)
 export const officials = pgTable("officials", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
-  department: departmentEnum("department"),
+  department_id: integer("department_id").references(() => departments.id),
   user_id: integer("user_id").references(() => users.id),
   is_active: boolean("is_active").default(true).notNull(),
   avatar_url: text("avatar_url"),
   company_id: integer("company_id").references(() => companies.id),
+  supervisor_id: integer("supervisor_id"),
+  manager_id: integer("manager_id"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -155,17 +167,6 @@ export const incidentTypes = pgTable("incident_types", {
   name: text("name").notNull(),
   value: text("value").notNull(),
   department_id: integer("department_id"),
-  company_id: integer("company_id").references(() => companies.id),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-  is_active: boolean("is_active").default(true).notNull(),
-});
-
-// Departamentos por empresa - substituindo o enum departmentEnum
-export const departments = pgTable("departments", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
   company_id: integer("company_id").references(() => companies.id),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
@@ -325,6 +326,11 @@ export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 
 export type Official = typeof officials.$inferSelect & {
   departments?: string[] | OfficialDepartment[];
+  supervisor?: Partial<Official>;
+  manager?: Partial<Official>;
+  subordinates?: Partial<Official>[];
+  teamMembers?: Partial<Official>[];
+  assignedTicketsCount?: number;
 };
 export type InsertOfficial = z.infer<typeof insertOfficialSchema> & {
   departments?: string[];

@@ -1,119 +1,162 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { differenceInMilliseconds, formatDistanceToNow, isValid } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { Clock, AlertTriangle } from 'lucide-react';
+import { Clock, AlertTriangle, CheckCircle } from 'lucide-react';
+import { calculateSLAStatus, formatTimeRemaining, getBusinessHoursConfig } from '@shared/utils/sla-calculator';
 
 interface SLAIndicatorProps {
   ticketCreatedAt: string;
   ticketPriority: string;
   ticketStatus: string;
+  ticketCompanyId: number;
+  resolvedAt?: string;
 }
 
 export const SLAIndicator: React.FC<SLAIndicatorProps> = ({ 
   ticketCreatedAt, 
   ticketPriority,
   ticketStatus,
+  ticketCompanyId,
+  resolvedAt
 }) => {
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [percentConsumed, setPercentConsumed] = useState<number>(0);
-  const [isBreached, setIsBreached] = useState<boolean>(false);
+  const [slaStatus, setSlaStatus] = useState<'ok' | 'warning' | 'critical' | 'breached'>('ok');
   
-  const { data: slaSettingsData } = useQuery({
-    queryKey: ["/api/settings/sla"],
+  const { data: slaSettingsData, isLoading, error } = useQuery({
+    queryKey: ["/api/settings/sla", ticketCompanyId],
+    queryFn: async () => {
+      const url = `/api/settings/sla?company_id=${ticketCompanyId}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar SLA: ${response.statusText}`);
+      }
+      return response.json();
+    },
+    enabled: !!ticketCompanyId,
   });
   
   useEffect(() => {
-    // Garantir que slaSettings é um array
-    const slaSettings = Array.isArray(slaSettingsData) ? slaSettingsData : [];
-
-    if (!slaSettings || slaSettings.length === 0 || !ticketCreatedAt || ticketStatus === 'resolved') return;
+    console.log('SLAIndicator - Debug data:', {
+      slaSettingsData,
+      isLoading,
+      error,
+      ticketCreatedAt,
+      ticketPriority,
+      ticketStatus,
+      ticketCompanyId,
+      resolvedAt
+    });
+    
+    if (isLoading || error || !slaSettingsData || !ticketCreatedAt || ticketStatus === 'resolved') return;
     
     try {
       // Encontrar a configuração de SLA para a prioridade deste ticket
-      const slaSetting = slaSettings.find((s: any) => s.priority === ticketPriority);
-      if (!slaSetting) return;
+      let resolutionTimeHours: number;
       
-      // Garantir que temos uma data válida
-      let createdDate: Date;
+      if (slaSettingsData && typeof slaSettingsData === 'object' && 'settings' in slaSettingsData) {
+        // Formato novo da API
+        const slaSetting = (slaSettingsData as any).settings[ticketPriority];
+        console.log('SLAIndicator - SLA setting found:', slaSetting);
+        if (!slaSetting || !slaSetting.resolution_time_hours) return;
+        resolutionTimeHours = slaSetting.resolution_time_hours;
+      } else {
+        // Formato antigo (array)
+        const slaSettings = Array.isArray(slaSettingsData) ? slaSettingsData : [];
+        const slaSetting = slaSettings.find((s: any) => s.priority === ticketPriority);
+        console.log('SLAIndicator - SLA setting found (legacy):', slaSetting);
+        if (!slaSetting) return;
+        resolutionTimeHours = slaSetting.resolutionTimeHours || slaSetting.resolution_time_hours || 24;
+      }
       
-      try {
-        createdDate = new Date(ticketCreatedAt);
-        
-        // Verificar se a data é válida
-        if (!isValid(createdDate)) {
-          console.error("Data de criação inválida:", ticketCreatedAt);
-          return;
-        }
-      } catch (error) {
-        console.error("Erro ao converter data:", error);
+      console.log('SLAIndicator - Resolution time hours:', resolutionTimeHours);
+      
+      // Converter datas
+      const createdDate = new Date(ticketCreatedAt);
+      const resolvedDate = resolvedAt ? new Date(resolvedAt) : undefined;
+      
+      if (isNaN(createdDate.getTime())) {
+        console.error("Data de criação inválida:", ticketCreatedAt);
         return;
       }
       
-      const resolutionTimeHours = slaSetting.resolutionTimeHours || 24; // Fallback para 24h
+      // Calcular SLA usando o novo sistema
+      const businessHours = getBusinessHoursConfig();
+      const slaResult = calculateSLAStatus(
+        createdDate,
+        resolutionTimeHours,
+        new Date(),
+        resolvedDate,
+        businessHours
+      );
       
-      // Cálculo da data de vencimento do SLA
-      const dueDate = new Date(createdDate);
-      dueDate.setHours(dueDate.getHours() + resolutionTimeHours);
+      console.log('SLAIndicator - SLA result:', slaResult);
       
-      // Verificar novamente se dueDate é válido
-      if (!isValid(dueDate)) {
-        console.error("Data de vencimento inválida:", dueDate);
-        return;
+      setPercentConsumed(slaResult.percentConsumed);
+      setSlaStatus(slaResult.status);
+      
+      // Formatar texto
+      if (slaResult.isBreached) {
+        const overdueTime = formatTimeRemaining(slaResult.timeElapsed - (resolutionTimeHours * 60 * 60 * 1000), true);
+        setTimeRemaining(`Excedido em ${overdueTime}`);
+      } else {
+        const remainingTime = formatTimeRemaining(slaResult.timeRemaining);
+        setTimeRemaining(`${remainingTime} restantes`);
       }
       
-      // Cálculo da porcentagem do tempo já consumido
-      const totalTimeMs = resolutionTimeHours * 60 * 60 * 1000;
-      const elapsedTimeMs = differenceInMilliseconds(new Date(), createdDate);
-      const consumedPercent = Math.min((elapsedTimeMs / totalTimeMs) * 100, 100);
-      
-      // Verifica se o SLA foi violado
-      const isSLABreached = new Date() > dueDate;
-      
-      setPercentConsumed(Math.round(consumedPercent));
-      setIsBreached(isSLABreached);
-      
-      // Formatação do tempo remanescente com tratamento de erro
-      try {
-        if (isSLABreached) {
-          // SLA violado
-          const overdueTime = formatDistanceToNow(dueDate, { locale: ptBR, addSuffix: true });
-          setTimeRemaining(`SLA excedido ${overdueTime}`);
-        } else {
-          // SLA ainda dentro do prazo
-          const remainingTime = formatDistanceToNow(dueDate, { locale: ptBR, addSuffix: true });
-          setTimeRemaining(`Vence ${remainingTime}`);
-        }
-      } catch (error) {
-        console.error("Erro ao formatar tempo:", error);
-        setTimeRemaining("Tempo indisponível");
-      }
     } catch (error) {
       console.error("Erro no cálculo de SLA:", error);
     }
-    
-  }, [slaSettingsData, ticketCreatedAt, ticketPriority, ticketStatus]);
+  }, [slaSettingsData, isLoading, error, ticketCreatedAt, ticketPriority, ticketStatus, ticketCompanyId, resolvedAt]);
   
-  // Obter slaSettings como array também para a condição de retorno
-  const slaSettingsArray = Array.isArray(slaSettingsData) ? slaSettingsData : [];
+  if (ticketStatus === 'resolved') {
+    return (
+      <div className="flex items-center gap-1 text-xs">
+        <CheckCircle className="h-3 w-3 text-green-600" />
+        <span className="text-green-600">Resolvido</span>
+      </div>
+    );
+  }
 
-  if (ticketStatus === 'resolved' || !slaSettingsArray || slaSettingsArray.length === 0 || !timeRemaining) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-1 text-xs text-gray-500">
+        <Clock className="h-3 w-3 animate-pulse" />
+        <span>Carregando SLA...</span>
+      </div>
+    );
+  }
+
+  if (error || !slaSettingsData || !timeRemaining) {
+    console.log('SLAIndicator - Not showing due to:', { error, slaSettingsData, timeRemaining });
     return null;
   }
   
+  // Cores baseadas no status
+  const getStatusColor = () => {
+    switch (slaStatus) {
+      case 'breached': return 'text-red-600';
+      case 'critical': return 'text-red-500';
+      case 'warning': return 'text-yellow-600';
+      default: return 'text-blue-600';
+    }
+  };
+  
+  const getStatusIcon = () => {
+    switch (slaStatus) {
+      case 'breached': 
+      case 'critical': 
+        return <AlertTriangle className="h-3 w-3" />;
+      default: 
+        return <Clock className="h-3 w-3" />;
+    }
+  };
+  
   return (
-    <div className="flex items-center gap-1 text-xs">
-      {isBreached ? (
-        <>
-          <AlertTriangle className="h-3 w-3 text-red-600" />
-          <span className="text-red-600">{timeRemaining}</span>
-        </>
-      ) : (
-        <>
-          <Clock className="h-3 w-3 text-blue-600" />
-          <span className="text-blue-600">{timeRemaining}</span>
-        </>
-      )}
+    <div className={`flex items-center gap-1 text-xs ${getStatusColor()}`}>
+      {getStatusIcon()}
+      <span title={`${percentConsumed}% do SLA consumido`}>
+        {timeRemaining}
+      </span>
     </div>
   );
 };

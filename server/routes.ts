@@ -781,62 +781,40 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Validar os dados recebidos
       const ticketData = insertTicketSchema.parse(req.body);
       
-      // ✅ BUSCAR O CUSTOMER_ID BASEADO NO EMAIL FORNECIDO
+      // ✅ BUSCAR O CUSTOMER_ID E COMPANY_ID BASEADO NO EMAIL FORNECIDO
       let customerId: number | null = null;
+      let companyId: number | null = null;
+      
       if (ticketData.customer_email) {
         const existingCustomer = await storage.getCustomerByEmail(ticketData.customer_email);
         if (existingCustomer) {
           customerId = existingCustomer.id;
-          console.log(`[DEBUG] Cliente encontrado: ID ${customerId} para email ${ticketData.customer_email}`);
+          companyId = existingCustomer.company_id; // ✅ USAR O COMPANY_ID DO CLIENTE
+          console.log(`[DEBUG createTicket] Cliente encontrado: ID ${customerId}, Company ID: ${companyId} para email ${ticketData.customer_email}`);
         } else {
-          console.log(`[DEBUG] Cliente não encontrado para email ${ticketData.customer_email} - ticket criado sem customer_id`);
+          console.log(`[DEBUG createTicket] Cliente não encontrado para email ${ticketData.customer_email} - ticket criado sem customer_id e company_id`);
         }
       }
       
-      // Gerar um ID legível (YYYY-TIPO##)
-      const currentYear = new Date().getFullYear();
-      
-      // Determinar o prefixo com base no tipo de ticket
-      let typePrefix = "GE"; // Prefixo genérico (General)
-      
-      if (ticketData.type) {
-        // Se tiver um tipo, usar as duas primeiras letras do tipo
-        typePrefix = ticketData.type.substring(0, 2).toUpperCase();
-      }
-      
-      // Buscar o último ID para incrementar
-      const [lastTicket] = await db
-        .select({ id: schema.tickets.id })
-        .from(schema.tickets)
-        .orderBy(desc(schema.tickets.id))
-        .limit(1);
-      
-      const nextId = lastTicket ? lastTicket.id + 1 : 1;
-      const ticketIdString = `${currentYear}-${typePrefix}${nextId.toString().padStart(3, '0')}`;
-      
-      // ✅ CRIAR O TICKET COM CUSTOMER_ID CORRETAMENTE VINCULADO
-      const [newTicket] = await db
-        .insert(schema.tickets)
-        .values({
-          ...ticketData,
-          ticket_id: ticketIdString,
-          status: 'new',
-          customer_id: customerId, // ✅ Vincular o customer_id automaticamente
-        })
-        .returning();
+      // ✅ CRIAR O TICKET COM CUSTOMER_ID E COMPANY_ID DO CLIENTE
+      const ticket = await storage.createTicket({
+        ...ticketData,
+        customer_id: customerId || undefined,
+        company_id: companyId || undefined // ✅ USAR O COMPANY_ID DO CLIENTE
+      });
 
-      console.log(`[DEBUG] Ticket criado: ID ${newTicket.id}, Customer ID: ${customerId}, Email: ${ticketData.customer_email}`);
+      console.log(`[DEBUG createTicket] Ticket criado: ID ${ticket.id}, Customer ID: ${customerId}, Company ID: ${companyId}, Email: ${ticketData.customer_email}`);
 
       // Responder com o ticket criado
-      res.status(201).json(newTicket);
+      res.status(201).json(ticket);
       
       // Enviar notificação de novo ticket
       notificationService.sendNotificationToAll({
         type: 'new_ticket',
         title: 'Novo Ticket Criado',
-        message: `Novo ticket ${ticketIdString}: ${ticketData.title}`,
-        ticketId: newTicket.id,
-        ticketCode: ticketIdString,
+        message: `Novo ticket ${ticket.ticket_id}: ${ticketData.title}`,
+        ticketId: ticket.id,
+        ticketCode: ticket.ticket_id,
         priority: ticketData.priority,
         timestamp: new Date()
       });
@@ -1140,29 +1118,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const officials = await storage.getOfficials();
       console.log(`Encontrados ${officials.length} atendentes no storage`);
       
-      // Buscar os departamentos para cada atendente
-      // Aqui estamos evitando a duplicação de departamentos, verificando se o atendente já tem os departamentos
-      console.log('Adicionando informações de departamentos...');
-      const officialsWithDepartments = await Promise.all(officials.map(async (official) => {
-        // Se o atendente já tem departamentos, reutilizamos
-        if (official.departments && Array.isArray(official.departments) && official.departments.length > 0) {
-          return official;
-        }
-        
-        // Caso contrário, buscamos os departamentos
-        const officialDepartments = await storage.getOfficialDepartments(official.id);
-        const departments = officialDepartments.map(od => od.department);
-        return {
-          ...official,
-          departments
-        };
-      }));
-      
-      console.log(`Retornando ${officialsWithDepartments.length} atendentes com seus departamentos`);
-      // LOG DETALHADO DA RESPOSTA
-      console.log('[DEBUG /api/officials] Dados enviados:', JSON.stringify(officialsWithDepartments, null, 2)); 
+      console.log('[DEBUG /api/officials] Dados recebidos do storage:', JSON.stringify(officials, null, 2)); 
       console.log('========= FIM DA REQUISIÇÃO /api/officials =========');
-      res.json(officialsWithDepartments);
+      res.json(officials);
     } catch (error) {
       console.error('Erro ao buscar atendentes:', error);
       res.status(500).json({ message: "Falha ao buscar atendentes", error: String(error) });

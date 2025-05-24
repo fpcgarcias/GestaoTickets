@@ -188,7 +188,7 @@ export default function Dashboard() {
               {recentTickets.slice(0, 5).map((ticket: RecentTicket) => (
                 <div key={ticket.id} className="flex items-center justify-between border-b pb-4">
                   <div className="flex items-center">
-                    <StatusDot status={ticket.status} />
+                    <StatusDot status={ticket.status} className="mr-2" />
                     <div>
                       <p className="font-medium">{ticket.title}</p>
                       <p className="text-sm text-neutral-500">
@@ -225,7 +225,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, isLoading, status }) 
     <Card>
       <CardContent className="p-6">
         <div className="flex items-center mb-2">
-          {status && <StatusDot status={status} />}
+          {status && <StatusDot status={status} className="mr-2" />}
           <h3 className="font-medium">{title}</h3>
         </div>
         {isLoading ? (

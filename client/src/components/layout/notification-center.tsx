@@ -47,9 +47,9 @@ export const NotificationCenter: React.FC = () => {
               <h3 className="font-semibold">Notificações</h3>
               <div className="ml-2">
                 {connected ? (
-                  <StatusDot status="ongoing" className="h-2 w-2" />
+                  <StatusDot status="ongoing" className="h-2 w-2 mr-1" />
                 ) : (
-                  <StatusDot status="new" className="h-2 w-2" />
+                  <StatusDot status="new" className="h-2 w-2 mr-1" />
                 )}
               </div>
             </div>

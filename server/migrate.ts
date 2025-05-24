@@ -33,6 +33,8 @@ const migrations = [
   '20240526-create-departments-table',
   '20240526-add-is-active-to-incident-types',
   '20241225-create-user-notification-settings-table',
+  '20241226-add-hierarchy-to-officials',
+  '20241226-fix-officials-department-field',
 ];
 
 // Função para verificar se uma migração já foi executada

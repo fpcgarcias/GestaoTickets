@@ -61,7 +61,7 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
         <div className="flex justify-between items-start mb-4">
           <div>
             <div className="flex items-center mb-2">
-              <StatusDot status={ticket.status} />
+              <StatusDot status={ticket.status} className="mr-2" />
               <span className="font-medium text-neutral-800">Chamado #{ticket.ticket_id}</span>
             </div>
             <h2 className="text-xl font-semibold">{ticket.title}</h2>
@@ -95,12 +95,14 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
         ) : null}
         
         {/* Status do SLA */}
-        {ticket.created_at && (
+        {ticket.created_at && ticket.company_id && (
           <div className="mb-4">
             <SLAStatus 
               ticketCreatedAt={typeof ticket.created_at === 'string' ? ticket.created_at : new Date(ticket.created_at).toISOString()} 
               ticketPriority={ticket.priority} 
-              ticketStatus={ticket.status} 
+              ticketStatus={ticket.status}
+              ticketCompanyId={ticket.company_id}
+              resolvedAt={ticket.resolved_at ? (typeof ticket.resolved_at === 'string' ? ticket.resolved_at : new Date(ticket.resolved_at).toISOString()) : undefined}
             />
           </div>
         )}

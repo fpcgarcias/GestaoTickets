@@ -203,8 +203,8 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value={TICKET_STATUS.NEW}>🔵 Novo</SelectItem>
-                        <SelectItem value={TICKET_STATUS.ONGOING}>🟡 Em Andamento</SelectItem>
+                        <SelectItem value={TICKET_STATUS.NEW}>🟡 Novo</SelectItem>
+                        <SelectItem value={TICKET_STATUS.ONGOING}>🔵 Em Andamento</SelectItem>
                         <SelectItem value={TICKET_STATUS.RESOLVED}>🟢 Resolvido</SelectItem>
                       </SelectContent>
                     </Select>

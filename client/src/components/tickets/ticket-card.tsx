@@ -35,6 +35,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
     customer,
     assigned_to_id: assignedToId,
     department_id: departmentId,
+    company_id: companyId,
   } = ticket;
   
   const { data: allOfficialsData, isLoading: isOfficialsLoading } = useQuery<Official[]>({
@@ -58,7 +59,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
       <CardContent className="p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center">
-            <StatusDot status={status} />
+            <StatusDot status={status} className="mr-2" />
             <span className="font-medium text-neutral-800">Ticket# {ticketId}</span>
           </div>
           <div className="flex items-center">
@@ -134,12 +135,14 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
           </div>
         </div>
         
-        {status !== 'resolved' && createdAt && (
+        {status !== 'resolved' && createdAt && companyId && (
           <div className="mt-3">
             <SLAIndicator 
               ticketCreatedAt={typeof createdAt === 'string' ? createdAt : new Date(createdAt).toISOString()} 
               ticketPriority={priority} 
-              ticketStatus={status} 
+              ticketStatus={status}
+              ticketCompanyId={companyId}
+              resolvedAt={ticket.resolved_at ? (typeof ticket.resolved_at === 'string' ? ticket.resolved_at : new Date(ticket.resolved_at).toISOString()) : undefined}
             />
           </div>
         )}
