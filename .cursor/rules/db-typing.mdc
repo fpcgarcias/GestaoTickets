@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 ---
 Rule Type: Always
@@ -17,6 +17,48 @@ globs:
 - Nunca altere tipos de dados. Se a coluna for `timestamp without time zone`, `integer`, `boolean`, etc., mantenha exatamente.
 
 ## Schema Reference
+### Tabela `ai_analysis_history`
+- `id` : `integer`
+- `ticket_id` : `integer`
+- `ai_configuration_id` : `integer`
+- `input_title` : `text`
+- `input_description` : `text`
+- `suggested_priority` : `USER-DEFINED`
+- `ai_response_raw` : `text`
+- `ai_justification` : `text`
+- `provider` : `USER-DEFINED`
+- `model` : `text`
+- `request_tokens` : `integer`
+- `response_tokens` : `integer`
+- `processing_time_ms` : `integer`
+- `status` : `text`
+- `error_message` : `text`
+- `retry_count` : `integer`
+- `company_id` : `integer`
+- `created_at` : `timestamp without time zone`
+
+### Tabela `ai_configurations`
+- `id` : `integer`
+- `name` : `text`
+- `provider` : `USER-DEFINED`
+- `model` : `text`
+- `api_key` : `text`
+- `api_endpoint` : `text`
+- `system_prompt` : `text`
+- `user_prompt_template` : `text`
+- `temperature` : `text`
+- `max_tokens` : `integer`
+- `timeout_seconds` : `integer`
+- `max_retries` : `integer`
+- `fallback_priority` : `USER-DEFINED`
+- `is_active` : `boolean`
+- `is_default` : `boolean`
+- `company_id` : `integer`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+- `created_by_id` : `integer`
+- `updated_by_id` : `integer`
+
 ### Tabela `companies`
 - `id` : `integer`
 - `name` : `text`
@@ -48,6 +90,23 @@ globs:
 - `is_active` : `boolean`
 - `created_at` : `timestamp without time zone`
 - `updated_at` : `timestamp without time zone`
+
+### Tabela `email_templates`
+- `id` : `integer`
+- `name` : `text`
+- `type` : `USER-DEFINED`
+- `description` : `text`
+- `subject_template` : `text`
+- `html_template` : `text`
+- `text_template` : `text`
+- `is_active` : `boolean`
+- `is_default` : `boolean`
+- `available_variables` : `text`
+- `company_id` : `integer`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+- `created_by_id` : `integer`
+- `updated_by_id` : `integer`
 
 ### Tabela `incident_types`
 - `id` : `integer`
@@ -99,6 +158,21 @@ globs:
 - `updated_at` : `timestamp without time zone`
 - `company_id` : `integer`
 
+### Tabela `ticket_attachments`
+- `id` : `integer`
+- `ticket_id` : `integer`
+- `user_id` : `integer`
+- `filename` : `text`
+- `original_filename` : `text`
+- `file_size` : `integer`
+- `mime_type` : `text`
+- `s3_key` : `text`
+- `s3_bucket` : `text`
+- `uploaded_at` : `timestamp without time zone`
+- `is_deleted` : `boolean`
+- `deleted_at` : `timestamp without time zone`
+- `deleted_by_id` : `integer`
+
 ### Tabela `ticket_replies`
 - `id` : `integer`
 - `ticket_id` : `integer`
@@ -114,6 +188,17 @@ globs:
 - `new_status` : `USER-DEFINED`
 - `changed_by_id` : `integer`
 - `created_at` : `timestamp without time zone`
+
+### Tabela `ticket_types`
+- `id` : `integer`
+- `name` : `text`
+- `value` : `text`
+- `description` : `text`
+- `department_id` : `integer`
+- `company_id` : `integer`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+- `is_active` : `boolean`
 
 ### Tabela `tickets`
 - `id` : `integer`
@@ -169,5 +254,7 @@ globs:
 - `updated_at` : `timestamp without time zone`
 
 
-- `company_id` : `integer`
+
+
+
 

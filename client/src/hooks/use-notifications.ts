@@ -34,7 +34,11 @@ export function useNotifications() {
 
     // Configurar o WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    
+    // O WebSocket deve usar o mesmo host e porta do servidor atual
+    // já que frontend e backend rodam juntos na mesma porta
     const wsUrl = `${protocol}//${window.location.host}/ws`;
+    
     const newSocket = new WebSocket(wsUrl);
 
     // Configurar os manipuladores de eventos

@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, tickets, customers, officials, ticketReplies, ticketStatusHistory, slaDefinitions,
-  userRoleEnum, ticketStatusEnum, ticketPriorityEnum, departmentEnum, officialDepartments
+  userRoleEnum, ticketStatusEnum, ticketPriorityEnum, officialDepartments
 } from "@shared/schema";
 
 async function seedDatabase() {
@@ -22,9 +22,9 @@ async function seedDatabase() {
     email: "admin@ticketlead.com",
     name: "Administrador",
     role: "admin",
-    avatarUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    avatar_url: null,
+    created_at: new Date(),
+    updated_at: new Date()
   }).returning();
 
   const [supportUser] = await db.insert(users).values({
@@ -33,9 +33,9 @@ async function seedDatabase() {
     email: "suporte@ticketlead.com",
     name: "Equipe de Suporte",
     role: "support",
-    avatarUrl: null,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    avatar_url: null,
+    created_at: new Date(),
+    updated_at: new Date()
   }).returning();
 
   const [customerUser] = await db.insert(users).values({
@@ -44,7 +44,7 @@ async function seedDatabase() {
     email: "cliente@example.com",
     name: "Usuário Cliente",
     role: "customer",
-    avatarUrl: null,
+    avatar_url: null,
   }).returning();
   
   // Adicionar cliente
@@ -54,8 +54,8 @@ async function seedDatabase() {
     email: "contato@empresaabc.com",
     phone: "(11) 9999-8888",
     company: "Empresa ABC Ltda",
-    userId: customerUser.id,
-    avatarUrl: null,
+    user_id: customerUser.id,
+    avatar_url: null,
   }).returning();
   
   // Adicionar atendente
@@ -63,14 +63,14 @@ async function seedDatabase() {
   const [official] = await db.insert(officials).values({
     name: "João Silva",
     email: "joao.silva@ticketlead.com",
-    userId: supportUser.id,
-    isActive: true,
-    avatarUrl: null,
+    user_id: supportUser.id,
+    is_active: true,
+    avatar_url: null,
   }).returning();
 
   // Adicionar o departamento ao atendente na tabela de junção
   await db.insert(officialDepartments).values({
-    officialId: official.id,
+    official_id: official.id,
     department: "technical"
   });
   
@@ -78,147 +78,147 @@ async function seedDatabase() {
   console.log("Adicionando definições de SLA...");
   const [slaLow] = await db.insert(slaDefinitions).values({
     priority: "low",
-    responseTimeHours: 24,
-    resolutionTimeHours: 72,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    response_time_hours: 24,
+    resolution_time_hours: 72,
+    created_at: new Date(),
+    updated_at: new Date()
   }).returning();
   
   const [slaMedium] = await db.insert(slaDefinitions).values({
     priority: "medium",
-    responseTimeHours: 12,
-    resolutionTimeHours: 48,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    response_time_hours: 12,
+    resolution_time_hours: 48,
+    created_at: new Date(),
+    updated_at: new Date()
   }).returning();
   
   const [slaHigh] = await db.insert(slaDefinitions).values({
     priority: "high",
-    responseTimeHours: 6,
-    resolutionTimeHours: 24,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    response_time_hours: 6,
+    resolution_time_hours: 24,
+    created_at: new Date(),
+    updated_at: new Date()
   }).returning();
   
   const [slaCritical] = await db.insert(slaDefinitions).values({
     priority: "critical",
-    responseTimeHours: 2,
-    resolutionTimeHours: 12,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    response_time_hours: 2,
+    resolution_time_hours: 12,
+    created_at: new Date(),
+    updated_at: new Date()
   }).returning();
   
   // Adicionar tickets
   console.log("Adicionando tickets...");
   const [ticket1] = await db.insert(tickets).values({
-    ticketId: "TK-2023-001",
+    ticket_id: "TK-2023-001",
     title: "Problema de login no sistema",
     description: "Não consigo acessar o sistema com minha senha atual.",
     status: "ongoing",
     priority: "medium",
     type: "técnico",
-    customerId: customer.id,
-    customerEmail: customer.email,
-    assignedToId: official.id,
-    firstResponseAt: null,
-    resolvedAt: null,
-    slaBreached: null,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    customer_id: customer.id,
+    customer_email: customer.email,
+    assigned_to_id: official.id,
+    first_response_at: null,
+    resolved_at: null,
+    sla_breached: null,
+    created_at: new Date(),
+    updated_at: new Date()
   }).returning();
   
   const [ticket2] = await db.insert(tickets).values({
-    ticketId: "TK-2023-002",
+    ticket_id: "TK-2023-002",
     title: "Solicitar atualização de funcionalidade",
     description: "Precisamos adicionar um novo botão na tela inicial.",
     status: "new",
     priority: "high",
     type: "solicitação",
-    customerId: customer.id,
-    customerEmail: customer.email,
-    assignedToId: null,
-    firstResponseAt: null,
-    resolvedAt: null,
-    slaBreached: null,
-    createdAt: new Date(),
-    updatedAt: new Date()
+    customer_id: customer.id,
+    customer_email: customer.email,
+    assigned_to_id: null,
+    first_response_at: null,
+    resolved_at: null,
+    sla_breached: null,
+    created_at: new Date(),
+    updated_at: new Date()
   }).returning();
   
   const [ticket3] = await db.insert(tickets).values({
-    ticketId: "TK-2023-003",
+    ticket_id: "TK-2023-003",
     title: "Dúvida sobre faturamento",
     description: "Precisamos de informações sobre o último ciclo de faturamento.",
     status: "resolved",
     priority: "low",
     type: "financeiro",
-    customerId: customer.id,
-    customerEmail: customer.email,
-    assignedToId: official.id,
-    firstResponseAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 dias atrás
-    resolvedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 dia atrás
-    slaBreached: false,
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 dias atrás
-    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) // 1 dia atrás
+    customer_id: customer.id,
+    customer_email: customer.email,
+    assigned_to_id: official.id,
+    first_response_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 dias atrás
+    resolved_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 dia atrás
+    sla_breached: false,
+    created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 dias atrás
+    updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) // 1 dia atrás
   }).returning();
   
   // Adicionar histórico de status
   console.log("Adicionando histórico de status dos tickets...");
   await db.insert(ticketStatusHistory).values({
-    ticketId: ticket1.id,
-    oldStatus: "new",
-    newStatus: "ongoing",
-    changedById: adminUser.id,
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) // 1 dia atrás
+    ticket_id: ticket1.id,
+    old_status: "new",
+    new_status: "ongoing",
+    changed_by_id: adminUser.id,
+    created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) // 1 dia atrás
   });
   
   await db.insert(ticketStatusHistory).values({
-    ticketId: ticket3.id,
-    oldStatus: "new",
-    newStatus: "ongoing",
-    changedById: adminUser.id,
-    createdAt: new Date(Date.now() - 2.5 * 24 * 60 * 60 * 1000) // 2.5 dias atrás
+    ticket_id: ticket3.id,
+    old_status: "new",
+    new_status: "ongoing",
+    changed_by_id: adminUser.id,
+    created_at: new Date(Date.now() - 2.5 * 24 * 60 * 60 * 1000) // 2.5 dias atrás
   });
   
   await db.insert(ticketStatusHistory).values({
-    ticketId: ticket3.id,
-    oldStatus: "ongoing",
-    newStatus: "resolved",
-    changedById: official.id,
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) // 1 dia atrás
+    ticket_id: ticket3.id,
+    old_status: "ongoing",
+    new_status: "resolved",
+    changed_by_id: official.id,
+    created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) // 1 dia atrás
   });
   
   // Adicionar respostas de tickets
   console.log("Adicionando respostas aos tickets...");
   await db.insert(ticketReplies).values({
-    ticketId: ticket1.id,
-    userId: official.id,
+    ticket_id: ticket1.id,
+    user_id: official.id,
     message: "Olá, por favor tente redefinir sua senha através do link 'Esqueci minha senha'. Se o problema persistir, nos avise.",
-    isInternal: false,
-    createdAt: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000) // 12 horas atrás
+    is_internal: false,
+    created_at: new Date(Date.now() - 0.5 * 24 * 60 * 60 * 1000) // 12 horas atrás
   });
   
   await db.insert(ticketReplies).values({
-    ticketId: ticket3.id,
-    userId: official.id,
+    ticket_id: ticket3.id,
+    user_id: official.id,
     message: "Enviamos por email as informações solicitadas sobre o faturamento. Por favor, confirme o recebimento.",
-    isInternal: false,
-    createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) // 2 dias atrás
+    is_internal: false,
+    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) // 2 dias atrás
   });
   
   await db.insert(ticketReplies).values({
-    ticketId: ticket3.id,
-    userId: customerUser.id,
+    ticket_id: ticket3.id,
+    user_id: customerUser.id,
     message: "Confirmando recebimento. Muito obrigado pela ajuda!",
-    isInternal: false,
-    createdAt: new Date(Date.now() - 1.5 * 24 * 60 * 60 * 1000) // 1.5 dias atrás
+    is_internal: false,
+    created_at: new Date(Date.now() - 1.5 * 24 * 60 * 60 * 1000) // 1.5 dias atrás
   });
   
   await db.insert(ticketReplies).values({
-    ticketId: ticket3.id,
-    userId: official.id,
+    ticket_id: ticket3.id,
+    user_id: official.id,
     message: "De nada! Vou fechar este ticket como resolvido. Se precisar de mais ajuda, basta abrir um novo chamado.",
-    isInternal: false,
-    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) // 1 dia atrás
+    is_internal: false,
+    created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) // 1 dia atrás
   });
   
   console.log("Preenchimento do banco de dados concluído com sucesso!");

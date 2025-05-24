@@ -32,8 +32,8 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onSta
       onOpenChange(false);
       if (onStatusChanged) onStatusChanged();
       toast({
-        title: data.isActive ? "Atendente ativado" : "Atendente desativado",
-        description: data.isActive 
+        title: data.is_active ? "Atendente ativado" : "Atendente desativado",
+        description: data.is_active 
           ? "O atendente foi ativado com sucesso." 
           : "O atendente foi desativado com sucesso.",
       });
@@ -58,10 +58,10 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onSta
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>
-            {official && official.isActive ? "Desativar atendente" : "Ativar atendente"}
+            {official && official.is_active ? "Desativar atendente" : "Ativar atendente"}
           </DialogTitle>
           <DialogDescription>
-            {official && official.isActive ? 
+            {official && official.is_active ? 
               "Ao desativar um atendente, ele não poderá mais acessar o sistema, mas seus dados serão mantidos para fins de histórico." :
               "Ao ativar um atendente, ele voltará a ter acesso ao sistema com suas mesmas permissões anteriores."}
           </DialogDescription>
@@ -91,11 +91,7 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onSta
                     
                   return (
                     <Badge key={index} variant="outline" className="capitalize">
-                      {departmentValue === 'technical' && 'Suporte Técnico'}
-                      {departmentValue === 'billing' && 'Faturamento'}
-                      {departmentValue === 'general' && 'Atendimento Geral'}
-                      {departmentValue === 'sales' && 'Vendas'}
-                      {departmentValue === 'other' && 'Outro'}
+                      {departmentValue}
                     </Badge>
                   );
                 })}
@@ -104,7 +100,7 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onSta
           )}
           
           <p className="text-sm text-neutral-600 mb-6">
-            {official && official.isActive ? 
+            {official && official.is_active ? 
               "Esta ação não exclui o atendente permanentemente. Os dados serão mantidos para histórico e poderá ser reativado a qualquer momento." :
               "Ao ativar o atendente, ele poderá realizar login novamente no sistema e atender tickets."}
           </p>
@@ -116,11 +112,11 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onSta
           </Button>
           <Button 
             onClick={handleToggleStatus}
-            variant={official && official.isActive ? "destructive" : "default"}
-            className={official && official.isActive ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
+            variant={official && official.is_active ? "destructive" : "default"}
+            className={official && official.is_active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
             disabled={processing}
           >
-            {official && official.isActive ? (
+            {official && official.is_active ? (
               <>
                 <UserX className="h-4 w-4 mr-2" />
                 {processing ? "Desativando..." : "Desativar"}

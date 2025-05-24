@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle, X, ChevronsUpDown, Copy } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -35,6 +36,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     userId: null as number | null,
     isActive: true,
     avatarUrl: null as string | null,
+    supervisor_id: null as number | null,
+    manager_id: null as number | null,
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -42,26 +45,36 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
   const [generatedPassword, setGeneratedPassword] = useState('');
   const [popoverOpen, setPopoverOpen] = useState(false);
   
-  // Carregar departamentos disponíveis
+  // Carregar departamentos disponíveis do banco de dados
   const { data: departmentsData } = useQuery({
-    queryKey: ["/api/settings/departments"],
+    queryKey: ["/api/departments"],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/departments?active_only=true');
+      if (!response.ok) {
+        throw new Error('Erro ao carregar departamentos');
+      }
+      return response.json();
+    }
   });
 
-  // Departamentos disponíveis para seleção
-  const availableDepartments = [
-    { value: "technical", label: "Suporte Técnico" },
-    { value: "billing", label: "Faturamento" },
-    { value: "general", label: "Atendimento Geral" },
-    { value: "sales", label: "Vendas" },
-    { value: "other", label: "Outro" }
-  ];
+  // Carregar atendentes existentes para seleção de supervisor/manager
+  const { data: existingOfficials = [] } = useQuery<any[]>({
+    queryKey: ['/api/officials'],
+  });
+
+  // Mapear departamentos do banco para o formato usado no componente
+  const availableDepartments = departmentsData?.map((dept: { id: number; name: string; description?: string }) => ({
+    value: dept.name,
+    label: dept.name,
+    id: dept.id
+  })) || [];
   
   const toggleDepartment = (department: string) => {
     setFormData(prev => {
       if (prev.departments.includes(department)) {
         return {
           ...prev,
-          departments: prev.departments.filter(d => d !== department)
+          departments: prev.departments.filter((d: string) => d !== department)
         };
       } else {
         return {
@@ -181,7 +194,9 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       departments: formData.departments,
       userDepartments: formData.departments,
       isActive: true,
-      avatarUrl: null
+      avatarUrl: null,
+      supervisor_id: formData.supervisor_id,
+      manager_id: formData.manager_id,
     });
   };
 
@@ -195,6 +210,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       userId: null,
       isActive: true,
       avatarUrl: null,
+      supervisor_id: null,
+      manager_id: null,
     });
     setUserCreated(false);
     setGeneratedPassword('');
@@ -260,23 +277,24 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                   </Label>
                   <div className="col-span-3 space-y-2">
                     <div className="flex flex-wrap gap-1 mb-1">
-                      {formData.departments.map((dept) => (
-                        <Badge key={dept} variant="secondary" className="gap-1">
-                          {dept === 'technical' && 'Suporte Técnico'}
-                          {dept === 'billing' && 'Faturamento'}
-                          {dept === 'general' && 'Atendimento Geral'}
-                          {dept === 'sales' && 'Vendas'}
-                          {dept === 'other' && 'Outro'}
-                          <button
-                            type="button"
-                            className="rounded-full outline-none hover:bg-neutral-200 flex items-center justify-center"
-                            onClick={() => removeDepartment(dept)}
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </Badge>
-                      ))}
-                      {formData.departments.length === 0 && (
+                      {Array.isArray(formData.departments) ? formData.departments.map((dept: string) => {
+                        const departmentInfo = Array.isArray(availableDepartments)
+                          ? availableDepartments.find((d: { value: string; label: string; id: number }) => d.value === dept)
+                          : null;
+                        return (
+                          <Badge key={dept} variant="secondary" className="gap-1">
+                            {departmentInfo?.label || dept}
+                            <button
+                              type="button"
+                              className="rounded-full outline-none hover:bg-neutral-200 flex items-center justify-center"
+                              onClick={() => removeDepartment(dept)}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        );
+                      }) : null}
+                      {(!Array.isArray(formData.departments) || formData.departments.length === 0) && (
                         <span className="text-sm text-neutral-500">Nenhum departamento selecionado</span>
                       )}
                     </div>
@@ -298,7 +316,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                           <CommandInput placeholder="Buscar departamento..." className="h-9" />
                           <CommandEmpty>Nenhum departamento encontrado.</CommandEmpty>
                           <CommandGroup>
-                            {availableDepartments.map((dept) => (
+                            {Array.isArray(availableDepartments) ? availableDepartments.map((dept: { value: string; label: string; id: number }) => (
                               <CommandItem
                                 key={dept.value}
                                 value={dept.value}
@@ -329,11 +347,59 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                                   </span>
                                 </div>
                               </CommandItem>
-                            ))}
+                            )) : null}
                           </CommandGroup>
                         </Command>
                       </PopoverContent>
                     </Popover>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="supervisor" className="text-right">
+                    Supervisor
+                  </Label>
+                  <div className="col-span-3">
+                    <Select 
+                      value={formData.supervisor_id?.toString() || "none"} 
+                      onValueChange={(value) => setFormData({ ...formData, supervisor_id: value === "none" ? null : parseInt(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecionar supervisor (opcional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum supervisor</SelectItem>
+                        {Array.isArray(existingOfficials) ? existingOfficials.map((official: any) => (
+                          <SelectItem key={official.id} value={official.id.toString()}>
+                            {official.name || 'Nome não disponível'} ({official.email || 'Email não disponível'})
+                          </SelectItem>
+                        )) : null}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="manager" className="text-right">
+                    Manager
+                  </Label>
+                  <div className="col-span-3">
+                    <Select 
+                      value={formData.manager_id?.toString() || "none"} 
+                      onValueChange={(value) => setFormData({ ...formData, manager_id: value === "none" ? null : parseInt(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecionar manager (opcional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum manager</SelectItem>
+                        {Array.isArray(existingOfficials) ? existingOfficials.map((official: any) => (
+                          <SelectItem key={official.id} value={official.id.toString()}>
+                            {official.name || 'Nome não disponível'} ({official.email || 'Email não disponível'})
+                          </SelectItem>
+                        )) : null}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

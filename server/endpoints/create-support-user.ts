@@ -25,7 +25,9 @@ export async function createSupportUserEndpoint(
       name, 
       userDepartments = [],
       avatarUrl = null,
-      isActive = true
+      isActive = true,
+      supervisorId = null,
+      managerId = null
     } = req.body;
     
     // Verificar campos obrigatórios
@@ -77,7 +79,7 @@ export async function createSupportUserEndpoint(
         password: hashedPassword,
         name,
         role: 'support',
-        avatarUrl,
+        avatar_url: avatarUrl,
         active: true,
       };
       
@@ -138,10 +140,12 @@ export async function createSupportUserEndpoint(
       const officialData: any = {
         name,
         email,
-        userId: user.id,
-        isActive,
-        avatarUrl,
+        user_id: user.id,
+        is_active: isActive,
+        avatar_url: avatarUrl,
         department: defaultDepartment, // Para compatibilidade com a coluna existente no banco
+        supervisor_id: supervisorId,
+        manager_id: managerId,
       };
       
       const official = await storage.createOfficial(officialData);
@@ -164,7 +168,7 @@ export async function createSupportUserEndpoint(
           }
           
           await storage.addOfficialDepartment({
-            officialId: official.id,
+            official_id: official.id,
             department: departmentValue,
           });
           console.log(`Departamento '${departmentValue}' adicionado ao atendente ID: ${official.id}`);

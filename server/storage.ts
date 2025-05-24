@@ -14,7 +14,7 @@ import {
   SLADefinition,
   OfficialDepartment,
   InsertOfficialDepartment,
-  ticketStatusEnum, ticketPriorityEnum, userRoleEnum, departmentEnum
+  ticketStatusEnum, ticketPriorityEnum, userRoleEnum
 } from "@shared/schema";
 import { generateTicketId } from "../client/src/lib/utils";
 

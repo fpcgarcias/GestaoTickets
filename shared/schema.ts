@@ -18,7 +18,13 @@ export const userRoleEnum = pgEnum('user_role', [
   'quality',        // Avaliação de qualidade
   'integration_bot' // Bots e integrações
 ]);
-export const departmentEnum = pgEnum('department', ['technical', 'billing', 'general', 'sales', 'other']);
+
+// Enum para provedores de IA
+export const aiProviderEnum = pgEnum('ai_provider', [
+  'openai',
+  'google',
+  'anthropic'
+]);
 
 // Tabela de empresas para suporte multi-tenant (ajustado para snake_case conforme banco de dados)
 export const companies = pgTable("companies", {
@@ -63,16 +69,29 @@ export const customers = pgTable("customers", {
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Support staff table (ajustado para snake_case)
+// Departamentos por empresa - substituindo o enum departmentEnum
+export const departments = pgTable("departments", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  company_id: integer("company_id").references(() => companies.id),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+  is_active: boolean("is_active").default(true).notNull(),
+});
+
+// Support staff table (ajustado para usar department_id ao invés de enum)
 export const officials = pgTable("officials", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
-  department: departmentEnum("department"),
+  department_id: integer("department_id").references(() => departments.id),
   user_id: integer("user_id").references(() => users.id),
   is_active: boolean("is_active").default(true).notNull(),
   avatar_url: text("avatar_url"),
   company_id: integer("company_id").references(() => companies.id),
+  supervisor_id: integer("supervisor_id"),
+  manager_id: integer("manager_id"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -161,17 +180,6 @@ export const incidentTypes = pgTable("incident_types", {
   is_active: boolean("is_active").default(true).notNull(),
 });
 
-// Departamentos por empresa - substituindo o enum departmentEnum
-export const departments = pgTable("departments", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  company_id: integer("company_id").references(() => companies.id),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-  is_active: boolean("is_active").default(true).notNull(),
-});
-
 // Tipos de chamado por departamento
 export const ticketTypes = pgTable("ticket_types", {
   id: serial("id").primaryKey(),
@@ -215,6 +223,142 @@ export const userNotificationSettings = pgTable('user_notification_settings', {
   
   created_at: timestamp('created_at', { withTimezone: false }).notNull().defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela para anexos de tickets
+export const ticketAttachments = pgTable("ticket_attachments", {
+  id: serial("id").primaryKey(),
+  ticket_id: integer("ticket_id").references(() => tickets.id, { onDelete: 'cascade' }).notNull(),
+  user_id: integer("user_id").references(() => users.id).notNull(),
+  
+  // Informações do arquivo
+  filename: text("filename").notNull(),
+  original_filename: text("original_filename").notNull(),
+  file_size: integer("file_size").notNull(),
+  mime_type: text("mime_type").notNull(),
+  
+  // Chaves do S3/Wasabi
+  s3_key: text("s3_key").notNull(),
+  s3_bucket: text("s3_bucket").notNull(),
+  
+  // Metadados
+  uploaded_at: timestamp("uploaded_at").defaultNow().notNull(),
+  is_deleted: boolean("is_deleted").default(false).notNull(),
+  deleted_at: timestamp("deleted_at"),
+  deleted_by_id: integer("deleted_by_id").references(() => users.id),
+});
+
+// Enum para tipos de templates de email
+export const emailTemplateTypeEnum = pgEnum('email_template_type', [
+  'new_ticket',           // Novo ticket criado
+  'ticket_assigned',      // Ticket atribuído
+  'ticket_reply',         // Nova resposta
+  'status_changed',       // Status alterado
+  'ticket_resolved',      // Ticket resolvido
+  'ticket_escalated',     // Ticket escalado
+  'ticket_due_soon',      // Vencimento próximo
+  'customer_registered',  // Novo cliente registrado
+  'user_created',         // Novo usuário criado
+  'system_maintenance'    // Manutenção do sistema
+]);
+
+// Tabela para templates de email
+export const emailTemplates = pgTable("email_templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: emailTemplateTypeEnum("type").notNull(),
+  description: text("description"),
+  
+  // Templates
+  subject_template: text("subject_template").notNull(),
+  html_template: text("html_template").notNull(),
+  text_template: text("text_template"),
+  
+  // Configurações
+  is_active: boolean("is_active").default(true).notNull(),
+  is_default: boolean("is_default").default(false).notNull(),
+  
+  // Variáveis disponíveis (JSON)
+  available_variables: text("available_variables"), // JSON string
+  
+  // Multi-tenant
+  company_id: integer("company_id").references(() => companies.id),
+  
+  // Metadados
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+  created_by_id: integer("created_by_id").references(() => users.id),
+  updated_by_id: integer("updated_by_id").references(() => users.id),
+});
+
+// Tabela para configurações de IA
+export const aiConfigurations = pgTable("ai_configurations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(), // Nome da configuração (ex: "Análise de Prioridade")
+  provider: aiProviderEnum("provider").notNull(),
+  model: text("model").notNull(), // gpt-4, gemini-pro, claude-3-sonnet, etc
+  api_key: text("api_key").notNull(),
+  api_endpoint: text("api_endpoint"), // Para Azure ou endpoints customizados
+  
+  // Configurações do prompt
+  system_prompt: text("system_prompt").notNull(),
+  user_prompt_template: text("user_prompt_template").notNull(), // Template com {titulo} e {descricao}
+  
+  // Configurações técnicas
+  temperature: text("temperature").default("0.1"), // Stored as text for precision
+  max_tokens: integer("max_tokens").default(100),
+  timeout_seconds: integer("timeout_seconds").default(30),
+  max_retries: integer("max_retries").default(3),
+  
+  // Configurações de fallback
+  fallback_priority: ticketPriorityEnum("fallback_priority").default("medium"),
+  
+  // Status
+  is_active: boolean("is_active").default(true).notNull(),
+  is_default: boolean("is_default").default(false).notNull(),
+  
+  // Multi-tenant
+  company_id: integer("company_id").references(() => companies.id),
+  
+  // Metadados
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+  created_by_id: integer("created_by_id").references(() => users.id),
+  updated_by_id: integer("updated_by_id").references(() => users.id),
+});
+
+// Tabela para histórico de análises de IA
+export const aiAnalysisHistory = pgTable("ai_analysis_history", {
+  id: serial("id").primaryKey(),
+  ticket_id: integer("ticket_id").references(() => tickets.id).notNull(),
+  ai_configuration_id: integer("ai_configuration_id").references(() => aiConfigurations.id).notNull(),
+  
+  // Input da análise
+  input_title: text("input_title").notNull(),
+  input_description: text("input_description").notNull(),
+  
+  // Output da IA
+  suggested_priority: ticketPriorityEnum("suggested_priority").notNull(),
+  ai_response_raw: text("ai_response_raw"), // Resposta completa da IA
+  ai_justification: text("ai_justification"), // Justificativa extraída
+  
+  // Metadados da requisição
+  provider: aiProviderEnum("provider").notNull(),
+  model: text("model").notNull(),
+  request_tokens: integer("request_tokens"),
+  response_tokens: integer("response_tokens"),
+  processing_time_ms: integer("processing_time_ms"),
+  
+  // Status da análise
+  status: text("status", { enum: ['success', 'error', 'timeout', 'fallback'] }).notNull(),
+  error_message: text("error_message"),
+  retry_count: integer("retry_count").default(0),
+  
+  // Multi-tenant
+  company_id: integer("company_id").references(() => companies.id),
+  
+  // Timestamp
+  created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Schema for inserting companies
@@ -313,6 +457,45 @@ export const insertTicketTypeSchema = createInsertSchema(ticketTypes).omit({
   updated_at: true,
 });
 
+// Schema for inserting ticket attachments
+export const insertTicketAttachmentSchema = createInsertSchema(ticketAttachments).omit({
+  id: true,
+  uploaded_at: true,
+  is_deleted: true,
+  deleted_at: true,
+  deleted_by_id: true,
+});
+
+// Schema for inserting email templates
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+  created_by_id: true,
+  updated_by_id: true,
+});
+
+// Schema for updating email templates
+export const updateEmailTemplateSchema = insertEmailTemplateSchema.partial();
+
+// Schema for inserting AI configurations
+export const insertAiConfigurationSchema = createInsertSchema(aiConfigurations).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+  created_by_id: true,
+  updated_by_id: true,
+});
+
+// Schema for updating AI configurations
+export const updateAiConfigurationSchema = insertAiConfigurationSchema.partial();
+
+// Schema for inserting AI analysis history
+export const insertAiAnalysisHistorySchema = createInsertSchema(aiAnalysisHistory).omit({
+  id: true,
+  created_at: true,
+});
+
 // Types
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -325,6 +508,11 @@ export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 
 export type Official = typeof officials.$inferSelect & {
   departments?: string[] | OfficialDepartment[];
+  supervisor?: Partial<Official>;
+  manager?: Partial<Official>;
+  subordinates?: Partial<Official>[];
+  teamMembers?: Partial<Official>[];
+  assignedTicketsCount?: number;
 };
 export type InsertOfficial = z.infer<typeof insertOfficialSchema> & {
   departments?: string[];
@@ -338,6 +526,7 @@ export type Ticket = typeof tickets.$inferSelect & {
   official?: Partial<Official>;
   replies?: TicketReply[];
   incidentType?: IncidentType;
+  attachments?: TicketAttachment[];
 };
 export type InsertTicket = z.infer<typeof insertTicketSchema>;
 
@@ -362,6 +551,34 @@ export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
 export type TicketType = typeof ticketTypes.$inferSelect;
 export type InsertTicketType = z.infer<typeof insertTicketTypeSchema>;
 
+export type TicketAttachment = typeof ticketAttachments.$inferSelect & {
+  user?: Partial<User>;
+};
+export type InsertTicketAttachment = z.infer<typeof insertTicketAttachmentSchema>;
+
+export type EmailTemplate = typeof emailTemplates.$inferSelect & {
+  created_by?: Partial<User>;
+  updated_by?: Partial<User>;
+  company?: Partial<Company>;
+};
+export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
+export type UpdateEmailTemplate = z.infer<typeof updateEmailTemplateSchema>;
+
+export type AiConfiguration = typeof aiConfigurations.$inferSelect & {
+  created_by?: Partial<User>;
+  updated_by?: Partial<User>;
+  company?: Partial<Company>;
+};
+export type InsertAiConfiguration = z.infer<typeof insertAiConfigurationSchema>;
+export type UpdateAiConfiguration = z.infer<typeof updateAiConfigurationSchema>;
+
+export type AiAnalysisHistory = typeof aiAnalysisHistory.$inferSelect & {
+  ticket?: Partial<Ticket>;
+  ai_configuration?: Partial<AiConfiguration>;
+  company?: Partial<Company>;
+};
+export type InsertAiAnalysisHistory = z.infer<typeof insertAiAnalysisHistorySchema>;
+
 // Relation declarations
 
 // Relações para a tabela de tickets
@@ -376,6 +593,7 @@ export const ticketsRelations = relations(tickets, ({ one, many }) => ({
   }),
   replies: many(ticketReplies),
   statusHistory: many(ticketStatusHistory),
+  attachments: many(ticketAttachments),
 }));
 
 // Relações para a tabela de respostas de tickets
@@ -419,6 +637,71 @@ export const ticketTypesRelations = relations(ticketTypes, ({ one }) => ({
   }),
   company: one(companies, {
     fields: [ticketTypes.company_id],
+    references: [companies.id],
+  }),
+}));
+
+// Relações para a tabela de anexos de tickets
+export const ticketAttachmentsRelations = relations(ticketAttachments, ({ one }) => ({
+  ticket: one(tickets, {
+    fields: [ticketAttachments.ticket_id],
+    references: [tickets.id],
+  }),
+  user: one(users, {
+    fields: [ticketAttachments.user_id],
+    references: [users.id],
+  }),
+  deleted_by: one(users, {
+    fields: [ticketAttachments.deleted_by_id],
+    references: [users.id],
+  }),
+}));
+
+// Relações para a tabela de templates de email
+export const emailTemplatesRelations = relations(emailTemplates, ({ one }) => ({
+  company: one(companies, {
+    fields: [emailTemplates.company_id],
+    references: [companies.id],
+  }),
+  created_by: one(users, {
+    fields: [emailTemplates.created_by_id],
+    references: [users.id],
+  }),
+  updated_by: one(users, {
+    fields: [emailTemplates.updated_by_id],
+    references: [users.id],
+  }),
+}));
+
+// Relações para a tabela de configurações de IA
+export const aiConfigurationsRelations = relations(aiConfigurations, ({ one, many }) => ({
+  company: one(companies, {
+    fields: [aiConfigurations.company_id],
+    references: [companies.id],
+  }),
+  created_by: one(users, {
+    fields: [aiConfigurations.created_by_id],
+    references: [users.id],
+  }),
+  updated_by: one(users, {
+    fields: [aiConfigurations.updated_by_id],
+    references: [users.id],
+  }),
+  analysisHistory: many(aiAnalysisHistory),
+}));
+
+// Relações para a tabela de histórico de análises de IA
+export const aiAnalysisHistoryRelations = relations(aiAnalysisHistory, ({ one }) => ({
+  ticket: one(tickets, {
+    fields: [aiAnalysisHistory.ticket_id],
+    references: [tickets.id],
+  }),
+  ai_configuration: one(aiConfigurations, {
+    fields: [aiAnalysisHistory.ai_configuration_id],
+    references: [aiConfigurations.id],
+  }),
+  company: one(companies, {
+    fields: [aiAnalysisHistory.company_id],
     references: [companies.id],
   }),
 }));

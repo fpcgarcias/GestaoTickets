@@ -12,7 +12,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Mail, Settings as SettingsIcon, Brain } from "lucide-react";
 import { useQuery, useMutation, QueryClient } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +20,9 @@ import { Link } from 'wouter';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth'; // Importar o hook global
 import NotificationSettings from "@/components/notification-settings";
+import EmailSettings from "@/components/email-settings";
+import AdvancedNotificationSettings from "@/components/advanced-notification-settings";
+import AiSettings from "@/components/ai-settings";
 
 // A interface User local pode ser removida se a do hook global for suficiente.
 // A interface Company local pode ser removida.
@@ -200,6 +203,7 @@ export default function Settings() {
       }
       return response.json();
     },
+    enabled: !isLoadingAuth && (user?.role === 'admin' || user?.role === 'company_admin'),
   });
 
   useEffect(() => {
@@ -374,6 +378,30 @@ export default function Settings() {
             </TabsTrigger>
           )}
           
+          {/* Aba Email - apenas para admin e company_admin */}
+          {(user?.role === 'admin' || user?.role === 'company_admin') && (
+            <TabsTrigger value="email" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+              <Mail className="mr-2 h-4 w-4" />
+              Configurações de Email
+            </TabsTrigger>
+          )}
+          
+          {/* Aba Notificações Avançadas - apenas para admin */}
+          {user?.role === 'admin' && (
+            <TabsTrigger value="advanced-notifications" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+              <SettingsIcon className="mr-2 h-4 w-4" />
+              Sistema de Notificações
+            </TabsTrigger>
+          )}
+          
+          {/* Aba IA - apenas para admin */}
+          {user?.role === 'admin' && (
+            <TabsTrigger value="ai" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+              <Brain className="mr-2 h-4 w-4" />
+              IA
+            </TabsTrigger>
+          )}
+          
           {/* Aba Notificações - para todas as roles */}
           <TabsTrigger value="notifications" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             Notificações
@@ -532,6 +560,27 @@ export default function Settings() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+        )}
+        
+        {/* Conteúdo da aba Email - apenas para admin e company_admin */}
+        {(user?.role === 'admin' || user?.role === 'company_admin') && (
+          <TabsContent value="email">
+            <EmailSettings />
+          </TabsContent>
+        )}
+        
+        {/* Conteúdo da aba Notificações Avançadas - apenas para admin */}
+        {user?.role === 'admin' && (
+          <TabsContent value="advanced-notifications">
+            <AdvancedNotificationSettings />
+          </TabsContent>
+        )}
+        
+        {/* Conteúdo da aba IA - apenas para admin */}
+        {user?.role === 'admin' && (
+          <TabsContent value="ai">
+            <AiSettings />
           </TabsContent>
         )}
         
