@@ -70,6 +70,9 @@
 =======
     "multer": "^2.0.0",
     "nanoid": "^5.0.8",
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
     "next-themes": "^0.4.6",
     "passport": "^0.7.0",
