@@ -18,10 +18,6 @@ import "./loadEnv"; // Importar PRIMEIRO para carregar variáveis de ambiente
 //   }
 // }
 
-console.log('[index.ts] Verificando DATABASE_URL (este log é após a importação de loadEnv.ts):');
-console.log('[index.ts] process.env.DATABASE_URL:', process.env.DATABASE_URL ? 'DEFINIDA' : 'NÃO DEFINIDA');
-console.log('[index.ts] process.cwd():', process.cwd());
-
 // --- DEBUG --- 
 // console.log('DEBUG: Após dotenv.config()');
 // console.log('DEBUG: DATABASE_URL:', process.env.DATABASE_URL);
@@ -30,8 +26,6 @@ console.log('[index.ts] process.cwd():', process.cwd());
 
 import express, { type Request, Response, NextFunction } from "express";
 import { setupVite, serveStatic, log } from "./vite";
-import { migrateDepartmentsToJunctionTable } from "./migrate-departments";
-import { migrateActiveField } from "./migrate-active-field";
 import session from "express-session";
 import crypto from "crypto";
 import path from "path"; // RESTAURAR esta importação, pois é usada abaixo
@@ -123,8 +117,7 @@ app.use((req, res, next) => {
 // Função start agora configura tudo
 async function startServer() {
   try {
-    // Executar migrações antes de iniciar o servidor
-    console.log('Executando migrações automáticas...');
+    // Executar migrações antes de iniciar o servidor (silencioso se não há pendências)
     await migrate();
     
     // Continuar com o código de inicialização do servidor
@@ -140,8 +133,7 @@ async function startServer() {
     // 2. Configurar o Vite DEPOIS das rotas da API
     await setupVite(app, server);
     
-    // 3. Executar migrações
-    console.log("Executando migrações...");
+    // 3. Executar migrações de senhas (se necessário)
     await migratePasswords();
     
     // 4. Inicializar scheduler para verificações automáticas

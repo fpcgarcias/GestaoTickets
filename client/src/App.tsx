@@ -12,6 +12,9 @@ import TicketDetail from "@/pages/tickets/[id]";
 import UsersIndex from "@/pages/users/index";
 import OfficialsIndex from "@/pages/officials/index";
 import ClientsIndex from "@/pages/clients/index";
+import CompaniesIndex from "@/pages/companies/index";
+import DepartmentManagement from "@/pages/DepartmentManagement";
+import TicketTypeManagement from "@/pages/TicketTypeManagement";
 import Settings from "@/pages/settings";
 import AuthPage from "@/pages/auth-page";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -87,6 +90,24 @@ function AppContent() {
       <ProtectedRoute path="/officials" component={() => (
         <MainLayout>
           <OfficialsIndex />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/companies" component={() => (
+        <MainLayout>
+          <CompaniesIndex />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/departments" component={() => (
+        <MainLayout>
+          <DepartmentManagement />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/ticket-types" component={() => (
+        <MainLayout>
+          <TicketTypeManagement />
         </MainLayout>
       )} />
       

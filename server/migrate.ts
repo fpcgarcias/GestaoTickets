@@ -21,10 +21,6 @@ import path from 'path'; // Manter esta importação
 //   }
 // }
 
-console.log('[migrate.ts] Verificando DATABASE_URL (este log é após a importação de loadEnv.ts):');
-console.log('[migrate.ts] process.env.DATABASE_URL:', process.env.DATABASE_URL ? 'DEFINIDA' : 'NÃO DEFINIDA');
-console.log('[migrate.ts] process.cwd():', process.cwd());
-
 import { db } from './db';
 import { sql } from 'drizzle-orm';
 
@@ -42,8 +38,8 @@ const migrations = [
   '20241227-create-email-templates-table',
 ];
 
-// Função para verificar se uma migração já foi executada
-async function hasMigrationRun(migrationName: string): Promise<boolean> {
+// Função para verificar quais migrações ainda não foram executadas
+async function getPendingMigrations(): Promise<string[]> {
   try {
     // Verificar se a tabela de migrações existe
     const tableExists = await db.execute(sql`
@@ -54,7 +50,7 @@ async function hasMigrationRun(migrationName: string): Promise<boolean> {
       );
     `);
 
-    // Se a tabela não existir, criá-la
+    // Se a tabela não existir, criá-la e todas as migrações são pendentes
     if (!tableExists.rows[0]?.exists) {
       await db.execute(sql`
         CREATE TABLE migrations (
@@ -63,21 +59,21 @@ async function hasMigrationRun(migrationName: string): Promise<boolean> {
           executed_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
       `);
-      return false;
+      return migrations;
     }
 
-    // Verificar se a migração já foi executada
-    const result = await db.execute(sql`
-      SELECT EXISTS (
-        SELECT FROM migrations 
-        WHERE name = ${migrationName}
-      );
+    // Buscar todas as migrações já executadas
+    const executedMigrations = await db.execute(sql`
+      SELECT name FROM migrations
     `);
 
-    return result.rows[0]?.exists === true;
+    const executedNames = executedMigrations.rows.map(row => row.name as string);
+    
+    // Retornar apenas as migrações que ainda não foram executadas
+    return migrations.filter(migration => !executedNames.includes(migration));
   } catch (error) {
-    console.error('Erro ao verificar migração:', error);
-    return false;
+    console.error('Erro ao verificar migrações pendentes:', error);
+    return [];
   }
 }
 
@@ -91,17 +87,18 @@ async function registerMigration(migrationName: string): Promise<void> {
 
 // Função principal para executar as migrações
 async function migrate() {
-  console.log('Iniciando migrações...');
+  // Verificar quais migrações são necessárias
+  const pendingMigrations = await getPendingMigrations();
+  
+  if (pendingMigrations.length === 0) {
+    // Não mostrar nada se não há migrações pendentes - sistema já está atualizado
+    return;
+  }
 
-  for (const migrationName of migrations) {
+  console.log(`Iniciando ${pendingMigrations.length} migração(ões) pendente(s)...`);
+
+  for (const migrationName of pendingMigrations) {
     try {
-      // Verificar se a migração já foi executada
-      const alreadyRan = await hasMigrationRun(migrationName);
-      if (alreadyRan) {
-        console.log(`Migração ${migrationName} já foi executada anteriormente.`);
-        continue;
-      }
-
       console.log(`Executando migração: ${migrationName}`);
       
       // Importar e executar a migração
@@ -112,18 +109,18 @@ async function migrate() {
         await migration.up();
         // Registrar migração como executada
         await registerMigration(migrationName);
-        console.log(`Migração ${migrationName} executada com sucesso.`);
+        console.log(`✅ Migração ${migrationName} executada com sucesso.`);
       } else {
-        console.error(`Função 'up' não encontrada na migração ${migrationName}.`);
+        console.error(`❌ Função 'up' não encontrada na migração ${migrationName}.`);
       }
     } catch (error) {
-      console.error(`Erro ao executar migração ${migrationName}:`, error);
+      console.error(`❌ Erro ao executar migração ${migrationName}:`, error);
       // Interromper o processo em caso de erro
       process.exit(1);
     }
   }
 
-  console.log('Migrações concluídas com sucesso!');
+  console.log('✅ Migrações concluídas com sucesso!');
 }
 
 // Exportar como módulo para ser usado pelo servidor

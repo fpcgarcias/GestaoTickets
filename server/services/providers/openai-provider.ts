@@ -54,75 +54,65 @@ export class OpenAiProvider implements AiProviderInterface {
       const data = await response.json();
       
       // Extrair a resposta
-      const aiResponse = data.choices?.[0]?.message?.content?.trim();
+      const aiResponse = data.choices[0]?.message?.content?.trim() || '';
       
       if (!aiResponse) {
-        throw new Error('Resposta vazia da OpenAI');
-      }
-
-      console.log(`[OpenAI] Resposta bruta: "${aiResponse}"`);
-
-      // Extrair prioridade da resposta (buscar por palavras-chave)
-      const normalizedResponse = aiResponse.toLowerCase().trim();
-      let extractedPriority: 'low' | 'medium' | 'high' | 'critical' = 'medium';
-      let confidence = 0.5;
-
-      // Procurar pelas palavras-chave de prioridade
-      if (normalizedResponse.includes('critical') || normalizedResponse.includes('crítica')) {
-        extractedPriority = 'critical';
-        confidence = 0.9;
-      } else if (normalizedResponse.includes('high') || normalizedResponse.includes('alta')) {
-        extractedPriority = 'high';
-        confidence = 0.8;
-      } else if (normalizedResponse.includes('low') || normalizedResponse.includes('baixa')) {
-        extractedPriority = 'low';
-        confidence = 0.8;
-      } else if (normalizedResponse.includes('medium') || normalizedResponse.includes('média')) {
-        extractedPriority = 'medium';
-        confidence = 0.8;
-      } else {
-        // Se não encontrar nenhuma palavra-chave, tentar primeira palavra
-        const firstWord = normalizedResponse.split(/\s+/)[0];
-        if (['critical', 'high', 'medium', 'low'].includes(firstWord)) {
-          extractedPriority = firstWord as any;
-          confidence = 0.7;
-        } else {
-          console.log(`[OpenAI] ⚠️  Não foi possível extrair prioridade de: "${aiResponse}". Usando fallback: medium`);
-          confidence = 0.1;
-        }
-      }
-
-      // Extrair justificativa (texto após a prioridade)
-      const lines = aiResponse.split('\n').filter((line: string) => line.trim());
-      let justification = lines.length > 1 ? lines.slice(1).join(' ').trim() : undefined;
-      
-      // Se não há justificativa nas linhas seguintes, usar o texto após a prioridade na mesma linha
-      if (!justification) {
-        const priorityWords = ['critical', 'high', 'medium', 'low', 'crítica', 'alta', 'média', 'baixa'];
-        for (const word of priorityWords) {
-          const index = normalizedResponse.indexOf(word);
-          if (index !== -1) {
-            const afterPriority = aiResponse.substring(index + word.length).trim();
-            if (afterPriority.length > 0) {
-              justification = afterPriority;
-              break;
-            }
+        return {
+          priority: config.fallback_priority || 'medium',
+          confidence: 0,
+          justification: 'Resposta vazia da IA',
+          usedFallback: true,
+          processingTimeMs: Date.now() - startTime,
+          tokensUsed: {
+            request: data.usage?.prompt_tokens || 0,
+            response: data.usage?.completion_tokens || 0,
           }
-        }
+        };
       }
 
-      console.log(`[OpenAI] ✅ Prioridade extraída: ${extractedPriority} (confiança: ${confidence}) - Justificativa: "${justification || 'N/A'}"`);
+      // Tentar extrair a prioridade usando regex
+      const priorityMatch = aiResponse.match(/prioridade:\s*(critical|high|medium|low)/i) ||
+                           aiResponse.match(/(critical|high|medium|low)/i);
+      
+      if (!priorityMatch) {
+        return {
+          priority: config.fallback_priority || 'medium',
+          confidence: 0.2,
+          justification: 'Não foi possível extrair prioridade da resposta da IA',
+          usedFallback: true,
+          processingTimeMs: Date.now() - startTime,
+          tokensUsed: {
+            request: data.usage?.prompt_tokens || 0,
+            response: data.usage?.completion_tokens || 0,
+          }
+        };
+      }
+
+      const extractedPriority = priorityMatch[1].toLowerCase() as 'critical' | 'high' | 'medium' | 'low';
+      
+      // Extrair justificativa (texto após "justificativa:" ou similar)
+      const justificationMatch = aiResponse.match(/justificativa[:\s]+(.*?)(?:\n|$)/i) ||
+                                aiResponse.match(/razão[:\s]+(.*?)(?:\n|$)/i) ||
+                                aiResponse.match(/porque[:\s]+(.*?)(?:\n|$)/i);
+      
+      const justification = justificationMatch?.[1]?.trim() || 'Análise baseada no conteúdo do ticket';
+      
+      // Calcular confiança baseada na clareza da resposta
+      let confidence = 0.8;
+      if (aiResponse.includes('incerto') || aiResponse.includes('talvez')) {
+        confidence = 0.6;
+      }
 
       return {
         priority: extractedPriority,
-        justification: justification || `Classificação automática baseada em: "${aiResponse}"`,
         confidence,
+        justification,
         usedFallback: false,
         processingTimeMs: Date.now() - startTime,
         tokensUsed: {
           request: data.usage?.prompt_tokens || 0,
           response: data.usage?.completion_tokens || 0,
-        },
+        }
       };
 
     } catch (error: any) {

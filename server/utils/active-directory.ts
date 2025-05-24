@@ -5,26 +5,16 @@ import * as dotenv from 'dotenv';
 // Carregar variáveis de ambiente
 dotenv.config();
 
-// Mostrar as configurações do AD carregadas (sem mostrar a senha)
-console.log('======= CONFIGURAÇÕES DO ACTIVE DIRECTORY =======');
-console.log(`AD_URL: ${process.env.AD_URL || '(não definido)'}`);
-console.log(`AD_BASE_DN: ${process.env.AD_BASE_DN || '(não definido)'}`);
-console.log(`AD_USERNAME: ${process.env.AD_USERNAME || '(não definido)'}`);
-console.log(`AD_PASSWORD: ${process.env.AD_PASSWORD ? '(definido)' : '(não definido)'}`);
-console.log(`AD_DOMAIN: ${process.env.AD_DOMAIN || '(não definido)'}`);
-console.log(`AD_EMAIL_DOMAIN: ${process.env.AD_EMAIL_DOMAIN || '(não definido, usando o mesmo domínio do AD)'}`);
-console.log(`AD_ADMIN_GROUP: ${process.env.AD_ADMIN_GROUP || '(não definido, usando padrão: SistemaGestao-Admins)'}`);
-console.log(`AD_SUPPORT_GROUP: ${process.env.AD_SUPPORT_GROUP || '(não definido, usando padrão: SistemaGestao-Suporte)'}`);
-console.log('===============================================');
-
 // Configurações do Active Directory
 const adConfig = {
-  url: process.env.AD_URL || 'ldap://seu-servidor-ad.com',
-  baseDN: process.env.AD_BASE_DN || 'dc=seu-dominio,dc=com',
-  username: process.env.AD_USERNAME || 'usuario@seu-dominio.com',
+  url: process.env.AD_URL || 'ldap://127.0.0.1:389',
+  baseDN: process.env.AD_BASE_DN || 'DC=vixbrasil,DC=local',
+  username: process.env.AD_USERNAME || 'VIXBRASIL\\administrador',
   password: process.env.AD_PASSWORD || 'senha-admin-ad',
+  
   attributes: {
-    user: ['sAMAccountName', 'mail', 'displayName', 'memberOf', 'userPrincipalName', 'proxyAddresses', 'otherMailbox']
+    user: ['displayName', 'mail', 'userPrincipalName', 'memberOf', 'proxyAddresses'],
+    group: ['cn', 'description']
   }
 };
 
@@ -57,7 +47,6 @@ function fixEmailDomain(email: string, source: string): { email: string, wasFixe
     )) {
     // Substituir o domínio pelo domínio de email configurado
     const fixedEmail = `${userPart}@${process.env.AD_EMAIL_DOMAIN}`;
-    console.log(`[AD Debug] Domínio do email substituído: ${email} -> ${fixedEmail} (fonte: ${source})`);
     return { email: fixedEmail, wasFixed: true };
   }
   
@@ -71,9 +60,6 @@ function fixEmailDomain(email: string, source: string): { email: string, wasFixe
  * @returns Dados do usuário ou null se a autenticação falhar
  */
 export async function authenticateAD(username: string, password: string): Promise<any | null> {
-  console.log(`[AD Debug] Iniciando autenticação para usuário: ${username}`);
-  console.log(`[AD Debug] Configurações AD: URL=${adConfig.url}, baseDN=${adConfig.baseDN}`);
-  
   return new Promise((resolve, reject) => {
     // Tratar o nome de usuário para garantir o formato correto
     let formattedUsername = username.trim();
@@ -86,36 +72,23 @@ export async function authenticateAD(username: string, password: string): Promis
       if (process.env.AD_DOMAIN && domainPart.toLowerCase() !== process.env.AD_DOMAIN.toLowerCase()) {
         const userPart = formattedUsername.split('@')[0];
         formattedUsername = `${userPart}@${process.env.AD_DOMAIN}`;
-        console.log(`[AD Debug] Domínio substituído, novo username: ${formattedUsername}`);
       }
     } 
     // Se o username não contém @, adicionar o domínio
     else if (process.env.AD_DOMAIN) {
       formattedUsername = `${formattedUsername}@${process.env.AD_DOMAIN}`;
-      console.log(`[AD Debug] Username formatado com domínio: ${formattedUsername}`);
     }
 
-    console.log(`[AD Debug] Enviando requisição de autenticação para o AD com: ${formattedUsername}`);
     ad.authenticate(formattedUsername, password, (err: Error | null, auth: boolean) => {
       if (err || !auth) {
-        console.error('[AD Debug] Erro na autenticação AD:', err);
-        console.error(`[AD Debug] Auth result: ${auth}`);
         return resolve(null);
       }
       
-      console.log(`[AD Debug] Autenticação bem-sucedida para ${formattedUsername}`);
-      
       // Se autenticado, busca informações do usuário
-      console.log(`[AD Debug] Buscando informações do usuário no AD...`);
       ad.findUser(formattedUsername, (err: Error | null, user: any) => {
         if (err || !user) {
-          console.error('[AD Debug] Erro ao buscar usuário no AD:', err);
-          console.error('[AD Debug] Usuário encontrado:', user ? 'Sim' : 'Não');
           return resolve(null);
         }
-        
-        console.log(`[AD Debug] Usuário encontrado no AD: ${user.displayName || formattedUsername}`);
-        console.log(`[AD Debug] Atributos disponíveis: ${Object.keys(user).join(', ')}`);
         
         // Extrair o email do usuário
         let userEmail = '';
@@ -125,14 +98,12 @@ export async function authenticateAD(username: string, password: string): Promis
         if (user.mail && user.mail.trim()) {
           userEmail = user.mail.trim();
           emailSource = 'mail attribute';
-          console.log(`[AD Debug] Email encontrado no atributo 'mail': ${userEmail}`);
         } else if (user.proxyAddresses && Array.isArray(user.proxyAddresses) && user.proxyAddresses.length > 0) {
           // Procurar por endereço SMTP primário (começa com "SMTP:")
           const primarySmtp = user.proxyAddresses.find((addr: string) => addr.startsWith('SMTP:'));
           if (primarySmtp) {
             userEmail = primarySmtp.substring(5); // Remove o prefixo "SMTP:"
             emailSource = 'proxyAddresses (primary)';
-            console.log(`[AD Debug] Email encontrado em proxyAddresses (primary): ${userEmail}`);
           } else if (user.proxyAddresses[0]) {
             // Usar o primeiro endereço proxy se não houver SMTP primário
             const proxy = user.proxyAddresses[0];
@@ -142,17 +113,14 @@ export async function authenticateAD(username: string, password: string): Promis
               userEmail = proxy;
             }
             emailSource = 'proxyAddresses (first)';
-            console.log(`[AD Debug] Email alternativo de proxyAddresses: ${userEmail}`);
           }
         } else if (user.userPrincipalName && user.userPrincipalName.includes('@')) {
           userEmail = user.userPrincipalName;
           emailSource = 'userPrincipalName';
-          console.log(`[AD Debug] Email extraído do userPrincipalName: ${userEmail}`);
         }
         
         // Verificar se encontramos um email válido
         if (!userEmail || !userEmail.includes('@')) {
-          console.error('[AD Debug] Email não encontrado para o usuário ou inválido');
           return resolve({
             error: 'EMAIL_NOT_FOUND',
             message: 'Não foi possível encontrar um endereço de email válido para este usuário no Active Directory.'
@@ -163,10 +131,6 @@ export async function authenticateAD(username: string, password: string): Promis
         const { email: correctedEmail, wasFixed } = fixEmailDomain(userEmail, emailSource);
         userEmail = correctedEmail;
         
-        if (!wasFixed) {
-          console.log(`[AD Debug] Email mantido sem alterações: ${userEmail} (fonte: ${emailSource})`);
-        }
-        
         // Mapear atributos do AD para o formato esperado pelo sistema
         const adUser = {
           username: user.sAMAccountName || formattedUsername.split('@')[0],
@@ -175,7 +139,6 @@ export async function authenticateAD(username: string, password: string): Promis
           adData: user // Dados brutos do AD para referência
         };
         
-        console.log(`[AD Debug] Usuário mapeado: ${JSON.stringify(adUser, null, 2)}`);
         resolve(adUser);
       });
     });
@@ -232,8 +195,6 @@ export function adGroupRequired(groupName: string) {
 export async function testADConnection(): Promise<{ success: boolean; message: string; details?: any }> {
   return new Promise((resolve) => {
     try {
-      console.log('[AD Debug] Testando conexão AD com usuário de serviço...');
-      
       // Verificar se as configurações básicas estão definidas
       if (!process.env.AD_URL) {
         return resolve({ 
@@ -263,7 +224,6 @@ export async function testADConnection(): Promise<{ success: boolean; message: s
       // Testar autenticação com a conta de serviço
       ad.authenticate(process.env.AD_USERNAME, process.env.AD_PASSWORD, (err: Error | null, auth: boolean) => {
         if (err || !auth) {
-          console.error('[AD Debug] Erro no teste de conexão AD:', err);
           return resolve({ 
             success: false, 
             message: 'Falha na autenticação com a conta de serviço',
@@ -274,7 +234,6 @@ export async function testADConnection(): Promise<{ success: boolean; message: s
         // Se autenticação funcionou, tentar buscar um usuário para validar a conexão
         ad.findUsers('(objectclass=user)', (err: Error | null, users: any[]) => {
           if (err) {
-            console.error('[AD Debug] Erro ao buscar usuários do AD:', err);
             return resolve({ 
               success: false, 
               message: 'Autenticação bem-sucedida, mas falha ao buscar usuários do AD',
@@ -302,7 +261,6 @@ export async function testADConnection(): Promise<{ success: boolean; message: s
         });
       });
     } catch (error) {
-      console.error('[AD Debug] Erro geral no teste de conexão AD:', error);
       resolve({ 
         success: false, 
         message: 'Erro ao testar conexão com AD',
