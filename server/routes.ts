@@ -13,6 +13,7 @@ import * as crypto from 'crypto';
 import multer from 'multer';
 import s3Service from './services/s3-service';
 import { emailConfigService, type EmailConfig, type SMTPConfigInput } from './services/email-config-service';
+import { emailNotificationService } from './services/email-notification-service';
 
 // Schemas Zod para validação de Departamentos (definidos aqui temporariamente)
 const insertDepartmentSchemaInternal = z.object({
@@ -770,6 +771,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         message: `O ticket ${ticket.ticket_id} foi atribuído/desatribuído.`,
         timestamp: new Date()
       });
+      
+      // 📧 ENVIAR EMAIL PARA MUDANÇA DE ATRIBUIÇÃO
+      if (updateData.assigned_to_id && existingTicket.assigned_to_id !== updateData.assigned_to_id) {
+        await emailNotificationService.notifyTicketAssigned(ticket.id, updateData.assigned_to_id);
+      }
 
       res.json(ticket);
     } catch (error) {
@@ -821,6 +827,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         priority: ticketData.priority,
         timestamp: new Date()
       });
+      
+      // 📧 ENVIAR EMAIL DE NOTIFICAÇÃO PARA NOVO TICKET
+      emailNotificationService.notifyNewTicket(ticket.id);
       
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -887,6 +896,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         await notificationService.notifyNewReply(ticketId, userId);
       }
       
+      // 📧 ENVIAR EMAIL DE NOTIFICAÇÃO PARA NOVA RESPOSTA
+      if (userId) {
+        await emailNotificationService.notifyTicketReply(ticketId, userId, req.body.message);
+      }
+      
       // Se for uma atualização de status ou atribuição, notificar
       if (req.body.status !== ticket.status || req.body.assigned_to_id !== ticket.assigned_to_id) {
         notificationService.sendNotificationToAll({
@@ -896,6 +910,21 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           message: `O status ou atribuição do ticket ${ticket.ticket_id} foi atualizado.`,
           timestamp: new Date()
         });
+        
+        // 📧 ENVIAR EMAIL PARA MUDANÇA DE STATUS
+        if (req.body.status !== ticket.status) {
+          await emailNotificationService.notifyStatusChanged(
+            ticketId, 
+            ticket.status, 
+            req.body.status, 
+            userId
+          );
+        }
+        
+        // 📧 ENVIAR EMAIL PARA ATRIBUIÇÃO
+        if (req.body.assigned_to_id !== ticket.assigned_to_id && req.body.assigned_to_id) {
+          await emailNotificationService.notifyTicketAssigned(ticketId, req.body.assigned_to_id);
+        }
       }
       
       res.status(201).json(reply);
@@ -989,6 +1018,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         ...req.body,
         user_id: user.id
       });
+      
+      // Notificar sobre novo cliente registrado
+      try {
+        await emailNotificationService.notifyNewCustomerRegistered(customer.id);
+      } catch (notificationError) {
+        console.error('Erro ao enviar notificação de novo cliente:', notificationError);
+        // Não falhar a criação do cliente por causa da notificação
+      }
       
       // Retornar o cliente com informações de acesso
       res.status(201).json({
@@ -1680,6 +1717,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         avatar_url: avatarUrl,
         active: true 
       });
+      
+      // Notificar sobre novo usuário criado
+      try {
+        await emailNotificationService.notifyNewUserCreated(user.id, req.session?.userId);
+      } catch (notificationError) {
+        console.error('Erro ao enviar notificação de novo usuário:', notificationError);
+        // Não falhar a criação do usuário por causa da notificação
+      }
       
       const { password: _, ...userWithoutPassword } = user;
       
@@ -3423,6 +3468,125 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         success: false, 
         error: "Erro interno ao testar conexão de email" 
       });
+    }
+  });
+
+  // Rotas para controle do sistema de notificações
+  router.post("/notifications/scheduler/start", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const { schedulerService } = await import("./services/scheduler-service");
+      schedulerService.start();
+      res.json({ success: true, message: "Scheduler de notificações iniciado" });
+    } catch (error) {
+      console.error('Erro ao iniciar scheduler:', error);
+      res.status(500).json({ message: "Erro ao iniciar scheduler", error: String(error) });
+    }
+  });
+
+  router.post("/notifications/scheduler/stop", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const { schedulerService } = await import("./services/scheduler-service");
+      schedulerService.stop();
+      res.json({ success: true, message: "Scheduler de notificações parado" });
+    } catch (error) {
+      console.error('Erro ao parar scheduler:', error);
+      res.status(500).json({ message: "Erro ao parar scheduler", error: String(error) });
+    }
+  });
+
+  router.get("/notifications/scheduler/status", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const { schedulerService } = await import("./services/scheduler-service");
+      const isRunning = schedulerService.isSchedulerRunning();
+      res.json({ isRunning, message: isRunning ? "Scheduler está rodando" : "Scheduler está parado" });
+    } catch (error) {
+      console.error('Erro ao verificar status do scheduler:', error);
+      res.status(500).json({ message: "Erro ao verificar status do scheduler", error: String(error) });
+    }
+  });
+
+  router.post("/notifications/scheduler/check-now", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const { schedulerService } = await import("./services/scheduler-service");
+      await schedulerService.runManualCheck();
+      res.json({ success: true, message: "Verificação manual de tickets executada" });
+    } catch (error) {
+      console.error('Erro ao executar verificação manual:', error);
+      res.status(500).json({ message: "Erro ao executar verificação manual", error: String(error) });
+    }
+  });
+
+  // Rota para enviar notificação de manutenção do sistema
+  router.post("/notifications/system-maintenance", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const { maintenance_start, maintenance_end, message, company_id } = req.body;
+
+      if (!maintenance_start || !maintenance_end || !message) {
+        return res.status(400).json({ 
+          message: "Campos obrigatórios: maintenance_start, maintenance_end, message" 
+        });
+      }
+
+      const startDate = new Date(maintenance_start);
+      const endDate = new Date(maintenance_end);
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return res.status(400).json({ 
+          message: "Datas de manutenção inválidas" 
+        });
+      }
+
+      if (startDate >= endDate) {
+        return res.status(400).json({ 
+          message: "Data de início deve ser anterior à data de fim" 
+        });
+      }
+
+      await emailNotificationService.notifySystemMaintenance(
+        startDate,
+        endDate,
+        message,
+        company_id || undefined
+      );
+
+      res.json({ 
+        success: true, 
+        message: "Notificação de manutenção enviada com sucesso",
+        details: {
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+          affected_company: company_id || "Todas as empresas"
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao enviar notificação de manutenção:', error);
+      res.status(500).json({ message: "Erro ao enviar notificação de manutenção", error: String(error) });
+    }
+  });
+
+  // Rota para testar notificação de escalação manual
+  router.post("/notifications/escalate-ticket/:ticketId", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const ticketId = parseInt(req.params.ticketId);
+      const { reason } = req.body;
+
+      if (isNaN(ticketId)) {
+        return res.status(400).json({ message: "ID de ticket inválido" });
+      }
+
+      await emailNotificationService.notifyTicketEscalated(
+        ticketId,
+        req.session?.userId,
+        reason || "Ticket escalado manualmente por administrador"
+      );
+
+      res.json({ 
+        success: true, 
+        message: "Notificação de escalação enviada com sucesso" 
+      });
+    } catch (error) {
+      console.error('Erro ao escalar ticket:', error);
+      res.status(500).json({ message: "Erro ao escalar ticket", error: String(error) });
     }
   });
 

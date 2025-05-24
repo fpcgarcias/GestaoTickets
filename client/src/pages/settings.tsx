@@ -12,7 +12,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Loader2, Mail } from "lucide-react";
+import { Plus, Loader2, Mail, Settings as SettingsIcon } from "lucide-react";
 import { useQuery, useMutation, QueryClient } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +21,7 @@ import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth'; // Importar o hook global
 import NotificationSettings from "@/components/notification-settings";
 import EmailSettings from "@/components/email-settings";
+import AdvancedNotificationSettings from "@/components/advanced-notification-settings";
 
 // A interface User local pode ser removida se a do hook global for suficiente.
 // A interface Company local pode ser removida.
@@ -383,6 +384,14 @@ export default function Settings() {
             </TabsTrigger>
           )}
           
+          {/* Aba Notificações Avançadas - apenas para admin */}
+          {user?.role === 'admin' && (
+            <TabsTrigger value="advanced-notifications" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+              <SettingsIcon className="mr-2 h-4 w-4" />
+              Sistema de Notificações
+            </TabsTrigger>
+          )}
+          
           {/* Aba Notificações - para todas as roles */}
           <TabsTrigger value="notifications" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             Notificações
@@ -548,6 +557,13 @@ export default function Settings() {
         {(user?.role === 'admin' || user?.role === 'company_admin') && (
           <TabsContent value="email">
             <EmailSettings />
+          </TabsContent>
+        )}
+        
+        {/* Conteúdo da aba Notificações Avançadas - apenas para admin */}
+        {user?.role === 'admin' && (
+          <TabsContent value="advanced-notifications">
+            <AdvancedNotificationSettings />
           </TabsContent>
         )}
         
