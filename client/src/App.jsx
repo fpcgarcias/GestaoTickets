@@ -19,97 +19,70 @@ import { Header } from "@/components/layout/header";
 import { AuthProvider } from "./hooks/use-auth";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/hooks/use-auth";
-
-function MainLayout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
-  
-  return (
-    <div className="min-h-screen flex">
-      <Sidebar currentPath={location} />
+function MainLayout(_a) {
+    var children = _a.children;
+    var location = useLocation()[0];
+    return (<div className="min-h-screen flex">
+      <Sidebar currentPath={location}/>
       <div className="flex-1 flex flex-col">
         <Header />
         <div className="flex-1 overflow-auto p-6 bg-neutral-50">
           {children}
         </div>
       </div>
-    </div>
-  );
+    </div>);
 }
-
 function AppContent() {
-  const { user } = useAuth();
-  
-  // Definir título do documento com valor fixo para evitar loops de requisição
-  useEffect(() => {
-    document.title = `Ticket Flow - Sistema de Gestão de Chamados`;
-  }, []);
-  
-  return (
-    <Switch>
-      <Route path="/auth" component={AuthPage} />
+    var user = useAuth().user;
+    // Definir título do documento com valor fixo para evitar loops de requisição
+    useEffect(function () {
+        document.title = "Ticket Flow - Sistema de Gestão de Chamados";
+    }, []);
+    return (<Switch>
+      <Route path="/auth" component={AuthPage}/>
       
-      <ProtectedRoute path="/" component={() => (
-        <MainLayout>
+      <ProtectedRoute path="/" component={function () { return (<MainLayout>
           <Dashboard />
-        </MainLayout>
-      )} />
+        </MainLayout>); }}/>
       
-      <ProtectedRoute path="/tickets" component={() => (
-        <MainLayout>
+      <ProtectedRoute path="/tickets" component={function () { return (<MainLayout>
           <TicketsIndex />
-        </MainLayout>
-      )} />
+        </MainLayout>); }}/>
       
-      <ProtectedRoute path="/tickets/new" component={() => (
-        <MainLayout>
+      <ProtectedRoute path="/tickets/new" component={function () { return (<MainLayout>
           <NewTicket />
-        </MainLayout>
-      )} />
+        </MainLayout>); }}/>
       
-      <ProtectedRoute path="/tickets/:id" component={() => (
-        <MainLayout>
+      <ProtectedRoute path="/tickets/:id" component={function () { return (<MainLayout>
           <TicketDetail />
-        </MainLayout>
-      )} />
+        </MainLayout>); }}/>
       
-      <ProtectedRoute path="/clients" component={() => (
-        <MainLayout>
+      <ProtectedRoute path="/clients" component={function () { return (<MainLayout>
           <ClientsIndex />
-        </MainLayout>
-      )} />
+        </MainLayout>); }}/>
       
-      <ProtectedRoute path="/users" component={() => (
-        <MainLayout>
+      <ProtectedRoute path="/users" component={function () { return (<MainLayout>
           <UsersIndex />
-        </MainLayout>
-      )} />
+        </MainLayout>); }}/>
       
-      <ProtectedRoute path="/officials" component={() => (
-        <MainLayout>
+      <ProtectedRoute path="/officials" component={function () { return (<MainLayout>
           <OfficialsIndex />
-        </MainLayout>
-      )} />
+        </MainLayout>); }}/>
       
-      <ProtectedRoute path="/settings" component={() => (
-        <MainLayout>
+      <ProtectedRoute path="/settings" component={function () { return (<MainLayout>
           <Settings />
-        </MainLayout>
-      )} />
+        </MainLayout>); }}/>
       
-      <Route component={NotFound} />
-    </Switch>
-  );
+      <Route component={NotFound}/>
+    </Switch>);
 }
-
 export default function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
+    return (<QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
           <Toaster />
           <AppContent />
         </AuthProvider>
       </TooltipProvider>
-    </QueryClientProvider>
-  );
+    </QueryClientProvider>);
 }

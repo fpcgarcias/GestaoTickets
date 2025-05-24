@@ -1,0 +1,106 @@
+[{
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "user_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "users",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "user_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "users",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "sla_definitions",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "system_settings",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_replies",
+  "column_name": "ticket_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "tickets",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_replies",
+  "column_name": "user_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "users",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "changed_by_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "users",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "ticket_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "tickets",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "assigned_to_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "officials",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "customer_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "customers",
+  "foreign_column_name": "id"
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "company_id",
+  "foreign_table_schema": "public",
+  "foreign_table_name": "companies",
+  "foreign_column_name": "id"
+}]

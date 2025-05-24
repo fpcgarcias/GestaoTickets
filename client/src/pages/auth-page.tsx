@@ -12,6 +12,8 @@ export default function AuthPage() {
   const [location, setLocation] = useLocation();
   const { user, login, isLoading, error } = useAuth();
   const { toast } = useToast();
+  // Usar valor fixo padrão para evitar loops de autenticação
+  const companyName = "Ticket Flow";
   const [activeTab, setActiveTab] = useState<string>('login');
   
   // Formulário de login
@@ -26,8 +28,7 @@ export default function AuthPage() {
     confirmPassword: '',
     name: '',
     email: '',
-    cnpj: '',
-    role: 'customer' as 'admin' | 'customer' | 'support' | 'manager' | 'supervisor' | 'viewer' | 'company_admin' | 'triage' | 'quality' | 'integration_bot'
+    role: 'customer' as 'customer' | 'support' | 'admin'
   });
   
   // Estado para erros de senha
@@ -43,7 +44,6 @@ export default function AuthPage() {
   
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     try {
       await login(loginData.username, loginData.password);
       toast({
@@ -77,7 +77,7 @@ export default function AuthPage() {
     }
       
     try {
-      // Configurar username como o email (garantir que o nome de usuário seja sempre o email)
+      // Configurar username como o email
       const userData = {
         ...registerData,
         username: registerData.email
@@ -105,7 +105,6 @@ export default function AuthPage() {
         confirmPassword: '',
         name: '',
         email: '',
-        cnpj: '',
         role: 'customer'
       });
       
@@ -129,10 +128,9 @@ export default function AuthPage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">Ticket Flow</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">{companyName}</CardTitle>
             <CardDescription className="text-center">Sistema de Gestão de Chamados</CardDescription>
           </CardHeader>
-          
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Login</TabsTrigger>
@@ -143,11 +141,11 @@ export default function AuthPage() {
               <form onSubmit={handleLoginSubmit}>
                 <CardContent className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="username">Email ou Usuário</Label>
+                    <Label htmlFor="username">Usuário</Label>
                     <Input 
                       id="username" 
                       type="text" 
-                      placeholder="Seu email ou nome de usuário" 
+                      placeholder="Seu nome de usuário" 
                       value={loginData.username}
                       onChange={(e) => setLoginData({...loginData, username: e.target.value})}
                       required
@@ -166,10 +164,7 @@ export default function AuthPage() {
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button 
-                    type="submit" 
-                    className="w-full" 
-                    disabled={isLoading}>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Entrando...' : 'Entrar'}
                   </Button>
                 </CardFooter>
@@ -201,17 +196,7 @@ export default function AuthPage() {
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-cnpj">CNPJ da Empresa</Label>
-                    <Input 
-                      id="reg-cnpj" 
-                      type="text" 
-                      placeholder="Digite o CNPJ da sua empresa" 
-                      value={registerData.cnpj}
-                      onChange={(e) => setRegisterData({...registerData, cnpj: e.target.value})}
-                      required
-                    />
-                  </div>
+                  {/* Campo de nome de usuário removido, o email será usado como username */}
                   <div className="space-y-2">
                     <Label htmlFor="reg-password">Senha</Label>
                     <Input 
@@ -240,9 +225,7 @@ export default function AuthPage() {
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button 
-                    type="submit" 
-                    className="w-full">
+                  <Button type="submit" className="w-full">
                     Criar Conta
                   </Button>
                 </CardFooter>
@@ -256,24 +239,28 @@ export default function AuthPage() {
       <div className="flex-1 bg-primary text-white p-8 hidden md:flex flex-col justify-center">
         <div className="max-w-lg mx-auto">
           <h1 className="text-4xl font-bold mb-4">Ticket Flow</h1>
-          <h2 className="text-2xl font-semibold mb-6">Solução completa para gerenciamento de tickets</h2>
+          <h2 className="text-2xl font-semibold mb-6">Sistema Completo de Gestão de Chamados</h2>
           
           <ul className="space-y-4">
             <li className="flex items-start">
               <span className="mr-2">✓</span>
-              <span>Registre e acompanhe facilmente seus chamados de suporte</span>
+              <span>Cadastro e gerenciamento de tickets com status e prioridades</span>
             </li>
             <li className="flex items-start">
               <span className="mr-2">✓</span>
-              <span>Comunique-se diretamente com a equipe de suporte</span>
+              <span>Departamentos personalizáveis com equipes de atendimento</span>
             </li>
             <li className="flex items-start">
               <span className="mr-2">✓</span>
-              <span>Receba notificações em tempo real sobre o status dos seus chamados</span>
+              <span>Níveis de SLA e monitoramento de tempos de resposta</span>
             </li>
             <li className="flex items-start">
               <span className="mr-2">✓</span>
-              <span>Interface intuitiva e responsiva para desktop e mobile</span>
+              <span>Notificações em tempo real para atualizações de tickets</span>
+            </li>
+            <li className="flex items-start">
+              <span className="mr-2">✓</span>
+              <span>Dashboard com estatísticas e indicadores de performance</span>
             </li>
           </ul>
         </div>
