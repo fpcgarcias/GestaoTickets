@@ -1,4 +1,17 @@
-import {   tickets, type Ticket, type InsertTicket,  ticketReplies, type TicketReply, type InsertTicketReply,  users, type User, type InsertUser,  officials, type Official, type InsertOfficial,  customers, type Customer, type InsertCustomer,  officialDepartments, type OfficialDepartment, type InsertOfficialDepartment,  ticketStatusHistory, type TicketStatusHistory,  slaDefinitions, type SLADefinition,  ticketStatusEnum, ticketPriorityEnum, userRoleEnum, departmentEnum,  systemSettings, type SystemSetting,  incidentTypes, type IncidentType,  companies} from "@shared/schema";
+import { 
+  users, customers, officials, tickets, ticketReplies, ticketStatusHistory, slaDefinitions, 
+  type User, type InsertUser, 
+  type Customer, type InsertCustomer, 
+  type Official, type InsertOfficial,
+  type Ticket, type InsertTicket,
+  type TicketReply, type InsertTicketReply,
+  type TicketStatusHistory,
+  type SLADefinition,
+  officialDepartments, type OfficialDepartment, type InsertOfficialDepartment,
+  ticketStatusEnum, ticketPriorityEnum, userRoleEnum,
+  systemSettings, type SystemSetting,
+  incidentTypes, type IncidentType,
+  companies, departments } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, ilike } from "drizzle-orm";
@@ -152,30 +165,58 @@ export class DatabaseStorage implements IStorage {
 
   // Official operations
   async getOfficials(): Promise<Official[]> {
-    // Buscar todos os oficiais
+    // Buscar todos os oficiais com informações de usuário, supervisor e manager
     const allOfficials = await db
       .select({
         official: officials,
         user: users,
+        supervisor: {
+          id: sql<number>`supervisor.id`,
+          name: sql<string>`supervisor.name`,
+          email: sql<string>`supervisor.email`,
+        },
+        manager: {
+          id: sql<number>`manager.id`, 
+          name: sql<string>`manager.name`,
+          email: sql<string>`manager.email`,
+        },
       })
       .from(officials)
-      .leftJoin(users, eq(officials.user_id, users.id));
+      .leftJoin(users, eq(officials.user_id, users.id))
+      .leftJoin(sql`officials supervisor`, eq(officials.supervisor_id, sql`supervisor.id`))
+      .leftJoin(sql`officials manager`, eq(officials.manager_id, sql`manager.id`));
     
     // Transformar o resultado em um formato mais amigável
-    const mappedOfficials = allOfficials.map(({ official, user }) => {
+    const mappedOfficials = allOfficials.map(({ official, user, supervisor, manager }) => {
       return {
         ...official,
         user: user || undefined,
+        supervisor: supervisor.id ? supervisor : undefined,
+        manager: manager.id ? manager : undefined,
       };
     });
     
-    // Para cada oficial, buscar seus departamentos (objetos OfficialDepartment)
+    // Para cada oficial, buscar seus departamentos e contagem de tickets
     const officialsWithDepartments = await Promise.all(
       mappedOfficials.map(async (official) => {
         // Buscar os registros de departamento da tabela de junção
         const departmentsData: OfficialDepartment[] = await this.getOfficialDepartments(official.id);
-        // Anexar o array de objetos OfficialDepartment ao oficial
-        return { ...official, departments: departmentsData };
+        
+        // Buscar a contagem de tickets atribuídos
+        const [ticketCount] = await db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(tickets)
+          .where(eq(tickets.assigned_to_id, official.id));
+        
+        const ticketCountNumber = parseInt(String(ticketCount?.count || 0), 10);
+        console.log(`[DEBUG] Oficial ${official.name} (ID: ${official.id}) - Contagem de tickets:`, ticketCountNumber);
+        
+        // Anexar o array de objetos OfficialDepartment e a contagem de tickets
+        return { 
+          ...official, 
+          departments: departmentsData,
+          assignedTicketsCount: ticketCountNumber
+        };
       })
     );
     
@@ -646,10 +687,11 @@ export class DatabaseStorage implements IStorage {
         ticket_id: ticketId,
         status: ticketStatusEnum.enumValues[0], // Definir status inicial explicitamente se necessário
         priority: ticketData.priority || ticketPriorityEnum.enumValues[1], // Definir prioridade padrão
-        // Garantir que department_id, incident_type_id e customer_id são números ou null
+        // Garantir que department_id, incident_type_id, customer_id e company_id são números ou null
         department_id: ticketData.department_id ? Number(ticketData.department_id) : null,
         incident_type_id: ticketData.incident_type_id ? Number(ticketData.incident_type_id) : null,
         customer_id: ticketData.customer_id ? Number(ticketData.customer_id) : null,
+        company_id: ticketData.company_id ? Number(ticketData.company_id) : null, // ✅ Incluir company_id
       };
 
       console.log("[DEBUG] Dados para inserção de ticket:", JSON.stringify(ticketInsertData));

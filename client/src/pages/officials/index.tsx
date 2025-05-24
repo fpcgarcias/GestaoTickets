@@ -46,7 +46,10 @@ export default function OfficialsIndex() {
   
   const { data: officials = [], isLoading } = useQuery<OfficialWithUser[]>({
     queryKey: ['/api/officials'],
+    staleTime: 0, // Forçar recarregamento
   });
+  
+  console.log('[DEBUG Frontend] Officials recebidos:', officials);
   
   const queryClient = useQueryClient();
   
@@ -72,9 +75,9 @@ export default function OfficialsIndex() {
       return official.username;
     }
     
-    // Caso 3: pode estar em outra estrutura como userId: {username: ...}
-    if (official.userId && typeof official.userId === 'object' && official.userId.username) {
-      return official.userId.username;
+    // Caso 3: pode estar em outra estrutura como user_id: {username: ...}
+    if (official.user_id && typeof official.user_id === 'object' && (official.user_id as any).username) {
+      return (official.user_id as any).username;
     }
     
     // Caso 4: pode estar em userData
@@ -164,6 +167,8 @@ export default function OfficialsIndex() {
                   <TableHead>Login</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Departamento</TableHead>
+                  <TableHead>Supervisor</TableHead>
+                  <TableHead>Manager</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Tickets Atribuídos</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -177,6 +182,8 @@ export default function OfficialsIndex() {
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-28" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
@@ -193,7 +200,7 @@ export default function OfficialsIndex() {
                       console.log('Username do usuário:', official.user.username);
                     } else {
                       console.log('Oficial sem propriedade user:', official);
-                      console.log('UserId value:', official.userId);
+                      console.log('UserId value:', official.user_id);
                     }
                     
                     return (
@@ -214,11 +221,7 @@ export default function OfficialsIndex() {
                                   
                                 return (
                                   <Badge key={index} variant="outline" className="capitalize">
-                                    {departmentValue === 'technical' && 'Suporte Técnico'}
-                                    {departmentValue === 'billing' && 'Faturamento'}
-                                    {departmentValue === 'general' && 'Atendimento Geral'}
-                                    {departmentValue === 'sales' && 'Vendas'}
-                                    {departmentValue === 'other' && 'Outro'}
+                                    {departmentValue}
                                   </Badge>
                                 );
                               })
@@ -228,7 +231,29 @@ export default function OfficialsIndex() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {official.isActive ? (
+                          {/* Mostrar supervisor */}
+                          {(official as any).supervisor_id ? (
+                            <span className="text-sm text-neutral-600">
+                              {/* Buscar nome do supervisor nos dados */}
+                              {officials.find(o => o.id === (official as any).supervisor_id)?.name || `ID: ${(official as any).supervisor_id}`}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-neutral-400">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {/* Mostrar manager */}
+                          {(official as any).manager_id ? (
+                            <span className="text-sm text-neutral-600">
+                              {/* Buscar nome do manager nos dados */}
+                              {officials.find(o => o.id === (official as any).manager_id)?.name || `ID: ${(official as any).manager_id}`}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-neutral-400">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {official.is_active ? (
                             <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">
                               <Check className="w-3 h-3 mr-1" />
                               Ativo
@@ -241,8 +266,12 @@ export default function OfficialsIndex() {
                           )}
                         </TableCell>
                         <TableCell className="text-center">
-                          {/* TODO: Add assigned tickets count */}
-                          -
+                          {(() => {
+                            const count = (official as any).assignedTicketsCount;
+                            if (typeof count === 'number') return count;
+                            if (typeof count === 'string' && !isNaN(Number(count))) return Number(count);
+                            return '-';
+                          })()}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
@@ -255,13 +284,13 @@ export default function OfficialsIndex() {
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button 
-                              variant={official.isActive ? "destructive" : "default"} 
+                              variant={official.is_active ? "destructive" : "default"} 
                               size="sm"
-                              className={official.isActive ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
+                              className={official.is_active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
                               onClick={() => handleDeleteOfficial(official)}
-                              title={official.isActive ? "Desativar atendente" : "Ativar atendente"}
+                              title={official.is_active ? "Desativar atendente" : "Ativar atendente"}
                             >
-                              {official.isActive ? 
+                              {official.is_active ? 
                                 <UserX className="h-3.5 w-3.5" /> : 
                                 <UserCheck className="h-3.5 w-3.5" />}
                             </Button>

@@ -144,7 +144,12 @@ async function startServer() {
     console.log("Executando migrações...");
     await migratePasswords();
     
-    // 4. Iniciar servidor na porta especificada
+    // 4. Inicializar scheduler para verificações automáticas
+    console.log("Inicializando scheduler de notificações...");
+    const { schedulerService } = await import("./services/scheduler-service");
+    schedulerService.start();
+    
+    // 5. Iniciar servidor na porta especificada
     const PORT = process.env.PORT || 5173; 
     server.listen(PORT, () => {
       console.log(`Servidor rodando na porta ${PORT}`);

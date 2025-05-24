@@ -25,6 +25,16 @@ interface OfficialWithUser extends Official {
   };
 }
 
+interface FormData {
+  name: string;
+  email: string;
+  username: string;
+  isActive: boolean;
+  departments: string[];
+  supervisor_id: number | null;
+  manager_id: number | null;
+}
+
 interface EditOfficialDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -48,12 +58,14 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: '',
     email: '',
     username: '',
     isActive: true,
-    departments: [] as string[]
+    departments: [],
+    supervisor_id: null,
+    manager_id: null,
   });
 
   // Estado para o formulário de senha
@@ -67,19 +79,29 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
   const [submitting, setSubmitting] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
 
-  // Carregar departamentos disponíveis
+  // Carregar departamentos disponíveis do banco de dados
   const { data: departmentsData } = useQuery({
-    queryKey: ["/api/settings/departments"],
+    queryKey: ["/api/departments"],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/departments?active_only=true');
+      if (!response.ok) {
+        throw new Error('Erro ao carregar departamentos');
+      }
+      return response.json();
+    }
   });
 
-  // Departamentos disponíveis para seleção
-  const availableDepartments = [
-    { value: "technical", label: "Suporte Técnico" },
-    { value: "billing", label: "Faturamento" },
-    { value: "general", label: "Atendimento Geral" },
-    { value: "sales", label: "Vendas" },
-    { value: "other", label: "Outro" }
-  ];
+  // Carregar atendentes existentes para seleção de supervisor/manager
+  const { data: existingOfficials = [] } = useQuery<any[]>({
+    queryKey: ['/api/officials'],
+  });
+
+  // Mapear departamentos do banco para o formato usado no componente
+  const availableDepartments = departmentsData?.map((dept: { id: number; name: string; description?: string }) => ({
+    value: dept.name, // Usar o nome direto do banco
+    label: dept.name,
+    id: dept.id
+  })) || [];
 
   // Carregar dados do atendente quando o componente abrir
   useEffect(() => {
@@ -101,8 +123,10 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
         name: official.name,
         email: official.email,
         username: official.user?.username || '',
-        isActive: official.isActive,
-        departments: currentDepartments // Usar o array de strings processado
+        isActive: official.is_active,
+        departments: currentDepartments, // Usar o array de strings processado
+        supervisor_id: (official as any).supervisor_id || null,
+        manager_id: (official as any).manager_id || null,
       });
     }
   }, [official]);
@@ -193,16 +217,18 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
     setSubmitting(true);
     
     // Usar diretamente formData, pois já contém o array de strings 'departments'
-    let updatedData = {
-      ...formData,
+    let updatedData: any = {
+      name: formData.name,
+      email: formData.email,
+      is_active: formData.isActive,
+      departments: formData.departments,
+      supervisor_id: formData.supervisor_id,
+      manager_id: formData.manager_id,
       user: {
         ...(official?.user || {}),
         username: formData.username
       }
     };
-    
-    // Remover o username do nível principal pois ele pertence ao objeto user
-    delete updatedData.username;
     
     // Verificar se há senha para atualizar e se as senhas correspondem
     if (showPasswordForm) {
@@ -221,7 +247,10 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
       }
       
       // Se chegou aqui, a senha é válida, adicionar ao formData
-      updatedData.user.password = passwordData.password;
+      updatedData.user = {
+        ...updatedData.user,
+        password: passwordData.password
+      };
     }
     
     // Atualização com os dados corretos
@@ -285,8 +314,10 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                 {/* Exibir departamentos selecionados */}
                 <div className="flex flex-wrap gap-2">
                   {/* Exibir departamentos */}
-                  {formData.departments.map((dept: string) => {
-                    const deptInfo = availableDepartments.find(d => d.value === dept);
+                  {Array.isArray(formData.departments) ? formData.departments.map((dept: string) => {
+                    const deptInfo = Array.isArray(availableDepartments) 
+                      ? availableDepartments.find((d: { value: string; label: string; id: number }) => d.value === dept)
+                      : null;
                     return (
                       <Badge key={dept} variant="secondary" className="px-3 py-1">
                         {deptInfo?.label || dept}
@@ -296,7 +327,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                         />
                       </Badge>
                     );
-                  })}
+                  }) : null}
                 </div>
                 
                 {/* Seletor de departamentos */}
@@ -316,7 +347,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                       <CommandInput placeholder="Pesquisar departamento..." />
                       <CommandEmpty>Nenhum departamento encontrado.</CommandEmpty>
                       <CommandGroup>
-                        {availableDepartments.map((dept) => (
+                        {Array.isArray(availableDepartments) ? availableDepartments.map((dept: { value: string; label: string; id: number }) => (
                           <CommandItem
                             key={dept.value}
                             value={dept.value}
@@ -350,11 +381,63 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                               </span>
                             </div>
                           </CommandItem>
-                        ))}
+                        )) : null}
                       </CommandGroup>
                     </Command>
                   </PopoverContent>
                 </Popover>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="supervisor" className="text-right">
+                Supervisor
+              </Label>
+              <div className="col-span-3">
+                <Select 
+                  value={formData.supervisor_id?.toString() || "none"} 
+                  onValueChange={(value) => setFormData({ ...formData, supervisor_id: value === "none" ? null : parseInt(value) })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar supervisor (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum supervisor</SelectItem>
+                    {Array.isArray(existingOfficials) ? existingOfficials
+                      .filter((off: any) => off && off.id !== official?.id) // Não incluir o próprio atendente
+                      .map((off: any) => (
+                        <SelectItem key={off.id} value={off.id.toString()}>
+                          {off.name || 'Nome não disponível'} ({off.email || 'Email não disponível'})
+                        </SelectItem>
+                      )) : null}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="manager" className="text-right">
+                Manager
+              </Label>
+              <div className="col-span-3">
+                <Select 
+                  value={formData.manager_id?.toString() || "none"} 
+                  onValueChange={(value) => setFormData({ ...formData, manager_id: value === "none" ? null : parseInt(value) })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar manager (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum manager</SelectItem>
+                    {Array.isArray(existingOfficials) ? existingOfficials
+                      .filter((off: any) => off && off.id !== official?.id) // Não incluir o próprio atendente
+                      .map((off: any) => (
+                        <SelectItem key={off.id} value={off.id.toString()}>
+                          {off.name || 'Nome não disponível'} ({off.email || 'Email não disponível'})
+                        </SelectItem>
+                      )) : null}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 

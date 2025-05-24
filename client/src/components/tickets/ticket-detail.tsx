@@ -6,6 +6,7 @@ import { formatDate } from '@/lib/utils';
 import { Ticket } from '@shared/schema';
 import { StatusDot } from './status-badge';
 import { SLAStatus } from './sla-status';
+import { AttachmentsList } from './attachments-list';
 import { Building, UserCircle2 } from 'lucide-react';
 
 interface TicketDetailProps {
@@ -61,7 +62,7 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
         <div className="flex justify-between items-start mb-4">
           <div>
             <div className="flex items-center mb-2">
-              <StatusDot status={ticket.status} />
+              <StatusDot status={ticket.status} className="mr-2" />
               <span className="font-medium text-neutral-800">Chamado #{ticket.ticket_id}</span>
             </div>
             <h2 className="text-xl font-semibold">{ticket.title}</h2>
@@ -95,12 +96,14 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
         ) : null}
         
         {/* Status do SLA */}
-        {ticket.created_at && (
+        {ticket.created_at && ticket.company_id && (
           <div className="mb-4">
             <SLAStatus 
               ticketCreatedAt={typeof ticket.created_at === 'string' ? ticket.created_at : new Date(ticket.created_at).toISOString()} 
               ticketPriority={ticket.priority} 
-              ticketStatus={ticket.status} 
+              ticketStatus={ticket.status}
+              ticketCompanyId={ticket.company_id}
+              resolvedAt={ticket.resolved_at ? (typeof ticket.resolved_at === 'string' ? ticket.resolved_at : new Date(ticket.resolved_at).toISOString()) : undefined}
             />
           </div>
         )}
@@ -121,6 +124,14 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
         
         <div className="mb-8 text-neutral-700 space-y-4 whitespace-pre-line">
           {ticket.description}
+        </div>
+
+        {/* Lista de Anexos */}
+        <div className="mt-6 border-t pt-6">
+          <AttachmentsList 
+            ticketId={ticket.id} 
+            attachments={ticket.attachments}
+          />
         </div>
       </CardContent>
     </Card>

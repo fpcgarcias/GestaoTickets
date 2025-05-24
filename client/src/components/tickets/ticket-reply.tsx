@@ -29,6 +29,8 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Ticket, Official, IncidentType } from '@shared/schema';
 import { Loader2 } from 'lucide-react';
 import { z } from 'zod';
+import { FileUpload } from './file-upload';
+import { useAuth } from '@/hooks/use-auth';
 
 interface TicketReplyFormProps {
   ticket: Ticket;
@@ -38,15 +40,26 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
+  const { user } = useAuth();
   
-  // Buscar a lista de atendentes disponíveis
+  // Determinar se o usuário é cliente
+  const isCustomer = user?.role === 'customer';
+  const canModifyStatus = !isCustomer;
+  const canModifyAssignment = !isCustomer;
+  
+  // Buscar a lista de atendentes disponíveis (apenas para não-clientes)
   const { data: officials, isLoading: isLoadingOfficials } = useQuery<Official[]>({
     queryKey: ["/api/officials"],
+    enabled: !isCustomer, // Só busca se não for cliente
   });
 
-  // Buscar dados de tipos de incidentes
-  const { data: incidentTypesData } = useQuery<IncidentType[]>({
-    queryKey: ["/api/settings/incident-types"],
+  // Buscar dados de tipos de incidentes usando a API correta
+  const { data: incidentTypesData, isLoading: isLoadingIncidentTypes } = useQuery<IncidentType[]>({
+    queryKey: ["/api/incident-types", { active_only: true }],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/incident-types?active_only=true');
+      return response.json();
+    },
   });
 
   // Garantir que incidentTypes é um array
@@ -108,16 +121,20 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     const formErrors = form.formState.errors;
     console.log("❌ Erros do formulário:", formErrors);
     
+    // Para clientes, sempre manter status e atendente originais
+    const statusToUse = isCustomer ? ticket.status : data.status;
+    const assignedToUse = isCustomer ? ticket.assigned_to_id : data.assigned_to_id;
+    
     // Verificar se o status foi alterado para registrar no histórico
-    const statusChanged = data.status !== ticket.status;
-    console.log("📊 Status mudou?", statusChanged, "De:", ticket.status, "Para:", data.status);
+    const statusChanged = statusToUse !== ticket.status;
+    console.log("📊 Status mudou?", statusChanged, "De:", ticket.status, "Para:", statusToUse);
     
     // Transformar os dados para o formato esperado pela API
     const requestData = {
       ticket_id: data.ticket_id || ticket.id,
       message: data.message || "Status atualizado automaticamente",
-      status: data.status,
-      assigned_to_id: data.assigned_to_id,
+      status: statusToUse,
+      assigned_to_id: assignedToUse,
       type: data.type,
       is_internal: false,
       statusChanged: statusChanged,
@@ -130,8 +147,17 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     replyMutation.mutate(requestData as any);
   };
 
+  // Função para encontrar o nome do atendente atual
+  const getCurrentOfficialName = () => {
+    if (!ticket.assigned_to_id || !officials) return 'Não atribuído';
+    const official = officials.find(o => o.id === ticket.assigned_to_id);
+    return official?.name || 'Atendente não encontrado';
+  };
+
   // Adicionar log para verificar se o formulário está sendo criado corretamente
   console.log("🎯 Ticket carregado:", ticket);
+  console.log("🎯 Usuário atual:", user);
+  console.log("🎯 É cliente?", isCustomer);
   console.log("🎯 Valores padrão do formulário:", {
     ticket_id: ticket.id,
     message: '',
@@ -168,18 +194,34 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                         field.onChange(value);
                       }}
                       defaultValue={field.value}
+                      disabled={isLoadingIncidentTypes}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Escolher Tipo" />
+                          <SelectValue placeholder={
+                            isLoadingIncidentTypes 
+                              ? "Carregando tipos..." 
+                              : "Escolher Tipo"
+                          } />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {filteredIncidentTypes.map((type: IncidentType) => (
-                          <SelectItem key={type.id} value={type.value}>
-                            {type.name}
-                          </SelectItem>
-                        ))}
+                        {isLoadingIncidentTypes ? (
+                          <div className="flex items-center justify-center p-2">
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            <span>Carregando tipos...</span>
+                          </div>
+                        ) : filteredIncidentTypes.length > 0 ? (
+                          filteredIncidentTypes.map((type: IncidentType) => (
+                            <SelectItem key={type.id} value={type.value}>
+                              {type.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <div className="p-2 text-neutral-500 text-sm text-center">
+                            Nenhum tipo de chamado encontrado para este departamento
+                          </div>
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -193,21 +235,36 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecionar Status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={TICKET_STATUS.NEW}>🔵 Novo</SelectItem>
-                        <SelectItem value={TICKET_STATUS.ONGOING}>🟡 Em Andamento</SelectItem>
-                        <SelectItem value={TICKET_STATUS.RESOLVED}>🟢 Resolvido</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {isCustomer ? (
+                      // Para clientes: campo somente-leitura mostrando o status atual
+                      <Input 
+                        value={
+                          ticket.status === 'new' ? '🟡 Novo' :
+                          ticket.status === 'ongoing' ? '🔵 Em Andamento' :
+                          ticket.status === 'resolved' ? '🟢 Resolvido' :
+                          ticket.status
+                        }
+                        readOnly 
+                        className="bg-neutral-50"
+                      />
+                    ) : (
+                      // Para atendentes: campo editável
+                      <Select 
+                        onValueChange={field.onChange} 
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecionar Status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={TICKET_STATUS.NEW}>🟡 Novo</SelectItem>
+                          <SelectItem value={TICKET_STATUS.ONGOING}>🔵 Em Andamento</SelectItem>
+                          <SelectItem value={TICKET_STATUS.RESOLVED}>🟢 Resolvido</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -221,34 +278,44 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Atendente Responsável</FormLabel>
-                    <Select
-                      onValueChange={(value) => field.onChange(parseInt(value))}
-                      defaultValue={field.value ? String(field.value) : undefined}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecionar Atendente" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {isLoadingOfficials && (
-                          <div className="flex items-center justify-center p-2">
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            <span>Carregando atendentes...</span>
-                          </div>
-                        )}
-                        {(officials ?? []).map((official: Official) => (
-                          <SelectItem key={official.id} value={String(official.id)}>
-                            {official.name}
-                          </SelectItem>
-                        ))}
-                        {(!officials || officials.length === 0) && !isLoadingOfficials && (
-                          <div className="p-2 text-neutral-500 text-sm text-center">
-                            Nenhum atendente encontrado
-                          </div>
-                        )}
-                      </SelectContent>
-                    </Select>
+                    {isCustomer ? (
+                      // Para clientes: campo somente-leitura mostrando o atendente atual
+                      <Input 
+                        value={getCurrentOfficialName()}
+                        readOnly 
+                        className="bg-neutral-50"
+                      />
+                    ) : (
+                      // Para atendentes: campo editável
+                      <Select
+                        onValueChange={(value) => field.onChange(parseInt(value))}
+                        defaultValue={field.value ? String(field.value) : undefined}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecionar Atendente" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {isLoadingOfficials && (
+                            <div className="flex items-center justify-center p-2">
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              <span>Carregando atendentes...</span>
+                            </div>
+                          )}
+                          {(officials ?? []).map((official: Official) => (
+                            <SelectItem key={official.id} value={String(official.id)}>
+                              {official.name}
+                            </SelectItem>
+                          ))}
+                          {(!officials || officials.length === 0) && !isLoadingOfficials && (
+                            <div className="p-2 text-neutral-500 text-sm text-center">
+                              Nenhum atendente encontrado
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -272,6 +339,28 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 </FormItem>
               )}
             />
+
+            {/* Upload de Arquivos */}
+            <div className="border-t pt-6">
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-900">Anexar Arquivos</h4>
+                <p className="text-xs text-gray-500 mt-1">
+                  Adicione documentos, imagens ou outros arquivos relacionados à sua resposta.
+                </p>
+              </div>
+              <FileUpload 
+                ticketId={ticket.id}
+                onUploadSuccess={(attachment) => {
+                  toast({
+                    title: "Arquivo anexado",
+                    description: `${attachment.original_filename} foi anexado com sucesso.`,
+                  });
+                }}
+                onUploadError={(error) => {
+                  console.error('Erro no upload:', error);
+                }}
+              />
+            </div>
             
             <div className="flex justify-end">
               <Button 

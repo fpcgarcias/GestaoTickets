@@ -42,19 +42,24 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
   const [generatedPassword, setGeneratedPassword] = useState('');
   const [popoverOpen, setPopoverOpen] = useState(false);
   
-  // Carregar departamentos disponíveis
+  // Carregar departamentos disponíveis do banco de dados
   const { data: departmentsData } = useQuery({
-    queryKey: ["/api/settings/departments"],
+    queryKey: ["/api/departments"],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/departments?active_only=true');
+      if (!response.ok) {
+        throw new Error('Erro ao carregar departamentos');
+      }
+      return response.json();
+    }
   });
 
-  // Departamentos disponíveis para seleção
-  const availableDepartments = [
-    { value: "technical", label: "Suporte Técnico" },
-    { value: "billing", label: "Faturamento" },
-    { value: "general", label: "Atendimento Geral" },
-    { value: "sales", label: "Vendas" },
-    { value: "other", label: "Outro" }
-  ];
+  // Mapear departamentos do banco para o formato usado no componente
+  const availableDepartments = departmentsData?.map((dept: { id: number; name: string; description?: string }) => ({
+    value: dept.name, // Usar o nome direto do banco
+    label: dept.name,
+    id: dept.id
+  })) || [];
   
   const toggleDepartment = (department: string) => {
     setFormData(prev => {
@@ -260,11 +265,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                     <div className="flex flex-wrap gap-1 mb-1">
                       {formData.departments.map((dept) => (
                         <Badge key={dept} variant="secondary" className="gap-1">
-                          {dept === 'technical' && 'Suporte Técnico'}
-                          {dept === 'billing' && 'Faturamento'}
-                          {dept === 'general' && 'Atendimento Geral'}
-                          {dept === 'sales' && 'Vendas'}
-                          {dept === 'other' && 'Outro'}
+                          {dept}
                           <button
                             type="button"
                             className="rounded-full outline-none hover:bg-neutral-200 flex items-center justify-center"
