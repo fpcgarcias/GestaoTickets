@@ -25,7 +25,7 @@ export async function findOrphanSupportUsers() {
       const [official] = await db
         .select()
         .from(officials)
-        .where(eq(officials.userId, user.id));
+        .where(eq(officials.user_id, user.id));
       
       if (!official) {
         console.log(`Usuário órfão encontrado: ${user.name} (${user.email}), ID: ${user.id}`);
@@ -33,28 +33,28 @@ export async function findOrphanSupportUsers() {
       }
     }
     
-    // Verificar também por email - às vezes há problemas onde userId não foi definido corretamente
+    // Verificar também por email - às vezes há problemas onde user_id não foi definido corretamente
     for (const user of supportUsers) {
       const [official] = await db
         .select()
         .from(officials)
         .where(eq(officials.email, user.email));
       
-      if (official && !official.userId) {
-        console.log(`Atendente encontrado sem userId, mas com mesmo email: ${user.email}`);
+      if (official && !official.user_id) {
+        console.log(`Atendente encontrado sem user_id, mas com mesmo email: ${user.email}`);
         console.log(`ID do usuário: ${user.id}, ID do atendente: ${official.id}`);
         
-        // Atualizar o atendente com o userId correto
+        // Atualizar o atendente com o user_id correto
         try {
           const [updated] = await db
             .update(officials)
-            .set({ userId: user.id })
+            .set({ user_id: user.id })
             .where(eq(officials.id, official.id))
             .returning();
             
-          console.log(`Atendente atualizado com userId correto: ${updated.id} -> ${updated.userId}`);
+          console.log(`Atendente atualizado com user_id correto: ${updated.id} -> ${updated.user_id}`);
         } catch (updateError) {
-          console.error(`Erro ao atualizar userId para atendente:`, updateError);
+          console.error(`Erro ao atualizar user_id para atendente:`, updateError);
         }
       }
     }
@@ -91,11 +91,12 @@ export async function createOfficialForUser(userId: number, options: {
       .values({
         name: options.name || user.name,
         email: options.email || user.email,
-        userId: user.id,
-        isActive: options.isActive !== undefined ? options.isActive : user.active,
-        avatarUrl: user.avatarUrl,
-        createdAt: new Date(),
-        updatedAt: new Date()
+        user_id: user.id,
+        is_active: options.isActive !== undefined ? options.isActive : user.active,
+        avatar_url: user.avatar_url,
+        company_id: user.company_id,
+        created_at: new Date(),
+        updated_at: new Date()
       })
       .returning();
     
