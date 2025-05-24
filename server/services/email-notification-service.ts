@@ -18,6 +18,9 @@ export interface EmailNotificationContext {
     maintenance_start?: Date;
     maintenance_end?: Date;
     message?: string;
+    base_url?: string;
+    company_name?: string;
+    support_email?: string;
   };
 }
 
@@ -32,44 +35,68 @@ export class EmailNotificationService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // 1. Verificar se email está configurado
+      console.log(`[Email] Verificando configuração de email para empresa ${companyId}`);
       const emailConfig = await emailConfigService.getEmailConfigForFrontend(companyId);
+      
+      console.log(`[Email] Configuração encontrada:`, {
+        provider: emailConfig?.provider,
+        from_email: emailConfig?.from_email,
+        hasConfig: !!emailConfig
+      });
+      
       if (!emailConfig || !emailConfig.from_email) {
-        console.log(`[Email] Configuração de email não encontrada para empresa ${companyId}`);
-        return { success: false, error: 'Configuração de email não encontrada' };
+        console.log(`[Email] ⚠️  Configuração de email não encontrada para empresa ${companyId}`);
+        return { success: false, error: 'Configuração de email não encontrada. Configure em Configurações > Email.' };
+      }
+
+      // Verificar se email está habilitado (assumir habilitado se não especificado)
+      if (emailConfig.provider && emailConfig.from_email) {
+        console.log(`[Email] ✅ Email configurado com provedor ${emailConfig.provider}`);
       }
 
       // 2. Buscar template
+      console.log(`[Email] Buscando template '${templateType}' para empresa ${companyId}`);
       const template = await this.getEmailTemplate(templateType, companyId);
       if (!template) {
-        console.log(`[Email] Template '${templateType}' não encontrado para empresa ${companyId}`);
-        return { success: false, error: `Template '${templateType}' não encontrado` };
+        console.log(`[Email] ⚠️  Template '${templateType}' não encontrado para empresa ${companyId}`);
+        return { success: false, error: `Template '${templateType}' não encontrado. Configure em Configurações > Email > Templates.` };
       }
+
+      console.log(`[Email] ✅ Template encontrado: ${template.name}`);
 
       // 3. Renderizar template
       const renderedSubject = this.renderTemplate(template.subject_template, context);
       const renderedHtml = this.renderTemplate(template.html_template, context);
       const renderedText = template.text_template ? this.renderTemplate(template.text_template, context) : undefined;
 
+      console.log(`[Email] Template renderizado - Subject: "${renderedSubject}"`);
+
       // 4. Configurar transporter
-      const transporter = await this.createTransporter(emailConfig);
+      try {
+        const transporter = await this.createTransporter(emailConfig);
+        console.log(`[Email] ✅ Transporter criado com sucesso para ${emailConfig.provider}`);
 
-      // 5. Enviar email
-      const mailOptions = {
-        from: `${emailConfig.from_name} <${emailConfig.from_email}>`,
-        to: recipientEmail,
-        subject: renderedSubject,
-        html: renderedHtml,
-        text: renderedText,
-      };
+        // 5. Enviar email
+        const mailOptions = {
+          from: `${emailConfig.from_name} <${emailConfig.from_email}>`,
+          to: recipientEmail,
+          subject: renderedSubject,
+          html: renderedHtml,
+          text: renderedText,
+        };
 
-      console.log(`[Email] Enviando email para ${recipientEmail} com template '${templateType}'`);
-      await transporter.sendMail(mailOptions);
-      
-      console.log(`[Email] Email enviado com sucesso para ${recipientEmail}`);
-      return { success: true };
+        console.log(`[Email] 📧 Enviando email para ${recipientEmail} com template '${templateType}'`);
+        await transporter.sendMail(mailOptions);
+        
+        console.log(`[Email] ✅ Email enviado com sucesso para ${recipientEmail}`);
+        return { success: true };
+      } catch (transporterError) {
+        console.error(`[Email] ❌ Erro ao criar transporter ou enviar email:`, transporterError);
+        return { success: false, error: `Erro no envio: ${String(transporterError)}. Verifique as configurações de email.` };
+      }
 
     } catch (error) {
-      console.error(`[Email] Erro ao enviar email para ${recipientEmail}:`, error);
+      console.error(`[Email] ❌ Erro geral ao enviar email para ${recipientEmail}:`, error);
       return { success: false, error: String(error) };
     }
   }
@@ -314,6 +341,8 @@ export class EmailNotificationService {
   // Métodos específicos para cada tipo de notificação
   async notifyNewTicket(ticketId: number): Promise<void> {
     try {
+      console.log(`[Email] 🎫 Iniciando notificação de novo ticket - ID: ${ticketId}`);
+      
       // Buscar dados do ticket
       const [ticket] = await db
         .select()
@@ -321,7 +350,12 @@ export class EmailNotificationService {
         .where(eq(tickets.id, ticketId))
         .limit(1);
 
-      if (!ticket) return;
+      if (!ticket) {
+        console.log(`[Email] ❌ Ticket ${ticketId} não encontrado no banco`);
+        return;
+      }
+
+      console.log(`[Email] ✅ Ticket encontrado: ${ticket.ticket_id} - "${ticket.title}"`);
 
       // Buscar dados do cliente
       let customer = null;
@@ -331,6 +365,10 @@ export class EmailNotificationService {
           .from(customers)
           .where(eq(customers.id, ticket.customer_id))
           .limit(1);
+        
+        console.log(`[Email] Cliente encontrado: ${customer?.name || 'N/A'} (${customer?.email || ticket.customer_email})`);
+      } else {
+        console.log(`[Email] Ticket sem customer_id - usando email: ${ticket.customer_email}`);
       }
 
       const context: EmailNotificationContext = {
@@ -342,6 +380,8 @@ export class EmailNotificationService {
       };
 
       // Notificar administradores e suporte
+      console.log(`[Email] 🔍 Buscando usuários admin e support para notificar...`);
+      
       const adminUsers = await db
         .select()
         .from(users)
@@ -353,21 +393,47 @@ export class EmailNotificationService {
         .where(and(eq(users.role, 'support'), eq(users.active, true)));
 
       const allNotifyUsers = [...adminUsers, ...supportUsers];
+      
+      console.log(`[Email] 👥 Encontrados ${allNotifyUsers.length} usuários para notificar (${adminUsers.length} admins + ${supportUsers.length} support)`);
+
+      if (allNotifyUsers.length === 0) {
+        console.log(`[Email] ⚠️  Nenhum usuário admin/support ativo encontrado - pulando notificações`);
+        return;
+      }
+
+      let emailsSent = 0;
+      let emailsFailed = 0;
 
       for (const user of allNotifyUsers) {
+        console.log(`[Email] 📧 Verificando envio para ${user.name} (${user.email})...`);
+        
         const shouldNotify = await this.shouldSendEmailToUser(user.id, 'new_ticket');
         if (shouldNotify) {
-          await this.sendEmailNotification(
+          console.log(`[Email] ✅ Usuário ${user.name} configurado para receber notificações de new_ticket`);
+          
+          const result = await this.sendEmailNotification(
             'new_ticket',
             user.email,
             context,
             ticket.company_id || undefined
           );
+          
+          if (result.success) {
+            emailsSent++;
+            console.log(`[Email] ✅ Email enviado com sucesso para ${user.name}`);
+          } else {
+            emailsFailed++;
+            console.log(`[Email] ❌ Falha ao enviar email para ${user.name}: ${result.error}`);
+          }
+        } else {
+          console.log(`[Email] 🔕 Usuário ${user.name} não configurado para receber notificações de new_ticket`);
         }
       }
 
+      console.log(`[Email] 📊 Resumo da notificação do ticket ${ticket.ticket_id}: ${emailsSent} enviados, ${emailsFailed} falharam`);
+
     } catch (error) {
-      console.error('Erro ao enviar notificação de novo ticket:', error);
+      console.error(`[Email] ❌ Erro geral ao notificar novo ticket ${ticketId}:`, error);
     }
   }
 

@@ -15,6 +15,16 @@ import s3Service from './services/s3-service';
 import { emailConfigService, type EmailConfig, type SMTPConfigInput } from './services/email-config-service';
 import { emailNotificationService } from './services/email-notification-service';
 
+// Importações para o sistema de IA
+import { AiService } from './services/ai-service';
+import { 
+  getAiConfigurations, 
+  createAiConfiguration, 
+  updateAiConfiguration, 
+  deleteAiConfiguration, 
+  testAiConfiguration 
+} from './api/ai-configurations';
+
 // Schemas Zod para validação de Departamentos (definidos aqui temporariamente)
 const insertDepartmentSchemaInternal = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -790,6 +800,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Validar os dados recebidos
       const ticketData = insertTicketSchema.parse(req.body);
       
+      console.log(`[DEBUG] Dados para inserção de ticket: ${JSON.stringify(ticketData)}`);
+      
       // ✅ BUSCAR O CUSTOMER_ID E COMPANY_ID BASEADO NO EMAIL FORNECIDO
       let customerId: number | null = null;
       let companyId: number | null = null;
@@ -805,31 +817,119 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         }
       }
       
-      // ✅ CRIAR O TICKET COM CUSTOMER_ID E COMPANY_ID DO CLIENTE
+      // 🤖 ANÁLISE DE PRIORIDADE COM IA ANTES DE SALVAR O TICKET
+      let finalPriority = ticketData.priority || 'medium';
+      let aiAnalyzed = false;
+      
+      if (companyId && ticketData.title && ticketData.description) {
+        try {
+          console.log(`[AI] Analisando prioridade ANTES de salvar ticket...`);
+          const aiService = new AiService();
+          const aiResult = await aiService.analyzePriority(
+            ticketData.title, 
+            ticketData.description, 
+            companyId
+          );
+          
+          if (aiResult && !aiResult.usedFallback) {
+            finalPriority = aiResult.priority;
+            aiAnalyzed = true;
+            console.log(`[AI] Prioridade definida pela IA: ${finalPriority} (confiança: ${aiResult.confidence}, justificativa: ${aiResult.justification})`);
+          } else {
+            console.log(`[AI] Usando prioridade padrão devido ao fallback`);
+          }
+        } catch (aiError) {
+          console.error('[AI] Erro na análise de prioridade:', aiError);
+          // Falha na IA não impede a criação do ticket
+        }
+      }
+      
+      // ✅ CRIAR O TICKET COM PRIORIDADE JÁ DEFINIDA PELA IA
       const ticket = await storage.createTicket({
         ...ticketData,
+        priority: finalPriority, // ✅ Prioridade já analisada pela IA
         customer_id: customerId || undefined,
         company_id: companyId || undefined // ✅ USAR O COMPANY_ID DO CLIENTE
       });
 
-      console.log(`[DEBUG createTicket] Ticket criado: ID ${ticket.id}, Customer ID: ${customerId}, Company ID: ${companyId}, Email: ${ticketData.customer_email}`);
+      console.log(`[DEBUG createTicket] Ticket criado: ID ${ticket.id}, Customer ID: ${customerId}, Company ID: ${companyId}, Email: ${ticketData.customer_email}, Prioridade: ${finalPriority} ${aiAnalyzed ? '(IA)' : '(manual)'}`);
+
+      // 📝 SALVAR HISTÓRICO DA ANÁLISE DE IA (se foi analisada)
+      if (aiAnalyzed && companyId) {
+        try {
+          const aiService = new AiService();
+          await aiService.analyzeTicketPriority(
+            {
+              title: ticketData.title, 
+              description: ticketData.description, 
+              companyId: companyId,
+              ticketId: ticket.id
+            },
+            db
+          );
+        } catch (historyError) {
+          console.error('[AI] Erro ao salvar histórico da análise:', historyError);
+        }
+      }
 
       // Responder com o ticket criado
       res.status(201).json(ticket);
       
-      // Enviar notificação de novo ticket
+      // Enviar notificação via WebSocket
       notificationService.sendNotificationToAll({
         type: 'new_ticket',
         title: 'Novo Ticket Criado',
         message: `Novo ticket ${ticket.ticket_id}: ${ticketData.title}`,
         ticketId: ticket.id,
         ticketCode: ticket.ticket_id,
-        priority: ticketData.priority,
+        priority: finalPriority,
         timestamp: new Date()
       });
       
-      // 📧 ENVIAR EMAIL DE NOTIFICAÇÃO PARA NOVO TICKET
-      emailNotificationService.notifyNewTicket(ticket.id);
+      // 📧 ENVIAR EMAIL DE CONFIRMAÇÃO PARA O CLIENTE
+      try {
+        console.log(`[Email] Enviando confirmação para o cliente do ticket ID: ${ticket.id}`);
+        
+        if (customerId && ticketData.customer_email) {
+          // Buscar dados completos do cliente
+          const customer = await storage.getCustomer(customerId);
+          
+          if (customer) {
+            console.log(`[Email] Enviando confirmação para ${customer.name} (${customer.email})`);
+            
+            await emailNotificationService.sendEmailNotification(
+              'new_ticket', 
+              customer.email, 
+              {
+                ticket: {
+                  id: ticket.id,
+                  ticket_id: ticket.ticket_id,
+                  title: ticket.title,
+                  description: ticket.description,
+                  priority: finalPriority,
+                  status: ticket.status,
+                  created_at: ticket.created_at
+                },
+                customer: {
+                  name: customer.name,
+                  email: customer.email,
+                  company: customer.company
+                },
+                system: {
+                  base_url: process.env.BASE_URL || 'http://localhost:5000',
+                  company_name: 'Sistema de Tickets',
+                  support_email: 'suporte@sistema.com'
+                }
+              },
+              companyId || undefined
+            );
+            
+            console.log(`[Email] Confirmação enviada com sucesso para o cliente`);
+          }
+        }
+      } catch (emailError) {
+        console.error('[Email] Erro ao enviar confirmação para o cliente:', emailError);
+      }
       
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -3591,6 +3691,25 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // --- FIM DAS ROTAS DE ANEXOS ---
+
+  // --- ROTAS DE IA ---
+  
+  // Listar configurações de IA
+  router.get("/ai-configurations", authRequired, adminRequired, getAiConfigurations);
+  
+  // Criar nova configuração de IA
+  router.post("/ai-configurations", authRequired, adminRequired, createAiConfiguration);
+  
+  // Atualizar configuração de IA
+  router.put("/ai-configurations/:id", authRequired, adminRequired, updateAiConfiguration);
+  
+  // Deletar configuração de IA
+  router.delete("/ai-configurations/:id", authRequired, adminRequired, deleteAiConfiguration);
+  
+  // Testar configuração de IA
+  router.post("/ai-configurations/test", authRequired, adminRequired, testAiConfiguration);
+
+  // --- FIM DAS ROTAS DE IA ---
 
   app.use("/api", router);
   

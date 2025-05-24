@@ -19,6 +19,13 @@ export const userRoleEnum = pgEnum('user_role', [
   'integration_bot' // Bots e integrações
 ]);
 
+// Enum para provedores de IA
+export const aiProviderEnum = pgEnum('ai_provider', [
+  'openai',
+  'google',
+  'anthropic'
+]);
+
 // Tabela de empresas para suporte multi-tenant (ajustado para snake_case conforme banco de dados)
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
@@ -284,6 +291,76 @@ export const emailTemplates = pgTable("email_templates", {
   updated_by_id: integer("updated_by_id").references(() => users.id),
 });
 
+// Tabela para configurações de IA
+export const aiConfigurations = pgTable("ai_configurations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(), // Nome da configuração (ex: "Análise de Prioridade")
+  provider: aiProviderEnum("provider").notNull(),
+  model: text("model").notNull(), // gpt-4, gemini-pro, claude-3-sonnet, etc
+  api_key: text("api_key").notNull(),
+  api_endpoint: text("api_endpoint"), // Para Azure ou endpoints customizados
+  
+  // Configurações do prompt
+  system_prompt: text("system_prompt").notNull(),
+  user_prompt_template: text("user_prompt_template").notNull(), // Template com {titulo} e {descricao}
+  
+  // Configurações técnicas
+  temperature: text("temperature").default("0.1"), // Stored as text for precision
+  max_tokens: integer("max_tokens").default(100),
+  timeout_seconds: integer("timeout_seconds").default(30),
+  max_retries: integer("max_retries").default(3),
+  
+  // Configurações de fallback
+  fallback_priority: ticketPriorityEnum("fallback_priority").default("medium"),
+  
+  // Status
+  is_active: boolean("is_active").default(true).notNull(),
+  is_default: boolean("is_default").default(false).notNull(),
+  
+  // Multi-tenant
+  company_id: integer("company_id").references(() => companies.id),
+  
+  // Metadados
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+  created_by_id: integer("created_by_id").references(() => users.id),
+  updated_by_id: integer("updated_by_id").references(() => users.id),
+});
+
+// Tabela para histórico de análises de IA
+export const aiAnalysisHistory = pgTable("ai_analysis_history", {
+  id: serial("id").primaryKey(),
+  ticket_id: integer("ticket_id").references(() => tickets.id).notNull(),
+  ai_configuration_id: integer("ai_configuration_id").references(() => aiConfigurations.id).notNull(),
+  
+  // Input da análise
+  input_title: text("input_title").notNull(),
+  input_description: text("input_description").notNull(),
+  
+  // Output da IA
+  suggested_priority: ticketPriorityEnum("suggested_priority").notNull(),
+  ai_response_raw: text("ai_response_raw"), // Resposta completa da IA
+  ai_justification: text("ai_justification"), // Justificativa extraída
+  
+  // Metadados da requisição
+  provider: aiProviderEnum("provider").notNull(),
+  model: text("model").notNull(),
+  request_tokens: integer("request_tokens"),
+  response_tokens: integer("response_tokens"),
+  processing_time_ms: integer("processing_time_ms"),
+  
+  // Status da análise
+  status: text("status", { enum: ['success', 'error', 'timeout', 'fallback'] }).notNull(),
+  error_message: text("error_message"),
+  retry_count: integer("retry_count").default(0),
+  
+  // Multi-tenant
+  company_id: integer("company_id").references(() => companies.id),
+  
+  // Timestamp
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Schema for inserting companies
 export const insertCompanySchema = createInsertSchema(companies).omit({
   id: true,
@@ -401,6 +478,24 @@ export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit
 // Schema for updating email templates
 export const updateEmailTemplateSchema = insertEmailTemplateSchema.partial();
 
+// Schema for inserting AI configurations
+export const insertAiConfigurationSchema = createInsertSchema(aiConfigurations).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+  created_by_id: true,
+  updated_by_id: true,
+});
+
+// Schema for updating AI configurations
+export const updateAiConfigurationSchema = insertAiConfigurationSchema.partial();
+
+// Schema for inserting AI analysis history
+export const insertAiAnalysisHistorySchema = createInsertSchema(aiAnalysisHistory).omit({
+  id: true,
+  created_at: true,
+});
+
 // Types
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -468,6 +563,21 @@ export type EmailTemplate = typeof emailTemplates.$inferSelect & {
 };
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
 export type UpdateEmailTemplate = z.infer<typeof updateEmailTemplateSchema>;
+
+export type AiConfiguration = typeof aiConfigurations.$inferSelect & {
+  created_by?: Partial<User>;
+  updated_by?: Partial<User>;
+  company?: Partial<Company>;
+};
+export type InsertAiConfiguration = z.infer<typeof insertAiConfigurationSchema>;
+export type UpdateAiConfiguration = z.infer<typeof updateAiConfigurationSchema>;
+
+export type AiAnalysisHistory = typeof aiAnalysisHistory.$inferSelect & {
+  ticket?: Partial<Ticket>;
+  ai_configuration?: Partial<AiConfiguration>;
+  company?: Partial<Company>;
+};
+export type InsertAiAnalysisHistory = z.infer<typeof insertAiAnalysisHistorySchema>;
 
 // Relation declarations
 
@@ -560,5 +670,38 @@ export const emailTemplatesRelations = relations(emailTemplates, ({ one }) => ({
   updated_by: one(users, {
     fields: [emailTemplates.updated_by_id],
     references: [users.id],
+  }),
+}));
+
+// Relações para a tabela de configurações de IA
+export const aiConfigurationsRelations = relations(aiConfigurations, ({ one, many }) => ({
+  company: one(companies, {
+    fields: [aiConfigurations.company_id],
+    references: [companies.id],
+  }),
+  created_by: one(users, {
+    fields: [aiConfigurations.created_by_id],
+    references: [users.id],
+  }),
+  updated_by: one(users, {
+    fields: [aiConfigurations.updated_by_id],
+    references: [users.id],
+  }),
+  analysisHistory: many(aiAnalysisHistory),
+}));
+
+// Relações para a tabela de histórico de análises de IA
+export const aiAnalysisHistoryRelations = relations(aiAnalysisHistory, ({ one }) => ({
+  ticket: one(tickets, {
+    fields: [aiAnalysisHistory.ticket_id],
+    references: [tickets.id],
+  }),
+  ai_configuration: one(aiConfigurations, {
+    fields: [aiAnalysisHistory.ai_configuration_id],
+    references: [aiConfigurations.id],
+  }),
+  company: one(companies, {
+    fields: [aiAnalysisHistory.company_id],
+    references: [companies.id],
   }),
 }));

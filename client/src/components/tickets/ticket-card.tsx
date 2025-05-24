@@ -15,7 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 
 interface TicketCardProps {
   ticket: Ticket;
@@ -24,6 +26,8 @@ interface TicketCardProps {
 }
 
 export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, isAssigning }) => {
+  const { user } = useAuth();
+  
   const {
     id,
     ticket_id: ticketId,
@@ -37,6 +41,9 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
     department_id: departmentId,
     company_id: companyId,
   } = ticket;
+  
+  // Determinar se o usuário é cliente
+  const isCustomer = user?.role === 'customer';
   
   const { data: allOfficialsData, isLoading: isOfficialsLoading } = useQuery<Official[]>({
     queryKey: ['/api/officials'],
@@ -52,6 +59,26 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
   const handleSelectChange = (value: string) => {
     const officialId = value === "unassigned" ? null : parseInt(value);
     onAssignTicket(id, officialId);
+  };
+
+  // Função para encontrar o nome do atendente atual
+  const getCurrentOfficialName = () => {
+    if (!assignedToId) return 'Não atribuído';
+    
+    // Para clientes, usar informação básica do ticket se disponível
+    if (isCustomer) {
+      // Se o ticket tem informação do oficial diretamente, usar
+      if (ticket.official?.name) {
+        return ticket.official.name;
+      }
+      // Senão, mostrar ID genérico
+      return `Atendente #${assignedToId}`;
+    }
+    
+    // Para atendentes, usar a lista completa
+    if (!officials) return 'Carregando...';
+    const official = officials.find(o => o.id === assignedToId);
+    return official?.name || 'Atendente não encontrado';
   };
 
   return (
@@ -88,22 +115,15 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
           </div>
           
           <div className="flex items-center gap-2">
-            {isOfficialsLoading ? (
-              <div className="text-xs text-gray-500">Carregando atendentes...</div>
-            ) : officials.length === 0 ? (
-              <div className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
-                Sem atendentes cadastrados
-              </div>
-            ) : (
+            {isCustomer ? (
+              // Para clientes: dropdown bloqueado
               <div className="flex items-center gap-2">
-                {isAssigning && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
                 <Select 
                   value={assignedToId?.toString() || "unassigned"}
-                  onValueChange={handleSelectChange}
-                  disabled={isAssigning || isOfficialsLoading}
+                  disabled={true} // Sempre desabilitado para clientes
                 >
                   <SelectTrigger 
-                    className="w-[180px] h-8 text-xs bg-primary/5 border-2 border-primary/20 hover:border-primary/30 focus:border-primary/50 font-medium"
+                    className="w-[180px] h-8 text-xs font-medium bg-neutral-50 border-neutral-200 text-neutral-600 cursor-not-allowed"
                   >
                     <SelectValue placeholder="Atribuir a..." />
                   </SelectTrigger>
@@ -111,18 +131,52 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                     <SelectItem value="unassigned" className="text-gray-500 font-medium">
                       Não atribuído
                     </SelectItem>
-                    {officials.map((official) => (
-                      <SelectItem 
-                        key={official.id} 
-                        value={official.id.toString()} 
-                        className="text-primary-dark font-medium"
-                      >
-                        {official.name || `Atendente ${official.id}`}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value={assignedToId?.toString() || "unassigned"} className="text-neutral-600 font-medium">
+                      {getCurrentOfficialName()}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+            ) : (
+              // Para atendentes: dropdown editável
+              <>
+                {isOfficialsLoading ? (
+                  <div className="text-xs text-gray-500">Carregando atendentes...</div>
+                ) : officials.length === 0 ? (
+                  <div className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                    Sem atendentes cadastrados
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {isAssigning && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                    <Select 
+                      value={assignedToId?.toString() || "unassigned"}
+                      onValueChange={handleSelectChange}
+                      disabled={isAssigning || isOfficialsLoading}
+                    >
+                      <SelectTrigger 
+                        className="w-[180px] h-8 text-xs font-medium bg-primary/5 border-2 border-primary/20 hover:border-primary/30 focus:border-primary/50"
+                      >
+                        <SelectValue placeholder="Atribuir a..." />
+                      </SelectTrigger>
+                      <SelectContent position="popper" className="min-w-[180px] z-50">
+                        <SelectItem value="unassigned" className="text-gray-500 font-medium">
+                          Não atribuído
+                        </SelectItem>
+                        {officials.map((official) => (
+                          <SelectItem 
+                            key={official.id} 
+                            value={official.id.toString()} 
+                            className="text-primary-dark font-medium"
+                          >
+                            {official.name || `Atendente ${official.id}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
             )}
             
             <Button 

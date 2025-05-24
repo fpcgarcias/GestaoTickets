@@ -32,6 +32,9 @@ import { sql } from 'drizzle-orm';
 const migrations = [
   '20240526-create-departments-table',
   '20240526-add-is-active-to-incident-types',
+  '20241201-create-ai-configuration-tables',
+  '20241201-create-default-email-config',
+  '20241201-update-default-ai-prompts',
   '20241225-create-user-notification-settings-table',
   '20241226-add-hierarchy-to-officials',
   '20241226-fix-officials-department-field',
