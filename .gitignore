@@ -4,3 +4,20 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+# Arquivos de ambiente - CRÍTICO PARA SEGURANÇA
+.env
+.env.local
+.env.production
+.env.staging
+.env.development
+# Logs e arquivos temporários
+*.log
+.nyc_output
+coverage/
+# Configurações IDE
+.vscode/
+.idea/
+# Certificados e chaves
+*.pem
+*.key
+*.cert

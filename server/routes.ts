@@ -15,6 +15,28 @@ import s3Service from './services/s3-service';
 import { emailConfigService, type EmailConfig, type SMTPConfigInput } from './services/email-config-service';
 import { emailNotificationService } from './services/email-notification-service';
 
+// === IMPORTS DE SEGURANÇA ===
+import { 
+  authLimiter, 
+  apiLimiter, 
+  uploadLimiter, 
+  validateSchema, 
+  loginSchema, 
+  ticketSchema,
+  sanitizeHtml,
+  securityLogger,
+  validateFileUpload
+} from './middleware/security';
+
+// === IMPORTS DE MONITORAMENTO ===
+import {
+  getSecurityReport,
+  getSystemStats,
+  healthCheck,
+  clearSecurityLogs,
+  logSecurityEvent
+} from './api/security-monitoring';
+
 // Importações para o sistema de IA
 import { AiService } from './services/ai-service';
 import { 
@@ -267,6 +289,11 @@ function authorize(allowedRoles: string[]) {
 
 export async function registerRoutes(app: Express): Promise<HttpServer> {
   const router = express.Router();
+  
+  // === APLICAR MIDDLEWARES DE SEGURANÇA GLOBALMENTE ===
+  router.use(securityLogger); // Log de atividades suspeitas
+  router.use(sanitizeHtml);   // Sanitização de HTML
+  router.use(apiLimiter);     // Rate limiting geral para API
   
   // Nova rota para diagnóstico de extração de email do AD (admin)
   router.get("/auth/test-ad-email", async (req: Request, res: Response) => {
@@ -1598,7 +1625,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Autenticação
-  router.post("/auth/login", async (req: Request, res: Response) => {
+  router.post("/auth/login", authLimiter, validateSchema(loginSchema), async (req: Request, res: Response) => {
     try {
       const { username, password } = req.body;
       
@@ -3274,7 +3301,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Upload de anexo para um ticket
-  router.post("/tickets/:ticketId/attachments", authRequired, upload.single('file'), async (req: Request, res: Response) => {
+  router.post("/tickets/:ticketId/attachments", authRequired, uploadLimiter, upload.single('file'), validateFileUpload, async (req: Request, res: Response) => {
     try {
       const ticketId = parseInt(req.params.ticketId);
       const userId = req.session.userId!;
@@ -3691,6 +3718,42 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // --- FIM DAS ROTAS DE ANEXOS ---
+
+  // === ROTAS DE SEGURANÇA E MONITORAMENTO ===
+  
+  // Health check público
+  router.get("/health", healthCheck);
+  
+  // Relatório de segurança (apenas admin)
+  router.get("/security/report", authRequired, adminRequired, getSecurityReport);
+  
+  // Estatísticas do sistema (apenas admin)
+  router.get("/security/stats", authRequired, adminRequired, getSystemStats);
+  
+  // Limpar logs de segurança (apenas admin)
+  router.post("/security/clear-logs", authRequired, adminRequired, clearSecurityLogs);
+  
+  // Endpoint para forçar um evento de segurança (desenvolvimento/teste)
+  router.post("/security/test-event", authRequired, adminRequired, (req: Request, res: Response) => {
+    const { event, severity = 'medium', details = {} } = req.body;
+    
+    if (!event) {
+      return res.status(400).json({ message: "Campo 'event' é obrigatório" });
+    }
+    
+    logSecurityEvent(
+      req.ip || 'unknown',
+      req.get('User-Agent') || 'unknown',
+      event,
+      severity,
+      { ...details, testEvent: true, triggeredBy: req.session?.userId }
+    );
+    
+    res.json({ 
+      success: true, 
+      message: `Evento de segurança '${event}' registrado com severidade '${severity}'` 
+    });
+  });
 
   // --- ROTAS DE IA ---
   

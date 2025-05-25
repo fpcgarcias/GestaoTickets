@@ -5,12 +5,20 @@ import * as dotenv from 'dotenv';
 // Carregar variáveis de ambiente
 dotenv.config();
 
+// === VALIDAÇÃO OBRIGATÓRIA DE VARIÁVEIS DE AMBIENTE ===
+function validateEnvVariable(name: string, value: string | undefined): string {
+  if (!value) {
+    throw new Error(`❌ SEGURANÇA: Variável de ambiente ${name} é obrigatória e não foi definida no arquivo .env`);
+  }
+  return value;
+}
+
 // Configurações do Active Directory
 const adConfig = {
-  url: process.env.AD_URL || 'ldap://127.0.0.1:389',
-  baseDN: process.env.AD_BASE_DN || 'DC=vixbrasil,DC=local',
-  username: process.env.AD_USERNAME || 'VIXBRASIL\\administrador',
-  password: process.env.AD_PASSWORD || 'senha-admin-ad',
+  url: validateEnvVariable('AD_URL', process.env.AD_URL),
+  baseDN: validateEnvVariable('AD_BASE_DN', process.env.AD_BASE_DN),
+  username: validateEnvVariable('AD_USERNAME', process.env.AD_USERNAME),
+  password: validateEnvVariable('AD_PASSWORD', process.env.AD_PASSWORD),
   
   attributes: {
     user: ['displayName', 'mail', 'userPrincipalName', 'memberOf', 'proxyAddresses'],

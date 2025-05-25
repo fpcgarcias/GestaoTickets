@@ -1,24 +1,168 @@
-import * as bcrypt from 'bcrypt';
+import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 
-// Número de rounds para o algoritmo de hash - quanto maior, mais seguro, mas também mais lento
-const SALT_ROUNDS = 10;
+// Configurações de segurança
+const SALT_ROUNDS = 12; // Alto nível de segurança
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 128;
+
+// Regex para validação de senha forte
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
 
 /**
- * Criptografa uma senha usando bcrypt
- * @param password Senha em texto plano
- * @returns Senha criptografada
+ * Valida se a senha atende aos critérios de segurança
  */
-export async function hashPassword(password: string): Promise<string> {
-  const saltRounds = 10;
-  return bcrypt.hash(password, saltRounds);
+export function validatePasswordStrength(password: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    errors.push(`Senha deve ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres`);
+  }
+
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    errors.push(`Senha deve ter no máximo ${MAX_PASSWORD_LENGTH} caracteres`);
+  }
+
+  if (!/[a-z]/.test(password)) {
+    errors.push('Senha deve conter pelo menos uma letra minúscula');
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Senha deve conter pelo menos uma letra maiúscula');
+  }
+
+  if (!/\d/.test(password)) {
+    errors.push('Senha deve conter pelo menos um número');
+  }
+
+  if (!/[@$!%*?&]/.test(password)) {
+    errors.push('Senha deve conter pelo menos um caractere especial (@$!%*?&)');
+  }
+
+  // Verificar sequências comuns
+  const commonSequences = ['123456', 'abcdef', 'qwerty', 'password', 'admin'];
+  const lowerPassword = password.toLowerCase();
+  
+  for (const sequence of commonSequences) {
+    if (lowerPassword.includes(sequence)) {
+      errors.push('Senha não pode conter sequências comuns');
+      break;
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
 }
 
 /**
- * Verifica se uma senha em texto plano corresponde à senha criptografada
- * @param plainPassword Senha em texto plano
- * @param hashedPassword Senha criptografada
- * @returns True se a senha corresponder, false caso contrário
+ * Gera hash seguro da senha
  */
-export async function verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
-  return bcrypt.compare(plainPassword, hashedPassword);
+export async function hashPassword(password: string): Promise<string> {
+  // Validar força da senha
+  const validation = validatePasswordStrength(password);
+  if (!validation.valid) {
+    throw new Error(`Senha não atende aos critérios de segurança: ${validation.errors.join(', ')}`);
+  }
+
+  try {
+    const hash = await bcrypt.hash(password, SALT_ROUNDS);
+    return hash;
+  } catch (error) {
+    console.error('Erro ao gerar hash da senha:', error);
+    throw new Error('Erro interno ao processar senha');
+  }
+}
+
+/**
+ * Verifica se a senha corresponde ao hash
+ */
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  try {
+    return await bcrypt.compare(password, hash);
+  } catch (error) {
+    console.error('Erro ao verificar senha:', error);
+    return false;
+  }
+}
+
+/**
+ * Gera senha temporária segura
+ */
+export function generateSecurePassword(length: number = 12): string {
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const numbers = '0123456789';
+  const special = '@$!%*?&';
+  
+  const allChars = lowercase + uppercase + numbers + special;
+  
+  let password = '';
+  
+  // Garantir pelo menos um caractere de cada tipo
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += special[Math.floor(Math.random() * special.length)];
+  
+  // Preencher o resto aleatoriamente
+  for (let i = 4; i < length; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+  
+  // Embaralhar a senha
+  return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
+/**
+ * Gera token seguro para reset de senha
+ */
+export function generateResetToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+/**
+ * Verifica se a senha foi comprometida (lista básica)
+ */
+export function checkCommonPasswords(password: string): boolean {
+  const commonPasswords = [
+    'password', '123456', '123456789', 'qwerty', 'abc123',
+    'password123', 'admin', 'letmein', 'welcome', 'monkey',
+    'dragon', 'master', 'shadow', 'superman', 'michael'
+  ];
+  
+  return commonPasswords.includes(password.toLowerCase());
+}
+
+/**
+ * Calcula força da senha (0-100)
+ */
+export function calculatePasswordStrength(password: string): { score: number; feedback: string } {
+  let score = 0;
+  let feedback = 'Muito fraca';
+
+  // Comprimento
+  if (password.length >= 8) score += 20;
+  if (password.length >= 12) score += 10;
+  if (password.length >= 16) score += 10;
+
+  // Variedade de caracteres
+  if (/[a-z]/.test(password)) score += 10;
+  if (/[A-Z]/.test(password)) score += 10;
+  if (/\d/.test(password)) score += 10;
+  if (/[@$!%*?&]/.test(password)) score += 15;
+
+  // Penalidades
+  if (checkCommonPasswords(password)) score -= 30;
+  if (/(.)\1{2,}/.test(password)) score -= 15; // Caracteres repetidos
+
+  // Feedback
+  if (score < 30) feedback = 'Muito fraca';
+  else if (score < 50) feedback = 'Fraca';
+  else if (score < 70) feedback = 'Média';
+  else if (score < 90) feedback = 'Forte';
+  else feedback = 'Muito forte';
+
+  return { score: Math.max(0, Math.min(100, score)), feedback };
 }
