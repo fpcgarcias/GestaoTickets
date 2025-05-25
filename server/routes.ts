@@ -2305,6 +2305,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           conditions.push(eq(departmentsSchema.company_id, parseInt(queryCompanyId as string, 10)));
         }
         // Se queryCompanyId não for fornecido, NENHUMA condição de company_id é adicionada para o admin.
+      } else if (userRole === 'company_admin') {
+        // Company_admin: vê apenas departamentos da sua empresa
+        if (sessionCompanyId) {
+          conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
+        } else {
+          return res.status(403).json({ message: "Acesso negado: ID da empresa não encontrado na sessão." });
+        }
       } else {
         // Não Admin: requer um companyId da sessão.
         if (sessionCompanyId) {
@@ -2373,7 +2380,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   router.post(
     "/departments",
     authRequired,
-    authorize(['admin', 'manager']), 
+    authorize(['admin', 'company_admin', 'manager']), 
     async (req: Request, res: Response) => {
       try {
         const { name, description, is_active, company_id: company_id_from_body } = req.body;
@@ -2388,6 +2395,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           }
           // TODO: Validar se a company_id_from_body existe na tabela companies
           effectiveCompanyId = company_id_from_body;
+        } else if (userRole === 'company_admin') {
+          // Company_admin só pode criar departamentos para sua própria empresa
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: "Company_admin não possui uma empresa associada na sessão." });
+          }
+          effectiveCompanyId = sessionCompanyId;
+          if (company_id_from_body !== undefined && company_id_from_body !== sessionCompanyId) {
+            console.warn("Company_admin tentou especificar um company_id diferente do seu na criação do departamento. Ação ignorada, usando o company_id da sessão.");
+          }
         } else if (userRole === 'manager') {
           if (!sessionCompanyId) {
             return res.status(403).json({ message: "Manager não possui uma empresa associada na sessão." });
@@ -2447,7 +2463,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   router.put(
     "/departments/:id",
     authRequired,
-    authorize(['admin', 'manager']), // Papéis que podem acessar a rota
+    authorize(['admin', 'company_admin', 'manager']), // Papéis que podem acessar a rota
     async (req: Request, res: Response) => {
       try {
         const departmentIdParam = parseInt(req.params.id, 10);
@@ -3782,6 +3798,84 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   router.post("/ai-configurations/test", authRequired, adminRequired, testAiConfiguration);
 
   // --- FIM DAS ROTAS DE IA ---
+
+  // === NOVAS ROTAS PARA COMPANY_ADMIN ===
+  
+  // Endpoint para company_admin listar usuários da sua empresa
+  router.get("/company/users", companyAdminRequired, async (req: Request, res: Response) => {
+    try {
+      const includeInactive = req.query.includeInactive === 'true';
+      const companyId = req.session.companyId;
+      
+      if (!companyId) {
+        return res.status(400).json({ message: "Empresa não identificada" });
+      }
+      
+      // Buscar usuários da empresa
+      const allUsers = includeInactive ? 
+        await storage.getAllUsers() : 
+        await storage.getActiveUsers();
+      
+      // Filtrar por empresa
+      const companyUsers = allUsers.filter(user => user.company_id === companyId);
+      
+      // Não retornar as senhas
+      const usersWithoutPasswords = companyUsers.map(user => {
+        const { password, ...userWithoutPassword } = user;
+        return userWithoutPassword;
+      });
+      
+      res.json(usersWithoutPasswords);
+    } catch (error) {
+      console.error('Erro ao listar usuários da empresa:', error);
+      res.status(500).json({ message: "Falha ao listar usuários da empresa", error: String(error) });
+    }
+  });
+  
+  // Endpoint para company_admin listar clientes da sua empresa
+  router.get("/company/customers", companyAdminRequired, async (req: Request, res: Response) => {
+    try {
+      const companyId = req.session.companyId;
+      
+      if (!companyId) {
+        return res.status(400).json({ message: "Empresa não identificada" });
+      }
+      
+      // Buscar todos os clientes
+      const allCustomers = await storage.getCustomers();
+      
+      // Filtrar por empresa
+      const companyCustomers = allCustomers.filter(customer => customer.company_id === companyId);
+      
+      res.json(companyCustomers);
+    } catch (error) {
+      console.error('Erro ao listar clientes da empresa:', error);
+      res.status(500).json({ message: "Falha ao listar clientes da empresa", error: String(error) });
+    }
+  });
+  
+  // Endpoint para company_admin listar departamentos da sua empresa
+  router.get("/company/departments", companyAdminRequired, async (req: Request, res: Response) => {
+    try {
+      const companyId = req.session.companyId;
+      
+      if (!companyId) {
+        return res.status(400).json({ message: "Empresa não identificada" });
+      }
+      
+      // Buscar departamentos da empresa
+      const departments = await db
+        .select()
+        .from(schema.departments)
+        .where(eq(schema.departments.company_id, companyId))
+        .orderBy(schema.departments.name);
+      
+      res.json(departments);
+    } catch (error) {
+      console.error('Erro ao listar departamentos da empresa:', error);
+      res.status(500).json({ message: "Falha ao listar departamentos da empresa", error: String(error) });
+    }
+  });
 
   app.use("/api", router);
   

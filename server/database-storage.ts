@@ -392,6 +392,35 @@ export class DatabaseStorage implements IStorage {
       console.log('Papel: admin - retornando todos os tickets');
       // Administradores veem todos os tickets
       return this.getTickets();
+    } else if (userRole === 'company_admin') {
+      console.log('Papel: company_admin - buscando tickets da empresa');
+      // Company admins veem todos os tickets da sua empresa
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user || !user.company_id) {
+        console.log(`Company_admin sem empresa associada para o usuário ID ${userId}`);
+        return [];
+      }
+      
+      console.log(`Buscando tickets da empresa ID ${user.company_id}`);
+      
+      try {
+        // Buscar todos os tickets da empresa
+        const ticketsData = await db
+          .select()
+          .from(tickets)
+          .where(eq(tickets.company_id, user.company_id));
+        
+        console.log(`Encontrados ${ticketsData.length} tickets para a empresa`);
+        
+        const enrichedTickets = await Promise.all(
+          ticketsData.map(ticket => this.getTicketInternal(ticket.id))
+        );
+        
+        return enrichedTickets.filter(Boolean) as Ticket[];
+      } catch (error) {
+        console.error('Erro ao buscar tickets para company_admin:', error);
+        return [];
+      }
     } else if (userRole === 'customer') {
       console.log('Papel: customer - buscando tickets do cliente');
       // Clientes veem apenas seus próprios tickets
