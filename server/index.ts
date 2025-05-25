@@ -46,6 +46,12 @@ const generateSecret = () => crypto.randomBytes(32).toString('hex');
 
 const app = express();
 
+// === CONFIGURAÇÕES DE PROXY ===
+// Configuração simples e robusta para trust proxy
+// Se houver X-Forwarded-For headers, confiar no proxy
+app.set('trust proxy', 1); // Confiar no primeiro proxy
+console.log('🔧 Trust proxy: Habilitado para o primeiro proxy');
+
 // === CONFIGURAÇÕES DE SEGURANÇA ===
 
 // 1. Helmet - Headers de segurança

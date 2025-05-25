@@ -421,12 +421,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Autenticar o usuário recém-registrado
       if (req.session) {
         req.session.userId = user.id;
-        // Garantir que o user.role é um dos tipos permitidos para req.session.userRole
-        if (user.role === 'admin' || user.role === 'support' || user.role === 'customer') {
-            req.session.userRole = user.role;
+        // Mapear TODOS os roles válidos para a sessão
+        const validRoles = ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'triage', 'customer', 'viewer', 'quality', 'integration_bot'];
+        if (validRoles.includes(user.role)) {
+          req.session.userRole = user.role;
         } else {
-             console.warn(`Papel de usuário '${user.role}' não diretamente mapeado para req.session.userRole durante registro. Sessão pode não refletir o papel completo.`);
-             // req.session.userRole permanecerá undefined ou o valor anterior
+          console.warn(`Papel de usuário '${user.role}' não é válido. Roles válidos: ${validRoles.join(', ')}`);
+          // Definir como customer por segurança
+          req.session.userRole = 'customer';
         }
         if (companyId) {
           req.session.companyId = companyId;
@@ -1691,12 +1693,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       // Salvar informações na sessão
       req.session.userId = user.id;
-      // req.session.userRole = user.role as string; // Comentado para usar a lógica abaixo
-      if (user.role === 'admin' || user.role === 'support' || user.role === 'customer') {
+      // Mapear TODOS os roles válidos para a sessão
+      const validRoles = ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'triage', 'customer', 'viewer', 'quality', 'integration_bot'];
+      if (validRoles.includes(user.role)) {
         req.session.userRole = user.role;
       } else {
-        console.warn(`Papel de usuário '${user.role}' não diretamente mapeado para req.session.userRole durante login. Sessão pode não refletir o papel completo.`);
-        // req.session.userRole permanecerá undefined ou o valor anterior
+        console.warn(`Papel de usuário '${user.role}' não é válido. Roles válidos: ${validRoles.join(', ')}`);
+        // Definir como customer por segurança
+        req.session.userRole = 'customer';
       }
 
       if (company) {
@@ -2066,7 +2070,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   
   // Rotas para configurações do sistema
   // Configurações gerais
-  router.get("/settings/general", adminRequired, async (req: Request, res: Response) => {
+  router.get("/settings/general", companyAdminRequired, async (req: Request, res: Response) => {
     try {
       // Buscar configurações do sistema
       const companyName = await getSystemSetting('companyName', 'Ticket Lead');
@@ -2085,7 +2089,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.post("/settings/general", adminRequired, async (req: Request, res: Response) => {
+  router.post("/settings/general", companyAdminRequired, async (req: Request, res: Response) => {
     try {
       const { companyName, supportEmail, allowCustomerRegistration } = req.body;
       
