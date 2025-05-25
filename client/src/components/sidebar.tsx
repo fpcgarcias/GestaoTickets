@@ -39,17 +39,27 @@ export function Sidebar({ className }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const filteredNavItems = navItems.filter((item) => {
-    return user && item.roles.includes(user.role);
+    const hasAccess = user && item.roles.includes(user.role);
+    console.log(`🔍 [MENU DEBUG] Item: ${item.title}, Roles permitidos: [${item.roles.join(', ')}], User role: ${user?.role}, Tem acesso: ${hasAccess}`);
+    return hasAccess;
   });
   
-  // 🔍 DEBUG DO MENU
-  console.log('=== SIDEBAR DEBUG ===');
-  console.log('👤 User:', user);
-  console.log('🎭 User Role:', user?.role);
-  console.log('📋 All Nav Items:', navItems.length);
-  console.log('✅ Filtered Items:', filteredNavItems.length);
-  console.log('📌 Filtered Items:', filteredNavItems.map(item => item.title));
-  console.log('==================');
+  // 🔍 DEBUG DO MENU - MAIS DETALHADO
+  console.log('=== SIDEBAR DEBUG DETALHADO ===');
+  console.log('👤 User objeto completo:', JSON.stringify(user, null, 2));
+  console.log('🎭 User Role (typeof):', typeof user?.role, user?.role);
+  console.log('📋 Todos os itens:', navItems.length);
+  console.log('✅ Itens filtrados:', filteredNavItems.length);
+  console.log('📌 Itens que vão aparecer:', filteredNavItems.map(item => `${item.title} (${item.href})`));
+  
+  // VERIFICAR SE O ROLE ESTÁ SENDO DETECTADO CORRETAMENTE
+  const testRoles = ['admin', 'company_admin', 'manager', 'support'];
+  testRoles.forEach(role => {
+    const count = navItems.filter(item => item.roles.includes(role)).length;
+    console.log(`🎯 Role '${role}' tem acesso a ${count} itens`);
+  });
+  
+  console.log('=======================');
 
   const handleLogout = () => {
     logout();
