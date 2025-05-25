@@ -133,13 +133,26 @@ function adminRequired(req: Request, res: Response, next: NextFnExpress) {
 
 // Middleware para verificar se o usuário é company_admin ou admin geral
 function companyAdminRequired(req: Request, res: Response, next: NextFnExpress) {
+  console.log('🔍 [SESSÃO DEBUG] companyAdminRequired - Verificando acesso...');
+  console.log('🔍 [SESSÃO DEBUG] req.session:', JSON.stringify(req.session, null, 2));
+  console.log('🔍 [SESSÃO DEBUG] req.sessionID:', req.sessionID);
+  console.log('🔍 [SESSÃO DEBUG] Cookies:', req.headers.cookie);
+  
   if (!req.session || !req.session.userId) {
+    console.log('❌ [SESSÃO DEBUG] Não autenticado - sessão ou userId não encontrados');
     return res.status(401).json({ message: "Não autenticado" });
   }
+  
   const userRole = req.session.userRole as string; // Cast para string para a comparação
+  console.log('🔍 [SESSÃO DEBUG] userRole:', userRole);
+  console.log('🔍 [SESSÃO DEBUG] companyId:', req.session.companyId);
+  
   if (userRole !== 'admin' && userRole !== 'company_admin') {
+    console.log('❌ [SESSÃO DEBUG] Acesso negado - role não autorizado:', userRole);
     return res.status(403).json({ message: "Acesso negado: Requer perfil de Administrador da Empresa ou Administrador Geral" });
   }
+  
+  console.log('✅ [SESSÃO DEBUG] Acesso autorizado para role:', userRole);
   next();
 }
 
@@ -1073,9 +1086,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     try {
       // Verificar se deve incluir clientes inativos
       const includeInactive = req.query.includeInactive === 'true';
+      const userRole = req.session?.userRole as string;
+      const companyId = req.session?.companyId;
       
       // Buscar todos os clientes
-      const customers = await storage.getCustomers();
+      const allCustomers = await storage.getCustomers();
+      
+      // Filtrar por empresa se não for admin
+      const customers = userRole === 'admin' 
+        ? allCustomers 
+        : allCustomers.filter(customer => customer.company_id === companyId);
       
       // Carregar as informações de cada cliente
       const enrichedCustomers = await Promise.all(
@@ -1286,13 +1306,21 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       console.log('Sessão do usuário:', req.session);
       console.log('User ID na sessão:', req.session?.userId);
       console.log('User Role na sessão:', req.session?.userRole);
-      console.log('Headers:', JSON.stringify(req.headers, null, 2));
+      
+      const userRole = req.session?.userRole as string;
+      const companyId = req.session?.companyId;
       
       console.log('Buscando lista de atendentes...');
-      const officials = await storage.getOfficials();
-      console.log(`Encontrados ${officials.length} atendentes no storage`);
+      const allOfficials = await storage.getOfficials();
+      console.log(`Encontrados ${allOfficials.length} atendentes no storage`);
       
-      console.log('[DEBUG /api/officials] Dados recebidos do storage:', JSON.stringify(officials, null, 2)); 
+      // Filtrar por empresa se não for admin
+      const officials = userRole === 'admin' 
+        ? allOfficials 
+        : allOfficials.filter(official => official.company_id === companyId);
+      
+      console.log(`Após filtro de empresa: ${officials.length} atendentes`);
+      console.log('[DEBUG /api/officials] Dados filtrados:', JSON.stringify(officials, null, 2)); 
       console.log('========= FIM DA REQUISIÇÃO /api/officials =========');
       res.json(officials);
     } catch (error) {
@@ -1989,19 +2017,26 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
 
-  // Endpoint para listar todos os usuários (apenas para administradores)
-  router.get("/users", adminRequired, async (req: Request, res: Response) => {
+  // Endpoint para listar todos os usuários (admin e company_admin)
+  router.get("/users", companyAdminRequired, async (req: Request, res: Response) => {
     try {
       // Verificar se queremos incluir usuários inativos
       const includeInactive = req.query.includeInactive === 'true';
+      const userRole = req.session?.userRole as string;
+      const companyId = req.session?.companyId;
       
       // Buscar usuários
-      const users = includeInactive ? 
+      const allUsers = includeInactive ? 
         await storage.getAllUsers() : 
         await storage.getActiveUsers();
       
+      // Se for admin, mostrar todos. Se for company_admin, filtrar por empresa
+      const filteredUsers = userRole === 'admin' 
+        ? allUsers 
+        : allUsers.filter(user => user.company_id === companyId);
+      
       // Não retornar as senhas
-      const usersWithoutPasswords = users.map(user => {
+      const usersWithoutPasswords = filteredUsers.map(user => {
         const { password, ...userWithoutPassword } = user;
         return userWithoutPassword;
       });

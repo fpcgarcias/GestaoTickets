@@ -35,9 +35,21 @@ export function useNotifications() {
     // Configurar o WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     
-    // O WebSocket deve usar o mesmo host e porta do servidor atual
-    // já que frontend e backend rodam juntos na mesma porta
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    // Detectar o host correto - usar sempre o host da página atual
+    let host = window.location.host;
+    
+    // Se estiver rodando em localhost, usar localhost:5000 se necessário
+    if (host.includes('localhost') && !host.includes(':5000')) {
+      console.log('[WebSocket] Detectado localhost sem porta - assumindo localhost:5000');
+      host = 'localhost:5000';
+    }
+    
+    // Se estiver em produção, usar o domínio atual
+    const wsUrl = `${protocol}//${host}/ws`;
+    
+    console.log(`[WebSocket] 🔌 Conectando em: ${wsUrl}`);
+    console.log(`[WebSocket] Protocolo: ${protocol}, Host: ${host}`);
+    console.log(`[WebSocket] Window location: ${window.location.href}`);
     
     const newSocket = new WebSocket(wsUrl);
 
