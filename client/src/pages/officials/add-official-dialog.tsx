@@ -12,7 +12,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
+import { cn, generateSecurePassword } from "@/lib/utils";
 
 interface AddOfficialDialogProps {
   open: boolean;
@@ -20,12 +21,14 @@ interface AddOfficialDialogProps {
   onCreated?: (official: any) => void;
 }
 
-function generateRandomPassword() {
-  return Math.random().toString(36).slice(-8);
+interface Company {
+  id: number;
+  name: string;
 }
 
 export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficialDialogProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   
   const [formData, setFormData] = useState({
@@ -38,6 +41,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     avatarUrl: null as string | null,
     supervisor_id: null as number | null,
     manager_id: null as number | null,
+    company_id: user?.company?.id || null as number | null,
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -45,21 +49,50 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
   const [generatedPassword, setGeneratedPassword] = useState('');
   const [popoverOpen, setPopoverOpen] = useState(false);
   
+  // Buscar lista de empresas (apenas para admin)
+  const { data: companies, isLoading: isLoadingCompanies } = useQuery<Company[]>({
+    queryKey: ['/api/companies'],
+    enabled: user?.role === 'admin', // Apenas buscar empresas se o usuário for admin
+  });
+  
   // Carregar departamentos disponíveis do banco de dados
   const { data: departmentsData } = useQuery({
-    queryKey: ["/api/departments"],
+    queryKey: ["/api/departments", formData.company_id],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/departments?active_only=true');
+      let url = '/api/departments?active_only=true';
+      
+      // Se for admin e tiver empresa selecionada, filtrar por empresa
+      if (user?.role === 'admin' && formData.company_id) {
+        url += `&company_id=${formData.company_id}`;
+      }
+      
+      const response = await apiRequest('GET', url);
       if (!response.ok) {
         throw new Error('Erro ao carregar departamentos');
       }
       return response.json();
-    }
+    },
+    enabled: user?.role !== 'admin' || formData.company_id !== null, // Para admin, só buscar se empresa estiver selecionada
   });
 
   // Carregar atendentes existentes para seleção de supervisor/manager
   const { data: existingOfficials = [] } = useQuery<any[]>({
-    queryKey: ['/api/officials'],
+    queryKey: ['/api/officials', formData.company_id],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/officials');
+      if (!response.ok) {
+        throw new Error('Erro ao carregar atendentes');
+      }
+      const officials = await response.json();
+      
+      // Se for admin e tiver empresa selecionada, filtrar por empresa
+      if (user?.role === 'admin' && formData.company_id) {
+        return officials.filter((official: any) => official.company_id === formData.company_id);
+      }
+      
+      return officials;
+    },
+    enabled: user?.role !== 'admin' || formData.company_id !== null, // Para admin, só buscar se empresa estiver selecionada
   });
 
   // Mapear departamentos do banco para o formato usado no componente
@@ -178,10 +211,20 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       return;
     }
     
+    // Verificar se a empresa foi selecionada (apenas para admin)
+    if (user?.role === 'admin' && !formData.company_id) {
+      toast({
+        title: "Erro de validação",
+        description: "Selecione uma empresa para o atendente.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setSubmitting(true);
     
     // Generate a random password for the user
-    const password = generateRandomPassword();
+    const password = generateSecurePassword();
     setGeneratedPassword(password);
     
     // Criar o usuário e atendente em uma única operação
@@ -197,6 +240,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       avatarUrl: null,
       supervisor_id: formData.supervisor_id,
       manager_id: formData.manager_id,
+      company_id: formData.company_id,
     });
   };
 
@@ -212,6 +256,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       avatarUrl: null,
       supervisor_id: null,
       manager_id: null,
+      company_id: null,
     });
     setUserCreated(false);
     setGeneratedPassword('');
@@ -270,6 +315,48 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                     required
                   />
                 </div>
+                
+                {/* Campo de seleção de empresa - apenas para admin */}
+                {user?.role === 'admin' && (
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="company_id" className="text-right">
+                      Empresa *
+                    </Label>
+                    <div className="col-span-3">
+                      <Select 
+                        value={formData.company_id?.toString() || ""} 
+                        onValueChange={(value) => setFormData({ ...formData, company_id: value ? parseInt(value) : null })}
+                        disabled={isLoadingCompanies}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={isLoadingCompanies ? "Carregando..." : "Selecione a empresa"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companies?.map(company => (
+                            <SelectItem key={company.id} value={company.id.toString()}>
+                              {company.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Campo de empresa para não-admin (apenas visualização) */}
+                {user?.role !== 'admin' && user?.company && (
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="company_readonly" className="text-right">
+                      Empresa
+                    </Label>
+                    <Input
+                      id="company_readonly"
+                      value={user.company.name}
+                      disabled
+                      className="col-span-3 bg-gray-100"
+                    />
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">

@@ -410,7 +410,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Criar usuário - por padrão, novos usuários terão o papel de 'customer' a menos que especificado diferente
       const userRole = role || 'customer';
       
-      // Criptografar senha antes de salvar
+      // Criptografar a senha fornecida pelo usuário
       const { hashPassword } = await import('./utils/password');
       const hashedPassword = await hashPassword(password);
       
@@ -1134,7 +1134,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   
   router.post("/customers", authRequired, authorize(['admin', 'manager', 'company_admin', 'support']), async (req: Request, res: Response) => {
     try {
-      const { email, name } = req.body;
+      const { email, name, company_id } = req.body;
       
       // Verificar se já existe cliente ou usuário com este email
       const existingCustomer = await storage.getCustomerByEmail(email);
@@ -1150,31 +1150,45 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Usar o e-mail completo como nome de usuário
       const username = email;
       
-      // Gerar senha temporária (6 caracteres alfanuméricos)
-      const tempPassword = Math.random().toString(36).substring(2, 8);
+      // Gerar senha temporária segura
+      const { generateSecurePassword, hashPassword } = await import('./utils/password');
+      const tempPassword = generateSecurePassword();
       
       // Criptografar senha
-      const { hashPassword } = await import('./utils/password');
       const hashedPassword = await hashPassword(tempPassword);
       
-      // Criar usuário primeiro
+      // Determinar company_id efetivo
+      const userRole = req.session?.userRole as string;
+      const sessionCompanyId = req.session?.companyId;
+      
+      let effectiveCompanyId: number | null = null;
+      
+      if (userRole === 'admin') {
+        // Admin pode especificar qualquer company_id
+        effectiveCompanyId = company_id || null;
+      } else {
+        // Usuários não-admin usam sua própria empresa
+        effectiveCompanyId = sessionCompanyId || null;
+        if (company_id && company_id !== sessionCompanyId) {
+          console.warn(`Usuário ${userRole} tentou especificar company_id ${company_id}, mas será usado o da sessão: ${sessionCompanyId}`);
+        }
+      }
+      
+      // Criar usuário primeiro com company_id
       const user = await storage.createUser({
         username,
         email,
         password: hashedPassword,
         name,
         role: 'customer' as typeof schema.userRoleEnum.enumValues[number],
+        company_id: effectiveCompanyId,
       });
       
-      const userRole = req.session?.userRole as string;
-      const companyId = req.session?.companyId;
-      
-      // Criar cliente associado ao usuário
+      // Criar cliente associado ao usuário com company_id
       const customer = await storage.createCustomer({
         ...req.body,
         user_id: user.id,
-        // Se for company_admin, garantir que o cliente será criado na empresa dele
-        ...(userRole === 'company_admin' && { company_id: companyId })
+        company_id: effectiveCompanyId,
       });
       
       // Notificar sobre novo cliente registrado
@@ -1336,7 +1350,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   router.post("/officials", authRequired, authorize(['admin', 'manager', 'company_admin']), async (req: Request, res: Response) => {
     try {
       console.log(`Iniciando criação de atendente com dados:`, JSON.stringify(req.body, null, 2));
-      const { departments, ...officialData } = req.body;
+      const { departments, company_id, ...officialData } = req.body;
       
       // Verificar se há departamentos selecionados
       if (!departments || !Array.isArray(departments) || departments.length === 0) {
@@ -1361,15 +1375,28 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         departmentValue = departmentValue.department;
       }
       
+      // Determinar company_id efetivo
       const userRole = req.session?.userRole as string;
-      const companyId = req.session?.companyId;
+      const sessionCompanyId = req.session?.companyId;
+      
+      let effectiveCompanyId: number | null = null;
+      
+      if (userRole === 'admin') {
+        // Admin pode especificar qualquer company_id
+        effectiveCompanyId = company_id || null;
+      } else {
+        // Usuários não-admin usam sua própria empresa
+        effectiveCompanyId = sessionCompanyId || null;
+        if (company_id && company_id !== sessionCompanyId) {
+          console.warn(`Usuário ${userRole} tentou especificar company_id ${company_id}, mas será usado o da sessão: ${sessionCompanyId}`);
+        }
+      }
       
       // Criar atendente primeiro
       const dataWithDepartment = {
         ...officialData,
         department: departmentValue, // Adicionar campo department para compatibilidade
-        // Se for company_admin, garantir que o atendente será criado na empresa dele
-        ...(userRole === 'company_admin' && { company_id: companyId })
+        company_id: effectiveCompanyId, // Aplicar company_id para todos os usuários não-admin
       };
       
       console.log(`Criando atendente com dados:`, JSON.stringify(dataWithDepartment, null, 2));
@@ -1420,12 +1447,29 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(400).json({ message: "ID de atendente inválido" });
       }
 
-      const { departments, password, department, user, ...officialData } = req.body;
+      const { departments, password, department, user, company_id, ...officialData } = req.body;
       
       // Verificar se temos pelo menos um departamento
       if (!departments || !Array.isArray(departments) || departments.length === 0) {
         if (!department) { // Se nem department foi fornecido
           return res.status(400).json({ message: "Pelo menos um departamento deve ser selecionado" });
+        }
+      }
+      
+      // Verificar permissões para alterar company_id
+      const userRole = req.session?.userRole as string;
+      const sessionCompanyId = req.session?.companyId;
+      
+      let effectiveCompanyId: number | null = null;
+      
+      if (userRole === 'admin') {
+        // Admin pode especificar qualquer company_id
+        effectiveCompanyId = company_id !== undefined ? company_id : null;
+      } else {
+        // Usuários não-admin não podem alterar company_id, usar o da sessão
+        effectiveCompanyId = sessionCompanyId || null;
+        if (company_id !== undefined && company_id !== sessionCompanyId) {
+          console.warn(`Usuário ${userRole} tentou alterar company_id para ${company_id}, mas será ignorado. Usando company_id da sessão: ${sessionCompanyId}`);
         }
       }
       
@@ -1447,7 +1491,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       const updateData = {
         ...officialData,
-        department: departmentValue // Adicionar department para compatibilidade com a tabela física
+        department: departmentValue, // Adicionar department para compatibilidade com a tabela física
+        company_id: effectiveCompanyId, // Incluir company_id
       };
       
       // Buscar o atendente para obter o userId associado
@@ -1457,11 +1502,12 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       }
       
       // Se recebemos dados do usuário e o atendente tem um usuário associado, atualizá-lo
-      if (user && official.user_id) { // Corrigido para user_id
-        console.log(`Atualizando dados do usuário ${official.user_id} associado ao atendente ${id}:`, user); // Corrigido para user_id
+      if (user && official.user_id) {
+        console.log(`Atualizando dados do usuário ${official.user_id} associado ao atendente ${id}:`, user);
         
         // Preparar os dados de atualização do usuário
         const userUpdateData: any = {};
+        
         
         // Se o username for fornecido, atualizá-lo
         if (user.username) {
@@ -1478,6 +1524,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           userUpdateData.name = user.name;
         }
         
+        // Incluir company_id no usuário também
+        userUpdateData.company_id = effectiveCompanyId;
+        
         // Se a senha for fornecida no objeto user, usar ela
         if (user.password) {
           // Criptografar a nova senha
@@ -1493,17 +1542,26 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         
         // Se temos dados para atualizar, realizar a atualização
         if (Object.keys(userUpdateData).length > 0) {
-          await storage.updateUser(official.user_id, userUpdateData); // Corrigido para user_id
+          await storage.updateUser(official.user_id, userUpdateData);
         }
       }
       // Se apenas a senha foi fornecida diretamente, atualizar apenas ela
-      else if (password && official.user_id) { // Corrigido para user_id
+      else if (password && official.user_id) {
         // Criptografar a nova senha
         const { hashPassword } = await import('./utils/password');
         const hashedPassword = await hashPassword(password);
         
-        // Atualizar a senha do usuário associado
-        await storage.updateUser(official.user_id, { password: hashedPassword }); // Corrigido para user_id
+        // Atualizar a senha do usuário associado, incluindo company_id
+        await storage.updateUser(official.user_id, { 
+          password: hashedPassword,
+          company_id: effectiveCompanyId
+        });
+      }
+      // Se não há senha mas há company_id para atualizar no usuário
+      else if (official.user_id && effectiveCompanyId !== undefined) {
+        await storage.updateUser(official.user_id, { 
+          company_id: effectiveCompanyId
+        });
       }
       
       // Atualizar dados básicos do atendente
@@ -1523,7 +1581,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         // Adicionar novos departamentos
         for (const department of departments) {
           await storage.addOfficialDepartment({
-            official_id: id, // Corrigido para official_id
+            official_id: id,
             department
           });
         }
@@ -3054,7 +3112,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         if (deleteResult.length === 0) {
           return res.status(404).json({ message: "Tipo de chamado não encontrado ou não autorizado para exclusão (após verificação de permissão)." });
         }
-
         res.status(200).json({ message: "Tipo de chamado excluído com sucesso." });
       } catch (error: any) {
         console.error("Error deleting incident type:", error);
@@ -4079,3 +4136,4 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   
   return httpServer;
 }
+

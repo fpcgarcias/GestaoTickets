@@ -146,3 +146,65 @@ export function isValidCNPJ(cnpj: string): boolean {
   
   return parseInt(numbers[13]) === digito2;
 }
+
+/**
+ * Gera uma senha segura que atende aos critérios de segurança:
+ * - Pelo menos 8 caracteres
+ * - Pelo menos uma letra minúscula
+ * - Pelo menos uma letra maiúscula
+ * - Pelo menos um número
+ * - Pelo menos um caractere especial (@$!%*?&)
+ */
+export function generateSecurePassword(length: number = 12): string {
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const numbers = '0123456789';
+  const special = '@$!%*?&';
+  
+  const allChars = lowercase + uppercase + numbers + special;
+  
+  let password = '';
+  
+  // Garantir pelo menos um caractere de cada tipo obrigatório
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += special[Math.floor(Math.random() * special.length)];
+  
+  // Preencher o resto aleatoriamente
+  for (let i = 4; i < length; i++) {
+    password += allChars[Math.floor(Math.random() * allChars.length)];
+  }
+  
+  // Embaralhar a senha para que os caracteres obrigatórios não fiquem sempre no início
+  return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
+/**
+ * Valida critérios individuais de senha para feedback visual
+ */
+export interface PasswordCriteria {
+  minLength: boolean;
+  hasLowercase: boolean;
+  hasUppercase: boolean;
+  hasNumber: boolean;
+  hasSpecialChar: boolean;
+}
+
+export function validatePasswordCriteria(password: string): PasswordCriteria {
+  return {
+    minLength: password.length >= 8,
+    hasLowercase: /[a-z]/.test(password),
+    hasUppercase: /[A-Z]/.test(password),
+    hasNumber: /\d/.test(password),
+    hasSpecialChar: /[@$!%*?&]/.test(password)
+  };
+}
+
+/**
+ * Verifica se a senha atende a todos os critérios
+ */
+export function isPasswordValid(password: string): boolean {
+  const criteria = validatePasswordCriteria(password);
+  return Object.values(criteria).every(criterion => criterion);
+}

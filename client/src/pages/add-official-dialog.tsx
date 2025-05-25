@@ -11,16 +11,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { cn, generateSecurePassword } from "@/lib/utils";
 
 interface AddOfficialDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (official: any) => void;
-}
-
-function generateRandomPassword() {
-  return Math.random().toString(36).slice(-8);
 }
 
 export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficialDialogProps) {
@@ -173,7 +169,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     setSubmitting(true);
     
     // Generate a random password for the user
-    const password = generateRandomPassword();
+    const password = generateSecurePassword();
     setGeneratedPassword(password);
     
     // Criar o usuário e atendente em uma única operação

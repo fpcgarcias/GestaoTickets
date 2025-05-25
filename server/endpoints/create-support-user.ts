@@ -27,7 +27,8 @@ export async function createSupportUserEndpoint(
       avatarUrl = null,
       isActive = true,
       supervisorId = null,
-      managerId = null
+      managerId = null,
+      company_id = null // Novo campo para empresa
     } = req.body;
     
     // Verificar campos obrigatórios
@@ -43,6 +44,22 @@ export async function createSupportUserEndpoint(
     if (!name) {
       return res.status(400).json({ message: "Nome é obrigatório" });
     }
+    
+    // Verificar se o usuário da sessão é admin e se company_id foi fornecido
+    const userRole = req.session?.userRole as string;
+    const sessionCompanyId = req.session?.companyId;
+    
+    let effectiveCompanyId: number | null = null;
+    
+    if (userRole === 'admin') {
+      // Admin pode especificar qualquer company_id ou deixar null
+      effectiveCompanyId = company_id;
+    } else {
+      // Usuários não-admin usam sua própria empresa
+      effectiveCompanyId = sessionCompanyId || null;
+    }
+    
+    console.log(`Usuário role: ${userRole}, Company ID efetivo: ${effectiveCompanyId}`);
     
     // Verificar se o usuário já existe
     const existingUser = await storage.getUserByUsername(username);
@@ -81,10 +98,11 @@ export async function createSupportUserEndpoint(
         role: 'support',
         avatar_url: avatarUrl,
         active: true,
+        company_id: effectiveCompanyId,
       };
       
       const user = await storage.createUser(userData);
-      console.log(`Usuário criado com ID: ${user.id}`);
+      console.log(`Usuário criado com ID: ${user.id}, Company ID: ${effectiveCompanyId}`);
       
       // 2. Criar o atendente
       console.log(`Criando atendente para usuário ID: ${user.id}`);
@@ -146,10 +164,11 @@ export async function createSupportUserEndpoint(
         department: defaultDepartment, // Para compatibilidade com a coluna existente no banco
         supervisor_id: supervisorId,
         manager_id: managerId,
+        company_id: effectiveCompanyId,
       };
       
       const official = await storage.createOfficial(officialData);
-      console.log(`Atendente criado com ID: ${official.id}`);
+      console.log(`Atendente criado com ID: ${official.id}, Company ID: ${effectiveCompanyId}`);
       
       // 3. Adicionar departamentos ao atendente
       if (departmentsArray.length > 0) {

@@ -7,13 +7,16 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { formatCNPJ, cleanCNPJ, isValidCNPJ, validatePasswordCriteria, isPasswordValid, type PasswordCriteria } from '@/lib/utils';
+import { getCurrentCompanyName } from '@/lib/theme-manager';
+import { Check, X } from 'lucide-react';
 
 export default function AuthPage() {
   const [location, setLocation] = useLocation();
   const { user, login, isLoading, error } = useAuth();
   const { toast } = useToast();
-  // Usar valor fixo padrão para evitar loops de autenticação
-  const companyName = "Ticket Flow";
+  // Usar nome da empresa baseado no domínio
+  const companyName = getCurrentCompanyName();
   const [activeTab, setActiveTab] = useState<string>('login');
   
   // Formulário de login
@@ -28,11 +31,25 @@ export default function AuthPage() {
     confirmPassword: '',
     name: '',
     email: '',
-    role: 'customer' as 'customer' | 'support' | 'admin'
+    cnpj: '',
+    role: 'customer' as const // Forçar sempre como customer
   });
   
-  // Estado para erros de senha
-  const [passwordError, setPasswordError] = useState('');
+  // Estado para validação de senha
+  const [passwordCriteria, setPasswordCriteria] = useState<PasswordCriteria>({
+    minLength: false,
+    hasLowercase: false,
+    hasUppercase: false,
+    hasNumber: false,
+    hasSpecialChar: false
+  });
+  
+  // Estado para erros
+  const [errors, setErrors] = useState({
+    password: '',
+    confirmPassword: '',
+    cnpj: ''
+  });
   
   // Se o usuário já estiver logado, redirecionar para a página inicial
   // Usamos useEffect para evitar erro de atualização durante renderização
@@ -41,6 +58,11 @@ export default function AuthPage() {
       setLocation('/');
     }
   }, [user, setLocation]);
+  
+  // Atualizar critérios de senha em tempo real
+  useEffect(() => {
+    setPasswordCriteria(validatePasswordCriteria(registerData.password));
+  }, [registerData.password]);
   
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,25 +84,48 @@ export default function AuthPage() {
   
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPasswordError('');
+    setErrors({
+      password: '',
+      confirmPassword: '',
+      cnpj: ''
+    });
     
-    // Verificar se as senhas correspondem
-    if (registerData.password !== registerData.confirmPassword) {
-      setPasswordError('As senhas não correspondem');
+    // Verificar se o CNPJ é válido
+    if (!isValidCNPJ(registerData.cnpj)) {
+      setErrors(prev => ({
+        ...prev,
+        cnpj: 'CNPJ inválido'
+      }));
       return;
     }
     
-    // Verificar se a senha tem pelo menos 6 caracteres
-    if (registerData.password.length < 6) {
-      setPasswordError('A senha deve ter pelo menos 6 caracteres');
+    // Verificar se a senha atende aos critérios de segurança
+    if (!isPasswordValid(registerData.password)) {
+      setErrors(prev => ({
+        ...prev,
+        password: 'A senha não atende aos critérios de segurança'
+      }));
+      return;
+    }
+    
+    // Verificar se as senhas correspondem
+    if (registerData.password !== registerData.confirmPassword) {
+      setErrors(prev => ({
+        ...prev,
+        confirmPassword: 'As senhas não correspondem'
+      }));
       return;
     }
       
     try {
-      // Configurar username como o email
+      // Configurar dados do usuário (sempre como customer)
       const userData = {
-        ...registerData,
-        username: registerData.email
+        name: registerData.name,
+        email: registerData.email,
+        password: registerData.password,
+        username: registerData.email,
+        cnpj: cleanCNPJ(registerData.cnpj),
+        role: 'customer' // Sempre customer para auto-cadastro
       };
       
       // Fazer chamada API para registrar usuário
@@ -91,7 +136,8 @@ export default function AuthPage() {
       });
       
       if (!response.ok) {
-        throw new Error('Falha ao registrar usuário');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Falha ao registrar usuário');
       }
       
       toast({
@@ -105,11 +151,16 @@ export default function AuthPage() {
         confirmPassword: '',
         name: '',
         email: '',
+        cnpj: '',
         role: 'customer'
       });
       
-      // Limpar erros de senha
-      setPasswordError('');
+      // Limpar erros
+      setErrors({
+        password: '',
+        confirmPassword: '',
+        cnpj: ''
+      });
       
       // Mudar para o tab de login
       setActiveTab('login');
@@ -141,11 +192,11 @@ export default function AuthPage() {
               <form onSubmit={handleLoginSubmit}>
                 <CardContent className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="username">Usuário</Label>
+                    <Label htmlFor="username">Email</Label>
                     <Input 
                       id="username" 
-                      type="text" 
-                      placeholder="Seu nome de usuário" 
+                      type="email" 
+                      placeholder="seu.email@exemplo.com" 
                       value={loginData.username}
                       onChange={(e) => setLoginData({...loginData, username: e.target.value})}
                       required
@@ -196,7 +247,20 @@ export default function AuthPage() {
                       required
                     />
                   </div>
-                  {/* Campo de nome de usuário removido, o email será usado como username */}
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-cnpj">CNPJ da Empresa</Label>
+                    <Input 
+                      id="reg-cnpj" 
+                      type="text" 
+                      placeholder="00.000.000/0001-00" 
+                      value={formatCNPJ(registerData.cnpj)}
+                      onChange={(e) => setRegisterData({...registerData, cnpj: cleanCNPJ(e.target.value)})}
+                      required
+                    />
+                    {errors.cnpj && (
+                      <p className="text-sm text-red-500">{errors.cnpj}</p>
+                    )}
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="reg-password">Senha</Label>
                     <Input 
@@ -207,6 +271,38 @@ export default function AuthPage() {
                       onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
                       required
                     />
+                    {errors.password && (
+                      <p className="text-sm text-red-500">{errors.password}</p>
+                    )}
+                    
+                    {/* Feedback visual dos critérios de senha */}
+                    {registerData.password && (
+                      <div className="space-y-1 text-sm">
+                        <p className="font-medium text-gray-700">Critérios de segurança:</p>
+                        <div className="space-y-1">
+                          <div className={`flex items-center gap-2 ${passwordCriteria.minLength ? 'text-green-600' : 'text-red-500'}`}>
+                            {passwordCriteria.minLength ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                            <span>Pelo menos 8 caracteres</span>
+                          </div>
+                          <div className={`flex items-center gap-2 ${passwordCriteria.hasLowercase ? 'text-green-600' : 'text-red-500'}`}>
+                            {passwordCriteria.hasLowercase ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                            <span>Pelo menos uma letra minúscula (a-z)</span>
+                          </div>
+                          <div className={`flex items-center gap-2 ${passwordCriteria.hasUppercase ? 'text-green-600' : 'text-red-500'}`}>
+                            {passwordCriteria.hasUppercase ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                            <span>Pelo menos uma letra maiúscula (A-Z)</span>
+                          </div>
+                          <div className={`flex items-center gap-2 ${passwordCriteria.hasNumber ? 'text-green-600' : 'text-red-500'}`}>
+                            {passwordCriteria.hasNumber ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                            <span>Pelo menos um número (0-9)</span>
+                          </div>
+                          <div className={`flex items-center gap-2 ${passwordCriteria.hasSpecialChar ? 'text-green-600' : 'text-red-500'}`}>
+                            {passwordCriteria.hasSpecialChar ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                            <span>Pelo menos um caractere especial (@$!%*?&)</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="space-y-2">
@@ -219,13 +315,17 @@ export default function AuthPage() {
                       onChange={(e) => setRegisterData({...registerData, confirmPassword: e.target.value})}
                       required
                     />
-                    {passwordError && (
-                      <p className="text-sm text-red-500">{passwordError}</p>
+                    {errors.confirmPassword && (
+                      <p className="text-sm text-red-500">{errors.confirmPassword}</p>
                     )}
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button type="submit" className="w-full">
+                  <Button 
+                    type="submit" 
+                    className="w-full"
+                    disabled={!isPasswordValid(registerData.password) || registerData.password !== registerData.confirmPassword || !isValidCNPJ(registerData.cnpj)}
+                  >
                     Criar Conta
                   </Button>
                 </CardFooter>

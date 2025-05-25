@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { Official } from '@shared/schema';
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
@@ -25,6 +26,11 @@ interface OfficialWithUser extends Official {
   };
 }
 
+interface Company {
+  id: number;
+  name: string;
+}
+
 interface FormData {
   name: string;
   email: string;
@@ -33,6 +39,7 @@ interface FormData {
   departments: string[];
   supervisor_id: number | null;
   manager_id: number | null;
+  company_id: number | null;
 }
 
 interface EditOfficialDialogProps {
@@ -56,6 +63,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
     onOpenChange(isOpen);
   };
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   
   const [formData, setFormData] = useState<FormData>({
@@ -66,6 +74,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
     departments: [],
     supervisor_id: null,
     manager_id: null,
+    company_id: null,
   });
 
   // Estado para o formulário de senha
@@ -79,21 +88,50 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
   const [submitting, setSubmitting] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
 
+  // Buscar lista de empresas (apenas para admin)
+  const { data: companies, isLoading: isLoadingCompanies } = useQuery<Company[]>({
+    queryKey: ['/api/companies'],
+    enabled: user?.role === 'admin', // Apenas buscar empresas se o usuário for admin
+  });
+
   // Carregar departamentos disponíveis do banco de dados
   const { data: departmentsData } = useQuery({
-    queryKey: ["/api/departments"],
+    queryKey: ["/api/departments", formData.company_id],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/departments?active_only=true');
+      let url = '/api/departments?active_only=true';
+      
+      // Se for admin e tiver empresa selecionada, filtrar por empresa
+      if (user?.role === 'admin' && formData.company_id) {
+        url += `&company_id=${formData.company_id}`;
+      }
+      
+      const response = await apiRequest('GET', url);
       if (!response.ok) {
         throw new Error('Erro ao carregar departamentos');
       }
       return response.json();
-    }
+    },
+    enabled: user?.role !== 'admin' || formData.company_id !== null, // Para admin, só buscar se empresa estiver selecionada
   });
 
   // Carregar atendentes existentes para seleção de supervisor/manager
   const { data: existingOfficials = [] } = useQuery<any[]>({
-    queryKey: ['/api/officials'],
+    queryKey: ['/api/officials', formData.company_id],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/officials');
+      if (!response.ok) {
+        throw new Error('Erro ao carregar atendentes');
+      }
+      const officials = await response.json();
+      
+      // Se for admin e tiver empresa selecionada, filtrar por empresa
+      if (user?.role === 'admin' && formData.company_id) {
+        return officials.filter((official: any) => official.company_id === formData.company_id);
+      }
+      
+      return officials;
+    },
+    enabled: user?.role !== 'admin' || formData.company_id !== null, // Para admin, só buscar se empresa estiver selecionada
   });
 
   // Mapear departamentos do banco para o formato usado no componente
@@ -127,6 +165,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
         departments: currentDepartments, // Usar o array de strings processado
         supervisor_id: (official as any).supervisor_id || null,
         manager_id: (official as any).manager_id || null,
+        company_id: (official as any).company_id || null,
       });
     }
   }, [official]);
@@ -224,6 +263,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
       departments: formData.departments,
       supervisor_id: formData.supervisor_id,
       manager_id: formData.manager_id,
+      company_id: formData.company_id,
       user: {
         ...(official?.user || {}),
         username: formData.username
@@ -307,6 +347,48 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                 required
               />
             </div>
+            
+            {/* Campo de seleção de empresa - apenas para admin */}
+            {user?.role === 'admin' && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="company_id" className="text-right">
+                  Empresa *
+                </Label>
+                <div className="col-span-3">
+                  <Select 
+                    value={formData.company_id?.toString() || ""} 
+                    onValueChange={(value) => setFormData({ ...formData, company_id: value ? parseInt(value) : null })}
+                    disabled={isLoadingCompanies}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={isLoadingCompanies ? "Carregando..." : "Selecione a empresa"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies?.map(company => (
+                        <SelectItem key={company.id} value={company.id.toString()}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+            
+            {/* Campo de empresa para não-admin (apenas visualização) */}
+            {user?.role !== 'admin' && user?.company && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="company_readonly" className="text-right">
+                  Empresa
+                </Label>
+                <Input
+                  id="company_readonly"
+                  value={user.company.name}
+                  disabled
+                  className="col-span-3 bg-gray-100"
+                />
+              </div>
+            )}
             
             <div className="grid grid-cols-4 items-start gap-4">
               <Label className="text-right mt-2">Departamentos</Label>
