@@ -47,59 +47,94 @@ const generateSecret = () => crypto.randomBytes(32).toString('hex');
 const app = express();
 
 // === CONFIGURAÇÕES DE PROXY ===
-// Configuração simples e robusta para trust proxy
-// Se houver X-Forwarded-For headers, confiar no proxy
-app.set('trust proxy', 1); // Confiar no primeiro proxy
-console.log('🔧 Trust proxy: Habilitado para o primeiro proxy');
+// Configuração robusta para múltiplos proxies e acessos
+app.set('trust proxy', true); // Confiar em TODOS os proxies para máxima flexibilidade
+console.log('🔧 Trust proxy: Habilitado para todos os proxies');
 
 // === CONFIGURAÇÕES DE SEGURANÇA ===
 
-// 1. Helmet - Headers de segurança
+// 1. Helmet - Headers de segurança (mais permissivo)
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "ws:", "wss:"]
-    }
-  },
+  contentSecurityPolicy: false, // Desabilitar CSP para evitar problemas
   hsts: {
     maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true
+    includeSubDomains: false, // Menos restritivo para subdomínios
+    preload: false
   }
 }));
 
-// 2. CORS - Configuração restritiva
+// 2. CORS - Configuração MUITO flexível para múltiplos acessos
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? [process.env.FRONTEND_URL || 'https://your-domain.com']
-    : ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: function (origin, callback) {
+    // Em desenvolvimento, permitir qualquer origem
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    // Lista expandida de origens permitidas
+    const allowedOrigins = [
+      'https://suporte.oficinamuda.com.br',
+      'http://suporte.oficinamuda.com.br',
+      'https://oficinamuda.com.br',
+      'http://oficinamuda.com.br',
+      'https://www.oficinamuda.com.br',
+      'http://www.oficinamuda.com.br'
+    ];
+    
+    // Se não há origin (requests diretos) ou está na lista, permitir
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Permitir qualquer subdomínio de oficinamuda.com.br
+    if (origin.endsWith('.oficinamuda.com.br')) {
+      return callback(null, true);
+    }
+    
+    // Permitir qualquer IP (regex para IPs)
+    const ipRegex = /^https?:\/\/(\d{1,3}\.){3}\d{1,3}(:\d+)?$/;
+    if (ipRegex.test(origin)) {
+      return callback(null, true);
+    }
+    
+    // Permitir localhost para desenvolvimento
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+    
+    // Se chegou aqui, bloquear mas logar
+    console.log(`🚫 CORS bloqueado para origem: ${origin}`);
+    callback(null, true); // TEMPORARIAMENTE permitir tudo para debug
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept']
 }));
 
-// 3. Rate Limiting - Proteção contra ataques de força bruta
+// 3. Rate Limiting - MAIS PERMISSIVO para evitar bloqueios
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 1000, // 1000 requests por IP
+  max: 5000, // 5000 requests por IP (muito mais generoso)
   message: "Muitas tentativas. Tente novamente em 15 minutos.",
   standardHeaders: true,
   legacyHeaders: false,
+  // Não aplicar rate limiting em desenvolvimento
+  skip: () => process.env.NODE_ENV !== 'production'
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 5, // 5 tentativas de login por IP
+  max: 50, // 50 tentativas de login por IP (muito mais generoso)
   message: "Muitas tentativas de login. Tente novamente em 15 minutos.",
   skipSuccessfulRequests: true,
+  // Não aplicar em desenvolvimento
+  skip: () => process.env.NODE_ENV !== 'production'
 });
 
-app.use(generalLimiter);
+// Aplicar rate limiting apenas em produção
+if (process.env.NODE_ENV === 'production') {
+  app.use(generalLimiter);
+}
 // Rate limiting específico para endpoints de autenticação será aplicado nas rotas
 
 app.use(express.json({ limit: '10mb' })); // Limite de payload

@@ -290,10 +290,15 @@ function authorize(allowedRoles: string[]) {
 export async function registerRoutes(app: Express): Promise<HttpServer> {
   const router = express.Router();
   
-  // === APLICAR MIDDLEWARES DE SEGURANÇA GLOBALMENTE ===
-  router.use(securityLogger); // Log de atividades suspeitas
-  router.use(sanitizeHtml);   // Sanitização de HTML
-  router.use(apiLimiter);     // Rate limiting geral para API
+  // === APLICAR MIDDLEWARES DE SEGURANÇA SELETIVAMENTE ===
+  // Aplicar apenas em produção e de forma mais suave
+  if (process.env.NODE_ENV === 'production') {
+    router.use(securityLogger); // Log de atividades suspeitas
+    router.use(sanitizeHtml);   // Sanitização de HTML
+    router.use(apiLimiter);     // Rate limiting geral para API
+  } else {
+    console.log('🔧 Middlewares de segurança DESABILITADOS em desenvolvimento');
+  }
   
   // Nova rota para diagnóstico de extração de email do AD (admin)
   router.get("/auth/test-ad-email", async (req: Request, res: Response) => {
@@ -3783,12 +3788,58 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Criar servidor HTTP
   const httpServer = createServer(app);
   
-  // Configurar o servidor WebSocket
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  // Interface para WebSocket com heartbeat
+  interface WebSocketWithAlive extends WebSocket {
+    isAlive?: boolean;
+  }
   
-  // Lidar com conexões WebSocket
-  wss.on('connection', (ws) => {
-    console.log('Nova conexão WebSocket recebida');
+  // Configurar o servidor WebSocket com configurações mais flexíveis
+  const wss = new WebSocketServer({ 
+    server: httpServer, 
+    path: '/ws',
+    // Configurações mais permissivas
+    verifyClient: (info: any) => {
+      // Em desenvolvimento, aceitar tudo
+      if (process.env.NODE_ENV !== 'production') {
+        return true;
+      }
+      
+      // Em produção, verificar origin
+      const origin = info.origin;
+      const allowedOrigins = [
+        'https://suporte.oficinamuda.com.br',
+        'http://suporte.oficinamuda.com.br',
+        'https://oficinamuda.com.br',
+        'http://oficinamuda.com.br'
+      ];
+      
+      // Permitir origins conhecidos ou IPs
+      if (!origin || allowedOrigins.includes(origin)) {
+        return true;
+      }
+      
+      // Permitir qualquer IP
+      const ipRegex = /^https?:\/\/(\d{1,3}\.){3}\d{1,3}(:\d+)?$/;
+      if (ipRegex.test(origin)) {
+        return true;
+      }
+      
+      console.log(`🚫 WebSocket bloqueado para origem: ${origin}`);
+      return false;
+    }
+  });
+  
+  // Lidar com conexões WebSocket de forma mais robusta
+  wss.on('connection', (ws: WebSocketWithAlive, req) => {
+    console.log(`Nova conexão WebSocket recebida de: ${req.socket.remoteAddress}`);
+    
+    // Configurar heartbeat para manter conexão viva
+    ws.isAlive = true;
+    ws.on('pong', () => {
+      if (ws.isAlive !== undefined) {
+        ws.isAlive = true;
+      }
+    });
     
     // Autenticar o usuário e configurar a conexão
     ws.on('message', (message) => {
@@ -3803,6 +3854,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           if (userId && userRole) {
             // Adicionar o cliente ao serviço de notificações
             notificationService.addClient(ws, userId, userRole);
+            console.log(`WebSocket autenticado: usuário ${userId}, role ${userRole}`);
           }
         }
       } catch (error) {
@@ -3815,6 +3867,29 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       notificationService.removeClient(ws);
       console.log('Conexão WebSocket fechada');
     });
+    
+    // Lidar com erros
+    ws.on('error', (error) => {
+      console.error('Erro WebSocket:', error);
+      notificationService.removeClient(ws);
+    });
+  });
+  
+  // Implementar heartbeat para manter conexões vivas
+  const heartbeatInterval = setInterval(() => {
+    wss.clients.forEach((ws: WebSocketWithAlive) => {
+      if (ws.isAlive === false) {
+        return ws.terminate();
+      }
+      
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000); // A cada 30 segundos
+  
+  // Limpar interval quando servidor fechar
+  wss.on('close', () => {
+    clearInterval(heartbeatInterval);
   });
   
   return httpServer;

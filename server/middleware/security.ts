@@ -74,87 +74,46 @@ export const sanitizeHtml = (req: Request, res: Response, next: NextFunction) =>
   next();
 };
 
-// === RATE LIMITERS ESPECÍFICOS ===
-export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 5, // 5 tentativas por IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  handler: (req: Request, res: Response) => {
-    logSecurityEvent(
-      req.ip || 'unknown',
-      req.get('User-Agent') || 'unknown',
-      'rate_limit_auth',
-      'high',
-      { 
-        endpoint: req.path,
-        attempts: 5
-      }
-    );
-    
-    res.status(429).json({
-      message: 'Muitas tentativas de login. Tente novamente em 15 minutos.',
-      retryAfter: 15 * 60
-    });
-  }
-});
+// === RATE LIMITING MAIS PERMISSIVO ===
 
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 1000, // 1000 requests por IP
+  max: 2000, // 2000 requests por IP (muito mais generoso)
+  message: {
+    error: 'Muitas requisições da API',
+    retryAfter: '15 minutos'
+  },
   standardHeaders: true,
   legacyHeaders: false,
+  // Não aplicar em desenvolvimento
+  skip: () => process.env.NODE_ENV !== 'production'
+});
+
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos  
+  max: 50, // 50 tentativas de auth por IP
   message: {
-    error: 'Limite de requisições excedido',
-    retryAfter: '15 minutos',
-    code: 'RATE_LIMIT_API'
+    error: 'Muitas tentativas de autenticação',
+    retryAfter: '15 minutos'
   },
-  handler: (req: Request, res: Response) => {
-    logSecurityEvent(
-      req.ip || 'unknown',
-      req.get('User-Agent') || 'unknown',
-      'rate_limit_api',
-      'medium',
-      { 
-        endpoint: req.path,
-        limit: 1000
-      }
-    );
-    
-    res.status(429).json({
-      message: 'Limite de requisições excedido. Tente novamente em 15 minutos.',
-      retryAfter: 15 * 60
-    });
-  }
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Não aplicar em desenvolvimento
+  skip: () => process.env.NODE_ENV !== 'production'
 });
 
 export const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hora
-  max: 20, // 20 uploads por hora
+  max: 100, // 100 uploads por hora por IP (mais generoso)
+  message: {
+    error: 'Muitos uploads',
+    retryAfter: '1 hora'
+  },
   standardHeaders: true,
   legacyHeaders: false,
-  message: {
-    error: 'Limite de uploads excedido',
-    retryAfter: '1 hora',
-    code: 'RATE_LIMIT_UPLOAD'
-  },
-  handler: (req: Request, res: Response) => {
-    logSecurityEvent(
-      req.ip || 'unknown',
-      req.get('User-Agent') || 'unknown',
-      'rate_limit_upload',
-      'medium',
-      { 
-        endpoint: req.path,
-        limit: 20
-      }
-    );
-    
-    res.status(429).json({
-      message: 'Limite de uploads excedido. Tente novamente em 1 hora.',
-      retryAfter: 60 * 60
-    });
-  }
+  // Não aplicar em desenvolvimento  
+  skip: () => process.env.NODE_ENV !== 'production'
 });
 
 // === VALIDAÇÃO DE ARQUIVO ===
