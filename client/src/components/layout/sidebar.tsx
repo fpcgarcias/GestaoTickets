@@ -45,22 +45,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   
   // Definir itens de navegação com base no papel do usuário
   const navItems = [
-    { href: "/", icon: <LayoutDashboard size={20} />, label: "Painel de Controle", roles: ['admin', 'support', 'customer'] },
-    { href: "/tickets", icon: <TicketIcon size={20} />, label: "Chamados", roles: ['admin', 'support', 'customer'] },
-    { href: "/clients", icon: <Users size={20} />, label: "Clientes", roles: ['admin', 'support'] },
-    { href: "/users", icon: <Users size={20} />, label: "Usuários", roles: ['admin'] },
-    { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes", roles: ['admin'] },
+    { href: "/", icon: <LayoutDashboard size={20} />, label: "Painel de Controle", roles: ['admin', 'support', 'customer', 'company_admin', 'manager', 'supervisor', 'viewer'] },
+    { href: "/tickets", icon: <TicketIcon size={20} />, label: "Chamados", roles: ['admin', 'support', 'customer', 'company_admin', 'manager', 'supervisor', 'viewer'] },
+    { href: "/clients", icon: <Users size={20} />, label: "Clientes", roles: ['admin', 'support', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/users", icon: <Users size={20} />, label: "Usuários", roles: ['admin', 'company_admin'] },
+    { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes", roles: ['admin', 'company_admin', 'manager'] },
     { href: "/companies", icon: <Building2 size={20} />, label: "Empresas", roles: ['admin'] },
-    { href: "/departments", icon: <FolderIcon size={20} />, label: "Departamentos", roles: ['admin', 'company_admin'] },
-    { href: "/ticket-types", icon: <TagIcon size={20} />, label: "Tipos de Chamado", roles: ['admin', 'company_admin'] },
-    { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'customer'] },
+    { href: "/departments", icon: <FolderIcon size={20} />, label: "Departamentos", roles: ['admin', 'company_admin', 'manager'] },
+    { href: "/ticket-types", icon: <TagIcon size={20} />, label: "Tipos de Chamado", roles: ['admin', 'company_admin', 'manager'] },
+    { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'customer', 'viewer'] },
   ];
   
   // Filtrar itens de navegação com base no papel do usuário atual
   const filteredNavItems = navItems.filter(item => {
     if (!user || !item.roles) return false;
-    return item.roles.includes(user.role);
+    const hasAccess = item.roles.includes(user.role);
+    console.log(`🔍 [SIDEBAR LAYOUT] Item: ${item.label}, User role: ${user.role}, Tem acesso: ${hasAccess}`);
+    return hasAccess;
   });
+  
+  // 🚨 LOGS DE DEBUG 
+  console.log('🚨 [SIDEBAR LAYOUT] RENDERIZANDO!');
+  console.log('🚨 [SIDEBAR LAYOUT] User:', user);
+  console.log('🚨 [SIDEBAR LAYOUT] User Role:', user?.role);
+  console.log('🚨 [SIDEBAR LAYOUT] Itens filtrados:', filteredNavItems.length);
+  console.log('🚨 [SIDEBAR LAYOUT] Itens que vão aparecer:', filteredNavItems.map(item => item.label));
 
   return (
     <>
