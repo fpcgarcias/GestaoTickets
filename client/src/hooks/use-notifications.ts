@@ -32,18 +32,27 @@ export function useNotifications() {
       return;
     }
 
-    // Configurar o WebSocket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // === WEBSOCKET UNIVERSAL - FUNCIONA EM QUALQUER DOMÍNIO ===
     
-    // USAR SEMPRE O HOST EXATO DA PÁGINA ATUAL - SEM EXCEÇÕES
-    const host = window.location.host; // suporte.oficinamuda.com.br
-    const wsUrl = `${protocol}//${host}/ws`;
+    // 1. Detectar protocolo baseado na página atual
+    const isSecure = window.location.protocol === 'https:';
+    const wsProtocol = isSecure ? 'wss:' : 'ws:';
     
-    console.log(`[WebSocket] 🔌 CONECTANDO EM: ${wsUrl}`);
-    console.log(`[WebSocket] Window location: ${window.location.href}`);
-    console.log(`[WebSocket] Host detectado: ${host}`);
-    console.log(`[WebSocket] Protocolo: ${protocol}`);
+    // 2. Usar EXATAMENTE o mesmo host da página atual
+    const currentHost = window.location.host;
     
+    // 3. Construir URL limpa do WebSocket
+    const wsUrl = `${wsProtocol}//${currentHost}/ws`;
+    
+    console.log('=== WEBSOCKET DEBUG ===');
+    console.log('🌐 Location:', window.location.href);
+    console.log('🔒 Protocol:', window.location.protocol);
+    console.log('🏠 Host:', currentHost);
+    console.log('⚡ WebSocket URL:', wsUrl);
+    console.log('🚨 CACHE BUSTER: v20241224-1542'); // Cache buster único
+    console.log('=======================');
+    
+    // 4. Criar WebSocket com URL dinâmica
     const newSocket = new WebSocket(wsUrl);
 
     // Configurar os manipuladores de eventos
