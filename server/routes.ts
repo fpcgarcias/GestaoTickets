@@ -2051,15 +2051,22 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Endpoint para obter o usuário atual (quando autenticado)
   router.get("/auth/me", authRequired, async (req: Request, res: Response) => {
     try {
+      console.log('🔍 [AUTH/ME] Requisição recebida');
+      console.log('🔍 [AUTH/ME] Session:', JSON.stringify(req.session, null, 2));
+      
       // Verificamos a sessão/autenticação
       if (!req.session || !req.session.userId) {
+        console.log('❌ [AUTH/ME] Sessão não encontrada ou userId não definido');
         return res.status(401).json({ message: "Não autenticado" });
       }
+      
+      console.log('🔍 [AUTH/ME] Buscando usuário ID:', req.session.userId);
       
       // Buscar o usuário pelo ID da sessão
       const user = await storage.getUser(req.session.userId);
       
       if (!user) {
+        console.log('❌ [AUTH/ME] Usuário não encontrado no banco');
         // Se o usuário não existir mais, limpamos a sessão
         if (req.session) {
           req.session.destroy(() => {});
@@ -2067,8 +2074,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
       
+      console.log('✅ [AUTH/ME] Usuário encontrado:', {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        active: user.active,
+        company_id: user.company_id
+      });
+      
       // Verificar se o usuário está ativo
       if (user.active === false) {
+        console.log('❌ [AUTH/ME] Usuário inativo');
         // Se o usuário estiver inativo, invalidamos a sessão
         if (req.session) {
           req.session.destroy(() => {});
@@ -2078,6 +2094,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       // Se o usuário tem uma empresa associada, carregar os dados dela
       if (req.session.companyId) {
+        console.log('🔍 [AUTH/ME] Buscando empresa ID:', req.session.companyId);
+        
         const [companyData] = await db // Renomeado para companyData para evitar conflito de nome
           .select()
           .from(schema.companies)
@@ -2085,8 +2103,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           .limit(1);
         
         if (companyData) {
-          // Anexar a empresa ao usuário
-          return res.json({
+          console.log('✅ [AUTH/ME] Empresa encontrada:', companyData.name);
+          
+          const userWithCompany = {
             ...user,
             company: { // Apenas campos existentes no schema.companies
               id: companyData.id,
@@ -2097,13 +2116,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
               cnpj: companyData.cnpj || '',
               phone: companyData.phone || ''
             }
-          });
+          };
+          
+          console.log('🎯 [AUTH/ME] Retornando usuário com empresa');
+          return res.json(userWithCompany);
+        } else {
+          console.log('⚠️ [AUTH/ME] Empresa não encontrada no banco');
         }
       }
       
+      console.log('🎯 [AUTH/ME] Retornando usuário sem empresa');
       return res.json(user);
     } catch (error) {
-      console.error('Erro ao obter perfil:', error);
+      console.error('❌ [AUTH/ME] Erro ao obter perfil:', error);
       res.status(500).json({ message: "Erro ao obter perfil do usuário" });
     }
   });

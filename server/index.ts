@@ -248,7 +248,7 @@ async function startServer() {
     schedulerService.start();
     
     // 5. Iniciar servidor na porta especificada
-    const PORT = process.env.PORT || 5173; 
+    const PORT = process.env.PORT || 5000; 
     server.listen(PORT, () => {
       console.log(`Servidor rodando na porta ${PORT}`);
       console.log(`🔒 Middlewares de segurança ativados: Helmet, CORS, Rate Limiting`);

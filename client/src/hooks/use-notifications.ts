@@ -19,6 +19,7 @@ export function useNotifications() {
   const [connected, setConnected] = useState(false);
   const [notifications, setNotifications] = useState<NotificationPayload[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   // Inicializar a conexão WebSocket
   useEffect(() => {
@@ -34,90 +35,81 @@ export function useNotifications() {
 
     // === WEBSOCKET UNIVERSAL - FUNCIONA EM QUALQUER DOMÍNIO ===
     
-    // 1. Detectar protocolo baseado na página atual
-    const isSecure = window.location.protocol === 'https:';
-    const wsProtocol = isSecure ? 'wss:' : 'ws:';
+    // 1. Obter protocolo e host da página atual
+    const currentUrl = new URL(window.location.href);
+    const isHTTPS = currentUrl.protocol === 'https:';
+    const wsProtocol = isHTTPS ? 'wss:' : 'ws:';
+    const wsHost = currentUrl.host; // Usa EXATAMENTE o mesmo host da página
     
-    // 2. Usar EXATAMENTE o mesmo host da página atual
-    const currentHost = window.location.host;
+    // 2. Construir URL do WebSocket
+    const wsUrl = `${wsProtocol}//${wsHost}/ws`;
     
-    // 3. Construir URL limpa do WebSocket
-    const wsUrl = `${wsProtocol}//${currentHost}/ws`;
+    console.log('🔌 [WEBSOCKET UNIVERSAL] - VERSÃO 2024-12-24-17:30');
+    console.log('📍 URL da página:', window.location.href);
+    console.log('🌐 Host detectado:', wsHost);
+    console.log('🔒 Protocolo:', wsProtocol);
+    console.log('⚡ WebSocket URL FINAL:', wsUrl);
+    console.log('👤 Usuário autenticado:', user.name);
+    console.log('💣 CACHE BUSTER ATIVO - RECARREGUE A PÁGINA (Ctrl+Shift+R)');
     
-    console.log('=== WEBSOCKET DEBUG ===');
-    console.log('🌐 Location:', window.location.href);
-    console.log('🔒 Protocol:', window.location.protocol);
-    console.log('🏠 Host:', currentHost);
-    console.log('⚡ WebSocket URL:', wsUrl);
-    console.log('🚨 CACHE BUSTER: v20241224-1542'); // Cache buster único
-    console.log('=======================');
+    // Verificar se o URL está correto
+    if (wsUrl.includes('localhost') || wsUrl.includes('5173')) {
+      console.error('❌ ERRO: WebSocket ainda aponta para localhost! URL:', wsUrl);
+      console.error('❌ Host atual:', wsHost);
+      console.error('❌ Window location:', window.location);
+    }
     
-    // 4. Criar WebSocket com URL dinâmica
     const newSocket = new WebSocket(wsUrl);
 
-    // Configurar os manipuladores de eventos
     newSocket.onopen = () => {
-      console.log('Conexão WebSocket estabelecida');
+      console.log('✅ WebSocket conectado com sucesso!');
       setConnected(true);
+      setConnectionError(null);
+    };
+
+    newSocket.onclose = (event) => {
+      console.log('🔴 WebSocket desconectado:', event.code, event.reason);
+      setConnected(false);
+      setSocket(null);
       
-      // Enviar mensagem de autenticação
-      const authMessage = {
-        type: 'auth',
-        userId: user.id,
-        userRole: user.role,
-      };
-      newSocket.send(JSON.stringify(authMessage));
+      // Tentar reconectar após 3 segundos se não foi fechamento intencional
+      if (event.code !== 1000) {
+        setTimeout(() => {
+          console.log('🔄 Tentando reconectar WebSocket...');
+          // O useEffect será disparado novamente pela mudança de estado
+        }, 3000);
+      }
+    };
+
+    newSocket.onerror = (error) => {
+      console.error('❌ Erro no WebSocket:', error);
+      setConnectionError('Erro na conexão WebSocket');
+      setConnected(false);
     };
 
     newSocket.onmessage = (event) => {
       try {
-        const notification = JSON.parse(event.data) as NotificationPayload;
-        console.log('Notificação recebida:', notification);
+        const data = JSON.parse(event.data);
+        console.log('📨 Notificação recebida:', data);
         
-        // Adicionar à lista de notificações
-        setNotifications((prev) => [notification, ...prev]);
-        
-        // Incrementar a contagem de notificações não lidas para notificações não welcome
-        if (notification.type !== 'welcome') {
-          setUnreadCount(count => count + 1);
-          
-          let variant: 'default' | 'destructive' | null = 'default';
-          
-          // Determinar a variação do toast com base na prioridade
-          if (notification.priority === 'high' || notification.priority === 'critical') {
-            variant = 'destructive';
-          }
-          
-          toast({
-            title: notification.title,
-            description: notification.message,
-            variant: variant === null ? undefined : variant,
-          });
+        if (data.type === 'notification') {
+          setNotifications(prev => [data.notification, ...prev.slice(0, 99)]);
+          setUnreadCount(prev => prev + 1);
         }
       } catch (error) {
-        console.error('Erro ao processar notificação:', error);
+        console.error('❌ Erro ao processar mensagem WebSocket:', error);
       }
-    };
-
-    newSocket.onclose = () => {
-      console.log('Conexão WebSocket fechada');
-      setConnected(false);
-    };
-
-    newSocket.onerror = (error) => {
-      console.error('Erro na conexão WebSocket:', error);
-      setConnected(false);
     };
 
     setSocket(newSocket);
 
-    // Limpar ao desmontar
+    // Cleanup: fechar conexão quando o componente for desmontado
     return () => {
-      if (newSocket) {
-        newSocket.close();
+      if (newSocket.readyState === WebSocket.OPEN) {
+        newSocket.close(1000, 'Component unmounting');
       }
     };
-  }, [isAuthenticated, user, toast]);
+  }, [isAuthenticated, user]); // Remover socket das dependências para evitar loops
 
   // Função para marcar todas as notificações como lidas
   const markAllAsRead = () => {
@@ -129,5 +121,6 @@ export function useNotifications() {
     notifications,
     unreadCount,
     markAllAsRead,
+    connectionError,
   };
 }

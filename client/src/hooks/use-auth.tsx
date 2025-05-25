@@ -44,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const { data, isLoading: isQueryLoading, error: queryError } = useQuery({
     queryKey: ['/api/auth/me'],
+    queryFn: () => apiRequest('GET', '/api/auth/me').then(res => res.json()),
     retry: false, // Não tentar novamente em caso de falha
     refetchInterval: false, // Não fazer requisições em intervalo
     refetchOnWindowFocus: false, // Não refetch ao focar a janela
@@ -51,19 +52,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
+    console.log('=== USEAUTH DEBUG ===');
+    console.log('📊 Data:', data);
+    console.log('🔄 Query Loading:', isQueryLoading);
+    console.log('❌ Query Error:', queryError);
+    console.log('====================');
+    
     if (data) {
+      console.log('✅ Dados recebidos - definindo usuário:', data);
       setUser(data as User);
       if ((data as User).company) {
         setCompany((data as User).company as Company);
       }
       setError(null);
     } else if (queryError) {
-      console.error('Erro ao verificar usuário:', queryError);
+      console.error('❌ Erro ao verificar usuário:', queryError);
       setUser(null);
       setCompany(null);
+      setError(queryError as Error);
     }
     setIsInitializing(false);
-  }, [data, queryError]);
+  }, [data, queryError, isQueryLoading]);
 
   const login = async (username: string, password: string) => {
     try {

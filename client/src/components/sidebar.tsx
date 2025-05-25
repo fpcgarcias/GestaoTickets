@@ -41,6 +41,15 @@ export function Sidebar({ className }: SidebarProps) {
   const filteredNavItems = navItems.filter((item) => {
     return user && item.roles.includes(user.role);
   });
+  
+  // 🔍 DEBUG DO MENU
+  console.log('=== SIDEBAR DEBUG ===');
+  console.log('👤 User:', user);
+  console.log('🎭 User Role:', user?.role);
+  console.log('📋 All Nav Items:', navItems.length);
+  console.log('✅ Filtered Items:', filteredNavItems.length);
+  console.log('📌 Filtered Items:', filteredNavItems.map(item => item.title));
+  console.log('==================');
 
   const handleLogout = () => {
     logout();
