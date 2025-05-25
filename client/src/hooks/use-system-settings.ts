@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from './use-auth';
 
 export interface SystemSettings {
   companyName: string;
@@ -14,18 +15,28 @@ const defaultSettings: SystemSettings = {
 };
 
 export function useSystemSettings() {
-  // Sempre retornar valores padrão, sem fazer requisições
-  // Isto evita causar loops de autenticação
+  const { user } = useAuth();
+  
   const { data, isLoading, error } = useQuery<SystemSettings>({
     queryKey: ['/api/settings/general'],
+    queryFn: () => fetch('/api/settings/general').then(res => {
+      if (!res.ok) {
+        // Se der 403 (sem permissão), retornar valores padrão
+        if (res.status === 403) {
+          return defaultSettings;
+        }
+        throw new Error('Erro ao carregar configurações');
+      }
+      return res.json();
+    }),
     // Se a requisição falhar, não tentar novamente para não sobrecarregar o servidor
     retry: false,
     // Não mostrar erro na UI para configurações (é esperado que usuários não-admin recebam 403)
     throwOnError: false,
     // Tempo de cache mais longo para configurações
     staleTime: 5 * 60 * 1000, // 5 minutos
-    // Impedir completamente a execução automática para evitar loops
-    enabled: false,
+    // Só executar quando o usuário estiver autenticado
+    enabled: !!user,
   });
 
   // Mesclar configurações carregadas com valores padrão

@@ -57,11 +57,15 @@ const insertDepartmentSchemaInternal = z.object({
 const updateDepartmentSchemaInternal = insertDepartmentSchemaInternal.partial();
 
 // Função auxiliar para salvar e carregar configurações
-async function saveSystemSetting(key: string, value: string): Promise<void> {
+async function saveSystemSetting(key: string, value: string, companyId?: number): Promise<void> {
+  const whereCondition = companyId 
+    ? and(eq(schema.systemSettings.key, key), eq(schema.systemSettings.company_id, companyId))
+    : and(eq(schema.systemSettings.key, key), isNull(schema.systemSettings.company_id));
+
   const [existing] = await db
     .select()
     .from(schema.systemSettings)
-    .where(eq(schema.systemSettings.key, key));
+    .where(whereCondition);
     
   if (existing) {
     await db
@@ -77,17 +81,22 @@ async function saveSystemSetting(key: string, value: string): Promise<void> {
       .values({
         key: key,
         value: value,
+        company_id: companyId || null,
         created_at: new Date(),
         updated_at: new Date()
       });
   }
 }
 
-async function getSystemSetting(key: string, defaultValue: string = ''): Promise<string> {
+async function getSystemSetting(key: string, defaultValue: string = '', companyId?: number): Promise<string> {
+  const whereCondition = companyId 
+    ? and(eq(schema.systemSettings.key, key), eq(schema.systemSettings.company_id, companyId))
+    : and(eq(schema.systemSettings.key, key), isNull(schema.systemSettings.company_id));
+
   const [setting] = await db
     .select()
     .from(schema.systemSettings)
-    .where(eq(schema.systemSettings.key, key));
+    .where(whereCondition);
     
   return setting ? setting.value : defaultValue;
 }
@@ -133,26 +142,16 @@ function adminRequired(req: Request, res: Response, next: NextFnExpress) {
 
 // Middleware para verificar se o usuário é company_admin ou admin geral
 function companyAdminRequired(req: Request, res: Response, next: NextFnExpress) {
-  console.log('🔍 [SESSÃO DEBUG] companyAdminRequired - Verificando acesso...');
-  console.log('🔍 [SESSÃO DEBUG] req.session:', JSON.stringify(req.session, null, 2));
-  console.log('🔍 [SESSÃO DEBUG] req.sessionID:', req.sessionID);
-  console.log('🔍 [SESSÃO DEBUG] Cookies:', req.headers.cookie);
-  
   if (!req.session || !req.session.userId) {
-    console.log('❌ [SESSÃO DEBUG] Não autenticado - sessão ou userId não encontrados');
     return res.status(401).json({ message: "Não autenticado" });
   }
   
-  const userRole = req.session.userRole as string; // Cast para string para a comparação
-  console.log('🔍 [SESSÃO DEBUG] userRole:', userRole);
-  console.log('🔍 [SESSÃO DEBUG] companyId:', req.session.companyId);
+  const userRole = req.session.userRole;
   
-  if (userRole !== 'admin' && userRole !== 'company_admin') {
-    console.log('❌ [SESSÃO DEBUG] Acesso negado - role não autorizado:', userRole);
-    return res.status(403).json({ message: "Acesso negado: Requer perfil de Administrador da Empresa ou Administrador Geral" });
+  if (!userRole || !['admin', 'company_admin'].includes(userRole)) {
+    return res.status(403).json({ message: "Acesso negado. Apenas administradores podem acessar esta funcionalidade." });
   }
   
-  console.log('✅ [SESSÃO DEBUG] Acesso autorizado para role:', userRole);
   next();
 }
 
@@ -1752,11 +1751,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       // Adicionar a informação da empresa ao objeto do usuário para retornar ao cliente
       if (company) {
+        // 🎯 BUSCAR O NOME DA EMPRESA DAS CONFIGURAÇÕES DO SISTEMA - SEM FALLBACK!
+        const configuredCompanyName = await getSystemSetting('companyName', 'Ticket Flow', company.id);
+        console.log('✅ [LOGIN] Nome da empresa das configurações:', configuredCompanyName);
+        
         return res.json({
           ...user,
           company: {
             id: company.id,
-            name: company.name,
+            name: configuredCompanyName, // 🎯 SEMPRE DAS CONFIGURAÇÕES
             email: company.email,
             domain: company.domain || '',
             cnpj: company.cnpj || '',
@@ -2061,65 +2064,36 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Endpoint para obter o usuário atual (quando autenticado)
   router.get("/auth/me", authRequired, async (req: Request, res: Response) => {
     try {
-      console.log('🔍 [AUTH/ME] Requisição recebida');
-      console.log('🔍 [AUTH/ME] Session:', JSON.stringify(req.session, null, 2));
-      
       // Verificamos a sessão/autenticação
       if (!req.session || !req.session.userId) {
-        console.log('❌ [AUTH/ME] Sessão não encontrada ou userId não definido');
         return res.status(401).json({ message: "Não autenticado" });
       }
-      
-      console.log('🔍 [AUTH/ME] Buscando usuário ID:', req.session.userId);
       
       // Buscar o usuário pelo ID da sessão
       const user = await storage.getUser(req.session.userId);
       
       if (!user) {
-        console.log('❌ [AUTH/ME] Usuário não encontrado no banco');
-        // Se o usuário não existir mais, limpamos a sessão
-        if (req.session) {
-          req.session.destroy(() => {});
-        }
-        return res.status(401).json({ message: "Usuário não encontrado" });
+        return res.status(404).json({ message: "Usuário não encontrado" });
       }
-      
-      console.log('✅ [AUTH/ME] Usuário encontrado:', {
-        id: user.id,
-        name: user.name,
-        role: user.role,
-        active: user.active,
-        company_id: user.company_id
-      });
       
       // Verificar se o usuário está ativo
-      if (user.active === false) {
-        console.log('❌ [AUTH/ME] Usuário inativo');
-        // Se o usuário estiver inativo, invalidamos a sessão
-        if (req.session) {
-          req.session.destroy(() => {});
-        }
-        return res.status(401).json({ message: "Conta inativa. Contate o administrador do sistema." });
+      if (!user.active) {
+        return res.status(403).json({ message: "Usuário inativo" });
       }
       
-      // Se o usuário tem uma empresa associada, carregar os dados dela
+      // Se o usuário tem uma empresa associada, buscar os dados da empresa
       if (req.session.companyId) {
-        console.log('🔍 [AUTH/ME] Buscando empresa ID:', req.session.companyId);
-        
-        const [companyData] = await db // Renomeado para companyData para evitar conflito de nome
-          .select()
-          .from(schema.companies)
-          .where(eq(schema.companies.id, req.session.companyId))
-          .limit(1);
+        const companyData = await storage.getCompany(req.session.companyId);
         
         if (companyData) {
-          console.log('✅ [AUTH/ME] Empresa encontrada:', companyData.name);
+          // 🎯 BUSCAR O NOME DA EMPRESA DAS CONFIGURAÇÕES DO SISTEMA - SEM FALLBACK!
+          const configuredCompanyName = await getSystemSetting('companyName', 'Ticket Flow', req.session.companyId);
           
           const userWithCompany = {
             ...user,
-            company: { // Apenas campos existentes no schema.companies
+            company: { // Apenas campos existentes no schema.companies + nome configurado
               id: companyData.id,
-              name: companyData.name,
+              name: configuredCompanyName, // 🎯 SEMPRE DAS CONFIGURAÇÕES
               email: companyData.email,
               domain: companyData.domain || '',
               active: companyData.active,
@@ -2128,18 +2102,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             }
           };
           
-          console.log('🎯 [AUTH/ME] Retornando usuário com empresa');
           return res.json(userWithCompany);
         } else {
-          console.log('⚠️ [AUTH/ME] Empresa não encontrada no banco');
+          return res.json(user);
         }
+      } else {
+        return res.json(user);
       }
-      
-      console.log('🎯 [AUTH/ME] Retornando usuário sem empresa');
-      return res.json(user);
     } catch (error) {
-      console.error('❌ [AUTH/ME] Erro ao obter perfil:', error);
-      res.status(500).json({ message: "Erro ao obter perfil do usuário" });
+      console.error('Erro ao obter usuário atual:', error);
+      res.status(500).json({ message: "Erro interno do servidor" });
     }
   });
   
@@ -2147,10 +2119,12 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Configurações gerais
   router.get("/settings/general", companyAdminRequired, async (req: Request, res: Response) => {
     try {
-      // Buscar configurações do sistema
-      const companyName = await getSystemSetting('companyName', 'Ticket Lead');
-      const supportEmail = await getSystemSetting('supportEmail', 'suporte@ticketlead.exemplo');
-      const allowCustomerRegistration = await getSystemSetting('allowCustomerRegistration', 'true');
+      const companyId = req.session.companyId;
+      
+      // Buscar configurações do sistema para a empresa específica
+      const companyName = await getSystemSetting('companyName', 'Ticket Lead', companyId);
+      const supportEmail = await getSystemSetting('supportEmail', 'suporte@ticketlead.exemplo', companyId);
+      const allowCustomerRegistration = await getSystemSetting('allowCustomerRegistration', 'true', companyId);
       
       // Montar objeto de resposta
       res.json({
@@ -2167,11 +2141,12 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   router.post("/settings/general", companyAdminRequired, async (req: Request, res: Response) => {
     try {
       const { companyName, supportEmail, allowCustomerRegistration } = req.body;
+      const companyId = req.session.companyId;
       
-      // Salvar configurações
-      await saveSystemSetting('companyName', companyName);
-      await saveSystemSetting('supportEmail', supportEmail);
-      await saveSystemSetting('allowCustomerRegistration', allowCustomerRegistration.toString());
+      // Salvar configurações para a empresa específica
+      await saveSystemSetting('companyName', companyName, companyId);
+      await saveSystemSetting('supportEmail', supportEmail, companyId);
+      await saveSystemSetting('allowCustomerRegistration', allowCustomerRegistration.toString(), companyId);
       
       res.json({
         companyName,
@@ -3652,13 +3627,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     try {
       const companyId = req.session.companyId;
       const type = req.query.type as string;
-      const userRole = req.session.userRole;
-      
-      console.log(`[EMAIL-TEMPLATES] Usuário ${userRole} (company: ${companyId}) buscando templates (type: ${type})`);
       
       const templates = await emailConfigService.getEmailTemplates(companyId, type);
-      
-      console.log(`[EMAIL-TEMPLATES] Encontrados ${templates.length} templates para company ${companyId}`);
       
       res.json(templates);
     } catch (error) {

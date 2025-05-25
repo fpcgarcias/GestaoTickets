@@ -1,6 +1,5 @@
 import React from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { useSystemSettings } from '@/hooks/use-system-settings';
 import { cn } from '@/lib/utils';
 import { Link } from 'wouter';
 import { 
@@ -41,7 +40,9 @@ const SidebarItem = ({ href, icon, label, isActive }: {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const { user } = useAuth();
-  const { companyName } = useSystemSettings();
+  
+  // Usar o nome da empresa dos dados do usuário logado
+  const companyName = user?.company?.name || 'Ticket Flow';
   
   // Definir itens de navegação com base no papel do usuário
   const navItems = [

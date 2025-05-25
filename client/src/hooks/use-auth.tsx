@@ -52,21 +52,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    console.log('=== USEAUTH DEBUG ===');
-    console.log('📊 Data:', data);
-    console.log('🔄 Query Loading:', isQueryLoading);
-    console.log('❌ Query Error:', queryError);
-    console.log('====================');
-    
     if (data) {
-      console.log('✅ Dados recebidos - definindo usuário:', data);
       setUser(data as User);
       if ((data as User).company) {
         setCompany((data as User).company as Company);
       }
       setError(null);
     } else if (queryError) {
-      console.error('❌ Erro ao verificar usuário:', queryError);
       setUser(null);
       setCompany(null);
       setError(queryError as Error);
@@ -82,22 +74,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password
       });
       
-      // --- DEBUG LOGIN FRONTEND ---
-      console.log('DEBUG FE: Login Response Status:', response.status);
-      const responseText = await response.text(); // Ler como texto primeiro
-      console.log('DEBUG FE: Login Response Body Text:', responseText);
-      // --- FIM DEBUG ---
+      const responseText = await response.text();
       
-      // Tentar fazer parse do JSON agora
-      const userData = JSON.parse(responseText);
-      console.log('DEBUG FE: Parsed User Data:', userData); // Logar dados parseados
+      let userData;
+      try {
+        userData = JSON.parse(responseText);
+      } catch (parseError) {
+        throw new Error('Resposta inválida do servidor');
+      }
 
       setUser(userData);
       if (userData.company) {
         setCompany(userData.company);
       }
       
-      // Atualiza o cache do React Query com os dados do usuário
       queryClient.setQueryData(['/api/auth/me'], userData);
       return userData;
     } catch (err) {
@@ -111,7 +101,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await apiRequest('POST', '/api/auth/logout', {});
       setUser(null);
       setCompany(null);
-      // Limpa o cache do React Query para o usuário
       queryClient.setQueryData(['/api/auth/me'], null);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Falha ao fazer logout'));

@@ -22,6 +22,7 @@ import { Header } from "@/components/layout/header";
 import { AuthProvider } from "./hooks/use-auth";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/hooks/use-auth";
+import { useSystemSettings } from "@/hooks/use-system-settings";
 
 function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -41,11 +42,13 @@ function MainLayout({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const { user } = useAuth();
+  const { settings } = useSystemSettings();
   
-  // Definir título do documento com valor fixo para evitar loops de requisição
+  // Definir título do documento usando o nome da empresa das configurações do sistema
   useEffect(() => {
-    document.title = `Ticket Flow - Sistema de Gestão de Chamados`;
-  }, []);
+    const companyName = settings.companyName;
+    document.title = `${companyName} - Sistema de Gestão de Chamados`;
+  }, [settings.companyName]);
   
   return (
     <Switch>

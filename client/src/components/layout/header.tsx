@@ -16,15 +16,16 @@ import { NotificationCenter } from "@/components/layout/notification-center";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { useSystemSettings } from "@/hooks/use-system-settings";
 
 export const Header: React.FC = () => {
   const [location, setLocation] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { toast } = useToast();
-  const { companyName } = useSystemSettings();
 
   const { user, logout } = useAuth();
+  
+  // Usar o nome da empresa dos dados do usuário logado
+  const companyName = user?.company?.name || 'Ticket Flow';
   
   // Use dados do usuário autenticado ou valores padrão
   const currentUser = user || {
