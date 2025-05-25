@@ -59,17 +59,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   // Filtrar itens de navegação com base no papel do usuário atual
   const filteredNavItems = navItems.filter(item => {
     if (!user || !item.roles) return false;
-    const hasAccess = item.roles.includes(user.role);
-    console.log(`🔍 [SIDEBAR LAYOUT] Item: ${item.label}, User role: ${user.role}, Tem acesso: ${hasAccess}`);
-    return hasAccess;
+    return item.roles.includes(user.role);
   });
-  
-  // 🚨 LOGS DE DEBUG 
-  console.log('🚨 [SIDEBAR LAYOUT] RENDERIZANDO!');
-  console.log('🚨 [SIDEBAR LAYOUT] User:', user);
-  console.log('🚨 [SIDEBAR LAYOUT] User Role:', user?.role);
-  console.log('🚨 [SIDEBAR LAYOUT] Itens filtrados:', filteredNavItems.length);
-  console.log('🚨 [SIDEBAR LAYOUT] Itens que vão aparecer:', filteredNavItems.map(item => item.label));
 
   return (
     <>
