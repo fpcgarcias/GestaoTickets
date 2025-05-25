@@ -60,7 +60,7 @@ export default function Settings() {
 
   const [companies, setCompanies] = useState<ApiCompany[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>(
-    user?.role === 'manager' && userCompany?.id ? userCompany.id : undefined
+    (user?.role === 'manager' || user?.role === 'company_admin') && userCompany?.id ? userCompany.id : undefined
   );
   console.log("[Settings] Initial selectedCompanyId:", selectedCompanyId);
   const [slaResponseTimes, setSlaResponseTimes] = useState<Record<string, string>>({});
@@ -109,6 +109,9 @@ export default function Settings() {
     } else if (user?.role === 'manager' && userCompany?.id && !selectedCompanyId) {
       setSelectedCompanyId(userCompany.id);
       console.log("[Settings] setSelectedCompanyId (manager, from userCompany.id):", userCompany.id);
+    } else if (user?.role === 'company_admin' && userCompany?.id && !selectedCompanyId) {
+      setSelectedCompanyId(userCompany.id);
+      console.log("[Settings] setSelectedCompanyId (company_admin, from userCompany.id):", userCompany.id);
     }
   }, [companiesData, user?.role, userCompany, selectedCompanyId]);
 
@@ -123,7 +126,8 @@ export default function Settings() {
   // A função queryFn constrói a URL dinamicamente.
   // enabled garante que a query só rode se houver um companyId para buscar.
   const slaQueryEnabled = (!isLoadingAuth && user?.role === 'admin' && !!selectedCompanyId) || 
-                        (!isLoadingAuth && user?.role === 'manager' && !!userCompany?.id);
+                        (!isLoadingAuth && user?.role === 'manager' && !!userCompany?.id) ||
+                        (!isLoadingAuth && user?.role === 'company_admin' && !!userCompany?.id);
   console.log(
     "[Settings] slaQueryEnabled:", slaQueryEnabled, 
     "isLoadingAuth:", isLoadingAuth,
@@ -144,6 +148,8 @@ export default function Settings() {
       if (user?.role === 'admin' && selectedCompanyId) {
         endpoint = `/api/settings/sla?company_id=${selectedCompanyId}`;
       } else if (user?.role === 'manager' && userCompany?.id) {
+        endpoint = '/api/settings/sla';
+      } else if (user?.role === 'company_admin' && userCompany?.id) {
         endpoint = '/api/settings/sla';
       } else {
         console.log("[Settings SLA Query] No valid conditions to fetch, returning empty. User Role:", user?.role, "SelectedCompanyId:", selectedCompanyId, "UserCompanyId:", userCompany?.id);
@@ -371,8 +377,8 @@ export default function Settings() {
             </TabsTrigger>
           )}
           
-          {/* Aba SLA - apenas para admin e manager */}
-          {(user?.role === 'admin' || user?.role === 'manager') && (
+          {/* Aba SLA - apenas para admin, manager e company_admin */}
+          {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'company_admin') && (
             <TabsTrigger value="sla" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
               Configurações de SLA
             </TabsTrigger>
@@ -487,8 +493,8 @@ export default function Settings() {
           </TabsContent>
         )}
         
-        {/* Conteúdo da aba SLA - apenas para admin e manager */}
-        {(user?.role === 'admin' || user?.role === 'manager') && (
+        {/* Conteúdo da aba SLA - apenas para admin, manager e company_admin */}
+        {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'company_admin') && (
           <TabsContent value="sla">
             <Card>
               <CardHeader>

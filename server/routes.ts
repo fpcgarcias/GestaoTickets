@@ -1082,7 +1082,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Customer endpoints
-  router.get("/customers", authRequired, async (req: Request, res: Response) => {
+  router.get("/customers", authRequired, authorize(['admin', 'manager', 'company_admin', 'support']), async (req: Request, res: Response) => {
     try {
       // Verificar se deve incluir clientes inativos
       const includeInactive = req.query.includeInactive === 'true';
@@ -1133,7 +1133,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.post("/customers", authRequired, async (req: Request, res: Response) => {
+  router.post("/customers", authRequired, authorize(['admin', 'manager', 'company_admin', 'support']), async (req: Request, res: Response) => {
     try {
       const { email, name } = req.body;
       
@@ -1167,10 +1167,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         role: 'customer' as typeof schema.userRoleEnum.enumValues[number],
       });
       
+      const userRole = req.session?.userRole as string;
+      const companyId = req.session?.companyId;
+      
       // Criar cliente associado ao usuário
       const customer = await storage.createCustomer({
         ...req.body,
-        user_id: user.id
+        user_id: user.id,
+        // Se for company_admin, garantir que o cliente será criado na empresa dele
+        ...(userRole === 'company_admin' && { company_id: companyId })
       });
       
       // Notificar sobre novo cliente registrado
@@ -1196,7 +1201,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.patch("/customers/:id", authRequired, async (req: Request, res: Response) => {
+  router.patch("/customers/:id", authRequired, authorize(['admin', 'manager', 'company_admin', 'support']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -1235,7 +1240,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.delete("/customers/:id", authRequired, async (req: Request, res: Response) => {
+  router.delete("/customers/:id", authRequired, authorize(['admin', 'manager', 'company_admin', 'support']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -1300,7 +1305,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Official endpoints
-  router.get("/officials", authRequired, async (req: Request, res: Response) => {
+  router.get("/officials", authRequired, authorize(['admin', 'manager', 'company_admin']), async (req: Request, res: Response) => {
     try {
       console.log('======== REQUISIÇÃO PARA /api/officials ========');
       console.log('Sessão do usuário:', req.session);
@@ -1329,7 +1334,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.post("/officials", authRequired, async (req: Request, res: Response) => {
+  router.post("/officials", authRequired, authorize(['admin', 'manager', 'company_admin']), async (req: Request, res: Response) => {
     try {
       console.log(`Iniciando criação de atendente com dados:`, JSON.stringify(req.body, null, 2));
       const { departments, ...officialData } = req.body;
@@ -1357,10 +1362,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         departmentValue = departmentValue.department;
       }
       
+      const userRole = req.session?.userRole as string;
+      const companyId = req.session?.companyId;
+      
       // Criar atendente primeiro
       const dataWithDepartment = {
         ...officialData,
-        department: departmentValue // Adicionar campo department para compatibilidade
+        department: departmentValue, // Adicionar campo department para compatibilidade
+        // Se for company_admin, garantir que o atendente será criado na empresa dele
+        ...(userRole === 'company_admin' && { company_id: companyId })
       };
       
       console.log(`Criando atendente com dados:`, JSON.stringify(dataWithDepartment, null, 2));
@@ -1404,7 +1414,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.patch("/officials/:id", authRequired, async (req: Request, res: Response) => {
+  router.patch("/officials/:id", authRequired, authorize(['admin', 'manager', 'company_admin']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -1851,7 +1861,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Endpoint para criar usuários
-  router.post("/users", adminRequired, async (req: Request, res: Response) => {
+  router.post("/users", authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     try {
       const { username, email, password, name, role, avatarUrl } = req.body;
       
@@ -1900,7 +1910,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Endpoint para criar usuário de suporte e atendente em uma única transação atômica
-  router.post("/support-users", adminRequired, async (req: Request, res: Response) => {
+  router.post("/support-users", authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     // Importar e chamar o endpoint de criação integrada
     const { hashPassword } = await import('./utils/password');
     const { createSupportUserEndpoint } = await import('./endpoints/create-support-user');
@@ -1908,7 +1918,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Endpoint para atualizar informações do usuário
-  router.patch("/users/:id", adminRequired, async (req: Request, res: Response) => {
+  router.patch("/users/:id", authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -1971,7 +1981,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Endpoint para gerenciar status de ativação de usuários
-  router.patch("/users/:id/toggle-active", adminRequired, async (req: Request, res: Response) => {
+  router.patch("/users/:id/toggle-active", authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -2175,7 +2185,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Configurações de departamentos
-  router.get("/settings/departments", adminRequired, async (req: Request, res: Response) => {
+  router.get("/settings/departments", authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     try {
       // Buscar configurações de departamentos
       const departmentsJson = await getSystemSetting('departments', '[]');
@@ -2198,7 +2208,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.post("/settings/departments", adminRequired, async (req: Request, res: Response) => {
+  router.post("/settings/departments", authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     try {
       const departments = req.body;
       
@@ -2268,7 +2278,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   router.post(
     "/incident-types",
     authRequired,
-    authorize(['admin', 'manager']),
+    authorize(['admin', 'manager', 'company_admin']),
     async (req: Request, res: Response) => {
       try {
         const { name, value, department_id, company_id: company_id_from_body, is_active } = req.body;
@@ -2282,6 +2292,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             effectiveCompanyId = company_id_from_body;
           }
           // Se company_id_from_body for undefined, effectiveCompanyId permanece null (global)
+        } else if (userRole === 'company_admin') {
+          // Company_admin só pode criar tipos de chamado para sua própria empresa
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: "Company_admin não possui uma empresa associada na sessão." });
+          }
+          effectiveCompanyId = sessionCompanyId;
+          if (company_id_from_body !== undefined && company_id_from_body !== sessionCompanyId) {
+            console.warn("Company_admin tentou especificar um company_id diferente do seu na criação do tipo de chamado. Ação ignorada, usando o company_id da sessão.");
+          }
         } else if (userRole === 'manager') {
           if (!sessionCompanyId) {
             return res.status(403).json({ message: "Manager não possui uma empresa associada na sessão." });
@@ -2559,6 +2578,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           if (new_company_id !== undefined) {
             console.warn("Manager tentou alterar company_id do departamento. Esta ação foi ignorada.");
           }
+        } else if (userRole === 'company_admin') {
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: "Company_admin deve ter um ID de empresa na sessão." });
+          }
+          // Company_admin só pode editar departamentos da sua própria empresa.
+          conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
+          // Company_admin não pode mudar o company_id do departamento.
+          if (new_company_id !== undefined) {
+            console.warn("Company_admin tentou alterar company_id do departamento. Esta ação foi ignorada.");
+          }
         } else {
           return res.status(403).json({ message: "Acesso negado." });
         }
@@ -2592,7 +2621,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   router.delete(
     "/departments/:id",
     authRequired,
-    authorize(['admin', 'manager']), // Apenas admin e manager podem tentar excluir
+    authorize(['admin', 'manager', 'company_admin']), // Incluir company_admin
     async (req: Request, res: Response) => {
       try {
         const departmentIdParam = parseInt(req.params.id, 10);
@@ -2608,6 +2637,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         if (userRole === 'manager') {
           if (!sessionCompanyId) {
             return res.status(403).json({ message: "Manager deve ter um ID de empresa na sessão para excluir departamentos." });
+          }
+          conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
+        } else if (userRole === 'company_admin') {
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: "Company_admin deve ter um ID de empresa na sessão para excluir departamentos." });
           }
           conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
         } else if (userRole === 'admin') {
@@ -2838,7 +2872,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   router.put(
     "/incident-types/:id",
     authRequired,
-    authorize(['admin', 'manager']),
+    authorize(['admin', 'manager', 'company_admin']),
     async (req: Request, res: Response) => {
       try {
         const incidentTypeId = parseInt(req.params.id, 10);
@@ -2906,6 +2940,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           }
           effectiveCompanyIdForUpdateLogic = currentIncidentType.company_id; // Use original for department/name checks
           // updatePayload.company_id is NOT set for manager, so it remains unchanged.
+        } else if (userRole === 'company_admin') {
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: "Company Admin não está associado a nenhuma empresa." });
+          }
+          effectiveCompanyIdForUpdateLogic = sessionCompanyId; // Company Admin sempre usa o seu companyId da sessão
         } else {
           return res.status(403).json({ message: "Acesso negado." });
         }
@@ -2971,7 +3010,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   router.delete(
     "/incident-types/:id",
     authRequired,
-    authorize(['admin', 'manager']),
+    authorize(['admin', 'manager', 'company_admin']),
     async (req: Request, res: Response) => {
       try {
         const incidentTypeId = parseInt(req.params.id, 10);
@@ -3016,6 +3055,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             }
         } else if (userRole === 'admin') {
           // Admin pode excluir qualquer tipo, condição já tem o ID.
+        } else if (userRole === 'company_admin') {
+          // Company Admin pode excluir tipos globais
+          conditions.push(isNull(schema.incidentTypes.company_id));
         } else {
           return res.status(403).json({ message: "Acesso negado." });
         }
@@ -3050,7 +3092,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   );
 
   // --- ROTAS DE SLA DEFINITIONS ---
-  router.get("/settings/sla", authRequired, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+  router.get("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin']), async (req: Request, res: Response) => {
     let effectiveCompanyId: number | undefined = undefined; // Inicializada e tipo ajustado
     try {
       const userRole = req.session.userRole as string;
@@ -3070,6 +3112,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           return res.status(403).json({ message: "Manager não está associado a nenhuma empresa." });
         }
         effectiveCompanyId = sessionCompanyId; // Manager sempre usa o seu companyId da sessão
+      } else if (userRole === 'company_admin') {
+        if (!sessionCompanyId) {
+          return res.status(403).json({ message: "Company Admin não está associado a nenhuma empresa." });
+        }
+        effectiveCompanyId = sessionCompanyId; // Company Admin sempre usa o seu companyId da sessão
       } else {
         return res.status(403).json({ message: "Usuário sem permissão para acessar definições de SLA." });
       }
@@ -3112,7 +3159,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   type DrizzleReturningQuery = any; // Placeholder para tipo de query Drizzle com .returning()
-  router.post("/settings/sla", authRequired, authorize(['admin', 'manager']), async (req: Request, res: Response) => {
+  router.post("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin']), async (req: Request, res: Response) => {
     let effectiveCompanyId: number | undefined = undefined; // Inicializada e tipo ajustado
     try {
       const userRole = req.session.userRole as string;
@@ -3138,6 +3185,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         effectiveCompanyId = sessionCompanyId;
         if (company_id_from_body !== undefined && company_id_from_body !== sessionCompanyId) {
           console.warn("Manager tentou salvar SLA para company_id diferente da sua sessão. Usando company_id da sessão.");
+        }
+      } else if (userRole === 'company_admin') {
+        if (!sessionCompanyId) {
+          return res.status(403).json({ message: "Company Admin não está associado a nenhuma empresa." });
+        }
+        effectiveCompanyId = sessionCompanyId;
+        if (company_id_from_body !== undefined && company_id_from_body !== sessionCompanyId) {
+          console.warn("Company Admin tentou salvar SLA para company_id diferente da sua sessão. Usando company_id da sessão.");
         }
       } else {
         return res.status(403).json({ message: "Usuário sem permissão para salvar definições de SLA." });
@@ -3557,7 +3612,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Buscar configurações de email
-  router.get("/email-config", authRequired, adminRequired, async (req: Request, res: Response) => {
+  router.get("/email-config", authRequired, authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     try {
       const companyId = req.session.companyId;
       const config = await emailConfigService.getEmailConfigForFrontend(companyId);
@@ -3569,7 +3624,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Salvar configurações de email
-  router.post("/email-config", authRequired, adminRequired, async (req: Request, res: Response) => {
+  router.post("/email-config", authRequired, authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     try {
       const companyId = req.session.companyId;
       const config: SMTPConfigInput = req.body;
@@ -3593,12 +3648,18 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Buscar templates de email
-  router.get("/email-templates", authRequired, adminRequired, async (req: Request, res: Response) => {
+  router.get("/email-templates", authRequired, authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     try {
       const companyId = req.session.companyId;
       const type = req.query.type as string;
+      const userRole = req.session.userRole;
+      
+      console.log(`[EMAIL-TEMPLATES] Usuário ${userRole} (company: ${companyId}) buscando templates (type: ${type})`);
       
       const templates = await emailConfigService.getEmailTemplates(companyId, type);
+      
+      console.log(`[EMAIL-TEMPLATES] Encontrados ${templates.length} templates para company ${companyId}`);
+      
       res.json(templates);
     } catch (error) {
       console.error('Erro ao buscar templates de email:', error);
@@ -3607,7 +3668,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Criar template de email
-  router.post("/email-templates", authRequired, adminRequired, async (req: Request, res: Response) => {
+  router.post("/email-templates", authRequired, authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     try {
       const companyId = req.session.companyId;
       const userId = req.session.userId;
@@ -3627,7 +3688,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Atualizar template de email
-  router.put("/email-templates/:id", authRequired, adminRequired, async (req: Request, res: Response) => {
+  router.put("/email-templates/:id", authRequired, authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     try {
       const templateId = parseInt(req.params.id);
       const userId = req.session.userId;
@@ -3649,7 +3710,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Deletar template de email
-  router.delete("/email-templates/:id", authRequired, adminRequired, async (req: Request, res: Response) => {
+  router.delete("/email-templates/:id", authRequired, authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     try {
       const templateId = parseInt(req.params.id);
       
@@ -3667,7 +3728,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Testar conexão de email
-  router.post("/email-config/test", authRequired, adminRequired, async (req: Request, res: Response) => {
+  router.post("/email-config/test", authRequired, authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
     try {
       const config: SMTPConfigInput = req.body;
       
