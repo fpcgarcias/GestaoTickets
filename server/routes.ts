@@ -58,9 +58,10 @@ const updateDepartmentSchemaInternal = insertDepartmentSchemaInternal.partial();
 
 // Função auxiliar para salvar e carregar configurações
 async function saveSystemSetting(key: string, value: string, companyId?: number): Promise<void> {
-  const whereCondition = companyId 
-    ? and(eq(schema.systemSettings.key, key), eq(schema.systemSettings.company_id, companyId))
-    : and(eq(schema.systemSettings.key, key), isNull(schema.systemSettings.company_id));
+  // Para contornar a constraint única, usar uma chave composta quando há company_id
+  const compositeKey = companyId ? `${key}_company_${companyId}` : key;
+  
+  const whereCondition = eq(schema.systemSettings.key, compositeKey);
 
   const [existing] = await db
     .select()
@@ -79,7 +80,7 @@ async function saveSystemSetting(key: string, value: string, companyId?: number)
     await db
       .insert(schema.systemSettings)
       .values({
-        key: key,
+        key: compositeKey,
         value: value,
         company_id: companyId || null,
         created_at: new Date(),
@@ -89,9 +90,10 @@ async function saveSystemSetting(key: string, value: string, companyId?: number)
 }
 
 async function getSystemSetting(key: string, defaultValue: string = '', companyId?: number): Promise<string> {
-  const whereCondition = companyId 
-    ? and(eq(schema.systemSettings.key, key), eq(schema.systemSettings.company_id, companyId))
-    : and(eq(schema.systemSettings.key, key), isNull(schema.systemSettings.company_id));
+  // Para contornar a constraint única, usar uma chave composta quando há company_id
+  const compositeKey = companyId ? `${key}_company_${companyId}` : key;
+  
+  const whereCondition = eq(schema.systemSettings.key, compositeKey);
 
   const [setting] = await db
     .select()
@@ -2023,7 +2025,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       if (email) updateData.email = email;
       if (username) updateData.username = username;
       if (hashedPassword) updateData.password = hashedPassword;
-      updateData.updatedAt = new Date();
+      updateData.updated_at = new Date();
       
       // Atualizar usuário
       const updatedUser = await storage.updateUser(id, updateData);
@@ -2438,16 +2440,35 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         conditions.push(eq(departmentsSchema.is_active, true));
       }
 
-      let queryBuilder = db
-        .select()
-        .from(departmentsSchema); // Corrigido para encadear o .from() corretamente
+      // Se for admin, incluir informações da empresa
+      if (userRole === 'admin') {
+        const departments = await db.query.departments.findMany({
+          where: conditions.length > 0 ? and(...conditions) : undefined,
+          orderBy: [desc(departmentsSchema.created_at)],
+          with: {
+            company: {
+              columns: {
+                id: true,
+                name: true,
+              }
+            }
+          }
+        });
+        
+        res.json(departments);
+      } else {
+        // Para outros usuários, buscar sem informações da empresa
+        let queryBuilder = db
+          .select()
+          .from(departmentsSchema);
 
-      if (conditions.length > 0) {
-        queryBuilder = queryBuilder.where(and(...conditions)) as typeof queryBuilder;
+        if (conditions.length > 0) {
+          queryBuilder = queryBuilder.where(and(...conditions)) as typeof queryBuilder;
+        }
+
+        const departments = await queryBuilder.orderBy(desc(departmentsSchema.created_at));
+        res.json(departments);
       }
-
-      const departments = await queryBuilder.orderBy(desc(departmentsSchema.created_at));
-      res.json(departments);
     } catch (error) {
       console.error("Error fetching departments:", error);
       res.status(500).json({ message: "Failed to fetch departments" });
@@ -2743,8 +2764,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
                 name: typeof companies[0].name,
                 email: typeof companies[0].email,
                 active: typeof companies[0].active,
-                createdAt: typeof companies[0].createdAt,
-                updatedAt: typeof companies[0].updatedAt
+                created_at: typeof companies[0].created_at,
+                updated_at: typeof companies[0].updated_at
             });
         } else {
             console.log("[DEBUG] Nenhuma empresa encontrada na tabela");
@@ -2792,8 +2813,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           cnpj: cnpj || null,
           phone: phone || null,
           active: active === false ? false : true,
-          createdAt: new Date(),
-          updatedAt: new Date()
+          created_at: new Date(),
+          updated_at: new Date()
         })
         .returning();
 
@@ -2847,7 +2868,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       if (cnpj !== undefined) updateData.cnpj = cnpj;
       if (phone !== undefined) updateData.phone = phone;
       if (active !== undefined) updateData.active = active;
-      updateData.updatedAt = new Date();
+      updateData.updated_at = new Date();
 
       // Atualizar empresa
       const [updatedCompany] = await db
@@ -2889,7 +2910,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         .update(schema.companies)
         .set({
           active: newStatus,
-          updatedAt: new Date()
+          updated_at: new Date()
         })
         .where(eq(schema.companies.id, companyId))
         .returning();

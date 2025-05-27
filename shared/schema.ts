@@ -33,8 +33,8 @@ export const companies = pgTable("companies", {
   email: text("email").notNull(),
   domain: text("domain"),
   active: boolean("active").notNull().default(true),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
   cnpj: text("cnpj"),
   phone: text("phone"),
 });
@@ -364,8 +364,8 @@ export const aiAnalysisHistory = pgTable("ai_analysis_history", {
 // Schema for inserting companies
 export const insertCompanySchema = createInsertSchema(companies).omit({
   id: true,
-  createdAt: true,
-  updatedAt: true,
+  created_at: true,
+  updated_at: true,
 });
 
 // Schema for inserting users
@@ -545,7 +545,9 @@ export type SystemSetting = typeof systemSettings.$inferSelect;
 
 export type IncidentType = typeof incidentTypes.$inferSelect;
 
-export type Department = typeof departments.$inferSelect;
+export type Department = typeof departments.$inferSelect & {
+  company?: Partial<Company>;
+};
 export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
 
 export type TicketType = typeof ticketTypes.$inferSelect;

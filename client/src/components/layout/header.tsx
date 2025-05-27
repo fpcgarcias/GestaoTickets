@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, Menu, User, Settings, LogOut, LayoutDashboard, TicketIcon, UserCog } from 'lucide-react';
+import { ChevronDown, Menu, User, Settings, LogOut, LayoutDashboard, TicketIcon, UserCog, Building2, FolderIcon, TagIcon } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Sidebar } from "@/components/layout/sidebar";
 import { NotificationCenter } from "@/components/layout/notification-center";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -92,33 +92,51 @@ export const Header: React.FC = () => {
               <span className="sr-only">Toggle menu</span>
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="p-0">
+          <SheetContent side="left" className="p-0 w-80">
             <div className="p-6 border-b border-neutral-200">
               <h1 className="text-xl font-semibold text-neutral-900">{companyName}</h1>
             </div>
-            <nav className="p-4">
-              <a href="/" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location === "/" ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+            <div className="flex-1 overflow-y-auto">
+              <nav className="p-4 space-y-1">
+              <Link href="/" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer ${location === "/" ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
                 <span className="mr-3 text-lg"><LayoutDashboard size={20} /></span>
                 <span className={location === "/" ? "font-medium" : ""}>Painel de Controle</span>
-              </a>
-              <a href="/tickets" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/tickets") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+              </Link>
+              <Link href="/tickets" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer ${location.startsWith("/tickets") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
                 <span className="mr-3 text-lg"><TicketIcon size={20} /></span>
                 <span className={location.startsWith("/tickets") ? "font-medium" : ""}>Chamados</span>
-              </a>
-              <a href="/users" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/users") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+              </Link>
+              <Link href="/clients" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer ${location.startsWith("/clients") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
                 <span className="mr-3 text-lg"><User size={20} /></span>
-                <span className={location.startsWith("/users") ? "font-medium" : ""}>Clientes</span>
-              </a>
-              <a href="/officials" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/officials") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                <span className={location.startsWith("/clients") ? "font-medium" : ""}>Clientes</span>
+              </Link>
+              <Link href="/users" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer ${location.startsWith("/users") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                <span className="mr-3 text-lg"><User size={20} /></span>
+                <span className={location.startsWith("/users") ? "font-medium" : ""}>Usuários</span>
+              </Link>
+              <Link href="/officials" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer ${location.startsWith("/officials") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
                 <span className="mr-3 text-lg"><UserCog size={20} /></span>
                 <span className={location.startsWith("/officials") ? "font-medium" : ""}>Atendentes</span>
-              </a>
-              <a href="/settings" className={`sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer ${location.startsWith("/settings") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
-                <span className="mr-3 text-lg"><Settings size={20} /></span>
-                <span className={location.startsWith("/settings") ? "font-medium" : ""}>Configurações</span>
-              </a>
-            </nav>
-          </SheetContent>
+              </Link>
+                             <Link href="/companies" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer ${location.startsWith("/companies") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                 <span className="mr-3 text-lg"><Building2 size={20} /></span>
+                 <span className={location.startsWith("/companies") ? "font-medium" : ""}>Empresas</span>
+               </Link>
+               <Link href="/departments" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer ${location.startsWith("/departments") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                 <span className="mr-3 text-lg"><FolderIcon size={20} /></span>
+                 <span className={location.startsWith("/departments") ? "font-medium" : ""}>Departamentos</span>
+               </Link>
+               <Link href="/ticket-types" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer ${location.startsWith("/ticket-types") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                 <span className="mr-3 text-lg"><TagIcon size={20} /></span>
+                 <span className={location.startsWith("/ticket-types") ? "font-medium" : ""}>Tipos de Chamado</span>
+               </Link>
+                             <Link href="/settings" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer ${location.startsWith("/settings") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                 <span className="mr-3 text-lg"><Settings size={20} /></span>
+                 <span className={location.startsWith("/settings") ? "font-medium" : ""}>Configurações</span>
+               </Link>
+             </nav>
+           </div>
+           </SheetContent>
         </Sheet>
         <div className="text-neutral-800">Bem-vindo, {currentUser.name}!</div>
       </div>

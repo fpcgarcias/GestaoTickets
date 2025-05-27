@@ -31,6 +31,7 @@ import crypto from "crypto";
 import path from "path"; // RESTAURAR esta importação, pois é usada abaixo
 import { fileURLToPath } from 'url';
 import { migrate } from './migrate';
+import { runMigrations } from './migration-runner';
 
 // === IMPORTS DE SEGURANÇA ===
 import helmet from "helmet";
@@ -223,7 +224,11 @@ app.use((req, res, next) => {
 // Função start agora configura tudo
 async function startServer() {
   try {
-    // Executar migrações antes de iniciar o servidor (silencioso se não há pendências)
+    // Executar migrações de estrutura do banco PRIMEIRO
+    console.log("🔧 Verificando estrutura do banco de dados...");
+    await runMigrations();
+    
+    // Executar migrações antigas (se necessário)
     await migrate();
     
     // Continuar com o código de inicialização do servidor

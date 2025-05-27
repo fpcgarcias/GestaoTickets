@@ -328,6 +328,7 @@ const DepartmentManagement: React.FC = () => {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Descrição</TableHead>
+                {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -338,19 +339,20 @@ const DepartmentManagement: React.FC = () => {
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                    {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : error ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-10 text-red-500">
+                  <TableCell colSpan={user?.role === 'admin' ? 5 : 4} className="text-center py-10 text-red-500">
                     Erro ao carregar departamentos. Tente novamente mais tarde.
                   </TableCell>
                 </TableRow>
               ) : filteredDepartments.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-10 text-neutral-500">
+                  <TableCell colSpan={user?.role === 'admin' ? 5 : 4} className="text-center py-10 text-neutral-500">
                     Nenhum departamento encontrado.
                   </TableCell>
                 </TableRow>
@@ -359,6 +361,11 @@ const DepartmentManagement: React.FC = () => {
                   <TableRow key={dept.id} className={!dept.is_active ? "opacity-60" : ""}>
                     <TableCell className="font-medium">{dept.name}</TableCell>
                     <TableCell className="max-w-xs truncate">{dept.description || "—"}</TableCell>
+                    {user?.role === 'admin' && (
+                      <TableCell className="font-medium">
+                        {(dept as any).company?.name || "—"}
+                      </TableCell>
+                    )}
                     <TableCell>
                       {(dept.is_active === undefined || dept.is_active) ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">

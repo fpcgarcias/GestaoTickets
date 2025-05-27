@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { departments } from '@/db/schema';
+import { departments, companies } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -34,13 +34,31 @@ export async function GET(request: NextRequest) {
       filters.push(eq(departments.is_active, true));
     }
     
-    // Executar a consulta
-    const departmentsList = await db.query.departments.findMany({
-      where: filters.length > 0 ? and(...filters) : undefined,
-      orderBy: departments.name,
-    });
-    
-    return NextResponse.json(departmentsList);
+    // Se for admin, incluir informações da empresa
+    if (session.user.role === 'admin') {
+      const departmentsList = await db.query.departments.findMany({
+        where: filters.length > 0 ? and(...filters) : undefined,
+        orderBy: departments.name,
+        with: {
+          company: {
+            columns: {
+              id: true,
+              name: true,
+            }
+          }
+        }
+      });
+      
+      return NextResponse.json(departmentsList);
+    } else {
+      // Para outros usuários, buscar sem informações da empresa
+      const departmentsList = await db.query.departments.findMany({
+        where: filters.length > 0 ? and(...filters) : undefined,
+        orderBy: departments.name,
+      });
+      
+      return NextResponse.json(departmentsList);
+    }
   } catch (error) {
     console.error('Erro ao buscar departamentos:', error);
     return NextResponse.json(

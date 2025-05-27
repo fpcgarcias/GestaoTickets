@@ -65,8 +65,8 @@ globs:
 - `email` : `text`
 - `domain` : `text`
 - `active` : `boolean`
-- `createdAt` : `timestamp without time zone`
-- `updatedAt` : `timestamp without time zone`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
 - `cnpj` : `text`
 - `phone` : `text`
 
@@ -140,6 +140,9 @@ globs:
 - `created_at` : `timestamp without time zone`
 - `updated_at` : `timestamp without time zone`
 - `company_id` : `integer`
+- `department_id` : `integer`
+- `supervisor_id` : `integer`
+- `manager_id` : `integer`
 
 ### Tabela `sla_definitions`
 - `id` : `integer`
@@ -252,6 +255,64 @@ globs:
 - `digest_frequency` : `text`
 - `created_at` : `timestamp without time zone`
 - `updated_at` : `timestamp without time zone`
+
+## Enums Disponíveis
+
+### `ai_provider`
+- `openai`
+- `google`
+- `anthropic`
+
+### `email_template_type`
+- `new_ticket`
+- `ticket_assigned`
+- `ticket_reply`
+- `status_changed`
+- `ticket_resolved`
+- `ticket_escalated`
+- `ticket_due_soon`
+- `customer_registered`
+- `user_created`
+- `system_maintenance`
+
+### `ticket_priority` (USER-DEFINED)
+- `low`
+- `medium`
+- `high`
+- `urgent`
+
+### `ticket_status` (USER-DEFINED)
+- `open`
+- `in_progress`
+- `pending`
+- `resolved`
+- `closed`
+
+### `user_role` (USER-DEFINED)
+- `admin`
+- `support`
+- `customer`
+
+## Constraints Importantes
+
+### `system_settings`
+- Constraint única composta: (`key`, `company_id`)
+- Permite configurações específicas por empresa
+
+### Índices de Performance
+- `idx_tickets_company_id` - Otimização para consultas por empresa
+- `idx_tickets_status` - Otimização para filtros por status
+- `idx_tickets_priority` - Otimização para filtros por prioridade
+- `idx_tickets_assigned_to_id` - Otimização para tickets atribuídos
+- `idx_tickets_created_at` - Otimização para ordenação temporal
+- `idx_users_company_id` - Otimização para usuários por empresa
+- `idx_customers_company_id` - Otimização para clientes por empresa
+- `idx_officials_company_id` - Otimização para atendentes por empresa
+- `idx_departments_company_id` - Otimização para departamentos por empresa
+- `idx_system_settings_company_id` - Otimização para configurações por empresa
+- `idx_ticket_attachments_ticket_id` - Otimização para anexos por ticket
+- `idx_ai_analysis_history_ticket_id` - Otimização para histórico de IA por ticket
+- `idx_ai_analysis_history_company_id` - Otimização para histórico de IA por empresa
 
 
 

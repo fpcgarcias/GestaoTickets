@@ -32,7 +32,7 @@ function MainLayout({ children }: { children: React.ReactNode }) {
       <Sidebar currentPath={location} />
       <div className="flex-1 flex flex-col">
         <Header />
-        <div className="flex-1 overflow-auto p-6 bg-neutral-50">
+        <div className="flex-1 overflow-auto p-6 bg-neutral-50 pb-20 md:pb-6">
           {children}
         </div>
       </div>
@@ -117,6 +117,12 @@ function AppContent() {
       <ProtectedRoute path="/settings" component={() => (
         <MainLayout>
           <Settings />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/customers" component={() => (
+        <MainLayout>
+          <ClientsIndex />
         </MainLayout>
       )} />
       
