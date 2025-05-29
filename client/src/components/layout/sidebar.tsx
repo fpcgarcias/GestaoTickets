@@ -12,7 +12,8 @@ import {
   FolderIcon,
   TagIcon,
   Menu,
-  LogOut
+  LogOut,
+  Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -58,6 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     { href: "/users", icon: <Users size={20} />, label: "Usuários", roles: ['admin', 'company_admin'] },
     { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes", roles: ['admin', 'company_admin', 'manager'] },
     { href: "/companies", icon: <Building2 size={20} />, label: "Empresas", roles: ['admin'] },
+    { href: "/permissions", icon: <Shield size={20} />, label: "Permissões", roles: ['admin'] },
     { href: "/departments", icon: <FolderIcon size={20} />, label: "Departamentos", roles: ['admin', 'company_admin', 'manager'] },
     { href: "/ticket-types", icon: <TagIcon size={20} />, label: "Tipos de Chamado", roles: ['admin', 'company_admin', 'manager'] },
     { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'customer', 'viewer'] },

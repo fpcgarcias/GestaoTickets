@@ -23,6 +23,7 @@ import { AuthProvider } from "./hooks/use-auth";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/hooks/use-auth";
 import { useSystemSettings } from "@/hooks/use-system-settings";
+import PermissionsPage from "@/pages/permissions";
 
 function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -99,6 +100,12 @@ function AppContent() {
       <ProtectedRoute path="/companies" component={() => (
         <MainLayout>
           <CompaniesIndex />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/permissions" component={() => (
+        <MainLayout>
+          <PermissionsPage />
         </MainLayout>
       )} />
       

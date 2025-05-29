@@ -98,6 +98,12 @@ interface TestData {
   test_description: string;
 }
 
+// Interface para configurações de uso de IA
+interface AiUsageSettings {
+  ai_permission_granted: boolean;
+  ai_usage_enabled: boolean;
+}
+
 const AI_PROVIDERS = [
   { value: 'openai', label: 'OpenAI' },
   { value: 'google', label: 'Google (Gemini)' },
@@ -196,31 +202,184 @@ const modelOptions: Record<string, string[]> = {
   ]
 };
 
-export default function AiSettings() {
+// Componente para company_admin gerenciar o toggle de uso de IA
+function AiUsageToggle() {
   const { toast } = useToast();
-  const { user, company: userCompany } = useAuth();
-  
-  const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>(
-    user?.role === 'admin' ? undefined : userCompany?.id
+  const { user } = useAuth();
+
+  // Buscar configurações de uso de IA
+  const { data: usageSettings, isLoading, refetch } = useQuery<AiUsageSettings>({
+    queryKey: ["/api/settings/ai-usage"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/settings/ai-usage");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Falha ao buscar configurações de IA');
+      }
+      return response.json();
+    },
+    enabled: user?.role === 'company_admin',
+  });
+
+  // Mutação para atualizar configurações de uso
+  const updateUsageMutation = useMutation({
+    mutationFn: async (ai_usage_enabled: boolean) => {
+      const response = await apiRequest("PUT", "/api/settings/ai-usage", { ai_usage_enabled });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Falha ao atualizar configurações');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Sucesso",
+        description: "Configurações de IA atualizadas com sucesso!",
+      });
+      refetch();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center p-8">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+          <span>Carregando configurações...</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!usageSettings?.ai_permission_granted) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5" />
+            Inteligência Artificial
+          </CardTitle>
+          <CardDescription>
+            Configurações de IA para sua empresa
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center p-8 border border-dashed rounded-lg">
+            <Brain className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">IA não disponível</h3>
+            <p className="text-gray-500">
+              Sua empresa não tem permissão para usar funcionalidades de IA. 
+              Entre em contato com o administrador do sistema.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Brain className="h-5 w-5" />
+          Inteligência Artificial
+        </CardTitle>
+        <CardDescription>
+          Configure o uso de IA para análise automática de tickets
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          {/* Toggle de uso de IA */}
+          <div className="flex items-center justify-between p-4 border rounded-lg">
+            <div className="space-y-1">
+              <Label htmlFor="ai-usage-toggle" className="text-base font-medium">
+                Usar Inteligência Artificial
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Ativa a análise automática de prioridade de tickets usando IA
+              </p>
+            </div>
+            <Switch
+              id="ai-usage-toggle"
+              checked={usageSettings.ai_usage_enabled}
+              onCheckedChange={(checked) => updateUsageMutation.mutate(checked)}
+              disabled={updateUsageMutation.isPending}
+            />
+          </div>
+
+          {/* Informações sobre a IA */}
+          {usageSettings.ai_usage_enabled && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Brain className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-blue-900">IA Ativada</h4>
+                  <p className="text-sm text-blue-700 mt-1">
+                    A inteligência artificial está analisando automaticamente a prioridade dos novos tickets 
+                    baseada no título e descrição fornecidos.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
-  
-  // Estados do formulário
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
-  const [deleteConfigId, setDeleteConfigId] = useState<number | null>(null);
+}
+
+// Componente principal - agora diferencia entre admin e company_admin
+export default function AiSettings() {
+  const { data: user } = useQuery({
+    queryKey: ['auth', 'me'],
+    queryFn: async () => {
+      const response = await fetch('/api/auth/me');
+      if (!response.ok) throw new Error('Não autenticado');
+      return response.json();
+    },
+  });
+
+  // Admin vê configuração completa, company_admin vê apenas toggle de uso
+  if (user?.role === 'admin') {
+    return <AdminAiConfiguration />;
+  } else if (user?.role === 'company_admin') {
+    return <AiUsageToggle />;
+  } else {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-muted-foreground">Acesso não autorizado.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+}
+
+// Componente para administradores - configuração global
+function AdminAiConfiguration() {
+  const [isEditing, setIsEditing] = useState(false);
   const [editingConfig, setEditingConfig] = useState<AiConfiguration | null>(null);
+  const [showForm, setShowForm] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [isTestLoading, setIsTestLoading] = useState(false);
   
-  // Formulário
   const [formData, setFormData] = useState<FormData>({
     name: '',
-    provider: 'openai' as const,
+    provider: 'openai',
     model: 'gpt-4o',
     api_key: '',
     api_endpoint: '',
-    system_prompt: DEFAULT_PROMPTS.system,
-    user_prompt_template: DEFAULT_PROMPTS.user,
+    system_prompt: '',
+    user_prompt_template: '',
     temperature: '0.1',
     max_tokens: 100,
     timeout_seconds: 30,
@@ -229,128 +388,104 @@ export default function AiSettings() {
     is_active: true,
     is_default: false,
   });
-  
-  // Estados do teste
-  const [testData, setTestData] = useState<TestData>({
-    test_title: 'Sistema de email não está funcionando',
-    test_description: 'Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe.',
-  });
-  const [testResult, setTestResult] = useState<TestResult | null>(null);
 
-  // Buscar configurações
-  const { data: configurations = [], isLoading, refetch } = useQuery<AiConfiguration[]>({
-    queryKey: ["/api/ai-configurations", selectedCompanyId],
+  const [testData, setTestData] = useState<TestData>({
+    test_title: '',
+    test_description: '',
+  });
+
+  // Buscar configurações globais
+  const { data: configurations, isLoading, refetch } = useQuery({
+    queryKey: ['ai-configurations'],
     queryFn: async () => {
-      const endpoint = user?.role === 'admin' && selectedCompanyId 
-        ? `/api/ai-configurations?company_id=${selectedCompanyId}`
-        : '/api/ai-configurations';
-      
-      const response = await apiRequest("GET", endpoint);
+      const response = await fetch('/api/ai-configurations');
       if (!response.ok) {
         throw new Error('Falha ao buscar configurações de IA');
       }
       return response.json();
     },
-    enabled: !!(user && (selectedCompanyId || user.role !== 'admin')),
   });
 
-  // Buscar empresas (se admin)
-  const { data: companies = [] } = useQuery({
-    queryKey: ["/api/companies"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/companies");
-      if (!response.ok) throw new Error('Falha ao buscar empresas');
-      return response.json();
-    },
-    enabled: user?.role === 'admin',
-  });
-
-  // Mutação para criar/editar
-  const saveConfigMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const endpoint = editingConfig 
-        ? `/api/ai-configurations/${editingConfig.id}`
-        : '/api/ai-configurations';
-      
-      const method = editingConfig ? 'PUT' : 'POST';
-      
-      const response = await apiRequest(method, endpoint, {
-        ...data,
-        company_id: selectedCompanyId,
+  const createMutation = useMutation({
+    mutationFn: async (data: Omit<FormData, 'id'>) => {
+      const response = await fetch('/api/ai-configurations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
       });
-      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha ao salvar configuração');
+        const error = await response.json();
+        throw new Error(error.message || 'Falha ao criar configuração');
       }
-      
       return response.json();
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: `Configuração ${editingConfig ? 'atualizada' : 'criada'} com sucesso!` });
-      setIsCreateDialogOpen(false);
-      setIsEditDialogOpen(false);
+      setShowForm(false);
+      resetForm();
+      refetch();
+      toast.success('Configuração criada com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<FormData> }) => {
+      const response = await fetch(`/api/ai-configurations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Falha ao atualizar configuração');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      setIsEditing(false);
       setEditingConfig(null);
       resetForm();
       refetch();
+      toast.success('Configuração atualizada com sucesso!');
     },
-    onError: (error: any) => {
-      toast({ 
-        title: "Erro", 
-        description: error.message, 
-        variant: "destructive" 
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await fetch(`/api/ai-configurations/${id}`, {
+        method: 'DELETE',
       });
-    },
-  });
-
-  // Mutação para deletar
-  const deleteConfigMutation = useMutation({
-    mutationFn: async (configId: number) => {
-      const response = await apiRequest("DELETE", `/api/ai-configurations/${configId}`);
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha ao deletar configuração');
-      }
-    },
-    onSuccess: () => {
-      toast({ title: "Sucesso", description: "Configuração deletada com sucesso!" });
-      setDeleteConfigId(null);
-      refetch();
-    },
-    onError: (error: any) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-    },
-  });
-
-  // Mutação para testar
-  const testConfigMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/ai-configurations/test", data);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha no teste');
+        const error = await response.json();
+        throw new Error(error.message || 'Falha ao deletar configuração');
       }
       return response.json();
     },
-    onSuccess: (data) => {
-      setTestResult(data.result);
-      toast({ title: "Teste executado", description: "Configuração testada com sucesso!" });
+    onSuccess: () => {
+      refetch();
+      toast.success('Configuração deletada com sucesso!');
     },
-    onError: (error: any) => {
-      toast({ title: "Erro no teste", description: error.message, variant: "destructive" });
-      setTestResult(null);
+    onError: (error: Error) => {
+      toast.error(error.message);
     },
   });
+
+  const isLoading_action = createMutation.isPending || updateMutation.isPending;
 
   const resetForm = () => {
     setFormData({
       name: '',
-      provider: 'openai' as const,
+      provider: 'openai',
       model: 'gpt-4o',
       api_key: '',
       api_endpoint: '',
-      system_prompt: DEFAULT_PROMPTS.system,
-      user_prompt_template: DEFAULT_PROMPTS.user,
+      system_prompt: '',
+      user_prompt_template: '',
       temperature: '0.1',
       max_tokens: 100,
       timeout_seconds: 30,
@@ -370,8 +505,8 @@ export default function AiSettings() {
       model: config.model || 'gpt-4o',
       api_key: config.api_key || '',
       api_endpoint: config.api_endpoint || '',
-      system_prompt: config.system_prompt || DEFAULT_PROMPTS.system,
-      user_prompt_template: config.user_prompt_template || DEFAULT_PROMPTS.user,
+      system_prompt: config.system_prompt || '',
+      user_prompt_template: config.user_prompt_template || '',
       temperature: config.temperature || '0.1',
       max_tokens: config.max_tokens || 100,
       timeout_seconds: config.timeout_seconds || 30,
@@ -380,40 +515,30 @@ export default function AiSettings() {
       is_active: config.is_active !== undefined ? config.is_active : true,
       is_default: config.is_default !== undefined ? config.is_default : false,
     });
-    setIsEditDialogOpen(true);
+    setIsEditing(true);
   };
 
   const handleSubmit = () => {
     if (!formData.name || !formData.api_key) {
-      toast({ title: "Erro", description: "Nome e API Key são obrigatórios", variant: "destructive" });
+      toast.error("Nome e API Key são obrigatórios");
       return;
     }
     
-    saveConfigMutation.mutate(formData);
+    if (isEditing) {
+      updateMutation.mutate({ id: editingConfig!.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
   };
 
   const handleTest = () => {
-    testConfigMutation.mutate({
-      ...formData,
-      ...testData,
-    });
+    // Implemente a lógica para testar a configuração
   };
 
   const maskApiKey = (key: string | null | undefined) => {
     if (!key || key.length <= 8) return '••••••••';
     return key.substring(0, 4) + '••••••••' + key.substring(key.length - 4);
   };
-
-  if (user?.role !== 'admin' && user?.role !== 'company_admin') {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Acesso Negado</CardTitle>
-          <CardDescription>Você não tem permissão para acessar as configurações de IA.</CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -428,32 +553,10 @@ export default function AiSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Seletor de empresa (para admin) */}
-          {user?.role === 'admin' && (
-            <div>
-              <Label htmlFor="company-select">Empresa</Label>
-              <Select 
-                value={selectedCompanyId?.toString() || ''} 
-                onValueChange={(v) => setSelectedCompanyId(v ? parseInt(v) : undefined)}
-              >
-                <SelectTrigger className="w-full md:w-1/2">
-                  <SelectValue placeholder="Selecione uma empresa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((company: any) => (
-                    <SelectItem key={company.id} value={company.id.toString()}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
           {/* Botão para adicionar nova configuração */}
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-medium">Configurações Ativas</h3>
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <Dialog open={showForm} onOpenChange={setShowForm}>
               <DialogTrigger asChild>
                 <Button onClick={resetForm}>
                   <Plus className="mr-2 h-4 w-4" />
@@ -476,8 +579,8 @@ export default function AiSettings() {
                   testResult={testResult}
                   testData={testData}
                   setTestData={setTestData}
-                  isLoading={saveConfigMutation.isPending}
-                  isTestLoading={testConfigMutation.isPending}
+                  isLoading={isLoading_action}
+                  isTestLoading={isTestLoading}
                   showApiKey={showApiKey}
                   setShowApiKey={setShowApiKey}
                 />
@@ -496,7 +599,7 @@ export default function AiSettings() {
               <Brain className="mx-auto h-12 w-12 text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma configuração encontrada</h3>
               <p className="text-gray-500 mb-4">Crie sua primeira configuração de IA para começar.</p>
-              <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <Button onClick={() => setShowForm(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Criar Configuração
               </Button>
@@ -508,7 +611,7 @@ export default function AiSettings() {
                   key={config.id}
                   config={config}
                   onEdit={openEditDialog}
-                  onDelete={setDeleteConfigId}
+                  onDelete={deleteMutation.mutate}
                   maskApiKey={maskApiKey}
                 />
               ))}
@@ -518,7 +621,7 @@ export default function AiSettings() {
       </Card>
 
       {/* Dialog de edição */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+      <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Configuração de IA</DialogTitle>
@@ -534,42 +637,14 @@ export default function AiSettings() {
             testResult={testResult}
             testData={testData}
             setTestData={setTestData}
-            isLoading={saveConfigMutation.isPending}
-            isTestLoading={testConfigMutation.isPending}
+            isLoading={isLoading_action}
+            isTestLoading={isTestLoading}
             showApiKey={showApiKey}
             setShowApiKey={setShowApiKey}
             isEditing={true}
           />
         </DialogContent>
       </Dialog>
-
-      {/* Dialog de confirmação de exclusão */}
-      <AlertDialog open={!!deleteConfigId} onOpenChange={() => setDeleteConfigId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir esta configuração de IA? Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteConfigId && deleteConfigMutation.mutate(deleteConfigId)}
-              disabled={deleteConfigMutation.isPending}
-            >
-              {deleteConfigMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Excluindo...
-                </>
-              ) : (
-                'Excluir'
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

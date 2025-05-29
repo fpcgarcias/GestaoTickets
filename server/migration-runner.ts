@@ -1,5 +1,12 @@
 import { db } from './db';
 import { sql } from 'drizzle-orm';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+// Para módulos ES
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 interface Migration {
   id: string;
@@ -7,8 +14,69 @@ interface Migration {
   down: () => Promise<void>;
 }
 
-// Lista vazia de migrações - todas foram removidas
-const migrations: Migration[] = [];
+// Função para carregar migrações dos arquivos SQL
+function loadMigrationsFromFiles(): Migration[] {
+  const migrationsDir = path.join(__dirname, '..', 'db', 'migrations');
+  
+  if (!fs.existsSync(migrationsDir)) {
+    console.log('📁 Diretório de migrações não encontrado:', migrationsDir);
+    return [];
+  }
+
+  const files = fs.readdirSync(migrationsDir)
+    .filter(file => file.endsWith('.sql'))
+    .sort(); // Garante ordem alfabética/numérica
+
+  return files.map(file => {
+    const migrationId = path.basename(file, '.sql');
+    const filePath = path.join(migrationsDir, file);
+    
+    return {
+      id: migrationId,
+      up: async () => {
+        const sqlContent = fs.readFileSync(filePath, 'utf8');
+        console.log(`🔄 Executando migração: ${migrationId}`);
+        
+        // Dividir comandos SQL corretamente (remover comentários primeiro)
+        const cleanContent = sqlContent
+          .replace(/--.*$/gm, '') // Remove comentários de linha
+          .replace(/\/\*[\s\S]*?\*\//g, '') // Remove comentários de bloco
+          .trim();
+        
+        const commands = cleanContent
+          .split(';')
+          .map(cmd => cmd.trim())
+          .filter(cmd => cmd.length > 0);
+
+        console.log(`📋 Executando ${commands.length} comando(s) SQL...`);
+
+        // Executar em transação única
+        await db.transaction(async (tx) => {
+          for (let i = 0; i < commands.length; i++) {
+            const command = commands[i];
+            try {
+              console.log(`🔧 Comando ${i + 1}/${commands.length}`);
+              await tx.execute(sql.raw(command));
+              console.log(`✅ Comando ${i + 1} concluído`);
+            } catch (error) {
+              console.error(`❌ Erro no comando ${i + 1}:`, error);
+              console.error(`❌ SQL:`, command);
+              throw error; // Isso fará rollback da transação
+            }
+          }
+        });
+        
+        console.log(`✅ Migração ${migrationId} executada com sucesso`);
+      },
+      down: async () => {
+        console.log(`⚠️  Rollback não implementado para ${migrationId}`);
+      }
+    };
+  });
+}
+
+// Carregar migrações dos arquivos
+const migrations: Migration[] = loadMigrationsFromFiles();
 
 // Criar tabela de controle de migrações se não existir
 async function ensureMigrationsTable() {
@@ -40,19 +108,40 @@ async function markMigrationAsExecuted(migrationName: string) {
   `);
 }
 
+// Remover migração do registro (para reexecutar)
+async function removeMigrationRecord(migrationName: string) {
+  await db.execute(sql`
+    DELETE FROM migrations 
+    WHERE name = ${migrationName}
+  `);
+}
+
 // Executar todas as migrações pendentes
 export async function runMigrations() {
-  console.log('🔄 Verificando sistema de migrações...');
-  
   try {
     // Garantir que a tabela de controle existe
     await ensureMigrationsTable();
     
-    // Como não há migrações na lista, apenas confirmar que o sistema está pronto
-    console.log('✅ Sistema de migrações inicializado (nenhuma migração pendente)');
+    // Executar migrações pendentes
+    let executedCount = 0;
+    
+    for (const migration of migrations) {
+      const alreadyExecuted = await isMigrationExecuted(migration.id);
+      
+      if (!alreadyExecuted) {
+        console.log(`🚀 Executando migração pendente: ${migration.id}`);
+        await migration.up();
+        await markMigrationAsExecuted(migration.id);
+        executedCount++;
+      }
+    }
+    
+    if (executedCount > 0) {
+      console.log(`✅ ${executedCount} migração(ões) executada(s) com sucesso`);
+    }
     
   } catch (error) {
-    console.error('❌ Erro durante a inicialização do sistema de migrações:', error);
+    console.error('❌ Erro durante a execução das migrações:', error);
     // Não lançar erro para não quebrar o startup
   }
 }

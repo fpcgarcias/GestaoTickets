@@ -37,6 +37,7 @@ export const companies = pgTable("companies", {
   updated_at: timestamp("updated_at").defaultNow().notNull(),
   cnpj: text("cnpj"),
   phone: text("phone"),
+  ai_permission: boolean("ai_permission").notNull().default(true), // Permite que a empresa use IA
 });
 
 // Users table for authentication (ajustado para snake_case conforme banco)
@@ -318,10 +319,7 @@ export const aiConfigurations = pgTable("ai_configurations", {
   is_active: boolean("is_active").default(true).notNull(),
   is_default: boolean("is_default").default(false).notNull(),
   
-  // Multi-tenant
-  company_id: integer("company_id").references(() => companies.id),
-  
-  // Metadados
+  // Metadados (configuração global - removido company_id)
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
   created_by_id: integer("created_by_id").references(() => users.id),
@@ -572,7 +570,6 @@ export type UpdateEmailTemplate = z.infer<typeof updateEmailTemplateSchema>;
 export type AiConfiguration = typeof aiConfigurations.$inferSelect & {
   created_by?: Partial<User>;
   updated_by?: Partial<User>;
-  company?: Partial<Company>;
 };
 export type InsertAiConfiguration = z.infer<typeof insertAiConfigurationSchema>;
 export type UpdateAiConfiguration = z.infer<typeof updateAiConfigurationSchema>;
@@ -692,10 +689,6 @@ export const emailTemplatesRelations = relations(emailTemplates, ({ one }) => ({
 
 // Relações para a tabela de configurações de IA
 export const aiConfigurationsRelations = relations(aiConfigurations, ({ one, many }) => ({
-  company: one(companies, {
-    fields: [aiConfigurations.company_id],
-    references: [companies.id],
-  }),
   created_by: one(users, {
     fields: [aiConfigurations.created_by_id],
     references: [users.id],

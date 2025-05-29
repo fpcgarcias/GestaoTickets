@@ -53,6 +53,15 @@ import {
   testAiConfiguration 
 } from './api/ai-configurations';
 
+// Importar funções de permissões de empresa
+import {
+  getCompanyPermissions,
+  updateCompanyPermissions,
+  getAllCompaniesPermissions,
+  getAiUsageSettings,
+  updateAiUsageSettings
+} from './api/company-permissions';
+
 // Schemas Zod para validação de Departamentos (definidos aqui temporariamente)
 const insertDepartmentSchemaInternal = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -4009,6 +4018,25 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   router.post("/ai-configurations/test", authRequired, authorize(['admin', 'company_admin']), testAiConfiguration);
 
   // --- FIM DAS ROTAS DE IA ---
+
+  // --- ROTAS DE PERMISSÕES DE EMPRESA ---
+  
+  // Listar todas as empresas com suas permissões (apenas admin)
+  router.get("/companies-permissions", authRequired, authorize(['admin']), getAllCompaniesPermissions);
+  
+  // Buscar permissões de uma empresa específica (apenas admin)
+  router.get("/company-permissions/:companyId", authRequired, authorize(['admin']), getCompanyPermissions);
+  
+  // Atualizar permissões de uma empresa (apenas admin)
+  router.put("/company-permissions/:companyId", authRequired, authorize(['admin']), updateCompanyPermissions);
+  
+  // Buscar configurações de uso de IA para company_admin
+  router.get("/settings/ai-usage", authRequired, authorize(['company_admin']), getAiUsageSettings);
+  
+  // Atualizar configurações de uso de IA para company_admin
+  router.put("/settings/ai-usage", authRequired, authorize(['company_admin']), updateAiUsageSettings);
+
+  // --- FIM DAS ROTAS DE PERMISSÕES ---
 
   // === NOVAS ROTAS PARA COMPANY_ADMIN ===
   
