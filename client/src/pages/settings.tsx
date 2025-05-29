@@ -400,8 +400,8 @@ export default function Settings() {
             </TabsTrigger>
           )}
           
-          {/* Aba IA - apenas para admin */}
-          {user?.role === 'admin' && (
+          {/* Aba IA - apenas para admin e company_admin */}
+          {(user?.role === 'admin' || user?.role === 'company_admin') && (
             <TabsTrigger value="ai" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
               <Brain className="mr-2 h-4 w-4" />
               IA
@@ -583,8 +583,8 @@ export default function Settings() {
           </TabsContent>
         )}
         
-        {/* Conteúdo da aba IA - apenas para admin */}
-        {user?.role === 'admin' && (
+        {/* Conteúdo da aba IA - apenas para admin e company_admin */}
+        {(user?.role === 'admin' || user?.role === 'company_admin') && (
           <TabsContent value="ai">
             <AiSettings />
           </TabsContent>

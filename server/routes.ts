@@ -3994,19 +3994,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // --- ROTAS DE IA ---
   
   // Listar configurações de IA
-  router.get("/ai-configurations", authRequired, adminRequired, getAiConfigurations);
+  router.get("/ai-configurations", authRequired, authorize(['admin', 'company_admin']), getAiConfigurations);
   
   // Criar nova configuração de IA
-  router.post("/ai-configurations", authRequired, adminRequired, createAiConfiguration);
+  router.post("/ai-configurations", authRequired, authorize(['admin', 'company_admin']), createAiConfiguration);
   
   // Atualizar configuração de IA
-  router.put("/ai-configurations/:id", authRequired, adminRequired, updateAiConfiguration);
+  router.put("/ai-configurations/:id", authRequired, authorize(['admin', 'company_admin']), updateAiConfiguration);
   
   // Deletar configuração de IA
-  router.delete("/ai-configurations/:id", authRequired, adminRequired, deleteAiConfiguration);
+  router.delete("/ai-configurations/:id", authRequired, authorize(['admin', 'company_admin']), deleteAiConfiguration);
   
   // Testar configuração de IA
-  router.post("/ai-configurations/test", authRequired, adminRequired, testAiConfiguration);
+  router.post("/ai-configurations/test", authRequired, authorize(['admin', 'company_admin']), testAiConfiguration);
 
   // --- FIM DAS ROTAS DE IA ---
 

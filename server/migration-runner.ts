@@ -1,35 +1,14 @@
 import { db } from './db';
 import { sql } from 'drizzle-orm';
 
-// Importar todas as migrações
-import * as migration20241228 from './migrations/20241228-fix-database-structure';
-import * as migration20241229 from './migrations/20241229-add-description-to-incident-types';
-import * as migration20241229Performance from './migrations/20241229-performance-indexes';
-
 interface Migration {
   id: string;
   up: () => Promise<void>;
   down: () => Promise<void>;
 }
 
-// Lista de todas as migrações em ordem cronológica
-const migrations: Migration[] = [
-  {
-    id: '20241228-fix-database-structure',
-    up: migration20241228.up,
-    down: migration20241228.down
-  },
-  {
-    id: '20241229-add-description-to-incident-types',
-    up: migration20241229.up,
-    down: migration20241229.down
-  },
-  {
-    id: '20241229-performance-indexes',
-    up: migration20241229Performance.up,
-    down: migration20241229Performance.down
-  }
-];
+// Lista vazia de migrações - todas foram removidas
+const migrations: Migration[] = [];
 
 // Criar tabela de controle de migrações se não existir
 async function ensureMigrationsTable() {
@@ -50,7 +29,7 @@ async function isMigrationExecuted(migrationName: string): Promise<boolean> {
     WHERE name = ${migrationName}
   `);
   
-  return result.rows[0]?.count > 0;
+  return (result.rows[0] as any)?.count > 0;
 }
 
 // Marcar migração como executada
@@ -63,50 +42,24 @@ async function markMigrationAsExecuted(migrationName: string) {
 
 // Executar todas as migrações pendentes
 export async function runMigrations() {
-  console.log('🔄 Verificando migrações pendentes...');
+  console.log('🔄 Verificando sistema de migrações...');
   
   try {
     // Garantir que a tabela de controle existe
     await ensureMigrationsTable();
     
-    let migrationsExecuted = 0;
-    
-    for (const migration of migrations) {
-      const isExecuted = await isMigrationExecuted(migration.id);
-      
-      if (!isExecuted) {
-        console.log(`📝 Executando migração: ${migration.id}`);
-        
-        try {
-          await migration.up();
-          await markMigrationAsExecuted(migration.id);
-          migrationsExecuted++;
-          
-          console.log(`✅ Migração ${migration.id} executada com sucesso`);
-        } catch (error) {
-          console.error(`❌ Erro ao executar migração ${migration.id}:`, error);
-          throw error;
-        }
-      } else {
-        console.log(`⏭️  Migração ${migration.id} já foi executada`);
-      }
-    }
-    
-    if (migrationsExecuted > 0) {
-      console.log(`🎉 ${migrationsExecuted} migração(ões) executada(s) com sucesso!`);
-    } else {
-      console.log('✅ Todas as migrações já estão atualizadas');
-    }
+    // Como não há migrações na lista, apenas confirmar que o sistema está pronto
+    console.log('✅ Sistema de migrações inicializado (nenhuma migração pendente)');
     
   } catch (error) {
-    console.error('❌ Erro durante a execução das migrações:', error);
-    throw error;
+    console.error('❌ Erro durante a inicialização do sistema de migrações:', error);
+    // Não lançar erro para não quebrar o startup
   }
 }
 
 // Reverter a última migração (para desenvolvimento/debug)
 export async function rollbackLastMigration() {
-  console.log('🔄 Revertendo última migração...');
+  console.log('🔄 Função de rollback disponível (nenhuma migração ativa)');
   
   try {
     await ensureMigrationsTable();
@@ -124,52 +77,39 @@ export async function rollbackLastMigration() {
       return;
     }
     
-    const lastMigrationName = result.rows[0].name;
-    const migration = migrations.find(m => m.id === lastMigrationName);
-    
-    if (!migration) {
-      console.error(`❌ Migração ${lastMigrationName} não encontrada no código`);
-      return;
-    }
-    
-    console.log(`📝 Revertendo migração: ${lastMigrationName}`);
-    
-    try {
-      await migration.down();
-      
-      // Remover da tabela de controle
-      await db.execute(sql`
-        DELETE FROM migrations 
-        WHERE name = ${lastMigrationName}
-      `);
-      
-      console.log(`✅ Migração ${lastMigrationName} revertida com sucesso`);
-    } catch (error) {
-      console.error(`❌ Erro ao reverter migração ${lastMigrationName}:`, error);
-      throw error;
-    }
+    const lastMigrationName = (result.rows[0] as any).name;
+    console.log(`ℹ️  Última migração registrada: ${lastMigrationName} (sem código de rollback disponível)`);
     
   } catch (error) {
-    console.error('❌ Erro durante a reversão da migração:', error);
-    throw error;
+    console.error('❌ Erro durante a verificação de rollback:', error);
   }
 }
 
 // Listar status das migrações
 export async function listMigrationStatus() {
-  console.log('📋 Status das migrações:');
+  console.log('📋 Sistema de migrações limpo - nenhuma migração ativa');
   
   try {
     await ensureMigrationsTable();
     
-    for (const migration of migrations) {
-      const isExecuted = await isMigrationExecuted(migration.id);
-      const status = isExecuted ? '✅ Executada' : '⏳ Pendente';
-      console.log(`  ${migration.id}: ${status}`);
+    // Verificar se há migrações antigas registradas
+    const result = await db.execute(sql`
+      SELECT name, executed_at 
+      FROM migrations 
+      ORDER BY executed_at DESC
+    `);
+    
+    if (result.rows.length > 0) {
+      console.log('📜 Migrações históricas encontradas:');
+      for (const row of result.rows) {
+        const migrationRow = row as any;
+        console.log(`  ${migrationRow.name}: executada em ${migrationRow.executed_at}`);
+      }
+    } else {
+      console.log('📋 Nenhuma migração registrada no histórico');
     }
     
   } catch (error) {
     console.error('❌ Erro ao listar status das migrações:', error);
-    throw error;
   }
 } 

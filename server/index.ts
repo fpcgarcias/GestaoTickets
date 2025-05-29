@@ -1,29 +1,5 @@
 import "./loadEnv"; // Importar PRIMEIRO para carregar variáveis de ambiente
 
-// Carregar variáveis de ambiente PRIMEIRO!
-// import dotenv from "dotenv"; // Movido para loadEnv.ts
-// import path from "path"; // Movido para loadEnv.ts
-
-// Determinar o caminho para o arquivo .env na raiz do projeto
-// const envPath = path.resolve(process.cwd(), '.env'); // Movido para loadEnv.ts
-// console.log(`[index.ts] Tentando carregar .env de: ${envPath}`); // Movido para loadEnv.ts
-// const dotenvResult = dotenv.config({ path: envPath }); // Movido para loadEnv.ts
-
-// if (dotenvResult.error) {
-//   console.error('[index.ts] Erro ao carregar .env:', dotenvResult.error); // Movido para loadEnv.ts
-// } else {
-//   console.log('[index.ts] .env carregado com sucesso.'); // Movido para loadEnv.ts
-//   if (dotenvResult.parsed) {
-//     console.log('[index.ts] Variáveis carregadas do .env:', Object.keys(dotenvResult.parsed)); // Movido para loadEnv.ts
-//   }
-// }
-
-// --- DEBUG --- 
-// console.log('DEBUG: Após dotenv.config()');
-// console.log('DEBUG: DATABASE_URL:', process.env.DATABASE_URL);
-// console.log('DEBUG: PORT:', process.env.PORT);
-// --- FIM DEBUG ---
-
 import express, { type Request, Response, NextFunction } from "express";
 import { setupVite, serveStatic, log } from "./vite";
 import session from "express-session";
@@ -228,15 +204,12 @@ async function startServer() {
     console.log("🔧 Verificando estrutura do banco de dados...");
     await runMigrations();
     
-    // Executar migrações antigas (se necessário)
-    await migrate();
-    
     // Continuar com o código de inicialização do servidor
     console.log("Iniciando o servidor...");
     
     // Importar dinamicamente DEPOIS de dotenv.config()
     const { registerRoutes } = await import("./routes");
-    const { migratePasswords } = await import("./migrate-passwords");
+    const { migratePasswords } = await import("./utils/password-migration");
 
     // 1. Registrar rotas da API e obter o servidor HTTP configurado
     const server = await registerRoutes(app);
@@ -244,7 +217,7 @@ async function startServer() {
     // 2. Configurar o Vite DEPOIS das rotas da API
     await setupVite(app, server);
     
-    // 3. Executar migrações de senhas (se necessário)
+    // 3. Executar criptografia de senhas (se necessário)
     await migratePasswords();
     
     // 4. Inicializar scheduler para verificações automáticas
