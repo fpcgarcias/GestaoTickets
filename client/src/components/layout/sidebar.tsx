@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Usar o nome da empresa dos dados do usuário logado
-  const companyName = user?.company?.name || 'Ticket Flow';
+  const companyName = user?.company?.name || 'Ticket Wise';
   
   // Definir itens de navegação com base no papel do usuário
   const navItems = [

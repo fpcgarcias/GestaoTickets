@@ -3,6 +3,8 @@ import { sql } from 'drizzle-orm';
 
 // Importar todas as migrações
 import * as migration20241228 from './migrations/20241228-fix-database-structure';
+import * as migration20241229 from './migrations/20241229-add-description-to-incident-types';
+import * as migration20241229Performance from './migrations/20241229-performance-indexes';
 
 interface Migration {
   id: string;
@@ -16,6 +18,16 @@ const migrations: Migration[] = [
     id: '20241228-fix-database-structure',
     up: migration20241228.up,
     down: migration20241228.down
+  },
+  {
+    id: '20241229-add-description-to-incident-types',
+    up: migration20241229.up,
+    down: migration20241229.down
+  },
+  {
+    id: '20241229-performance-indexes',
+    up: migration20241229Performance.up,
+    down: migration20241229Performance.down
   }
 ];
 

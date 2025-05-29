@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, FolderIcon, Search } from 'lucide-react';
+import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, FolderIcon, Search, Building2 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { Department } from '@shared/schema';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -362,8 +362,13 @@ const DepartmentManagement: React.FC = () => {
                     <TableCell className="font-medium">{dept.name}</TableCell>
                     <TableCell className="max-w-xs truncate">{dept.description || "—"}</TableCell>
                     {user?.role === 'admin' && (
-                      <TableCell className="font-medium">
-                        {(dept as any).company?.name || "—"}
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-neutral-500" />
+                          <span className="text-sm text-neutral-600">
+                            {(dept as any).company?.name || 'Sistema Global'}
+                          </span>
+                        </div>
                       </TableCell>
                     )}
                     <TableCell>

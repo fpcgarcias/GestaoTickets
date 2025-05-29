@@ -36,6 +36,8 @@ const migrations = [
   '20241226-fix-officials-department-field',
   '20241227-create-ticket-attachments-table',
   '20241227-create-email-templates-table',
+  '20241229-add-description-to-incident-types',
+  '20241229-performance-indexes',
 ];
 
 // Função para verificar quais migrações ainda não foram executadas

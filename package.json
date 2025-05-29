@@ -96,6 +96,8 @@
     "tailwindcss-animate": "^1.0.7",
     "tw-animate-css": "^1.2.5",
     "vaul": "^1.1.2",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^5.0.0",
     "wouter": "^3.7.0",
     "ws": "^8.18.0",
     "xss": "^1.0.15",

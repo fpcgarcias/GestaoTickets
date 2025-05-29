@@ -1,4 +1,4 @@
-# Sistema de Gestão de Chamados - Ticket Flow
+# Sistema de Gestão de Chamados - Ticket Wise
 
 ## Visão Geral
 

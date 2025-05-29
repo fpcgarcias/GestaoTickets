@@ -9,7 +9,7 @@ export interface SystemSettings {
 
 // Valores padrão para as configurações do sistema
 const defaultSettings: SystemSettings = {
-  companyName: 'Ticket Flow',
+  companyName: 'Ticket Wise',
   supportEmail: 'suporte@ticketflow.com.br',
   allowCustomerRegistration: true
 };

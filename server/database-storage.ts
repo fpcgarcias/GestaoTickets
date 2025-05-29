@@ -110,11 +110,40 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getActiveUsers(): Promise<User[]> {
-    return db.select().from(users).where(eq(users.active, true));
+    const activeUsersWithCompanies = await db
+      .select({
+        user: users,
+        company: {
+          id: companies.id,
+          name: companies.name,
+        }
+      })
+      .from(users)
+      .leftJoin(companies, eq(users.company_id, companies.id))
+      .where(eq(users.active, true));
+    
+    return activeUsersWithCompanies.map(({ user, company }) => ({
+      ...user,
+      company: company && company.id ? company : null
+    }));
   }
   
   async getAllUsers(): Promise<User[]> {
-    return db.select().from(users);
+    const usersWithCompanies = await db
+      .select({
+        user: users,
+        company: {
+          id: companies.id,
+          name: companies.name,
+        }
+      })
+      .from(users)
+      .leftJoin(companies, eq(users.company_id, companies.id));
+    
+    return usersWithCompanies.map(({ user, company }) => ({
+      ...user,
+      company: company && company.id ? company : null
+    }));
   }
 
   // Company operations
@@ -165,11 +194,15 @@ export class DatabaseStorage implements IStorage {
 
   // Official operations
   async getOfficials(): Promise<Official[]> {
-    // Buscar todos os oficiais com informações de usuário, supervisor e manager
+    // Buscar todos os oficiais com informações de usuário, supervisor, manager e empresa
     const allOfficials = await db
       .select({
         official: officials,
         user: users,
+        company: {
+          id: companies.id,
+          name: companies.name,
+        },
         supervisor: {
           id: sql<number>`supervisor.id`,
           name: sql<string>`supervisor.name`,
@@ -183,14 +216,16 @@ export class DatabaseStorage implements IStorage {
       })
       .from(officials)
       .leftJoin(users, eq(officials.user_id, users.id))
+      .leftJoin(companies, eq(officials.company_id, companies.id))
       .leftJoin(sql`officials supervisor`, eq(officials.supervisor_id, sql`supervisor.id`))
       .leftJoin(sql`officials manager`, eq(officials.manager_id, sql`manager.id`));
     
     // Transformar o resultado em um formato mais amigável
-    const mappedOfficials = allOfficials.map(({ official, user, supervisor, manager }) => {
+    const mappedOfficials = allOfficials.map(({ official, user, company, supervisor, manager }) => {
       return {
         ...official,
         user: user || undefined,
+        company: company && company.id ? company : null,
         supervisor: supervisor.id ? supervisor : undefined,
         manager: manager.id ? manager : undefined,
       };

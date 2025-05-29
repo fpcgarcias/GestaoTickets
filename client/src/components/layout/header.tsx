@@ -25,7 +25,7 @@ export const Header: React.FC = () => {
   const { user, logout } = useAuth();
   
   // Usar o nome da empresa dos dados do usuário logado
-  const companyName = user?.company?.name || 'Ticket Flow';
+  const companyName = user?.company?.name || 'Ticket Wise';
   
   // Use dados do usuário autenticado ou valores padrão
   const currentUser = user || {

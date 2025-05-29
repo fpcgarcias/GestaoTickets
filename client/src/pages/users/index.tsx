@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   Search, Key, Pencil, Loader2, Copy, AlertTriangle, 
-  User, Check, X, UserCog, UserCheck, UserX, Shield, Save
+  User, Check, X, UserCog, UserCheck, UserX, Shield, Save, Building2
 } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -22,9 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function UsersIndex() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -276,6 +278,7 @@ export default function UsersIndex() {
                   <TableHead>Nome de usuário</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Perfil</TableHead>
+                  {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -288,30 +291,41 @@ export default function UsersIndex() {
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                      {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
                       <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                     </TableRow>
                   ))
                 ) : filteredUsers && filteredUsers.length > 0 ? (
-                  filteredUsers.map((user: any) => (
-                    <TableRow key={user.id} className={!user.active ? "opacity-60" : ""}>
-                      <TableCell>{user.name}</TableCell>
-                      <TableCell>{user.username}</TableCell>
-                      <TableCell>{user.email}</TableCell>
+                  filteredUsers.map((userItem: any) => (
+                    <TableRow key={userItem.id} className={!userItem.active ? "opacity-60" : ""}>
+                      <TableCell>{userItem.name}</TableCell>
+                      <TableCell>{userItem.username}</TableCell>
+                      <TableCell>{userItem.email}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-normal">
-                          {user.role === 'admin' ? <Shield className="h-3 w-3 mr-1" /> : 
-                           user.role === 'support' ? <UserCog className="h-3 w-3 mr-1" /> : 
+                          {userItem.role === 'admin' ? <Shield className="h-3 w-3 mr-1" /> : 
+                           userItem.role === 'support' ? <UserCog className="h-3 w-3 mr-1" /> : 
                            <User className="h-3 w-3 mr-1" />}
-                          {getRoleText(user.role)}
+                          {getRoleText(userItem.role)}
                         </Badge>
                       </TableCell>
+                      {user?.role === 'admin' && (
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-neutral-500" />
+                            <span className="text-sm text-neutral-600">
+                              {userItem.company?.name || 'Sistema Global'}
+                            </span>
+                          </div>
+                        </TableCell>
+                      )}
                       <TableCell>
                         <Badge 
-                          variant={user.active ? "default" : "outline"}
-                          className={user.active ? "bg-green-500 hover:bg-green-500/80" : "text-neutral-500"}
+                          variant={userItem.active ? "default" : "outline"}
+                          className={userItem.active ? "bg-green-500 hover:bg-green-500/80" : "text-neutral-500"}
                         >
-                          {user.active ? "Ativo" : "Inativo"}
+                          {userItem.active ? "Ativo" : "Inativo"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -319,7 +333,7 @@ export default function UsersIndex() {
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            onClick={() => handleEditUser(user)}
+                            onClick={() => handleEditUser(userItem)}
                             title="Editar usuário"
                           >
                             <Pencil className="h-3.5 w-3.5" />
@@ -327,19 +341,19 @@ export default function UsersIndex() {
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            onClick={() => handleResetPassword(user)}
+                            onClick={() => handleResetPassword(userItem)}
                             title="Redefinir senha"
                           >
                             <Key className="h-3.5 w-3.5" />
                           </Button>
                           <Button 
-                            variant={user.active ? "destructive" : "default"} 
+                            variant={userItem.active ? "destructive" : "default"} 
                             size="sm"
-                            className={user.active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
-                            onClick={() => handleStatusChange(user)}
-                            title={user.active ? "Desativar usuário" : "Ativar usuário"}
+                            className={userItem.active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
+                            onClick={() => handleStatusChange(userItem)}
+                            title={userItem.active ? "Desativar usuário" : "Ativar usuário"}
                           >
-                            {user.active ? 
+                            {userItem.active ? 
                               <UserX className="h-3.5 w-3.5" /> : 
                               <UserCheck className="h-3.5 w-3.5" />}
                           </Button>
@@ -349,7 +363,7 @@ export default function UsersIndex() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10 text-neutral-500">
+                    <TableCell colSpan={user?.role === 'admin' ? 7 : 6} className="text-center py-10 text-neutral-500">
                       Nenhum usuário encontrado.
                     </TableCell>
                   </TableRow>

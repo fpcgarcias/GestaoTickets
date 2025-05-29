@@ -2,7 +2,7 @@
 const THEMES = {
   // Tema padrão (atual do sistema)
   default: {
-    name: 'Ticket Flow',
+    name: 'Ticket Wise',
     colors: {
       '--primary': '262 83% 58%',
       '--primary-foreground': '210 20% 98%',
@@ -91,7 +91,7 @@ function applyTheme(themeName: keyof typeof THEMES) {
   });
   
   // Atualizar o título da página se necessário
-  if (theme.name !== 'Ticket Flow') {
+  if (theme.name !== 'Ticket Wise') {
     document.title = `${theme.name} - Sistema de Gestão de Chamados`;
   }
 }
@@ -108,7 +108,7 @@ export function initializeTheme() {
 
 // Função para obter o nome da empresa atual (para usar no header, etc.)
 export function getCurrentCompanyName(): string {
-  if (typeof window === 'undefined') return 'Ticket Flow';
+  if (typeof window === 'undefined') return 'Ticket Wise';
   
   const detectedTheme = detectThemeFromDomain();
   return THEMES[detectedTheme].name;

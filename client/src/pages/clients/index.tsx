@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, UserPlus, Pencil, UserX, UserCheck } from 'lucide-react';
+import { Search, UserPlus, Pencil, UserX, UserCheck, Building2 } from 'lucide-react';
 import { Customer } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -189,7 +189,16 @@ export default function ClientsIndex() {
                         <TableCell className="font-medium">{client.name}</TableCell>
                         <TableCell>{client.email}</TableCell>
                         <TableCell>{client.phone || '-'}</TableCell>
-                        {user?.role === 'admin' && <TableCell>{client.company || '-'}</TableCell>}
+                        {user?.role === 'admin' && (
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-neutral-500" />
+                              <span className="text-sm text-neutral-600">
+                                {client.company || 'Sistema Global'}
+                              </span>
+                            </div>
+                          </TableCell>
+                        )}
                         <TableCell>
                           <Badge 
                             variant={isActive ? "default" : "outline"}
@@ -224,7 +233,7 @@ export default function ClientsIndex() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10 text-neutral-500">
+                    <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-neutral-500">
                       Nenhum cliente encontrado. Adicione seu primeiro cliente para começar.
                     </TableCell>
                   </TableRow>

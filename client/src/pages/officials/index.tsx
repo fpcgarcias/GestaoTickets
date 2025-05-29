@@ -17,7 +17,8 @@ import {
   UserX,
   Shield,
   User,
-  AlertTriangle
+  AlertTriangle,
+  Building2
 } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from '@tanstack/react-query';
@@ -27,6 +28,7 @@ import { EditOfficialDialog } from './edit-official-dialog';
 import { ToggleStatusOfficialDialog } from '@/pages/officials/toggle-status-official-dialog';
 import { Official } from '@shared/schema';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/use-auth';
 
 // Estendendo a interface Official para incluir o user com username
 interface OfficialWithUser extends Official {
@@ -38,6 +40,7 @@ interface OfficialWithUser extends Official {
 }
 
 export default function OfficialsIndex() {
+  const { user } = useAuth();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -169,6 +172,7 @@ export default function OfficialsIndex() {
                   <TableHead>Departamento</TableHead>
                   <TableHead>Supervisor</TableHead>
                   <TableHead>Manager</TableHead>
+                  {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
                   <TableHead>Status</TableHead>
                   <TableHead>Tickets Atribuídos</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -184,6 +188,7 @@ export default function OfficialsIndex() {
                       <TableCell><Skeleton className="h-5 w-28" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
@@ -252,6 +257,16 @@ export default function OfficialsIndex() {
                             <span className="text-sm text-neutral-400">-</span>
                           )}
                         </TableCell>
+                        {user?.role === 'admin' && (
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-neutral-500" />
+                              <span className="text-sm text-neutral-600">
+                                {(official as any).company?.name || 'Sistema Global'}
+                              </span>
+                            </div>
+                          </TableCell>
+                        )}
                         <TableCell>
                           {official.is_active ? (
                             <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">
@@ -301,7 +316,7 @@ export default function OfficialsIndex() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-10 text-neutral-500">
+                    <TableCell colSpan={user?.role === 'admin' ? 10 : 9} className="text-center py-10 text-neutral-500">
                       Nenhum atendente encontrado. Adicione seu primeiro membro de equipe para começar.
                     </TableCell>
                   </TableRow>

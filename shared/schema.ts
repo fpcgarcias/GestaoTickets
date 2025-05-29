@@ -173,6 +173,7 @@ export const incidentTypes = pgTable("incident_types", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   value: text("value").notNull(),
+  description: text("description"),
   department_id: integer("department_id"),
   company_id: integer("company_id").references(() => companies.id),
   created_at: timestamp("created_at").defaultNow().notNull(),
@@ -543,7 +544,9 @@ export type SLADefinition = typeof slaDefinitions.$inferSelect;
 
 export type SystemSetting = typeof systemSettings.$inferSelect;
 
-export type IncidentType = typeof incidentTypes.$inferSelect;
+export type IncidentType = typeof incidentTypes.$inferSelect & {
+  company?: Partial<Company>;
+};
 
 export type Department = typeof departments.$inferSelect & {
   company?: Partial<Company>;
@@ -639,6 +642,18 @@ export const ticketTypesRelations = relations(ticketTypes, ({ one }) => ({
   }),
   company: one(companies, {
     fields: [ticketTypes.company_id],
+    references: [companies.id],
+  }),
+}));
+
+// Relações para a tabela de tipos de incidentes
+export const incidentTypesRelations = relations(incidentTypes, ({ one }) => ({
+  department: one(departments, {
+    fields: [incidentTypes.department_id],
+    references: [departments.id],
+  }),
+  company: one(companies, {
+    fields: [incidentTypes.company_id],
     references: [companies.id],
   }),
 }));

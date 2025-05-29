@@ -6,9 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, FolderIcon, Search, Filter } from 'lucide-react';
+import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, FolderIcon, Search, Filter, Building2 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
-import { Department, TicketType } from '@shared/schema';
+import { Department, IncidentType } from '@shared/schema';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -85,7 +85,7 @@ const TicketTypeManagement: React.FC = () => {
     data: ticketTypes = [], 
     isLoading: isLoadingTicketTypes,
     error: ticketTypesError,
-  } = useQuery<TicketType[]>({
+  } = useQuery<IncidentType[]>({
     queryKey: ['/incident-types', { department_id: selectedDepartmentId, active_only: !includeInactive }],
     queryFn: async ({ queryKey }) => {
       const [_, params] = queryKey as [string, { department_id?: number, active_only: boolean }];
@@ -257,7 +257,7 @@ const TicketTypeManagement: React.FC = () => {
   };
 
   // Abrir formulário para edição
-  const handleEdit = (ticketType: TicketType) => {
+  const handleEdit = (ticketType: IncidentType) => {
     setCurrentTicketType({
       id: ticketType.id,
       name: ticketType.name,
@@ -272,7 +272,7 @@ const TicketTypeManagement: React.FC = () => {
   };
 
   // Confirmar exclusão
-  const handleDelete = (ticketType: TicketType) => {
+  const handleDelete = (ticketType: IncidentType) => {
     setCurrentTicketType({
       id: ticketType.id,
       name: ticketType.name,
@@ -425,6 +425,7 @@ const TicketTypeManagement: React.FC = () => {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Departamento</TableHead>
+                {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
                 <TableHead>Descrição</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -436,6 +437,7 @@ const TicketTypeManagement: React.FC = () => {
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
                     <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
@@ -443,13 +445,13 @@ const TicketTypeManagement: React.FC = () => {
                 ))
               ) : ticketTypesError ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10 text-red-500">
+                  <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-red-500">
                     Erro ao carregar tipos de chamado. Tente novamente mais tarde.
                   </TableCell>
                 </TableRow>
               ) : filteredTicketTypes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10 text-neutral-500">
+                  <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-neutral-500">
                     Nenhum tipo de chamado encontrado.
                   </TableCell>
                 </TableRow>
@@ -460,6 +462,16 @@ const TicketTypeManagement: React.FC = () => {
                     <TableCell>
                       {departments.find(d => d.id === type.department_id)?.name || "—"}
                     </TableCell>
+                    {user?.role === 'admin' && (
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-neutral-500" />
+                          <span className="text-sm text-neutral-600">
+                            {type.company?.name || 'Sistema Global'}
+                          </span>
+                        </div>
+                      </TableCell>
+                    )}
                     <TableCell className="max-w-xs truncate">{type.description || "—"}</TableCell>
                     <TableCell>
                       {(type.is_active === undefined || type.is_active) ? (

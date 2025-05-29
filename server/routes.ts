@@ -37,6 +37,12 @@ import {
   logSecurityEvent
 } from './api/security-monitoring';
 
+// === IMPORTS DE PERFORMANCE ===
+import { performanceMiddleware, performanceStatsHandler } from './middleware/performance';
+
+// === IMPORTS DE LOGGING ===
+import { logger, logPerformance, logSecurity } from './services/logger';
+
 // Importações para o sistema de IA
 import { AiService } from './services/ai-service';
 import { 
@@ -313,6 +319,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   } else {
     console.log('🔧 Middlewares de segurança DESABILITADOS em desenvolvimento');
   }
+  
+  // === APLICAR MIDDLEWARE DE PERFORMANCE ===
+  router.use(performanceMiddleware); // Monitoramento de performance em todas as rotas
   
   // Nova rota para diagnóstico de extração de email do AD (admin)
   router.get("/auth/test-ad-email", async (req: Request, res: Response) => {
@@ -900,7 +909,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         company_id: companyId || undefined // ✅ USAR O COMPANY_ID DO CLIENTE
       });
 
-      console.log(`[DEBUG createTicket] Ticket criado: ID ${ticket.id}, Customer ID: ${customerId}, Company ID: ${companyId}, Email: ${ticketData.customer_email}, Prioridade: ${finalPriority} ${aiAnalyzed ? '(IA)' : '(manual)'}`);
+      logger.info('Ticket criado com sucesso', {
+        ticketId: ticket.id,
+        customerId,
+        companyId,
+        email: ticketData.customer_email,
+        priority: finalPriority,
+        aiAnalyzed,
+        operation: 'create_ticket'
+      });
 
       // 📝 SALVAR HISTÓRICO DA ANÁLISE DE IA (se foi analisada)
       if (aiAnalyzed && companyId) {
@@ -1812,7 +1829,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Adicionar a informação da empresa ao objeto do usuário para retornar ao cliente
       if (company) {
         // 🎯 BUSCAR O NOME DA EMPRESA DAS CONFIGURAÇÕES DO SISTEMA - SEM FALLBACK!
-        const configuredCompanyName = await getSystemSetting('companyName', 'Ticket Flow', company.id);
+        const configuredCompanyName = await getSystemSetting('companyName', 'Ticket Wise', company.id);
         console.log('✅ [LOGIN] Nome da empresa das configurações:', configuredCompanyName);
         
         return res.json({
@@ -2147,7 +2164,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         
         if (companyData) {
           // 🎯 BUSCAR O NOME DA EMPRESA DAS CONFIGURAÇÕES DO SISTEMA - SEM FALLBACK!
-          const configuredCompanyName = await getSystemSetting('companyName', 'Ticket Flow', req.session.companyId);
+          const configuredCompanyName = await getSystemSetting('companyName', 'Ticket Wise', req.session.companyId);
           
           const userWithCompany = {
             ...user,
@@ -2286,23 +2303,43 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(400).json({ message: "Usuário sem empresa associada" });
       }
       
-      let query = db
-        .select()
-        .from(schema.incidentTypes);
+      const userRole = req.session?.userRole as string;
       
-      // Se não for admin, filtrar pela empresa
-      if ((req.session.userRole as string) !== 'admin' && req.session.companyId) {
-        query = query.where(
-          or( // Adicionado OR para incluir globais (company_id IS NULL)
-             isNull(schema.incidentTypes.company_id),
-             eq(schema.incidentTypes.company_id, req.session.companyId)
-          )
-        ) as typeof query;
+      // Se for admin, incluir informações da empresa
+      if (userRole === 'admin') {
+        const incidentTypes = await db.query.incidentTypes.findMany({
+          orderBy: [schema.incidentTypes.id],
+          with: {
+            company: {
+              columns: {
+                id: true,
+                name: true,
+              }
+            }
+          }
+        });
+        
+        return res.json(incidentTypes);
+      } else {
+        // Para outros usuários, buscar sem informações da empresa
+        let query = db
+          .select()
+          .from(schema.incidentTypes);
+        
+        // Se não for admin, filtrar pela empresa
+        if (req.session.companyId) {
+          query = query.where(
+            or( // Adicionado OR para incluir globais (company_id IS NULL)
+               isNull(schema.incidentTypes.company_id),
+               eq(schema.incidentTypes.company_id, req.session.companyId)
+            )
+          ) as typeof query;
+        }
+        
+        const incidentTypes = await query.orderBy(schema.incidentTypes.id);
+        
+        return res.json(incidentTypes);
       }
-      
-      const incidentTypes = await query.orderBy(schema.incidentTypes.id);
-      
-      return res.json(incidentTypes);
     } catch (error) {
       console.error('Erro ao obter tipos de incidentes para usuário:', error);
       res.status(500).json({ message: "Falha ao buscar tipos de incidentes", error: String(error) });
@@ -2316,7 +2353,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     authorize(['admin', 'manager', 'company_admin']),
     async (req: Request, res: Response) => {
       try {
-        const { name, value, department_id, company_id: company_id_from_body, is_active } = req.body;
+        const { name, value, description, department_id, company_id: company_id_from_body, is_active } = req.body;
         const userRole = req.session.userRole as string;
         const sessionCompanyId = req.session.companyId;
 
@@ -2382,6 +2419,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           .values({
             name,
             value,
+            description: description || null,
             department_id,
             company_id: effectiveCompanyId,
             is_active: is_active !== undefined ? is_active : true,
@@ -2934,13 +2972,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           return res.status(400).json({ message: "ID de tipo de chamado inválido." });
         }
 
-        const { name, value, department_id, company_id: new_company_id_from_body, is_active } = req.body;
+        const { name, value, description, department_id, company_id: new_company_id_from_body, is_active } = req.body;
         const userRole = req.session.userRole as string;
         const sessionCompanyId = req.session.companyId; // This is number | undefined
 
         const updatePayload: any = { updated_at: new Date() };
         if (name !== undefined) updatePayload.name = name;
         if (value !== undefined) updatePayload.value = value;
+        if (description !== undefined) updatePayload.description = description;
         if (department_id !== undefined) updatePayload.department_id = department_id;
         if (is_active !== undefined) updatePayload.is_active = is_active;
 
@@ -3923,6 +3962,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   
   // Estatísticas do sistema (apenas admin)
   router.get("/security/stats", authRequired, adminRequired, getSystemStats);
+  
+  // Estatísticas de performance (apenas admin)
+  router.get("/performance/stats", authRequired, adminRequired, performanceStatsHandler);
   
   // Limpar logs de segurança (apenas admin)
   router.post("/security/clear-logs", authRequired, adminRequired, clearSecurityLogs);
