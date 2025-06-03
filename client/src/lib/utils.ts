@@ -28,6 +28,12 @@ export function generateTicketId(): string {
 export const TICKET_STATUS = {
   NEW: 'new',
   ONGOING: 'ongoing',
+  SUSPENDED: 'suspended',
+  WAITING_CUSTOMER: 'waiting_customer',
+  ESCALATED: 'escalated',
+  IN_ANALYSIS: 'in_analysis',
+  PENDING_DEPLOYMENT: 'pending_deployment',
+  REOPENED: 'reopened',
   RESOLVED: 'resolved'
 };
 
@@ -46,8 +52,14 @@ export const PRIORITY_COLORS = {
 };
 
 export const STATUS_COLORS = {
-  [TICKET_STATUS.NEW]: 'bg-amber-100 text-amber-800',
-  [TICKET_STATUS.ONGOING]: 'bg-blue-100 text-blue-800',
+  [TICKET_STATUS.NEW]: 'bg-blue-100 text-blue-800',
+  [TICKET_STATUS.ONGOING]: 'bg-yellow-100 text-yellow-800',
+  [TICKET_STATUS.SUSPENDED]: 'bg-orange-100 text-orange-800',
+  [TICKET_STATUS.WAITING_CUSTOMER]: 'bg-purple-100 text-purple-800',
+  [TICKET_STATUS.ESCALATED]: 'bg-red-100 text-red-800',
+  [TICKET_STATUS.IN_ANALYSIS]: 'bg-indigo-100 text-indigo-800',
+  [TICKET_STATUS.PENDING_DEPLOYMENT]: 'bg-cyan-100 text-cyan-800',
+  [TICKET_STATUS.REOPENED]: 'bg-pink-100 text-pink-800',
   [TICKET_STATUS.RESOLVED]: 'bg-green-100 text-green-800'
 };
 
@@ -71,19 +83,21 @@ export const PERIOD_OPTIONS = [
   { value: 'custom', label: 'Período Personalizado' }
 ];
 
-// Função para traduzir status para português brasileiro
+// Função para traduzir status de tickets para português
 export function translateTicketStatus(status: string): string {
-  const statusTranslations: Record<string, string> = {
+  const translations: Record<string, string> = {
     'new': 'Novo',
-    'ongoing': 'Em Andamento', 
-    'resolved': 'Resolvido',
-    'in_progress': 'Em Andamento',
-    'closed': 'Fechado',
-    'cancelled': 'Cancelado',
-    'pending': 'Pendente'
+    'ongoing': 'Em Andamento',
+    'suspended': 'Suspenso',
+    'waiting_customer': 'Aguardando Cliente',
+    'escalated': 'Escalado',
+    'in_analysis': 'Em Análise',
+    'pending_deployment': 'Aguardando Deploy',
+    'reopened': 'Reaberto',
+    'resolved': 'Resolvido'
   };
   
-  return statusTranslations[status] || status;
+  return translations[status] || status;
 }
 
 // 🆕 Funções para formatação de CNPJ

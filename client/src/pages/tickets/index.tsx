@@ -37,10 +37,10 @@ export default function TicketsIndex() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState('this-week');
-  const [priorityFilter, setPriorityFilter] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [departmentFilter, setDepartmentFilter] = useState('');
-  const [assignedToFilter, setAssignedToFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [assignedToFilter, setAssignedToFilter] = useState('all');
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ 
     from: undefined, 
     to: undefined 
@@ -324,7 +324,7 @@ export default function TicketsIndex() {
           )}
         </div>
 
-        {/* Segunda linha: Filtros de Prioridade, Departamento e Atendente */}
+        {/* Segunda linha: Filtros de Prioridade, Departamento, Status e Atendente */}
         <div className="flex flex-wrap items-center gap-4">
           <Select
             value={priorityFilter}
@@ -362,6 +362,28 @@ export default function TicketsIndex() {
             </SelectContent>
           </Select>
 
+          {/* ✅ Filtro de Status */}
+          <Select
+            value={statusFilter}
+            onValueChange={setStatusFilter}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Todos os Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Status</SelectItem>
+              <SelectItem value="new">🆕 Novo</SelectItem>
+              <SelectItem value="ongoing">⚡ Em Andamento</SelectItem>
+              <SelectItem value="suspended">⏸️ Suspenso</SelectItem>
+              <SelectItem value="waiting_customer">⏳ Aguardando Cliente</SelectItem>
+              <SelectItem value="escalated">🚨 Escalado</SelectItem>
+              <SelectItem value="in_analysis">🔍 Em Análise</SelectItem>
+              <SelectItem value="pending_deployment">🚀 Aguardando Deploy</SelectItem>
+              <SelectItem value="reopened">🔄 Reaberto</SelectItem>
+              <SelectItem value="resolved">✅ Resolvido</SelectItem>
+            </SelectContent>
+          </Select>
+
           {/* 🆕 Filtro de Atendente */}
           <Select
             value={assignedToFilter}
@@ -385,7 +407,7 @@ export default function TicketsIndex() {
         </div>
       </div>
 
-      {/* Status Tabs */}
+      {/* Status Tabs - Mantido para navegação rápida */}
       <Tabs 
         defaultValue="all" 
         value={statusFilter}
@@ -397,34 +419,25 @@ export default function TicketsIndex() {
             Todos os Chamados
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.NEW} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            Novos
+            🆕 Novos
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.ONGOING} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            Em Andamento
+            ⚡ Em Andamento
+          </TabsTrigger>
+          <TabsTrigger value={TICKET_STATUS.SUSPENDED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
+            ⏸️ Suspensos
+          </TabsTrigger>
+          <TabsTrigger value={TICKET_STATUS.WAITING_CUSTOMER} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
+            ⏳ Aguardando Cliente
+          </TabsTrigger>
+          <TabsTrigger value={TICKET_STATUS.ESCALATED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
+            🚨 Escalados
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.RESOLVED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            Resolvidos
+            ✅ Resolvidos
           </TabsTrigger>
         </TabsList>
       </Tabs>
-
-      {/* Status Legend */}
-      <div className="mb-6 bg-white p-4 rounded-md border border-neutral-200 shadow-sm">
-        <div className="flex flex-wrap gap-4">
-          <div className="flex items-center">
-            <div className="w-3 h-3 rounded-full bg-amber-500 mr-2"></div>
-            <span className="text-sm text-neutral-700">Chamados Novos</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-            <span className="text-sm text-neutral-700">Chamados em Andamento</span>
-          </div>
-          <div className="flex items-center">
-            <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-            <span className="text-sm text-neutral-700">Chamados Resolvidos</span>
-          </div>
-        </div>
-      </div>
 
       {/* Ticket Cards */}
       <div className="space-y-4">

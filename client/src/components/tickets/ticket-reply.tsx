@@ -31,6 +31,7 @@ import { Loader2 } from 'lucide-react';
 import { z } from 'zod';
 import { FileUpload } from './file-upload';
 import { useAuth } from '@/hooks/use-auth';
+import { getStatusConfig, type TicketStatus } from '@shared/ticket-utils';
 
 interface TicketReplyFormProps {
   ticket: Ticket;
@@ -238,12 +239,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                     {isCustomer ? (
                       // Para clientes: campo somente-leitura mostrando o status atual
                       <Input 
-                        value={
-                          ticket.status === 'new' ? '🟡 Novo' :
-                          ticket.status === 'ongoing' ? '🔵 Em Andamento' :
-                          ticket.status === 'resolved' ? '🟢 Resolvido' :
-                          ticket.status
-                        }
+                        value={getStatusConfig(ticket.status as TicketStatus).label}
                         readOnly 
                         className="bg-neutral-50"
                       />
@@ -259,9 +255,33 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value={TICKET_STATUS.NEW}>🟡 Novo</SelectItem>
-                          <SelectItem value={TICKET_STATUS.ONGOING}>🔵 Em Andamento</SelectItem>
-                          <SelectItem value={TICKET_STATUS.RESOLVED}>🟢 Resolvido</SelectItem>
+                          <SelectItem value={TICKET_STATUS.NEW}>
+                            {getStatusConfig('new').icon} {getStatusConfig('new').label}
+                          </SelectItem>
+                          <SelectItem value={TICKET_STATUS.ONGOING}>
+                            {getStatusConfig('ongoing').icon} {getStatusConfig('ongoing').label}
+                          </SelectItem>
+                          <SelectItem value={TICKET_STATUS.SUSPENDED}>
+                            {getStatusConfig('suspended').icon} {getStatusConfig('suspended').label}
+                          </SelectItem>
+                          <SelectItem value={TICKET_STATUS.WAITING_CUSTOMER}>
+                            {getStatusConfig('waiting_customer').icon} {getStatusConfig('waiting_customer').label}
+                          </SelectItem>
+                          <SelectItem value={TICKET_STATUS.ESCALATED}>
+                            {getStatusConfig('escalated').icon} {getStatusConfig('escalated').label}
+                          </SelectItem>
+                          <SelectItem value={TICKET_STATUS.IN_ANALYSIS}>
+                            {getStatusConfig('in_analysis').icon} {getStatusConfig('in_analysis').label}
+                          </SelectItem>
+                          <SelectItem value={TICKET_STATUS.PENDING_DEPLOYMENT}>
+                            {getStatusConfig('pending_deployment').icon} {getStatusConfig('pending_deployment').label}
+                          </SelectItem>
+                          <SelectItem value={TICKET_STATUS.REOPENED}>
+                            {getStatusConfig('reopened').icon} {getStatusConfig('reopened').label}
+                          </SelectItem>
+                          <SelectItem value={TICKET_STATUS.RESOLVED}>
+                            {getStatusConfig('resolved').icon} {getStatusConfig('resolved').label}
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     )}

@@ -1,14 +1,14 @@
 import React from 'react';
-import { STATUS_COLORS, PRIORITY_COLORS } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { getStatusConfig, type TicketStatus } from '@shared/ticket-utils';
 
 interface StatusBadgeProps {
-  status: 'new' | 'ongoing' | 'resolved';
+  status: TicketStatus;
   className?: string;
 }
 
-interface StatusDotProps {
-  status: 'new' | 'ongoing' | 'resolved';
+interface StatusIconProps {
+  status: TicketStatus;
   className?: string;
 }
 
@@ -18,39 +18,41 @@ interface PriorityBadgeProps {
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
-  const statusLabels: Record<string, string> = {
-    'new': 'Novo',
-    'ongoing': 'Em Andamento',
-    'resolved': 'Resolvido'
-  };
+  const config = getStatusConfig(status);
 
   return (
     <span
       className={cn(
         'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
-        STATUS_COLORS[status],
+        'bg-gray-100 text-gray-800', // Cor uniforme cinza claro
         className
       )}
     >
-      {statusLabels[status]}
+      <span className="mr-1">{config.icon}</span>
+      {config.label}
     </span>
   );
 };
 
-export const StatusDot: React.FC<StatusDotProps> = ({ status, className }) => {
+export const StatusIcon: React.FC<StatusIconProps> = ({ status, className }) => {
+  const config = getStatusConfig(status);
+
   return (
     <span
       className={cn(
-        'inline-block h-2 w-2 rounded-full',
-        {
-          'bg-amber-500': status === 'new',
-          'bg-blue-500': status === 'ongoing',
-          'bg-green-500': status === 'resolved',
-        },
+        'inline-flex items-center justify-center w-4 h-4 text-xs',
         className
       )}
-    />
+      title={config.label} // Tooltip para mostrar o nome do status
+    >
+      {config.icon}
+    </span>
   );
+};
+
+// Manter StatusDot para compatibilidade (redirecionando para StatusIcon)
+export const StatusDot: React.FC<StatusIconProps> = ({ status, className }) => {
+  return <StatusIcon status={status} className={className} />;
 };
 
 export const PriorityBadge: React.FC<PriorityBadgeProps> = ({ priority, className }) => {
@@ -61,11 +63,18 @@ export const PriorityBadge: React.FC<PriorityBadgeProps> = ({ priority, classNam
     'critical': 'Crítica'
   };
 
+  const priorityColors = {
+    'low': 'bg-gray-100 text-gray-800',
+    'medium': 'bg-blue-100 text-blue-800',
+    'high': 'bg-orange-100 text-orange-800',
+    'critical': 'bg-red-100 text-red-800'
+  };
+
   return (
     <span
       className={cn(
         'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mr-2',
-        PRIORITY_COLORS[priority],
+        priorityColors[priority],
         className
       )}
     >

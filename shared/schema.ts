@@ -4,7 +4,17 @@ import { z } from "zod";
 import { relations } from "drizzle-orm";
 
 // Enums
-export const ticketStatusEnum = pgEnum('ticket_status', ['new', 'ongoing', 'resolved']);
+export const ticketStatusEnum = pgEnum('ticket_status', [
+  'new', 
+  'ongoing', 
+  'suspended',
+  'waiting_customer', 
+  'escalated',
+  'in_analysis',
+  'pending_deployment',
+  'reopened',
+  'resolved'
+]);
 export const ticketPriorityEnum = pgEnum('ticket_priority', ['low', 'medium', 'high', 'critical']);
 export const userRoleEnum = pgEnum('user_role', [
   'admin',          // Acesso total ao sistema, multiempresa
@@ -411,7 +421,7 @@ export const insertTicketSchema = z.object({
 export const insertTicketReplySchema = z.object({
   ticket_id: z.number(),
   message: z.string().min(1, "A mensagem é obrigatória"),
-  status: z.enum(['new', 'ongoing', 'resolved']),
+  status: z.enum(['new', 'ongoing', 'suspended', 'waiting_customer', 'escalated', 'in_analysis', 'pending_deployment', 'reopened', 'resolved']),
   type: z.string().optional(),
   is_internal: z.boolean().default(false),
   assigned_to_id: z.number().optional(),

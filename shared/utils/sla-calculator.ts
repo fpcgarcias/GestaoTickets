@@ -3,6 +3,8 @@
  * Horário comercial: 8h às 18h, segunda a sexta-feira
  */
 
+import { isSlaPaused, isSlaFinished, shouldRestartSla, type TicketStatus } from '@shared/ticket-utils';
+
 export interface SLAResult {
   timeElapsed: number; // Tempo já consumido em milissegundos
   timeRemaining: number; // Tempo restante em milissegundos
@@ -10,12 +12,19 @@ export interface SLAResult {
   isBreached: boolean; // Se o SLA foi violado
   dueDate: Date; // Data/hora de vencimento do SLA
   status: 'ok' | 'warning' | 'critical' | 'breached';
+  isPaused: boolean; // Se o SLA está pausado no momento
 }
 
 export interface BusinessHours {
   startHour: number; // Hora de início (ex: 8)
   endHour: number; // Hora de fim (ex: 18)
   workDays: number[]; // Dias da semana (0=domingo, 1=segunda, ..., 6=sábado)
+}
+
+export interface StatusPeriod {
+  status: TicketStatus;
+  startTime: Date;
+  endTime: Date;
 }
 
 const DEFAULT_BUSINESS_HOURS: BusinessHours = {
@@ -164,23 +173,78 @@ function addBusinessTime(startDate: Date, businessHoursToAdd: number, businessHo
 }
 
 /**
- * Calcula o status do SLA para um ticket
+ * Calcula tempo de SLA efetivo considerando períodos pausados
+ */
+function calculateEffectiveBusinessTime(
+  ticketCreatedAt: Date,
+  currentTime: Date,
+  statusPeriods: StatusPeriod[],
+  businessHours: BusinessHours = DEFAULT_BUSINESS_HOURS
+): number {
+  let totalEffectiveTime = 0;
+  let lastActiveEnd = ticketCreatedAt;
+  
+  // Se não há histórico de status, considerar tempo total como ativo
+  if (statusPeriods.length === 0) {
+    return calculateBusinessTimeMs(ticketCreatedAt, currentTime, businessHours);
+  }
+  
+  for (const period of statusPeriods) {
+    const periodStart = new Date(period.startTime);
+    const periodEnd = new Date(period.endTime);
+    
+    // Se o status NÃO pausa o SLA, contar o tempo
+    if (!isSlaPaused(period.status)) {
+      // Garantir que começamos do fim do último período ativo ou criação do ticket
+      const effectiveStart = periodStart > lastActiveEnd ? periodStart : lastActiveEnd;
+      
+      if (effectiveStart < periodEnd) {
+        totalEffectiveTime += calculateBusinessTimeMs(effectiveStart, periodEnd, businessHours);
+        lastActiveEnd = periodEnd;
+      }
+    }
+  }
+  
+  // Se o período atual (do último status até agora) está ativo, adicionar
+  const lastPeriod = statusPeriods[statusPeriods.length - 1];
+  if (lastPeriod && !isSlaPaused(lastPeriod.status)) {
+    const lastPeriodEnd = new Date(lastPeriod.endTime);
+    if (lastPeriodEnd < currentTime) {
+      totalEffectiveTime += calculateBusinessTimeMs(lastPeriodEnd, currentTime, businessHours);
+    }
+  }
+  
+  return totalEffectiveTime;
+}
+
+/**
+ * Calcula o status do SLA para um ticket considerando histórico de status
  */
 export function calculateSLAStatus(
   ticketCreatedAt: Date,
   slaHours: number,
   currentTime: Date = new Date(),
   resolvedAt?: Date,
-  businessHours: BusinessHours = DEFAULT_BUSINESS_HOURS
+  businessHours: BusinessHours = DEFAULT_BUSINESS_HOURS,
+  statusPeriods: StatusPeriod[] = [],
+  currentStatus: TicketStatus = 'new'
 ): SLAResult {
   // Se já foi resolvido, calcular baseado na data de resolução
   const effectiveEndTime = resolvedAt || currentTime;
+  const isResolved = !!resolvedAt || isSlaFinished(currentStatus);
+  const isPaused = !isResolved && isSlaPaused(currentStatus);
   
   // Calcular a data de vencimento do SLA
   const dueDate = addBusinessTime(ticketCreatedAt, slaHours, businessHours);
   
-  // Calcular tempo decorrido em horário comercial
-  const timeElapsed = calculateBusinessTimeMs(ticketCreatedAt, effectiveEndTime, businessHours);
+  // Calcular tempo decorrido considerando pausas
+  let timeElapsed: number;
+  if (statusPeriods.length > 0) {
+    timeElapsed = calculateEffectiveBusinessTime(ticketCreatedAt, effectiveEndTime, statusPeriods, businessHours);
+  } else {
+    // Fallback: calcular tempo simples se não há histórico
+    timeElapsed = calculateBusinessTimeMs(ticketCreatedAt, effectiveEndTime, businessHours);
+  }
   
   // Tempo total do SLA em milissegundos
   const totalSlaMs = slaHours * 60 * 60 * 1000;
@@ -210,7 +274,8 @@ export function calculateSLAStatus(
     percentConsumed: Math.round(percentConsumed),
     isBreached,
     dueDate,
-    status
+    status,
+    isPaused
   };
 }
 

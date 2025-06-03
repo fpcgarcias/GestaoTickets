@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Clock, AlertTriangle, CheckCircle, Pause } from 'lucide-react';
 import { calculateSLAStatus, formatTimeRemaining, getBusinessHoursConfig } from '@shared/utils/sla-calculator';
+import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
 
 interface SLAIndicatorProps {
   ticketCreatedAt: string;
   ticketPriority: string;
-  ticketStatus: string;
+  ticketStatus: TicketStatus;
   ticketCompanyId: number;
   resolvedAt?: string;
 }
@@ -21,6 +22,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [percentConsumed, setPercentConsumed] = useState<number>(0);
   const [slaStatus, setSlaStatus] = useState<'ok' | 'warning' | 'critical' | 'breached'>('ok');
+  const [isPaused, setIsPaused] = useState<boolean>(false);
   
   const { data: slaSettingsData, isLoading, error } = useQuery({
     queryKey: ["/api/settings/sla", ticketCompanyId],
@@ -47,7 +49,14 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
       resolvedAt
     });
     
-    if (isLoading || error || !slaSettingsData || !ticketCreatedAt || ticketStatus === 'resolved') return;
+    if (isLoading || error || !slaSettingsData || !ticketCreatedAt) return;
+    
+    // Verificar se o SLA está pausado ou finalizado
+    const slaIsPaused = isSlaPaused(ticketStatus);
+    const slaIsFinished = isSlaFinished(ticketStatus);
+    setIsPaused(slaIsPaused);
+    
+    if (slaIsFinished) return;
     
     try {
       // Encontrar a configuração de SLA para a prioridade deste ticket
@@ -86,7 +95,9 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
         resolutionTimeHours,
         new Date(),
         resolvedDate,
-        businessHours
+        businessHours,
+        [], // TODO: implementar histórico de status
+        ticketStatus
       );
       
       console.log('SLAIndicator - SLA result:', slaResult);
@@ -94,8 +105,10 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
       setPercentConsumed(slaResult.percentConsumed);
       setSlaStatus(slaResult.status);
       
-      // Formatar texto
-      if (slaResult.isBreached) {
+      // Formatar texto baseado no status
+      if (slaIsPaused) {
+        setTimeRemaining('SLA pausado');
+      } else if (slaResult.isBreached) {
         const overdueTime = formatTimeRemaining(slaResult.timeElapsed - (resolutionTimeHours * 60 * 60 * 1000), true);
         setTimeRemaining(`Excedido em ${overdueTime}`);
       } else {
@@ -108,7 +121,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     }
   }, [slaSettingsData, isLoading, error, ticketCreatedAt, ticketPriority, ticketStatus, ticketCompanyId, resolvedAt]);
   
-  if (ticketStatus === 'resolved') {
+  if (isSlaFinished(ticketStatus)) {
     return (
       <div className="flex items-center gap-1 text-xs">
         <CheckCircle className="h-3 w-3 text-green-600" />
@@ -131,6 +144,16 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     return null;
   }
   
+  // Se o SLA está pausado, mostrar indicador específico
+  if (isPaused) {
+    return (
+      <div className="flex items-center gap-1 text-xs">
+        <Pause className="h-3 w-3 text-orange-600" />
+        <span className="text-orange-600">SLA pausado</span>
+      </div>
+    );
+  }
+  
   // Cores baseadas no status
   const getStatusColor = () => {
     switch (slaStatus) {
@@ -141,22 +164,23 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     }
   };
   
-  const getStatusIcon = () => {
+  const getIcon = () => {
     switch (slaStatus) {
-      case 'breached': 
-      case 'critical': 
-        return <AlertTriangle className="h-3 w-3" />;
-      default: 
-        return <Clock className="h-3 w-3" />;
+      case 'breached':
+      case 'critical':
+        return AlertTriangle;
+      default:
+        return Clock;
     }
   };
-  
+
+  const IconComponent = getIcon();
+  const statusColor = getStatusColor();
+
   return (
-    <div className={`flex items-center gap-1 text-xs ${getStatusColor()}`}>
-      {getStatusIcon()}
-      <span title={`${percentConsumed}% do SLA consumido`}>
-        {timeRemaining}
-      </span>
+    <div className="flex items-center gap-1 text-xs">
+      <IconComponent className={`h-3 w-3 ${statusColor}`} />
+      <span className={statusColor}>{timeRemaining}</span>
     </div>
   );
 };
