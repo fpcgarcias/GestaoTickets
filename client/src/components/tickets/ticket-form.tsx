@@ -30,6 +30,25 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { FileUpload } from './file-upload';
 
+// Garante que PRIORITY_LEVELS.LOW etc. sejam tratados como literais específicos.
+// Zod z.enum requer um array não vazio de strings literais.
+const ZOD_PRIORITY_ENUM_VALUES = [
+  PRIORITY_LEVELS.LOW, 
+  PRIORITY_LEVELS.MEDIUM, 
+  PRIORITY_LEVELS.HIGH, 
+  PRIORITY_LEVELS.CRITICAL
+] as const;
+
+// Definir o schema estendido para o formulário
+const extendedInsertTicketSchema = insertTicketSchema.extend({
+  customerId: z.number().optional(), // Para o select do formulário
+  // Sobrescreve/Define priority para garantir que seja o enum dos valores corretos e obrigatório
+  priority: z.enum(ZOD_PRIORITY_ENUM_VALUES), 
+});
+
+// Inferir o tipo a partir do schema estendido
+type ExtendedInsertTicket = z.infer<typeof extendedInsertTicketSchema>;
+
 // Definir tipos para os dados buscados
 interface Customer {
   id: number;
@@ -59,18 +78,17 @@ export const TicketForm = () => {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
 
-  // Adicionar uma consulta para buscar os clientes
+  // Adicionar uma consulta para buscar os clientes, habilitada apenas se não for 'customer'
   const { data: customersData, isLoading: isLoadingCustomers } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
+    enabled: user?.role !== 'customer', // Desabilitar para 'customer'
   });
 
   // Garantir que customers é um array
   const customers = Array.isArray(customersData) ? customersData : [];
 
-  const form = useForm<InsertTicket & { customerId?: number }>({
-    resolver: zodResolver(insertTicketSchema.extend({
-      customerId: z.number().optional()
-    })),
+  const form = useForm<ExtendedInsertTicket>({
+    resolver: zodResolver(extendedInsertTicketSchema),
     defaultValues: {
       title: '',
       description: '',
@@ -144,21 +162,44 @@ export const TicketForm = () => {
     },
   });
 
-  const onSubmit = (data: InsertTicket & { customerId?: number }) => {
-    // Se um cliente foi selecionado, usar seu email e ID
-    if (data.customerId) {
-      // Usar 'customers' que é garantido como array
-      const selectedCustomer = customers.find((c: Customer) => c.id === data.customerId);
-      if (selectedCustomer) {
-        data.customer_email = selectedCustomer.email;
-        // Adicionar customer_id ao ticket
-        (data as any).customer_id = selectedCustomer.id;
+  const onSubmit = (data: ExtendedInsertTicket) => {
+    let ticketDataToSend: InsertTicket = {
+      title: data.title,
+      description: data.description,
+      customer_email: data.customer_email,
+      type: data.type,
+      priority: data.priority,
+      department_id: data.department_id,
+      incident_type_id: data.incident_type_id,
+      // customer_id e company_id serão definidos abaixo ou já estão no data
+    };
+
+    if (user?.role === 'customer') {
+      // Para 'customer', usar dados do usuário logado
+      ticketDataToSend.customer_email = user.email;
+      // Assumindo que user.id é o ID do cliente. Se for diferente, ajuste aqui.
+      // E que o backend espera customer_id.
+      if (user.id) { // user.id pode ser string ou number dependendo da sua definição de AuthUser
+        (ticketDataToSend as any).customer_id = typeof user.id === 'string' ? parseInt(user.id) : user.id;
+      }
+      // Se o usuário customer tiver company_id e for necessário
+      if (user.companyId) { // Corrigido de user.company_id para user.companyId
+        (ticketDataToSend as any).company_id = user.companyId; // Corrigido de user.company_id para user.companyId
+      }
+    } else {
+      // Para outras roles, usar o cliente selecionado no formulário
+      if (data.customerId) {
+        const selectedCustomer = customers.find((c: Customer) => c.id === data.customerId);
+        if (selectedCustomer) {
+          ticketDataToSend.customer_email = selectedCustomer.email;
+          (ticketDataToSend as any).customer_id = selectedCustomer.id;
+          // Se o cliente selecionado tiver company_id e for necessário
+          // (ticketDataToSend as any).company_id = selectedCustomer.company_id; // Ajuste conforme a estrutura de Customer
+        }
       }
     }
     
-    // Remover customerId que não faz parte do schema, mas manter customer_id se foi definido
-    const { customerId, ...ticketData } = data;
-    createTicketMutation.mutate(ticketData);
+    createTicketMutation.mutate(ticketDataToSend);
   };
 
   // Buscar dados de departamentos
@@ -185,28 +226,21 @@ export const TicketForm = () => {
 
   // Efeito para pré-selecionar o cliente quando o usuário for customer
   useEffect(() => {
-    // Se o usuário for customer e os clientes estiverem carregados
-    if (user?.role === 'customer' && customers.length > 0) {
-      // Tentar encontrar o cliente correspondente ao usuário atual
-      const userClient = customers.find(customer => 
-        // Comparação por email é mais confiável
-        customer.email.toLowerCase() === user.email.toLowerCase()
-      );
-      
-      if (userClient) {
-        console.log("Cliente encontrado:", userClient);
-        // Pré-selecionar o cliente no formulário
-        form.setValue('customerId', userClient.id);
-        form.setValue('customer_email', userClient.email);
-        
-        // Forçar atualização da interface com o email
-        setTimeout(() => {
-          const emailInput = document.querySelector('input[name="customer_email"]');
-          if (emailInput instanceof HTMLInputElement) {
-            emailInput.value = userClient.email;
-          }
-        }, 100);
+    if (user?.role === 'customer') {
+      // Pré-selecionar o cliente e email diretamente dos dados do usuário
+      form.setValue('customer_email', user.email);
+      if (user.id) { // Certifique-se que user.id é o esperado para customerId
+        // O campo 'customerId' no formulário é usado para o select,
+        // mas para o 'customer' não há select, então isso pode não ser estritamente necessário
+        // a menos que outra lógica dependa dele.
+        // form.setValue('customerId', typeof user.id === 'string' ? parseInt(user.id) : user.id);
       }
+      // Forçar atualização do campo de email se necessário (geralmente React Hook Form cuida disso)
+      // O campo nome do cliente já deve ser preenchido pelo `value` do Input.
+    } else if (customers.length > 0) {
+      // Lógica existente para outras roles, se necessário, ou pode ser removida se
+      // a seleção do cliente já cobre isso.
+      // Este bloco pode ser redundante se o Select já define o email ao mudar o cliente.
     }
   }, [user, customers, form]);
 
@@ -228,7 +262,7 @@ export const TicketForm = () => {
                     {user?.role === 'customer' ? (
                       // Se for cliente, mostrar o nome do próprio cliente sem opção de mudança
                       <Input 
-                        value={customers.find(c => c.id === field.value)?.name || user?.name || ''}
+                        value={user?.name || ''} // Usar user.name diretamente
                         disabled
                         className="bg-gray-100"
                       />
@@ -249,8 +283,8 @@ export const TicketForm = () => {
                         defaultValue={field.value?.toString()}
                       >
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione um cliente" />
+                          <SelectTrigger disabled={isLoadingCustomers || user?.role === 'customer'}>
+                            <SelectValue placeholder={isLoadingCustomers ? "Carregando clientes..." : "Selecione um cliente"} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -281,7 +315,7 @@ export const TicketForm = () => {
                         onBlur={field.onBlur}
                         name={field.name}
                         ref={field.ref}
-                        disabled={user?.role === 'customer'}
+                        disabled={user?.role === 'customer' || (user?.role !== 'customer' && !form.getValues('customerId'))} // Desabilitar se não for customer e nenhum cliente selecionado
                         className={user?.role === 'customer' ? "bg-gray-100" : ""}
                       />
                     </FormControl>
