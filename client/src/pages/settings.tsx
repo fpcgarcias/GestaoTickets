@@ -112,6 +112,9 @@ export default function Settings() {
     } else if (user?.role === 'company_admin' && userCompany?.id && !selectedCompanyId) {
       setSelectedCompanyId(userCompany.id);
       console.log("[Settings] setSelectedCompanyId (company_admin, from userCompany.id):", userCompany.id);
+    } else if (user?.role === 'support' && userCompany?.id && !selectedCompanyId) {
+      setSelectedCompanyId(userCompany.id);
+      console.log("[Settings] setSelectedCompanyId (support, from userCompany.id):", userCompany.id);
     }
   }, [companiesData, user?.role, userCompany, selectedCompanyId]);
 
@@ -127,7 +130,8 @@ export default function Settings() {
   // enabled garante que a query só rode se houver um companyId para buscar.
   const slaQueryEnabled = (!isLoadingAuth && user?.role === 'admin' && !!selectedCompanyId) || 
                         (!isLoadingAuth && user?.role === 'manager' && !!userCompany?.id) ||
-                        (!isLoadingAuth && user?.role === 'company_admin' && !!userCompany?.id);
+                        (!isLoadingAuth && user?.role === 'company_admin' && !!userCompany?.id) ||
+                        (!isLoadingAuth && user?.role === 'support' && !!userCompany?.id);
   console.log(
     "[Settings] slaQueryEnabled:", slaQueryEnabled, 
     "isLoadingAuth:", isLoadingAuth,
@@ -150,6 +154,8 @@ export default function Settings() {
       } else if (user?.role === 'manager' && userCompany?.id) {
         endpoint = '/api/settings/sla';
       } else if (user?.role === 'company_admin' && userCompany?.id) {
+        endpoint = '/api/settings/sla';
+      } else if (user?.role === 'support' && userCompany?.id) {
         endpoint = '/api/settings/sla';
       } else {
         console.log("[Settings SLA Query] No valid conditions to fetch, returning empty. User Role:", user?.role, "SelectedCompanyId:", selectedCompanyId, "UserCompanyId:", userCompany?.id);
@@ -293,8 +299,15 @@ export default function Settings() {
   };
   
   const handleSaveSlaSettings = () => {
-    if ((user?.role === 'admin' && !selectedCompanyId) || (user?.role === 'manager' && !userCompany?.id)) {
-      toast({ title: "Seleção Necessária", description: user?.role === 'admin' ? "Selecione uma empresa." : "Manager sem empresa associada.", variant: "destructive" });
+    if ((user?.role === 'admin' && !selectedCompanyId) || 
+        ((user?.role === 'manager' || user?.role === 'support') && !userCompany?.id)) {
+      toast({ 
+        title: "Seleção Necessária", 
+        description: user?.role === 'admin' 
+          ? "Selecione uma empresa." 
+          : (user?.role === 'manager' ? "Manager sem empresa associada." : "Support sem empresa associada."), 
+        variant: "destructive" 
+      });
       return;
     }
 
@@ -332,8 +345,8 @@ export default function Settings() {
     const finalPayload: { company_id?: number; settings: Record<string, SlaRule>; } = { settings: settingsPayload };
     if (user?.role === 'admin' && selectedCompanyId) {
       finalPayload.company_id = selectedCompanyId;
-    } else if (user?.role === 'manager' && userCompany?.id) {
-      // Para manager, o company_id é implicitamente o da sua sessão, 
+    } else if ((user?.role === 'manager' || user?.role === 'support') && userCompany?.id) {
+      // Para manager e support, o company_id é implicitamente o da sua sessão, 
       // o backend deve tratar isso. Se o backend precisar explicitamente:
       // finalPayload.company_id = userCompany.id;
     }
@@ -377,8 +390,8 @@ export default function Settings() {
             </TabsTrigger>
           )}
           
-          {/* Aba SLA - apenas para admin, manager e company_admin */}
-          {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'company_admin') && (
+          {/* Aba SLA - apenas para admin, manager, company_admin e support */}
+          {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'company_admin' || user?.role === 'support') && (
             <TabsTrigger value="sla" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
               Configurações de SLA
             </TabsTrigger>
@@ -493,8 +506,8 @@ export default function Settings() {
           </TabsContent>
         )}
         
-        {/* Conteúdo da aba SLA - apenas para admin, manager e company_admin */}
-        {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'company_admin') && (
+        {/* Conteúdo da aba SLA - apenas para admin, manager, company_admin e support */}
+        {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'company_admin' || user?.role === 'support') && (
           <TabsContent value="sla">
             <Card>
               <CardHeader>
@@ -535,6 +548,11 @@ export default function Settings() {
                 {!isLoadingAuth && !isLoadingSla && !slaQueryEnabled && user?.role === 'manager' && !userCompany?.id && (
                    <div className="text-center text-red-600 p-6 rounded-md border border-red-200 bg-red-50">
                      Usuário manager sem empresa associada. Não é possível configurar SLAs.
+                   </div>
+                )}
+                {!isLoadingAuth && !isLoadingSla && !slaQueryEnabled && user?.role === 'support' && !userCompany?.id && (
+                   <div className="text-center text-red-600 p-6 rounded-md border border-red-200 bg-red-50">
+                     Usuário support sem empresa associada. Não é possível configurar SLAs.
                    </div>
                 )}
 

@@ -1346,7 +1346,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Official endpoints
-  router.get("/officials", authRequired, authorize(['admin', 'manager', 'company_admin']), async (req: Request, res: Response) => {
+  router.get("/officials", authRequired, authorize(['admin', 'manager', 'company_admin', 'support']), async (req: Request, res: Response) => {
     try {
       console.log('======== REQUISIÇÃO PARA /api/officials ========');
       console.log('Sessão do usuário:', req.session);
@@ -3193,7 +3193,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   );
 
   // --- ROTAS DE SLA DEFINITIONS ---
-  router.get("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin']), async (req: Request, res: Response) => {
+  router.get("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin', 'support', 'customer']), async (req: Request, res: Response) => {
     let effectiveCompanyId: number | undefined = undefined; // Inicializada e tipo ajustado
     try {
       const userRole = req.session.userRole as string;
@@ -3218,6 +3218,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           return res.status(403).json({ message: "Company Admin não está associado a nenhuma empresa." });
         }
         effectiveCompanyId = sessionCompanyId; // Company Admin sempre usa o seu companyId da sessão
+      } else if (userRole === 'support') {
+        if (!sessionCompanyId) {
+          return res.status(403).json({ message: "Support não está associado a nenhuma empresa." });
+        }
+        effectiveCompanyId = sessionCompanyId; // Support sempre usa o seu companyId da sessão
+      } else if (userRole === 'customer') {
+        if (!sessionCompanyId) {
+          return res.status(403).json({ message: "Customer não está associado a nenhuma empresa." });
+        }
+        effectiveCompanyId = sessionCompanyId; // Customer sempre usa o seu companyId da sessão
       } else {
         return res.status(403).json({ message: "Usuário sem permissão para acessar definições de SLA." });
       }
@@ -3260,7 +3270,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   type DrizzleReturningQuery = any; // Placeholder para tipo de query Drizzle com .returning()
-  router.post("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin']), async (req: Request, res: Response) => {
+  router.post("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin', 'support']), async (req: Request, res: Response) => {
     let effectiveCompanyId: number | undefined = undefined; // Inicializada e tipo ajustado
     try {
       const userRole = req.session.userRole as string;
@@ -3294,6 +3304,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         effectiveCompanyId = sessionCompanyId;
         if (company_id_from_body !== undefined && company_id_from_body !== sessionCompanyId) {
           console.warn("Company Admin tentou salvar SLA para company_id diferente da sua sessão. Usando company_id da sessão.");
+        }
+      } else if (userRole === 'support') {
+        if (!sessionCompanyId) {
+          return res.status(403).json({ message: "Support não está associado a nenhuma empresa." });
+        }
+        effectiveCompanyId = sessionCompanyId;
+        if (company_id_from_body !== undefined && company_id_from_body !== sessionCompanyId) {
+          console.warn("Support tentou salvar SLA para company_id diferente da sua sessão. Usando company_id da sessão.");
         }
       } else {
         return res.status(403).json({ message: "Usuário sem permissão para salvar definições de SLA." });

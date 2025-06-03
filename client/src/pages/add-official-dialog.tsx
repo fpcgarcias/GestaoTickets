@@ -156,11 +156,11 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       return;
     }
     
-    // Verificar se o nome de login foi fornecido
-    if (!formData.username.trim()) {
+    // Verificar se o email foi fornecido (não precisa mais verificar username separadamente)
+    if (!formData.email.trim()) {
       toast({
         title: "Erro de validação",
-        description: "O nome de login é obrigatório.",
+        description: "O email é obrigatório.",
         variant: "destructive",
       });
       return;
@@ -174,7 +174,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     
     // Criar o usuário e atendente em uma única operação
     createSupportUserMutation.mutate({
-      username: formData.username,
+      username: formData.email, // ✅ USAR EMAIL COMO USERNAME
       email: formData.email,
       name: formData.name,
       password: password,
@@ -227,21 +227,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                 </div>
                 
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="username" className="text-right">
-                    Login
-                  </Label>
-                  <Input
-                    id="username"
-                    value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    className="col-span-3"
-                    required
-                  />
-                </div>
-                
-                <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="email" className="text-right">
-                    Email
+                    Email (Login)
                   </Label>
                   <Input
                     id="email"
@@ -249,6 +236,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="col-span-3"
+                    placeholder="email@empresa.com"
                     required
                   />
                 </div>
@@ -358,7 +346,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
             <div className="py-6">
               <div className="mb-4">
                 <p className="font-medium mb-1">Dados de Acesso:</p>
-                <p><strong>Nome de Usuário (Login):</strong> {formData.username}</p>
+                <p><strong>Nome de Usuário (Login):</strong> {formData.email}</p>
                 <p><strong>Email:</strong> {formData.email}</p>
                 <p><strong>Senha Temporária:</strong> {generatedPassword}</p>
               </div>

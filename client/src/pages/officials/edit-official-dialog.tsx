@@ -322,28 +322,20 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
             </div>
             
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="username" className="text-right">
-                Login
-              </Label>
-              <Input
-                id="username"
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                className="col-span-3"
-                required
-              />
-            </div>
-            
-            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right">
-                Email
+                Email (Login)
               </Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  email: e.target.value,
+                  username: e.target.value // ✅ SINCRONIZAR USERNAME COM EMAIL
+                })}
                 className="col-span-3"
+                placeholder="email@empresa.com"
                 required
               />
             </div>

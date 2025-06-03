@@ -69,6 +69,9 @@ export default function Dashboard() {
     { name: 'Resolvidos', value: ticketStats.byStatus.resolved, color: '#10B981' },
   ];
 
+  // Filtrar dados para o gráfico (apenas status com valor > 0)
+  const statusDataForChart = statusData.filter(item => item.value > 0);
+
   const priorityData = [
     { name: 'Baixa', Qtde: ticketStats.byPriority.low }, // Acesso direto agora é seguro
     { name: 'Média', Qtde: ticketStats.byPriority.medium }, // Acesso direto agora é seguro
@@ -115,27 +118,71 @@ export default function Dashboard() {
           <CardContent>
             {isStatsLoading ? (
               <Skeleton className="w-full h-72" />
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={statusData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={true}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {statusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+            ) : statusDataForChart.length > 0 ? (
+              <>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={statusDataForChart}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {statusDataForChart.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                
+                {/* Legenda customizada mostrando todos os status */}
+                <div className="flex justify-center mt-4">
+                  <div className="flex flex-wrap gap-4 justify-center">
+                    {statusData.map((item) => (
+                      <div key={item.name} className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: item.color }}
+                        ></div>
+                        <span className="text-sm text-gray-600">
+                          {item.name}: {item.value}
+                        </span>
+                      </div>
                     ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-center h-72">
+                  <div className="text-center">
+                    <p className="text-gray-500 mb-2">Nenhum chamado cadastrado</p>
+                    <p className="text-sm text-gray-400">Os dados aparecerão aqui quando houver chamados no sistema</p>
+                  </div>
+                </div>
+                
+                {/* Legenda sempre visível mesmo sem dados */}
+                <div className="flex justify-center mt-4">
+                  <div className="flex flex-wrap gap-4 justify-center">
+                    {statusData.map((item) => (
+                      <div key={item.name} className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: item.color }}
+                        ></div>
+                        <span className="text-sm text-gray-600">
+                          {item.name}: {item.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

@@ -84,7 +84,11 @@ export default defineConfig({
   },
   server: {
     hmr: {
-      overlay: false
+      overlay: false,
+      port: 24678
+    },
+    fs: {
+      strict: false
     }
   },
   optimizeDeps: {
@@ -96,8 +100,8 @@ export default defineConfig({
       'date-fns',
       'recharts'
     ],
-    exclude: [
-    ]
+    exclude: [],
+    force: process.env.NODE_ENV === 'development'
   },
   preview: {
     port: 4173,

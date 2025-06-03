@@ -50,13 +50,11 @@ export function useNotifications() {
     console.log('🔒 Protocolo:', wsProtocol);
     console.log('⚡ WebSocket URL FINAL:', wsUrl);
     console.log('👤 Usuário autenticado:', user.name);
-    console.log('💣 CACHE BUSTER ATIVO - RECARREGUE A PÁGINA (Ctrl+Shift+R)');
     
     // Verificar se o URL está correto
     if (wsUrl.includes('localhost') || wsUrl.includes('5173')) {
-      console.error('❌ ERRO: WebSocket ainda aponta para localhost! URL:', wsUrl);
-      console.error('❌ Host atual:', wsHost);
-      console.error('❌ Window location:', window.location);
+      console.warn('⚠️ AVISO: WebSocket aponta para localhost - verifique se está correto');
+      console.warn('📍 Host atual:', wsHost);
     }
     
     const newSocket = new WebSocket(wsUrl);
