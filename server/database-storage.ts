@@ -380,45 +380,57 @@ export class DatabaseStorage implements IStorage {
   async getTicketsByUserRole(userId: number, userRole: string): Promise<Ticket[]> {
     console.log(`Buscando tickets para usuário ID ${userId} com papel ${userRole}`);
     
-    // Carregar o mapeamento de departamentos (string -> id)
+    // Carregar o mapeamento de departamentos (string -> id) da tabela departments real
     let departmentIdMap: Record<string, number> = {}; 
     try {
-      // Buscar departamentos (da tabela de departamentos na forma de system_settings)
-      const [deptsSetting] = await db
-        .select()
-        .from(systemSettings)
-        .where(eq(systemSettings.key, 'departments'));
+      // Primeiro, determinar qual empresa usar para filtrar departamentos
+      let companyIdToFilter: number | null = null;
       
-      if (deptsSetting) {
-        const departments = JSON.parse(deptsSetting.value);
-        // Criar um mapa de departamentos para facilitar o lookup
-        departmentIdMap = departments.reduce((acc: Record<string, number>, dept: any) => {
-          if ('id' in dept && 'name' in dept) {
-            acc[dept.name.toLowerCase()] = dept.id;
-          } else if ('value' in dept && 'label' in dept) {
-            acc[dept.value.toLowerCase()] = parseInt(dept.value);
+      if (userRole === 'support') {
+        // Para support, pegar a empresa do oficial
+        const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+        if (official?.company_id) {
+          companyIdToFilter = official.company_id;
+        }
+      } else if (userRole === 'company_admin') {
+        // Para company_admin, pegar a empresa do usuário
+        const [user] = await db.select().from(users).where(eq(users.id, userId));
+        if (user?.company_id) {
+          companyIdToFilter = user.company_id;
+        }
+      }
+      
+      console.log(`[DEBUG] Filtrando departamentos para empresa ID: ${companyIdToFilter}`);
+      
+      // Buscar departamentos da tabela departments real, filtrados por empresa
+      const departmentsList = await db
+        .select()
+        .from(departments)
+        .where(
+          companyIdToFilter 
+            ? eq(departments.company_id, companyIdToFilter)
+            : undefined // Admin vê todos
+        );
+      
+      console.log(`[DEBUG] Departamentos encontrados: ${JSON.stringify(departmentsList.map(d => ({id: d.id, name: d.name, company_id: d.company_id})))}`);
+      
+      if (departmentsList.length > 0) {
+        // Criar um mapa simples de departamentos (nome exato -> id)
+        departmentIdMap = departmentsList.reduce((acc: Record<string, number>, dept: any) => {
+          if (dept.name && dept.id) {
+            const nameLower = dept.name.toLowerCase();
+            acc[nameLower] = dept.id;
           }
           return acc;
         }, {} as Record<string, number>);
+        
+        console.log('[DEBUG] Mapa de departamentos criado:', departmentIdMap);
+      } else {
+        console.warn('Nenhum departamento encontrado na tabela departments para a empresa');
       }
       
-      // Também pegar os tipos de incidentes para mapear seu departamento
-      const incidentTypesList = await db
-        .select()
-        .from(incidentTypes);
-      
-      // Criar um mapa auxiliar para tipos de incidentes
-      const incidentTypeMap: Record<string, number> = {};
-      incidentTypesList.forEach(type => {
-        // Associar o NOME do tipo ao departamento correspondente
-        if (type.name && type.department_id) {
-          incidentTypeMap[type.name.toLowerCase()] = type.department_id;
-        }
-      });
-      
-      console.log('[DEBUG] Mapa de tipos de incidentes (nome -> deptoId):', incidentTypeMap);
     } catch (e) {
-        console.error("Erro ao buscar ou parsear mapeamento de departamentos:", e);
+        console.error("Erro ao buscar mapeamento de departamentos:", e);
         // Continuar sem o mapeamento pode levar a resultados incorretos
     }
     
@@ -498,9 +510,58 @@ export class DatabaseStorage implements IStorage {
       console.log(`IDs dos departamentos do atendente: ${JSON.stringify(departmentIds)}`);
 
       if (departmentIds.length === 0 && officialDepts.length > 0) {
-        console.warn(`Nenhum ID encontrado para os departamentos: ${departmentNames.join(', ')}. Verifique o mapeamento.`);
-        // Se nenhum ID foi encontrado, mas o oficial tem departamentos, talvez mostrar apenas os atribuídos?
-        // Ou retornar vazio? Por segurança, retornamos apenas os atribuídos.
+        console.warn(`Nenhum ID encontrado para os departamentos: ${departmentNames.join(', ')}. Tentando busca por similaridade...`);
+        
+        // Tentar busca por similaridade (case insensitive e sem acentos)
+        const normalizeString = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        
+        const fuzzyDepartmentIds = departmentNames
+          .map(name => {
+            const normalized = normalizeString(name);
+            // Buscar por nome exato normalizado
+            const exactMatch = Object.keys(departmentIdMap).find(key => 
+              normalizeString(key) === normalized
+            );
+            if (exactMatch) {
+              console.log(`Encontrou match exato: '${name}' -> '${exactMatch}' (ID: ${departmentIdMap[exactMatch]})`);
+              return departmentIdMap[exactMatch];
+            }
+            
+            // Buscar por inclusão parcial
+            const partialMatch = Object.keys(departmentIdMap).find(key => 
+              normalizeString(key).includes(normalized) || normalized.includes(normalizeString(key))
+            );
+            if (partialMatch) {
+              console.log(`Encontrou match parcial: '${name}' -> '${partialMatch}' (ID: ${departmentIdMap[partialMatch]})`);
+              return departmentIdMap[partialMatch];
+            }
+            
+            console.warn(`Nenhum match encontrado para departamento: '${name}'`);
+            return undefined;
+          })
+          .filter(id => id !== undefined);
+        
+                 if (fuzzyDepartmentIds.length > 0) {
+           console.log(`Encontrados ${fuzzyDepartmentIds.length} departamentos por similaridade: ${fuzzyDepartmentIds}`);
+           // Buscar tickets usando os IDs encontrados
+           const conditions = [];
+           conditions.push(inArray(tickets.department_id, fuzzyDepartmentIds));
+           conditions.push(eq(tickets.assigned_to_id, official.id));
+           
+           const ticketsData = await db
+             .select()
+             .from(tickets)
+             .where(or(...conditions));
+           
+           const enrichedTickets = await Promise.all(
+             ticketsData.map(ticket => this.getTicket(ticket.id))
+           );
+           
+           return enrichedTickets.filter(Boolean) as Ticket[];
+         }
+        
+        // Se ainda não encontrou nada, retornar apenas os atribuídos
+        console.log('Nenhum departamento encontrado, retornando apenas tickets atribuídos diretamente');
         return this.getTicketsByOfficialId(official.id);
       }
       

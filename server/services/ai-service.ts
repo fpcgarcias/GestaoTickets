@@ -146,7 +146,7 @@ export class AiService {
     dbInstance: any
   ): Promise<AiConfiguration | null> {
     try {
-      const configs = await db
+      const configs = await dbInstance
         .select()
         .from(schema.aiConfigurations)
         .where(
@@ -194,7 +194,7 @@ export class AiService {
         company_id: request.companyId,
       };
 
-      await db
+      await dbInstance
         .insert(schema.aiAnalysisHistory)
         .values(historyData);
 

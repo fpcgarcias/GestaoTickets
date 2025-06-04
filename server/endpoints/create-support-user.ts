@@ -6,7 +6,9 @@
 import { Request, Response } from 'express';
 import { withTransaction } from '../transaction-manager';
 import { IStorage } from '../storage';
-import { InsertOfficial, InsertUser } from '@shared/schema';
+import { InsertOfficial, InsertUser, departments as departmentsSchema } from '@shared/schema';
+import { eq, isNull } from 'drizzle-orm';
+import { db } from '../db';
 
 export async function createSupportUserEndpoint(
   req: Request, 
@@ -111,12 +113,27 @@ export async function createSupportUserEndpoint(
         throw new Error('Pelo menos um departamento deve ser selecionado');
       }
 
-      // Utilizar o primeiro departamento selecionado como departamento principal (para compatibilidade)
-      // Garantir que sempre tenhamos um valor default para o departamento
-      const defaultDepartments = ['technical', 'general', 'billing', 'sales', 'other'];
+      // Buscar departamentos válidos da base de dados para a empresa
+      const availableDepartments = await db
+        .select()
+        .from(departmentsSchema)
+        .where(
+          effectiveCompanyId 
+            ? eq(departmentsSchema.company_id, effectiveCompanyId)
+            : isNull(departmentsSchema.company_id) // Para departamentos globais quando company_id é null
+        );
       
-      // Departamento padrão se não houver nenhum departamento válido
-      let defaultDepartment = defaultDepartments[0]; // Usando 'technical' como fallback seguro
+      console.log(`Departamentos disponíveis para empresa ${effectiveCompanyId}: ${JSON.stringify(availableDepartments.map(d => d.name))}`);
+      
+      // Se não houver departamentos, criar um departamento padrão para a empresa
+      let defaultDepartment = 'Geral'; // Nome padrão genérico
+      
+      if (availableDepartments.length > 0) {
+        // Usar o primeiro departamento encontrado
+        defaultDepartment = availableDepartments[0].name;
+      } else {
+        console.warn(`Nenhum departamento encontrado para empresa ${effectiveCompanyId}. Usando padrão: ${defaultDepartment}`);
+      }
       
       // Forçar conversão para array
       const departmentsArray = Array.isArray(userDepartments) ? userDepartments : [];
@@ -131,22 +148,35 @@ export async function createSupportUserEndpoint(
         
         // Processar com base no tipo
         if (typeof firstDept === 'string' && firstDept.trim() !== '') {
-          // Verificar se é um valor válido
-          if (defaultDepartments.includes(firstDept)) {
-            defaultDepartment = firstDept;
-            console.log(`Usando departamento string válido: ${defaultDepartment}`);
+          // Verificar se o departamento existe na lista de departamentos disponíveis
+          const foundDepartment = availableDepartments.find(
+            dept => dept.name.toLowerCase() === firstDept.toLowerCase()
+          );
+          
+          if (foundDepartment) {
+            defaultDepartment = foundDepartment.name;
+            console.log(`Usando departamento encontrado: ${defaultDepartment}`);
           } else {
-            console.warn(`Departamento inválido recebido: ${firstDept}, usando padrão: ${defaultDepartment}`);
+            console.warn(`Departamento '${firstDept}' não encontrado na empresa. Disponíveis: ${availableDepartments.map(d => d.name).join(', ')}. Usando padrão: ${defaultDepartment}`);
           }
         } 
         // Se for um objeto, verificar a propriedade 'department'
         else if (typeof firstDept === 'object' && firstDept !== null && 'department' in firstDept) {
           const deptValue = firstDept.department;
-          if (typeof deptValue === 'string' && deptValue.trim() !== '' && defaultDepartments.includes(deptValue)) {
-            defaultDepartment = deptValue;
-            console.log(`Usando departamento de objeto válido: ${defaultDepartment}`);
+          if (typeof deptValue === 'string' && deptValue.trim() !== '') {
+            // Verificar se o departamento existe na lista de departamentos disponíveis
+            const foundDepartment = availableDepartments.find(
+              dept => dept.name.toLowerCase() === deptValue.toLowerCase()
+            );
+            
+            if (foundDepartment) {
+              defaultDepartment = foundDepartment.name;
+              console.log(`Usando departamento de objeto encontrado: ${defaultDepartment}`);
+            } else {
+              console.warn(`Departamento de objeto '${deptValue}' não encontrado na empresa. Disponíveis: ${availableDepartments.map(d => d.name).join(', ')}. Usando padrão: ${defaultDepartment}`);
+            }
           } else {
-            console.warn(`Departamento de objeto inválido: ${deptValue}, usando padrão: ${defaultDepartment}`);
+            console.warn(`Departamento de objeto vazio, usando padrão: ${defaultDepartment}`);
           }
         } else {
           console.warn(`Tipo de departamento inesperado: ${typeof firstDept}, usando padrão: ${defaultDepartment}`);

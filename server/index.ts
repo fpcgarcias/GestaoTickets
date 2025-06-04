@@ -55,7 +55,15 @@ app.use(cors({
       'https://oficinamuda.com.br',
       'http://oficinamuda.com.br',
       'https://www.oficinamuda.com.br',
-      'http://www.oficinamuda.com.br'
+      'http://www.oficinamuda.com.br',
+      'https://app.ticketwise.com.br',
+      'http://app.ticketwise.com.br',
+      'https://suporte.vixbrasil.com',
+      'http://suporte.vixbrasil.com',
+      'https://ticketwise.com.br',
+      'http://ticketwise.com.br',
+      'https://vixbrasil.com',
+      'http://vixbrasil.com'
     ];
     
     // Se não há origin (requests diretos) ou está na lista, permitir
@@ -65,6 +73,16 @@ app.use(cors({
     
     // Permitir qualquer subdomínio de oficinamuda.com.br
     if (origin.endsWith('.oficinamuda.com.br')) {
+      return callback(null, true);
+    }
+    
+    // Permitir qualquer subdomínio de ticketwise.com.br
+    if (origin.endsWith('.ticketwise.com.br')) {
+      return callback(null, true);
+    }
+    
+    // Permitir qualquer subdomínio de vixbrasil.com
+    if (origin.endsWith('.vixbrasil.com')) {
       return callback(null, true);
     }
     

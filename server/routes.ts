@@ -2442,6 +2442,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         if (error instanceof z.ZodError) {
           return res.status(400).json({ message: "Validation failed", errors: error.errors });
         }
+        // Tratar erro de chave duplicada de PK
+        if (error && error.code === '23505' && error.constraint === 'incident_types_pkey') {
+          console.warn("Tentativa de inserir incident_type com ID duplicado. Rejeitar solicitação.");
+          return res.status(409).json({ message: "Tipo de incidente já existe com este ID. Tente novamente." });
+        }
         // Tratar erro de FK para department_id, se aplicável (embora já tenhamos checado)
         if (error && error.code === '23503' && error.constraint && error.constraint.includes('incident_types_department_id_fkey')) {
             return res.status(400).json({ message: "Department ID inválido ou não existente."});

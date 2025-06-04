@@ -314,7 +314,7 @@ class EmailConfigService {
         // Para SMTP, testar conexão com nodemailer
         const nodemailer = await import('nodemailer');
         
-        const transporter = nodemailer.createTransporter({
+        const transporter = nodemailer.createTransport({
           host: config.host,
           port: config.port || 587,
           secure: config.use_tls === true && config.port === 465, // true para porta 465, false para outras
