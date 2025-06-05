@@ -232,8 +232,14 @@ async function startServer() {
     // 1. Registrar rotas da API e obter o servidor HTTP configurado
     const server = await registerRoutes(app);
     
-    // 2. Configurar o Vite DEPOIS das rotas da API
-    await setupVite(app, server);
+    // 2. Configurar Vite (desenvolvimento) ou servir arquivos estáticos (produção)
+    if (process.env.NODE_ENV === 'production') {
+      console.log("🚀 Modo PRODUÇÃO: Servindo arquivos estáticos compilados");
+      serveStatic(app);
+    } else {
+      console.log("🔧 Modo DESENVOLVIMENTO: Configurando Vite com HMR");
+      await setupVite(app, server);
+    }
     
     // 3. Executar criptografia de senhas (se necessário)
     await migratePasswords();
