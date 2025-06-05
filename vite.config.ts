@@ -85,11 +85,16 @@ export default defineConfig({
   server: {
     hmr: {
       overlay: false,
-      port: 24678
+      port: 24678,
+      host: '0.0.0.0',
+      clientPort: process.env.NODE_ENV === 'development' ? 24678 : undefined
     },
     fs: {
       strict: false
-    }
+    },
+    host: '0.0.0.0',
+    port: 5173,
+    cors: true
   },
   optimizeDeps: {
     include: [
@@ -105,7 +110,8 @@ export default defineConfig({
   },
   preview: {
     port: 4173,
-    strictPort: true
+    strictPort: true,
+    host: '0.0.0.0'
   },
   css: {
     devSourcemap: process.env.NODE_ENV !== 'production',

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from './use-auth';
 import { useToast } from './use-toast';
+import { config } from '@/lib/config';
 
 interface NotificationPayload {
   type: string;
@@ -33,69 +34,76 @@ export function useNotifications() {
       return;
     }
 
-    // === WEBSOCKET UNIVERSAL - FUNCIONA EM QUALQUER DOMÍNIO ===
+    // === WEBSOCKET COM CONFIGURAÇÃO CENTRALIZADA ===
     
-    // 1. Obter protocolo e host da página atual
-    const currentUrl = new URL(window.location.href);
-    const isHTTPS = currentUrl.protocol === 'https:';
-    const wsProtocol = isHTTPS ? 'wss:' : 'ws:';
-    const wsHost = currentUrl.host; // Usa EXATAMENTE o mesmo host da página
+    // Construir URL do WebSocket usando a configuração centralizada
+    const wsUrl = `${config.wsBaseUrl}/ws`;
     
-    // 2. Construir URL do WebSocket
-    const wsUrl = `${wsProtocol}//${wsHost}/ws`;
-    
-    console.log('🔌 [WEBSOCKET UNIVERSAL] - VERSÃO 2024-12-24-17:30');
-    console.log('📍 URL da página:', window.location.href);
-    console.log('🌐 Host detectado:', wsHost);
-    console.log('🔒 Protocolo:', wsProtocol);
-    console.log('⚡ WebSocket URL FINAL:', wsUrl);
-    console.log('👤 Usuário autenticado:', user.name);
-    
-    // Verificar se o URL está correto
-    if (wsUrl.includes('localhost') || wsUrl.includes('5173')) {
-      console.warn('⚠️ AVISO: WebSocket aponta para localhost - verifique se está correto');
-      console.warn('📍 Host atual:', wsHost);
-    }
+    console.log('🔌 [WEBSOCKET] Iniciando conexão - VERSÃO 2025-01-02');
+    console.log('🔧 [WEBSOCKET] Ambiente:', config.isDevelopment ? 'DEVELOPMENT' : 'PRODUCTION');
+    console.log('📍 [WEBSOCKET] URL da página:', window.location.href);
+    console.log('⚡ [WEBSOCKET] URL WebSocket:', wsUrl);
+    console.log('👤 [WEBSOCKET] Usuário autenticado:', user.name);
     
     const newSocket = new WebSocket(wsUrl);
 
     newSocket.onopen = () => {
-      console.log('✅ WebSocket conectado com sucesso!');
+      console.log('✅ [WEBSOCKET] Conectado com sucesso!');
       setConnected(true);
       setConnectionError(null);
+      
+      // Enviar mensagem de autenticação
+      if (user) {
+        const authMessage = {
+          type: 'auth',
+          userId: user.id,
+          userRole: user.role
+        };
+        newSocket.send(JSON.stringify(authMessage));
+        console.log('📤 [WEBSOCKET] Mensagem de autenticação enviada:', authMessage);
+      }
     };
 
     newSocket.onclose = (event) => {
-      console.log('🔴 WebSocket desconectado:', event.code, event.reason);
+      console.log('🔴 [WEBSOCKET] Desconectado:', event.code, event.reason);
       setConnected(false);
       setSocket(null);
       
       // Tentar reconectar após 3 segundos se não foi fechamento intencional
-      if (event.code !== 1000) {
+      if (event.code !== 1000 && isAuthenticated) {
         setTimeout(() => {
-          console.log('🔄 Tentando reconectar WebSocket...');
+          console.log('🔄 [WEBSOCKET] Tentando reconectar...');
           // O useEffect será disparado novamente pela mudança de estado
         }, 3000);
       }
     };
 
     newSocket.onerror = (error) => {
-      console.error('❌ Erro no WebSocket:', error);
-      setConnectionError('Erro na conexão WebSocket');
+      console.error('❌ [WEBSOCKET] Erro na conexão:', error);
+      setConnectionError(`Erro na conexão WebSocket: ${wsUrl}`);
       setConnected(false);
     };
 
     newSocket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('📨 Notificação recebida:', data);
+        console.log('📨 [WEBSOCKET] Notificação recebida:', data);
         
         if (data.type === 'notification') {
           setNotifications(prev => [data.notification, ...prev.slice(0, 99)]);
           setUnreadCount(prev => prev + 1);
+          
+          // Mostrar toast da notificação se habilitado
+          if (data.notification.title && data.notification.message) {
+            toast({
+              title: data.notification.title,
+              description: data.notification.message,
+              variant: data.notification.priority === 'critical' ? 'destructive' : 'default'
+            });
+          }
         }
       } catch (error) {
-        console.error('❌ Erro ao processar mensagem WebSocket:', error);
+        console.error('❌ [WEBSOCKET] Erro ao processar mensagem:', error);
       }
     };
 
@@ -107,7 +115,7 @@ export function useNotifications() {
         newSocket.close(1000, 'Component unmounting');
       }
     };
-  }, [isAuthenticated, user]); // Remover socket das dependências para evitar loops
+  }, [isAuthenticated, user, toast]); // Adicionar toast nas dependências
 
   // Função para marcar todas as notificações como lidas
   const markAllAsRead = () => {

@@ -4157,6 +4157,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     verifyClient: (info: any) => {
       // Em desenvolvimento, aceitar tudo
       if (process.env.NODE_ENV !== 'production') {
+        console.log(`🔓 [DEV] WebSocket aceito de origem: ${info.origin || 'sem origin'}`);
         return true;
       }
       
@@ -4166,17 +4167,47 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         'https://suporte.oficinamuda.com.br',
         'http://suporte.oficinamuda.com.br',
         'https://oficinamuda.com.br',
-        'http://oficinamuda.com.br'
+        'http://oficinamuda.com.br',
+        'https://app.ticketwise.com.br',
+        'http://app.ticketwise.com.br',
+        'https://suporte.vixbrasil.com',
+        'http://suporte.vixbrasil.com',
+        'https://ticketwise.com.br',
+        'http://ticketwise.com.br',
+        'https://vixbrasil.com',
+        'http://vixbrasil.com'
       ];
       
-      // Permitir origins conhecidos ou IPs
+      // Permitir origins conhecidos ou sem origin (requests diretos)
       if (!origin || allowedOrigins.includes(origin)) {
+        console.log(`✅ [PROD] WebSocket aceito de origem conhecida: ${origin || 'request direto'}`);
         return true;
       }
       
-      // Permitir qualquer IP
+      // Permitir qualquer subdomínio dos domínios permitidos
+      const allowedDomains = [
+        '.oficinamuda.com.br',
+        '.ticketwise.com.br', 
+        '.vixbrasil.com'
+      ];
+      
+      for (const domain of allowedDomains) {
+        if (origin && origin.includes(domain)) {
+          console.log(`✅ [PROD] WebSocket aceito de subdomínio: ${origin}`);
+          return true;
+        }
+      }
+      
+      // Permitir qualquer IP (regex para IPs)
       const ipRegex = /^https?:\/\/(\d{1,3}\.){3}\d{1,3}(:\d+)?$/;
-      if (ipRegex.test(origin)) {
+      if (origin && ipRegex.test(origin)) {
+        console.log(`✅ [PROD] WebSocket aceito de IP: ${origin}`);
+        return true;
+      }
+      
+      // Permitir localhost para testes
+      if (origin && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+        console.log(`✅ [PROD] WebSocket aceito de localhost: ${origin}`);
         return true;
       }
       

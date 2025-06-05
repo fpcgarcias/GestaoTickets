@@ -1,11 +1,15 @@
 import { QueryClient } from "@tanstack/react-query";
+import { config } from "./config";
 
 export async function apiRequest(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
   url: string,
   data?: any
 ): Promise<Response> {
-  const config: RequestInit = {
+  // Construir URL completa se for uma URL relativa
+  const fullUrl = url.startsWith('http') ? url : `${config.apiBaseUrl}${url}`;
+  
+  const requestConfig: RequestInit = {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -14,10 +18,12 @@ export async function apiRequest(
   };
 
   if (data && method !== 'GET') {
-    config.body = JSON.stringify(data);
+    requestConfig.body = JSON.stringify(data);
   }
 
-  const res = await fetch(url, config);
+  console.log(`🌐 [API] ${method} ${fullUrl}`);
+  
+  const res = await fetch(fullUrl, requestConfig);
   
   if (!res.ok) {
     const errorText = await res.text();
@@ -32,9 +38,11 @@ export async function apiRequest(
       // Se não conseguir fazer parse, usar a mensagem padrão
     }
     
+    console.error(`❌ [API] Erro ${method} ${fullUrl}:`, errorMessage);
     throw new Error(errorMessage);
   }
 
+  console.log(`✅ [API] Sucesso ${method} ${fullUrl}`);
   return res;
 }
 
