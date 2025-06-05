@@ -4166,7 +4166,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         'https://suporte.oficinamuda.com.br',
         'http://suporte.oficinamuda.com.br',
         'https://oficinamuda.com.br',
-        'http://oficinamuda.com.br'
+        'http://oficinamuda.com.br',
+        'https://app.ticketwise.com.br',
+        'http://app.ticketwise.com.br',
+        'https://suporte.vixbrasil.com',
+        'http://suporte.vixbrasil.com',
+        'https://ticketwise.com.br',
+        'http://ticketwise.com.br',
+        'https://vixbrasil.com',
+        'http://vixbrasil.com'
       ];
       
       // Permitir origins conhecidos ou IPs

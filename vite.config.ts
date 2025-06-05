@@ -83,7 +83,7 @@ export default defineConfig({
     reportCompressedSize: true
   },
   server: {
-    hmr: {
+    hmr: process.env.NODE_ENV === 'production' ? false : {
       overlay: false,
       port: 24678
     },
