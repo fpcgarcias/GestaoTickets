@@ -83,10 +83,6 @@ export default defineConfig({
     reportCompressedSize: true
   },
   server: {
-    hmr: {
-      overlay: false,
-      port: 24678
-    },
     fs: {
       strict: false
     }
