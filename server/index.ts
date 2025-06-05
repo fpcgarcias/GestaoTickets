@@ -5,6 +5,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import session from "express-session";
 import crypto from "crypto";
 import path from "path"; // RESTAURAR esta importação, pois é usada abaixo
+import fs from "fs";
 import { fileURLToPath } from 'url';
 import { migrate } from './migrate';
 import { runMigrations } from './migration-runner';
@@ -233,11 +234,22 @@ async function startServer() {
     const server = await registerRoutes(app);
     
     // 2. Configurar Vite (desenvolvimento) ou servir arquivos estáticos (produção)
-    if (process.env.NODE_ENV === 'production') {
+    console.log(`🔍 NODE_ENV: '${process.env.NODE_ENV}'`);
+    
+    // Verificar se existe pasta dist/public para produção
+    const distPath = path.resolve(import.meta.dirname, "dist/public");
+    const hasDistFolder = fs.existsSync(distPath);
+    
+    if (process.env.NODE_ENV === 'production' && hasDistFolder) {
       console.log("🚀 Modo PRODUÇÃO: Servindo arquivos estáticos compilados");
       serveStatic(app);
+      console.log("✅ Arquivos estáticos configurados");
     } else {
-      console.log("🔧 Modo DESENVOLVIMENTO: Configurando Vite com HMR");
+      if (process.env.NODE_ENV === 'production' && !hasDistFolder) {
+        console.log("⚠️  PRODUÇÃO mas sem pasta dist - usando Vite");
+      } else {
+        console.log("🔧 Modo DESENVOLVIMENTO: Configurando Vite com HMR");
+      }
       await setupVite(app, server);
     }
     
