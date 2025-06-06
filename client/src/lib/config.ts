@@ -20,8 +20,8 @@ function getConfig(): AppConfig {
   if (isDevelopment) {
     // Em desenvolvimento, sempre usar localhost:5000 onde o servidor está rodando
     return {
-      apiBaseUrl: 'http://localhost:5000',
-      wsBaseUrl: 'ws://localhost:5000',
+      apiBaseUrl: 'http://localhost:5173',
+      wsBaseUrl: 'ws://localhost:5173',
       isDevelopment: true,
       isProduction: false
     };
