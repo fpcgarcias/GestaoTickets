@@ -315,7 +315,7 @@ const DepartmentManagement: React.FC = () => {
 
   // Estado de erro
   if (error) {
-    return (
+  return (
       <StandardPage
         icon={FolderIcon}
         title="Departamentos"
@@ -334,8 +334,8 @@ const DepartmentManagement: React.FC = () => {
           </p>
           <Button onClick={() => window.location.reload()}>
             Recarregar Página
-          </Button>
-        </div>
+        </Button>
+      </div>
       </StandardPage>
     );
   }
@@ -373,126 +373,126 @@ const DepartmentManagement: React.FC = () => {
   function renderModals() {
     return (
       <>
-        {/* Modal de formulário */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{isEditing ? 'Editar Departamento' : 'Novo Departamento'}</DialogTitle>
-              <DialogDescription>
-                {isEditing 
-                  ? 'Atualize as informações do departamento abaixo.' 
-                  : 'Preencha as informações para criar um novo departamento.'}
-              </DialogDescription>
-            </DialogHeader>
+      {/* Modal de formulário */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{isEditing ? 'Editar Departamento' : 'Novo Departamento'}</DialogTitle>
+            <DialogDescription>
+              {isEditing 
+                ? 'Atualize as informações do departamento abaixo.' 
+                : 'Preencha as informações para criar um novo departamento.'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Nome</Label>
+              <Input
+                id="name"
+                name="name"
+                value={currentDepartment.name}
+                onChange={handleInputChange}
+                placeholder="Ex: Suporte Técnico"
+                required
+              />
+            </div>
             
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="description">Descrição</Label>
+              <Textarea
+                id="description"
+                name="description"
+                value={currentDepartment.description}
+                onChange={handleInputChange}
+                placeholder="Digite uma breve descrição..."
+                rows={3}
+              />
+            </div>
+            
+            {user?.role === 'admin' && (
               <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  value={currentDepartment.name}
-                  onChange={handleInputChange}
-                  placeholder="Ex: Suporte Técnico"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="description">Descrição</Label>
-                <Textarea
-                  id="description"
-                  name="description"
-                  value={currentDepartment.description}
-                  onChange={handleInputChange}
-                  placeholder="Digite uma breve descrição..."
-                  rows={3}
-                />
-              </div>
-              
-              {user?.role === 'admin' && (
-                <div className="space-y-2">
-                  <Label htmlFor="company_id">Empresa</Label>
-                  <Select
-                    value={currentDepartment.company_id?.toString() || ""}
-                    onValueChange={(value) => 
-                      setCurrentDepartment((prev) => ({
-                        ...prev,
-                        company_id: value ? parseInt(value) : null,
-                      }))
-                    }
-                  >
-                    <SelectTrigger id="company_id">
-                      <SelectValue placeholder="Selecione uma empresa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companies.map((company: any) => (
-                        <SelectItem key={company.id} value={company.id.toString()}>
-                          {company.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Departamentos são vinculados a uma empresa específica
-                  </p>
-                </div>
-              )}
-              
-              <div className="space-y-2">
-                <Label htmlFor="is_active">Ativo</Label>
-                <Switch
-                  id="is_active"
-                  checked={currentDepartment.is_active}
-                  onCheckedChange={(checked) => 
+                <Label htmlFor="company_id">Empresa</Label>
+                <Select
+                  value={currentDepartment.company_id?.toString() || ""}
+                  onValueChange={(value) => 
                     setCurrentDepartment((prev) => ({
                       ...prev,
-                      is_active: checked,
+                      company_id: value ? parseInt(value) : null,
                     }))
                   }
-                />
+                >
+                  <SelectTrigger id="company_id">
+                    <SelectValue placeholder="Selecione uma empresa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((company: any) => (
+                      <SelectItem key={company.id} value={company.id.toString()}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Departamentos são vinculados a uma empresa específica
+                </p>
               </div>
-              
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="is_active">Ativo</Label>
+              <Switch
+                id="is_active"
+                checked={currentDepartment.is_active}
+                onCheckedChange={(checked) => 
+                  setCurrentDepartment((prev) => ({
+                    ...prev,
+                    is_active: checked,
+                  }))
+                }
+              />
+            </div>
+            
               <DialogFooter className="flex gap-3">
                 <CancelButton
-                  onClick={() => setIsDialogOpen(false)}
-                  disabled={createDepartmentMutation.isPending || updateDepartmentMutation.isPending}
+                onClick={() => setIsDialogOpen(false)}
+                disabled={createDepartmentMutation.isPending || updateDepartmentMutation.isPending}
                 />
                 <SaveButton
                   onClick={handleSubmit}
                   loading={createDepartmentMutation.isPending || updateDepartmentMutation.isPending}
                   text={isEditing ? 'Salvar Alterações' : 'Criar Departamento'}
                 />
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-        {/* Modal de confirmação de exclusão */}
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Excluir Departamento</AlertDialogTitle>
-              <AlertDialogDescription>
-                Tem certeza que deseja excluir o departamento "{currentDepartment.name}"? 
-                Esta ação não pode ser desfeita.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDelete}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                disabled={deleteDepartmentMutation.isPending}
-              >
-                {deleteDepartmentMutation.isPending && (
-                  <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Sim, excluir
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+      {/* Modal de confirmação de exclusão */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Departamento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o departamento "{currentDepartment.name}"? 
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteDepartmentMutation.isPending}
+            >
+              {deleteDepartmentMutation.isPending && (
+                <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Sim, excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </>
     );
   }
@@ -567,7 +567,7 @@ const DepartmentManagement: React.FC = () => {
                           <span className="text-sm text-muted-foreground">
                             {(dept as any).company?.name || 'Sistema Global'}
                           </span>
-                        </div>
+    </div>
                       </TableCell>
                     )}
                     <TableCell>

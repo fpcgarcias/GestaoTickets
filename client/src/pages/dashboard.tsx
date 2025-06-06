@@ -16,11 +16,6 @@ import {
   Tooltip,
   Legend
 } from 'recharts';
-import { Button } from '@/components/ui/button';
-import { LayoutDashboard, AlertTriangle } from 'lucide-react';
-
-// Novos imports padronizados
-import { StandardPage, EmptyState } from '@/components/layout/admin-page-layout';
 
 // Definir tipos para os dados das consultas
 interface TicketStats {
@@ -49,12 +44,12 @@ interface RecentTicket {
 
 export default function Dashboard() {
   // Utilizamos as rotas que já filtram tickets baseados no papel do usuário
-  const { data: ticketStatsData, isLoading: isStatsLoading, error: statsError } = useQuery<TicketStats>({ // Tipo explícito
+  const { data: ticketStatsData, isLoading: isStatsLoading } = useQuery<TicketStats>({ // Tipo explícito
     queryKey: ['/api/tickets/stats'],
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
 
-  const { data: recentTicketsData, isLoading: isRecentLoading, error: recentError } = useQuery<RecentTicket[]>({ // Tipo explícito
+  const { data: recentTicketsData, isLoading: isRecentLoading } = useQuery<RecentTicket[]>({ // Tipo explícito
     queryKey: ['/api/tickets/recent'],
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
@@ -84,36 +79,10 @@ export default function Dashboard() {
     { name: 'Crítica', Qtde: ticketStats.byPriority.critical }, // Acesso direto agora é seguro
   ];
 
-  // Estado de erro
-  if (statsError || recentError) {
-    return (
-      <StandardPage
-        icon={LayoutDashboard}
-        title="Painel de Controle"
-        description="Visão geral dos chamados e estatísticas do sistema"
-      >
-        <div className="flex flex-col items-center justify-center py-12">
-          <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Erro ao carregar dados</h3>
-          <p className="text-muted-foreground mb-4 text-center">
-            {statsError?.message || recentError?.message || 'Ocorreu um erro inesperado'}
-          </p>
-          <Button onClick={() => window.location.reload()}>
-            Recarregar Dashboard
-          </Button>
-        </div>
-      </StandardPage>
-    );
-  }
-
   return (
-    <StandardPage
-      icon={LayoutDashboard}
-      title="Painel de Controle"
-      description="Visão geral dos chamados e estatísticas do sistema"
-      isLoading={isStatsLoading && isRecentLoading}
-    >
-      {/* Cards de Estatísticas */}
+    <div>
+      <h1 className="text-2xl font-semibold text-neutral-900 mb-6">Painel de Controle</h1>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <StatCard 
           title="Total de Chamados" 
@@ -139,8 +108,7 @@ export default function Dashboard() {
           status={TICKET_STATUS.RESOLVED as 'resolved'} // Cast para o tipo literal
         />
       </div>
-
-      {/* Gráficos */}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <Card>
           <CardHeader>
@@ -181,7 +149,7 @@ export default function Dashboard() {
                           className="w-3 h-3 rounded-full" 
                           style={{ backgroundColor: item.color }}
                         ></div>
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-sm text-gray-600">
                           {item.name}: {item.value}
                         </span>
                       </div>
@@ -193,8 +161,8 @@ export default function Dashboard() {
               <>
                 <div className="flex items-center justify-center h-72">
                   <div className="text-center">
-                    <p className="text-muted-foreground mb-2">Nenhum chamado cadastrado</p>
-                    <p className="text-sm text-muted-foreground">Os dados aparecerão aqui quando houver chamados no sistema</p>
+                    <p className="text-gray-500 mb-2">Nenhum chamado cadastrado</p>
+                    <p className="text-sm text-gray-400">Os dados aparecerão aqui quando houver chamados no sistema</p>
                   </div>
                 </div>
                 
@@ -207,7 +175,7 @@ export default function Dashboard() {
                           className="w-3 h-3 rounded-full" 
                           style={{ backgroundColor: item.color }}
                         ></div>
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-sm text-gray-600">
                           {item.name}: {item.value}
                         </span>
                       </div>
@@ -232,7 +200,7 @@ export default function Dashboard() {
                 <BarChart
                   data={priorityData}
                   margin={{
-                    top: 5,
+                    top: 20,
                     right: 30,
                     left: 20,
                     bottom: 5,
@@ -241,6 +209,7 @@ export default function Dashboard() {
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
+                  <Legend />
                   <Bar dataKey="Qtde" fill="#8884d8" />
                 </BarChart>
               </ResponsiveContainer>
@@ -248,60 +217,46 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Lista de Tickets Recentes */}
+      
       <Card>
         <CardHeader>
           <CardTitle>Chamados Recentes</CardTitle>
-          <CardDescription>Últimos chamados criados no sistema</CardDescription>
+          <CardDescription>Chamados mais recentes que precisam de atenção</CardDescription>
         </CardHeader>
         <CardContent>
           {isRecentLoading ? (
-            <div className="space-y-3">
-              {Array(5).fill(0).map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
+            <div className="space-y-4">
+              <Skeleton className="w-full h-16" />
+              <Skeleton className="w-full h-16" />
+              <Skeleton className="w-full h-16" />
             </div>
-          ) : recentTickets.length > 0 ? (
-            <div className="space-y-3">
-              {recentTickets.slice(0, 10).map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center space-x-3">
-                    <StatusDot status={ticket.status} />
+          ) : (
+            <div className="space-y-4">
+              {recentTickets.slice(0, 5).map((ticket: RecentTicket) => (
+                <div key={ticket.id} className="flex items-center justify-between border-b pb-4">
+                  <div className="flex items-center">
+                    <StatusDot status={ticket.status} className="mr-2" />
                     <div>
-                      <p className="font-medium text-sm">#{ticket.id} - {ticket.title}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {ticket.customer?.email || 'Cliente não informado'} • {' '}
-                        {new Date(ticket.created_at).toLocaleDateString('pt-BR')}
+                      <p className="font-medium">{ticket.title}</p>
+                      <p className="text-sm text-neutral-500">
+                        {ticket.customer.email} • {new Date(ticket.created_at).toLocaleDateString('pt-BR')}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      ticket.priority === 'critical' ? 'bg-red-100 text-red-800' :
-                      ticket.priority === 'high' ? 'bg-orange-100 text-orange-800' :
-                      ticket.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      {PRIORITY_LEVELS[ticket.priority as keyof typeof PRIORITY_LEVELS] || ticket.priority}
-                    </span>
+                  <div className="text-sm">
+                    {ticket.priority === PRIORITY_LEVELS.HIGH && (
+                      <span className="text-xs font-medium text-white bg-status-high px-2 py-1 rounded">
+                        Alta Prioridade
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-          ) : (
-            <EmptyState
-              icon={LayoutDashboard}
-              title="Nenhum chamado recente"
-              description="Não há chamados recentes para exibir. Os novos chamados aparecerão aqui."
-            />
           )}
         </CardContent>
       </Card>
-    </StandardPage>
+    </div>
   );
 }
 
@@ -315,14 +270,16 @@ interface StatCardProps {
 const StatCard: React.FC<StatCardProps> = ({ title, value, isLoading, status }) => {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        {status && <StatusDot status={status} />}
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">
-          {isLoading ? <Skeleton className="h-8 w-16" /> : value}
+      <CardContent className="p-6">
+        <div className="flex items-center mb-2">
+          {status && <StatusDot status={status} className="mr-2" />}
+          <h3 className="font-medium">{title}</h3>
         </div>
+        {isLoading ? (
+          <Skeleton className="h-10 w-16" />
+        ) : (
+          <p className="text-3xl font-bold">{value}</p>
+        )}
       </CardContent>
     </Card>
   );

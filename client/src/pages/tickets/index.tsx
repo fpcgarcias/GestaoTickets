@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import { Button } from "@/components/ui/button";
-import { Plus, Search, Calendar, Ticket, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Calendar } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -27,12 +27,9 @@ import { TicketCard } from '@/components/tickets/ticket-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
-import { Ticket as TicketType, Official, Department } from '@shared/schema';
+import { Ticket, Official, Department } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-
-// Novos imports padronizados
-import { StandardPage, EmptyState } from '@/components/layout/admin-page-layout';
 
 export default function TicketsIndex() {
   const [, navigate] = useLocation();
@@ -53,17 +50,8 @@ export default function TicketsIndex() {
   // Pegar estado de autenticação
   const { user, isLoading: isAuthLoading } = useAuth();
 
-  // Handlers padronizados
-  const handleCreateTicket = () => {
-    navigate('/tickets/new');
-  };
-
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value);
-  };
-
   // Busca tickets com base no papel do usuário
-  const { data: tickets, isLoading: isTicketsLoading, error: ticketsError } = useQuery<TicketType[]>({
+  const { data: tickets, isLoading: isTicketsLoading } = useQuery<Ticket[]>({
     queryKey: ['/api/tickets/user-role'],
     enabled: !!user,
   });
@@ -206,70 +194,70 @@ export default function TicketsIndex() {
   // Mostrar Skeleton enquanto a autenticação está carregando OU o usuário ainda não foi definido
   if (isAuthLoading || !user) {
     return (
-      <StandardPage
-        icon={Ticket}
-        title="Chamados"
-        description="Gerencie todos os chamados do sistema"
-        createButtonText="Novo Chamado"
-        onCreateClick={handleCreateTicket}
-        onSearchChange={handleSearchChange}
-        searchValue={searchQuery}
-        searchPlaceholder="Buscar chamado..."
-        isLoading={true}
-      >
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-6">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-10 w-36" />
+        </div>
+        <div className="space-y-4 mb-6">
+          {/* Primeira linha de filtros */}
+          <div className="flex flex-wrap items-center gap-4">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-10 w-44" />
+          </div>
+          {/* Segunda linha de filtros */}
+          <div className="flex flex-wrap items-center gap-4">
+            <Skeleton className="h-10 w-[200px]" />
+            <Skeleton className="h-10 w-[200px]" />
+            <Skeleton className="h-10 w-[200px]" />
+          </div>
+        </div>
+        <Skeleton className="h-10 w-full mb-6" /> {/* Tabs */}
+        <Skeleton className="h-16 w-full mb-6" /> {/* Legend */}
         <div className="space-y-4">
-          {Array(5).fill(0).map((_, i) => (
-            <Skeleton key={i} className="h-32 w-full rounded-lg" />
+          {Array(3).fill(0).map((_, i) => (
+            <div key={i} className="bg-white rounded-md border border-neutral-200 p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <Skeleton className="h-6 w-3/4 mb-2" />
+              <Skeleton className="h-10 w-full mb-4" />
+              <div className="flex justify-between">
+                <Skeleton className="h-7 w-28 rounded-full" />
+                <Skeleton className="h-5 w-20" />
+              </div>
+            </div>
           ))}
         </div>
-      </StandardPage>
-    );
-  }
-
-  // Estado de erro
-  if (ticketsError) {
-    return (
-      <StandardPage
-        icon={Ticket}
-        title="Chamados"
-        description="Gerencie todos os chamados do sistema"
-        createButtonText="Novo Chamado"
-        onCreateClick={handleCreateTicket}
-        onSearchChange={handleSearchChange}
-        searchValue={searchQuery}
-        searchPlaceholder="Buscar chamado..."
-      >
-        <div className="flex flex-col items-center justify-center py-12">
-          <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Erro ao carregar chamados</h3>
-          <p className="text-muted-foreground mb-4 text-center">
-            {ticketsError instanceof Error ? ticketsError.message : 'Ocorreu um erro inesperado'}
-          </p>
-          <Button onClick={() => window.location.reload()}>
-            Recarregar Página
-          </Button>
-        </div>
-      </StandardPage>
+      </div>
     );
   }
 
   return (
-    <StandardPage
-      icon={Ticket}
-      title="Chamados"
-      description="Gerencie todos os chamados do sistema"
-      createButtonText="Novo Chamado"
-      onCreateClick={handleCreateTicket}
-      onSearchChange={handleSearchChange}
-      searchValue={searchQuery}
-      searchPlaceholder="Buscar chamado..."
-      isLoading={isTicketsLoading}
-    >
-      {/* Filtros Avançados */}
+    <div className="mb-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-semibold text-neutral-900">Chamados</h1>
+        <Button onClick={() => navigate('/tickets/new')}>
+          <Plus className="mr-2 h-4 w-4" />
+          Novo Chamado
+        </Button>
+      </div>
+
+      {/* Filters Section */}
       <div className="space-y-4 mb-6">
-        {/* Primeira linha: Período */}
+        {/* Primeira linha: Busca e Período */}
         <div className="flex flex-wrap items-center gap-4">
-          <Label className="text-sm font-medium">Período:</Label>
+          <div className="relative w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
+            <Input 
+              placeholder="Buscar chamado" 
+              className="pl-10"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+
           {timeFilter === 'custom' ? (
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild>
@@ -336,17 +324,17 @@ export default function TicketsIndex() {
           )}
         </div>
 
-        {/* Segunda linha: Filtros de Prioridade, Status, Departamento e Atendente */}
+        {/* Segunda linha: Filtros de Prioridade, Departamento, Status e Atendente */}
         <div className="flex flex-wrap items-center gap-4">
           <Select
             value={priorityFilter}
             onValueChange={setPriorityFilter}
           >
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Prioridade" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="all">Todas as Prioridades</SelectItem>
               <SelectItem value={PRIORITY_LEVELS.LOW}>Baixa</SelectItem>
               <SelectItem value={PRIORITY_LEVELS.MEDIUM}>Média</SelectItem>
               <SelectItem value={PRIORITY_LEVELS.HIGH}>Alta</SelectItem>
@@ -354,141 +342,155 @@ export default function TicketsIndex() {
             </SelectContent>
           </Select>
 
-          <Select
-            value={statusFilter}
-            onValueChange={setStatusFilter}
-          >
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              <SelectItem value={TICKET_STATUS.NEW}>Novos</SelectItem>
-              <SelectItem value={TICKET_STATUS.ONGOING}>Em Andamento</SelectItem>
-              <SelectItem value={TICKET_STATUS.RESOLVED}>Resolvidos</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Filtro de Departamento */}
+          {/* 🆕 Filtro de Departamento */}
           <Select
             value={departmentFilter}
             onValueChange={setDepartmentFilter}
           >
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Departamento" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
-              {departments?.map((dept) => (
-                <SelectItem key={dept.id} value={dept.id.toString()}>
-                  {dept.name}
-                </SelectItem>
-              ))}
+              <SelectItem value="all">Todos os Departamentos</SelectItem>
+              {departments && departments.length > 0 && (
+                departments.map((department) => (
+                  <SelectItem key={department.id} value={department.id.toString()}>
+                    {department.name}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
 
-          {/* Filtro de Atendente */}
+          {/* ✅ Filtro de Status */}
+          <Select
+            value={statusFilter}
+            onValueChange={setStatusFilter}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Todos os Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Status</SelectItem>
+              <SelectItem value="new">🆕 Novo</SelectItem>
+              <SelectItem value="ongoing">⚡ Em Andamento</SelectItem>
+              <SelectItem value="suspended">⏸️ Suspenso</SelectItem>
+              <SelectItem value="waiting_customer">⏳ Aguardando Cliente</SelectItem>
+              <SelectItem value="escalated">🚨 Escalado</SelectItem>
+              <SelectItem value="in_analysis">🔍 Em Análise</SelectItem>
+              <SelectItem value="pending_deployment">🚀 Aguardando Deploy</SelectItem>
+              <SelectItem value="reopened">🔄 Reaberto</SelectItem>
+              <SelectItem value="resolved">✅ Resolvido</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* 🆕 Filtro de Atendente */}
           <Select
             value={assignedToFilter}
             onValueChange={setAssignedToFilter}
           >
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Atendente" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="all">Todos os Atendentes</SelectItem>
               <SelectItem value="unassigned">Não Atribuídos</SelectItem>
-              {officials?.map((official) => (
-                <SelectItem key={official.id} value={official.id.toString()}>
-                  {official.name}
-                </SelectItem>
-              ))}
+              {officials && officials.length > 0 && (
+                officials.map((official) => (
+                  <SelectItem key={official.id} value={official.id.toString()}>
+                    {official.name}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {/* Contador de resultados */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-sm text-muted-foreground">
-          {filteredTickets ? `${filteredTickets.length} chamado(s) encontrado(s)` : ''}
-        </div>
+      {/* Status Tabs - Mantido para navegação rápida */}
+      <Tabs 
+        defaultValue="all" 
+        value={statusFilter}
+        onValueChange={setStatusFilter}
+        className="mb-6"
+      >
+        <TabsList className="border-b border-neutral-200 w-full justify-start rounded-none bg-transparent">
+          <TabsTrigger value="all" className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
+            Todos os Chamados
+          </TabsTrigger>
+          <TabsTrigger value={TICKET_STATUS.NEW} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
+            🆕 Novos
+          </TabsTrigger>
+          <TabsTrigger value={TICKET_STATUS.ONGOING} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
+            ⚡ Em Andamento
+          </TabsTrigger>
+          <TabsTrigger value={TICKET_STATUS.SUSPENDED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
+            ⏸️ Suspensos
+          </TabsTrigger>
+          <TabsTrigger value={TICKET_STATUS.WAITING_CUSTOMER} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
+            ⏳ Aguardando Cliente
+          </TabsTrigger>
+          <TabsTrigger value={TICKET_STATUS.ESCALATED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
+            🚨 Escalados
+          </TabsTrigger>
+          <TabsTrigger value={TICKET_STATUS.RESOLVED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
+            ✅ Resolvidos
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* Ticket Cards */}
+      <div className="space-y-4">
+        {isTicketsLoading ? (
+          Array(3).fill(0).map((_, i) => (
+            <div key={i} className="bg-white rounded-md border border-neutral-200 p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <Skeleton className="h-6 w-3/4 mb-2" />
+              <Skeleton className="h-10 w-full mb-4" />
+              <div className="flex justify-between">
+                <Skeleton className="h-7 w-28 rounded-full" />
+                <Skeleton className="h-5 w-20" />
+              </div>
+            </div>
+          ))
+        ) : filteredTickets?.length ? (
+          filteredTickets.map(ticket => (
+            <TicketCard 
+              key={ticket.id} 
+              ticket={ticket} 
+              onAssignTicket={handleAssignTicket}
+              isAssigning={assignTicketMutation.isPending && assignTicketMutation.variables?.ticketId === ticket.id}
+            />
+          ))
+        ) : (
+          <div className="bg-white rounded-md border border-neutral-200 p-8 text-center">
+            <h3 className="text-lg font-medium text-neutral-700 mb-2">Nenhum chamado encontrado</h3>
+            <p className="text-neutral-500 mb-4">
+              {searchQuery ? 'Tente ajustar seus termos de busca' : 'Crie seu primeiro chamado para começar'}
+            </p>
+            {!searchQuery && (
+              <Button asChild>
+                <Link href="/tickets/new">Criar Chamado</Link>
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Lista de Tickets */}
-      {filteredTickets && filteredTickets.length === 0 ? (
-        <EmptyState
-          icon={searchQuery ? Search : Ticket}
-          title={searchQuery ? "Nenhum chamado encontrado" : "Nenhum chamado cadastrado"}
-          description={searchQuery 
-            ? `Não foram encontrados chamados com o termo "${searchQuery}".` 
-            : "Não há chamados cadastrados no sistema. Clique no botão abaixo para criar o primeiro chamado."
-          }
-          actionLabel={searchQuery ? "Limpar busca" : "Criar Primeiro Chamado"}
-          onAction={searchQuery ? () => setSearchQuery('') : handleCreateTicket}
-        />
-      ) : (
-        <Tabs defaultValue="all" className="w-full">
-          <TabsList>
-            <TabsTrigger value="all">
-              Todos ({filteredTickets?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="new">
-              Novos ({filteredTickets?.filter(t => t.status === TICKET_STATUS.NEW).length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="ongoing">
-              Em Andamento ({filteredTickets?.filter(t => t.status === TICKET_STATUS.ONGOING).length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="resolved">
-              Resolvidos ({filteredTickets?.filter(t => t.status === TICKET_STATUS.RESOLVED).length || 0})
-            </TabsTrigger>
-          </TabsList>
-
-                     <TabsContent value="all" className="space-y-4 mt-6">
-             {filteredTickets?.map((ticket) => (
-               <TicketCard 
-                 key={ticket.id} 
-                 ticket={ticket} 
-                 onAssignTicket={handleAssignTicket}
-                 isAssigning={assignTicketMutation.isPending && assignTicketMutation.variables?.ticketId === ticket.id}
-               />
-             ))}
-           </TabsContent>
-
-           <TabsContent value="new" className="space-y-4 mt-6">
-             {filteredTickets?.filter(t => t.status === TICKET_STATUS.NEW).map((ticket) => (
-               <TicketCard 
-                 key={ticket.id} 
-                 ticket={ticket} 
-                 onAssignTicket={handleAssignTicket}
-                 isAssigning={assignTicketMutation.isPending && assignTicketMutation.variables?.ticketId === ticket.id}
-               />
-             ))}
-           </TabsContent>
-
-           <TabsContent value="ongoing" className="space-y-4 mt-6">
-             {filteredTickets?.filter(t => t.status === TICKET_STATUS.ONGOING).map((ticket) => (
-               <TicketCard 
-                 key={ticket.id} 
-                 ticket={ticket} 
-                 onAssignTicket={handleAssignTicket}
-                 isAssigning={assignTicketMutation.isPending && assignTicketMutation.variables?.ticketId === ticket.id}
-               />
-             ))}
-           </TabsContent>
-
-           <TabsContent value="resolved" className="space-y-4 mt-6">
-             {filteredTickets?.filter(t => t.status === TICKET_STATUS.RESOLVED).map((ticket) => (
-               <TicketCard 
-                 key={ticket.id} 
-                 ticket={ticket} 
-                 onAssignTicket={handleAssignTicket}
-                 isAssigning={assignTicketMutation.isPending && assignTicketMutation.variables?.ticketId === ticket.id}
-               />
-             ))}
-           </TabsContent>
-        </Tabs>
+      {/* Pagination */}
+      {filteredTickets && filteredTickets.length > 0 && (
+        <div className="flex justify-end mt-6">
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" size="sm" disabled>Anterior</Button>
+            <Button variant="outline" size="sm" className="bg-primary text-white hover:bg-primary/90">1</Button>
+            <Button variant="outline" size="sm">2</Button>
+            <Button variant="outline" size="sm">Próxima</Button>
+          </div>
+        </div>
       )}
-    </StandardPage>
+    </div>
   );
 }
