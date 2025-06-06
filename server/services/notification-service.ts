@@ -49,7 +49,7 @@ class NotificationService {
     // Enviar uma notificação de boas-vindas
     this.sendNotificationToUser(userId, {
       type: 'welcome',
-      title: 'Bem-vindo ao Ticket Wise',
+      title: 'Bem-vindo ao TICKET LEAD',
       message: 'Você está agora conectado ao sistema de notificações.',
       timestamp: new Date()
     });
