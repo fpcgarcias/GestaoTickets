@@ -919,8 +919,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(404).json({ message: "Ticket não encontrado" });
       }
 
-      // Pegar apenas os campos permitidos para patch (ex: assignedToId)
+      // 🚫 BLOQUEAR CUSTOMER DE ALTERAR ATENDENTE
       const { assigned_to_id } = req.body;
+      
+      if (userRole === 'customer' && assigned_to_id !== undefined) {
+        return res.status(403).json({ 
+          message: "Operação não permitida", 
+          details: "Clientes não podem alterar o atendente do ticket." 
+        });
+      }
+
       const updateData: { assigned_to_id?: number | null } = {};
 
       // Se o ticket estiver resolvido e estamos tentando mudar o atendente, rejeitar
@@ -1147,6 +1155,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Verificar acesso
       const userRole = req.session?.userRole as string;
       const userCompanyId = req.session?.companyId;
+      
+      // 🚫 BLOQUEAR CUSTOMER DE ALTERAR ATENDENTE VIA REPLY
+      if (userRole === 'customer' && req.body.assigned_to_id !== undefined) {
+        return res.status(403).json({ 
+          message: "Operação não permitida", 
+          details: "Clientes não podem alterar o atendente do ticket." 
+        });
+      }
       
       const ticket = await storage.getTicket(ticketId, userRole, userCompanyId);
       if (!ticket) {
