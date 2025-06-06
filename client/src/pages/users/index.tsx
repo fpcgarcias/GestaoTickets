@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   Search, Key, Pencil, Loader2, Copy, AlertTriangle, 
-  User, Check, X, UserCog, UserCheck, UserX, Shield, Save, Building2
+  User, Check, X, UserCog, UserCheck, UserX, Shield, Save, Building2, Users, UserPlus
 } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -23,6 +23,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
+
+// Novos imports padronizados
+import { StandardPage, StatusBadge, EmptyState } from '@/components/layout/admin-page-layout';
+import { ActionButtonGroup, EditButton, SaveButton, CancelButton } from '@/components/ui/standardized-button';
 
 export default function UsersIndex() {
   const { toast } = useToast();
@@ -45,29 +49,45 @@ export default function UsersIndex() {
   const [editUsername, setEditUsername] = useState('');
   const [editRole, setEditRole] = useState('');
 
-  // Abrir gerenciador de status
-  const handleStatusChange = (user: any) => {
-    setSelectedUser(user);
+  // Handlers padronizados
+  const handleCreateUser = () => {
+    // Função para criar usuário - será implementada futuramente
+    toast({
+      title: "Funcionalidade em desenvolvimento",
+      description: "A criação de usuários será implementada em breve.",
+    });
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+  };
+
+  const handleFilterClick = () => {
+    setIncludeInactive(!includeInactive);
+  };
+
+
+
+  const handleEdit = (userItem: any) => {
+    setSelectedUser(userItem);
+    setEditName(userItem.name);
+    setEditEmail(userItem.email);
+    setEditUsername(userItem.username);
+    setEditRole(userItem.role);
+    setEditDialogOpen(true);
+  };
+
+  const handleDelete = (userItem: any) => {
+    setSelectedUser(userItem);
     setActiveStatusDialogOpen(true);
   };
-  
-  // Abrir gerenciador de senha
-  const handleResetPassword = (user: any) => {
-    setSelectedUser(user);
+
+  const handleResetPassword = (userItem: any) => {
+    setSelectedUser(userItem);
     setPassword('');
     setConfirmPassword('');
     setPasswordError('');
     setResetPasswordDialogOpen(true);
-  };
-  
-  // Abrir gerenciador de edição
-  const handleEditUser = (user: any) => {
-    setSelectedUser(user);
-    setEditName(user.name);
-    setEditEmail(user.email);
-    setEditUsername(user.username);
-    setEditRole(user.role);
-    setEditDialogOpen(true);
   };
 
   // Carrega usuários com ou sem usuários inativos
@@ -225,6 +245,14 @@ export default function UsersIndex() {
       default: return role;
     }
   };
+
+  const getRoleIcon = (role: string) => {
+    switch(role) {
+      case 'admin': return Shield;
+      case 'support': return UserCog;
+      default: return User;
+    }
+  };
   
   // Função para alternar o status ativo/inativo
   const handleToggleStatus = () => {
@@ -236,145 +264,224 @@ export default function UsersIndex() {
     }
   };
 
+  // Estado vazio quando não há usuários
+  if (filteredUsers && filteredUsers.length === 0 && !isLoading && !searchTerm) {
+    return (
+      <StandardPage
+        icon={Users}
+        title="Usuários"
+        description="Gerencie os usuários do sistema, seus acessos e permissões"
+        createButtonText="Adicionar Usuário"
+        onCreateClick={handleCreateUser}
+        onSearchChange={handleSearchChange}
+        searchValue={searchTerm}
+        searchPlaceholder="Buscar usuários..."
+      >
+        <EmptyState
+          icon={Users}
+          title="Nenhum usuário encontrado"
+          description="Não há usuários cadastrados no sistema. Clique no botão abaixo para adicionar o primeiro usuário."
+          actionLabel="Adicionar Primeiro Usuário"
+          onAction={handleCreateUser}
+        />
+      </StandardPage>
+    );
+  }
+
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Usuários</h1>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Gerenciamento de Usuários</CardTitle>
-          <CardDescription>Gerencie usuários do sistema, seus acessos e permissões</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
-                <Input 
-                  placeholder="Buscar usuários" 
-                  className="pl-10" 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch 
-                  id="includeInactive" 
-                  checked={includeInactive} 
-                  onCheckedChange={setIncludeInactive}
-                />
-                <Label htmlFor="includeInactive">Incluir inativos</Label>
-              </div>
-            </div>
+    <>
+      <StandardPage
+        icon={Users}
+        title="Usuários"
+        description="Gerencie os usuários do sistema, seus acessos e permissões"
+        createButtonText="Adicionar Usuário"
+        onCreateClick={handleCreateUser}
+        onSearchChange={handleSearchChange}
+        searchValue={searchTerm}
+        searchPlaceholder="Buscar usuários..."
+        isLoading={isLoading}
+      >
+        {/* Filtro adicional para incluir inativos */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <Switch 
+              id="includeInactive" 
+              checked={includeInactive} 
+              onCheckedChange={setIncludeInactive}
+            />
+            <Label htmlFor="includeInactive">Incluir usuários inativos</Label>
           </div>
+          <div className="text-sm text-muted-foreground">
+            {filteredUsers ? `${filteredUsers.length} usuário(s) encontrado(s)` : ''}
+          </div>
+        </div>
 
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Nome de usuário</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Perfil</TableHead>
-                  {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  Array(5).fill(0).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-40" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                      {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
-                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : filteredUsers && filteredUsers.length > 0 ? (
-                  filteredUsers.map((userItem: any) => (
+        {filteredUsers && filteredUsers.length === 0 ? (
+          <EmptyState
+            icon={Search}
+            title="Nenhum usuário encontrado"
+            description={`Não foram encontrados usuários com o termo "${searchTerm}".`}
+            actionLabel="Limpar busca"
+            onAction={() => setSearchTerm('')}
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead>Nome de usuário</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Perfil</TableHead>
+                {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array(5).fill(0).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                filteredUsers?.map((userItem: any) => {
+                  const RoleIcon = getRoleIcon(userItem.role);
+                  return (
                     <TableRow key={userItem.id} className={!userItem.active ? "opacity-60" : ""}>
-                      <TableCell>{userItem.name}</TableCell>
+                      <TableCell className="font-medium">{userItem.name}</TableCell>
                       <TableCell>{userItem.username}</TableCell>
                       <TableCell>{userItem.email}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-normal">
-                          {userItem.role === 'admin' ? <Shield className="h-3 w-3 mr-1" /> : 
-                           userItem.role === 'support' ? <UserCog className="h-3 w-3 mr-1" /> : 
-                           <User className="h-3 w-3 mr-1" />}
+                          <RoleIcon className="h-3 w-3 mr-1" />
                           {getRoleText(userItem.role)}
                         </Badge>
                       </TableCell>
                       {user?.role === 'admin' && (
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4 text-neutral-500" />
-                            <span className="text-sm text-neutral-600">
+                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
                               {userItem.company?.name || 'Sistema Global'}
                             </span>
                           </div>
                         </TableCell>
                       )}
                       <TableCell>
-                        <Badge 
-                          variant={userItem.active ? "default" : "outline"}
-                          className={userItem.active ? "bg-green-500 hover:bg-green-500/80" : "text-neutral-500"}
-                        >
-                          {userItem.active ? "Ativo" : "Inativo"}
-                        </Badge>
+                        <StatusBadge isActive={userItem.active} />
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-1">
+                          {/* Botão customizado para redefinir senha */}
                           <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleEditUser(userItem)}
-                            title="Editar usuário"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button 
-                            variant="outline" 
+                            variant="ghost" 
                             size="sm" 
                             onClick={() => handleResetPassword(userItem)}
                             title="Redefinir senha"
+                            className="h-8 w-8 p-0"
                           >
-                            <Key className="h-3.5 w-3.5" />
+                            <Key className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant={userItem.active ? "destructive" : "default"} 
-                            size="sm"
-                            className={userItem.active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
-                            onClick={() => handleStatusChange(userItem)}
-                            title={userItem.active ? "Desativar usuário" : "Ativar usuário"}
-                          >
-                            {userItem.active ? 
-                              <UserX className="h-3.5 w-3.5" /> : 
-                              <UserCheck className="h-3.5 w-3.5" />}
-                          </Button>
+                          
+                          {/* Grupo de ações padronizado */}
+                          <ActionButtonGroup
+                            onEdit={() => handleEdit(userItem)}
+                            onDelete={() => handleDelete(userItem)}
+                            loading={toggleUserStatusMutation.isPending}
+                          />
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={user?.role === 'admin' ? 7 : 6} className="text-center py-10 text-neutral-500">
-                      Nenhum usuário encontrado.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </StandardPage>
+
+      {/* Dialog para editar usuário */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogDescription>
+              Atualize as informações do usuário selecionado.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Nome</Label>
+              <Input
+                id="edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Nome completo"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-email">Email</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="email@exemplo.com"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-username">Nome de usuário</Label>
+              <Input
+                id="edit-username"
+                value={editUsername}
+                onChange={(e) => setEditUsername(e.target.value)}
+                placeholder="nome_usuario"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-role">Perfil</Label>
+              <Select value={editRole} onValueChange={setEditRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um perfil" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="support">Suporte</SelectItem>
+                  <SelectItem value="customer">Cliente</SelectItem>
+                  <SelectItem value="manager">Gestor</SelectItem>
+                  <SelectItem value="supervisor">Supervisor</SelectItem>
+                  <SelectItem value="viewer">Visualizador</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+          
+          <DialogFooter className="flex gap-3">
+            <CancelButton 
+              onClick={() => setEditDialogOpen(false)}
+              disabled={updateUserMutation.isPending}
+            />
+            <SaveButton 
+              onClick={handleEditUserSubmit}
+              loading={updateUserMutation.isPending}
+              text="Atualizar"
+            />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
-      {/* Diálogo para alternar status ativo/inativo */}
+      {/* Dialog para alternar status ativo/inativo */}
       <Dialog open={activeStatusDialogOpen} onOpenChange={setActiveStatusDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -390,208 +497,119 @@ export default function UsersIndex() {
           
           {selectedUser && (
             <div className="py-4">
-              <div className="flex items-center p-3 rounded-md border bg-neutral-50 mb-4">
+              <div className="flex items-center p-3 rounded-md border bg-muted/50 mb-4">
                 <div className="mr-3">
-                  {selectedUser.role === 'admin' ? <Shield className="h-5 w-5 text-blue-600" /> : 
-                   selectedUser.role === 'support' ? <UserCog className="h-5 w-5 text-amber-600" /> : 
-                   <User className="h-5 w-5 text-neutral-600" />}
+                  {selectedUser.role === 'admin' ? <Shield className="h-5 w-5 text-primary" /> : 
+                   selectedUser.role === 'support' ? <UserCog className="h-5 w-5 text-blue-600" /> : 
+                   <User className="h-5 w-5 text-muted-foreground" />}
                 </div>
                 <div>
                   <p className="font-medium">{selectedUser.name}</p>
-                  <p className="text-sm text-neutral-500">{selectedUser.email}</p>
+                  <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
+                  <p className="text-xs text-muted-foreground">{getRoleText(selectedUser.role)}</p>
                 </div>
               </div>
               
-              <p className="text-sm text-neutral-600 mb-6">
-                {selectedUser.active ? 
-                  "Esta ação não exclui o usuário permanentemente. Os dados serão mantidos para histórico e poderá ser reativado a qualquer momento." :
-                  "Ao ativar o usuário, ele poderá realizar login novamente no sistema."}
-              </p>
+              <div className="flex items-center gap-2 text-sm">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <span className="text-muted-foreground">
+                  Esta ação pode ser revertida posteriormente.
+                </span>
+              </div>
             </div>
           )}
           
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setActiveStatusDialogOpen(false)}>Cancelar</Button>
-            <Button 
-              onClick={handleToggleStatus}
+          <DialogFooter className="flex gap-3">
+            <CancelButton 
+              onClick={() => setActiveStatusDialogOpen(false)}
+              disabled={toggleUserStatusMutation.isPending}
+            />
+            <Button
               variant={selectedUser && selectedUser.active ? "destructive" : "default"}
-              className={selectedUser && selectedUser.active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
+              onClick={handleToggleStatus}
+              disabled={toggleUserStatusMutation.isPending}
+              className="min-w-[100px]"
             >
-              {selectedUser && selectedUser.active ? (
-                <>
-                  <UserX className="h-4 w-4 mr-2" />
-                  Desativar
-                </>
+              {toggleUserStatusMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <>
-                  <UserCheck className="h-4 w-4 mr-2" />
-                  Ativar
-                </>
+                selectedUser && selectedUser.active ? "Desativar" : "Ativar"
               )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
-      {/* Diálogo para redefinir senha */}
+
+      {/* Dialog para redefinir senha */}
       <Dialog open={resetPasswordDialogOpen} onOpenChange={setResetPasswordDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Redefinir senha</DialogTitle>
+            <DialogTitle>Redefinir Senha</DialogTitle>
             <DialogDescription>
               Defina uma nova senha para o usuário selecionado.
             </DialogDescription>
           </DialogHeader>
           
           {selectedUser && (
-            <div className="py-4">
-              <div className="flex items-center p-3 rounded-md border bg-neutral-50 mb-4">
-                <div className="mr-3">
-                  {selectedUser.role === 'admin' ? <Shield className="h-5 w-5 text-blue-600" /> : 
-                   selectedUser.role === 'support' ? <UserCog className="h-5 w-5 text-amber-600" /> : 
-                   <User className="h-5 w-5 text-neutral-600" />}
-                </div>
+            <div className="space-y-4">
+              <div className="flex items-center p-3 rounded-md border bg-muted/50">
+                <User className="h-5 w-5 text-muted-foreground mr-3" />
                 <div>
                   <p className="font-medium">{selectedUser.name}</p>
-                  <p className="text-sm text-neutral-500">{selectedUser.email}</p>
+                  <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
                 </div>
               </div>
               
-              <div className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="password">Nova senha</Label>
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Digite a nova senha"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="confirmPassword">Confirmar senha</Label>
-                  <Input 
-                    id="confirmPassword" 
-                    type="password" 
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirme a nova senha"
-                  />
-                </div>
-                
-                {passwordError && (
-                  <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">
-                    <AlertTriangle className="h-4 w-4 inline-block mr-1" />
-                    {passwordError}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setResetPasswordDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleResetPasswordSubmit}>
-              <Key className="h-4 w-4 mr-2" />
-              Redefinir senha
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Diálogo para editar usuário */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar Usuário</DialogTitle>
-            <DialogDescription>
-              Edite as informações do usuário selecionado.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedUser && (
-            <div className="py-4">
-              <div className="flex items-center p-3 rounded-md border bg-neutral-50 mb-4">
-                <div className="mr-3">
-                  {selectedUser.role === 'admin' ? <Shield className="h-5 w-5 text-blue-600" /> : 
-                   selectedUser.role === 'support' ? <UserCog className="h-5 w-5 text-amber-600" /> : 
-                   <User className="h-5 w-5 text-neutral-600" />}
-                </div>
-                <div>
-                  <p className="font-medium">{selectedUser.name}</p>
-                  <p className="text-sm text-neutral-500">{selectedUser.email}</p>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-password">Nova senha</Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setPasswordError('');
+                  }}
+                  placeholder="Digite a nova senha"
+                />
               </div>
               
-              <div className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="editName">Nome</Label>
-                  <Input 
-                    id="editName" 
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    placeholder="Nome completo"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="editEmail">Email</Label>
-                  <Input 
-                    id="editEmail" 
-                    type="email" 
-                    value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
-                    placeholder="email@exemplo.com"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="editUsername">Nome de usuário</Label>
-                  <Input 
-                    id="editUsername" 
-                    value={editUsername}
-                    onChange={(e) => setEditUsername(e.target.value)}
-                    placeholder="Nome de usuário"
-                  />
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="editRole">Perfil do Usuário</Label>
-                  <Select 
-                    value={editRole} 
-                    onValueChange={setEditRole}
-                  >
-                    <SelectTrigger id="editRole">
-                      <SelectValue placeholder="Selecione o perfil" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                      <SelectItem value="company_admin">Admin de Empresa</SelectItem>
-                      <SelectItem value="manager">Gestor</SelectItem>
-                      <SelectItem value="supervisor">Supervisor</SelectItem>
-                      <SelectItem value="support">Suporte</SelectItem>
-                      <SelectItem value="triage">Triagem</SelectItem>
-                      <SelectItem value="customer">Cliente</SelectItem>
-                      <SelectItem value="viewer">Visualizador</SelectItem>
-                      <SelectItem value="quality">Qualidade</SelectItem>
-                      <SelectItem value="integration_bot">Bot de Integração</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Confirmar senha</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setPasswordError('');
+                  }}
+                  placeholder="Confirme a nova senha"
+                />
               </div>
+              
+              {passwordError && (
+                <div className="flex items-center gap-2 text-sm text-destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>{passwordError}</span>
+                </div>
+              )}
             </div>
           )}
           
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleEditUserSubmit}>
-              <Save className="h-4 w-4 mr-2" />
-              Salvar alterações
-            </Button>
+          <DialogFooter className="flex gap-3">
+            <CancelButton 
+              onClick={() => setResetPasswordDialogOpen(false)}
+              disabled={resetPasswordMutation.isPending}
+            />
+            <SaveButton 
+              onClick={handleResetPasswordSubmit}
+              loading={resetPasswordMutation.isPending}
+              text="Redefinir Senha"
+            />
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

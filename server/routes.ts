@@ -506,6 +506,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       } else if (role === 'manager') {
         if (companyId) {
           conditions.push(eq(schema.tickets.company_id, companyId));
+          // Manager também precisa ser um atendente para ver tickets específicos dos departamentos
+          const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId)).limit(1);
+          if (official) {
+            const departments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, official.id));
+            if (departments.length > 0) {
+              const departmentIds = departments.map(d => parseInt(d.department));
+              // Manager vê todos os tickets da empresa, mas pode atender apenas os dos seus departamentos
+              // Para manter compatibilidade, manager vê todos da empresa
+            }
+          }
+          // Manager vê todos os tickets da empresa independente de ser atendente
         } else {
             return res.json([]); // manager sem companyId não deve ver tickets
         }
@@ -812,6 +823,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Pegar apenas os campos permitidos para patch (ex: assignedToId)
       const { assigned_to_id } = req.body;
       const updateData: { assigned_to_id?: number | null } = {};
+
+      // ⚠️ CUSTOMER NÃO PODE ATRIBUIR OU ALTERAR ATENDENTE
+      if (userRole === 'customer' && assigned_to_id !== undefined) {
+        return res.status(403).json({ 
+          message: "Operação não permitida", 
+          details: "Clientes não podem atribuir ou alterar atendentes nos tickets." 
+        });
+      }
 
       // Se o ticket estiver resolvido e estamos tentando mudar o atendente, rejeitar
       if (existingTicket.status === 'resolved' && assigned_to_id !== undefined && assigned_to_id !== existingTicket.assigned_to_id) {
@@ -1346,7 +1365,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Official endpoints
-  router.get("/officials", authRequired, authorize(['admin', 'manager', 'company_admin', 'support']), async (req: Request, res: Response) => {
+  router.get("/officials", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
       console.log('======== REQUISIÇÃO PARA /api/officials ========');
       console.log('Sessão do usuário:', req.session);
@@ -1375,7 +1394,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.post("/officials", authRequired, authorize(['admin', 'manager', 'company_admin']), async (req: Request, res: Response) => {
+  router.post("/officials", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor']), async (req: Request, res: Response) => {
     try {
       console.log(`Iniciando criação de atendente com dados:`, JSON.stringify(req.body, null, 2));
       const { departments, company_id, ...officialData } = req.body;
@@ -1468,7 +1487,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.patch("/officials/:id", authRequired, authorize(['admin', 'manager', 'company_admin']), async (req: Request, res: Response) => {
+  router.patch("/officials/:id", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -1763,24 +1782,230 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(400).json({ message: "Usuário e senha são obrigatórios" });
       }
 
-      // Buscar o usuário pelo username
-      const user = await storage.getUserByUsername(username);
+      // Importar utilitários para detecção de domínio AD
+      const { shouldDomainUseAD } = await import('./middleware/domain-detection');
+      const { authenticateAD } = await import('./utils/active-directory');
+      const { mapADGroupsToRole, extractGroupsFromADUser } = await import('./services/ad-role-mapping');
       
-      if (!user) {
-        return res.status(401).json({ message: "Credenciais inválidas" });
+      // Verificar se deve usar AD baseado no domínio
+      const host = req.get('host') || '';
+      const origin = req.get('origin') || '';
+      const referer = req.get('referer') || '';
+      
+      let detectedDomain = host || '';
+      if (!detectedDomain && origin) {
+        try {
+          detectedDomain = new URL(origin).hostname;
+        } catch {}
       }
-      
-      // Verificar se o usuário está ativo
-      if (user.active === false) {
-        return res.status(401).json({ message: "Conta inativa. Contate o administrador." });
+      if (!detectedDomain && referer) {
+        try {
+          detectedDomain = new URL(referer).hostname;
+        } catch {}
       }
+
+      const shouldUseAD = shouldDomainUseAD(detectedDomain);
       
-      // Verificar a senha - voltar para o import dinâmico que funcionava antes
-      const { verifyPassword } = await import('./utils/password');
-      const passwordValid = await verifyPassword(password, user.password);
-      
-      if (!passwordValid) {
-        return res.status(401).json({ message: "Credenciais inválidas" });
+      console.log(`🔐 [LOGIN] Domínio detectado: ${detectedDomain}, Usar AD: ${shouldUseAD}`);
+
+      let user: any = null;
+      let isADUser = false;
+
+      if (shouldUseAD) {
+        // ===== AUTENTICAÇÃO VIA ACTIVE DIRECTORY =====
+        
+        // 🔄 NORMALIZAR USERNAME PARA AD (flexibilidade de login)
+        let adUsername = username.trim();
+        
+        if (adUsername.includes('@vixbrasil.com')) {
+          // felipe.garcia@vixbrasil.com → felipe.garcia@vixbrasil.local
+          const userPart = adUsername.split('@')[0];
+          adUsername = `${userPart}@vixbrasil.local`;
+          console.log(`🔄 [AD LOGIN] Convertendo email .com para .local: ${username} → ${adUsername}`);
+        } else if (adUsername.includes('@') && !adUsername.includes('vixbrasil.local')) {
+          // Se tem @ mas não é domínio conhecido, usar só username
+          adUsername = adUsername.split('@')[0];
+          console.log(`🔄 [AD LOGIN] Extraindo username: ${adUsername} de ${username}`);
+        } else if (!adUsername.includes('@')) {
+          // felipe.garcia → felipe.garcia@vixbrasil.local
+          adUsername = `${adUsername}@vixbrasil.local`;
+          console.log(`🔄 [AD LOGIN] Adicionando domínio: ${username} → ${adUsername}`);
+        }
+        
+        console.log(`🔐 [AD LOGIN] Tentando autenticação AD para: ${adUsername} (entrada original: ${username})`);
+        
+        try {
+          const adUser = await authenticateAD(adUsername, password);
+          
+          if (adUser && !adUser.error) {
+            console.log(`✅ [AD LOGIN] Autenticação AD bem-sucedida para: ${username}`);
+            
+            // Extrair grupos do usuário AD
+            const userGroups = extractGroupsFromADUser(adUser.adData);
+            console.log(`📋 [AD LOGIN] Grupos do usuário: ${userGroups.join(', ')}`);
+            
+            // Mapear grupos para role
+            const roleMapping = await mapADGroupsToRole(username, userGroups);
+            console.log(`🎭 [AD LOGIN] Role mapeado: ${roleMapping.role}`);
+            
+            // 🔍 BUSCAR USUÁRIO EXISTENTE (múltiplas tentativas)
+            const adUsernameSimple = adUsername.split('@')[0]; // felipe.garcia
+            const originalUsernameSimple = username.split('@')[0]; // felipe.garcia
+            
+            let existingUser = null;
+            
+            // Tentativa 1: Username original
+            existingUser = await storage.getUserByUsername(username);
+            
+            // Tentativa 2: Username AD completo
+            if (!existingUser && adUsername !== username) {
+              existingUser = await storage.getUserByUsername(adUsername);
+            }
+            
+            // Tentativa 3: Username AD simples (sem @)
+            if (!existingUser) {
+              existingUser = await storage.getUserByUsername(adUsernameSimple);
+            }
+            
+            // Tentativa 4: Por email
+            if (!existingUser) {
+              existingUser = await storage.getUserByEmail(adUser.email);
+            }
+            
+            if (existingUser) {
+              // ✅ USUÁRIO EXISTENTE - Atualizar dados do AD e marcar como ad_user
+              console.log(`👤 [AD LOGIN] Usuário encontrado: ${existingUser.username} (ID: ${existingUser.id})`);
+              
+              // Verificar se precisa atualizar dados
+              let needsUpdate = false;
+              const updates: any = {};
+              
+              if (existingUser.name !== adUser.name) {
+                updates.name = adUser.name;
+                needsUpdate = true;
+              }
+              
+              if (existingUser.email !== adUser.email) {
+                updates.email = adUser.email;
+                needsUpdate = true;
+              }
+              
+              if (existingUser.role !== roleMapping.role) {
+                updates.role = roleMapping.role;
+                needsUpdate = true;
+                console.log(`🎭 [AD LOGIN] Role será atualizada: ${existingUser.role} → ${roleMapping.role}`);
+              }
+              
+              if (!existingUser.ad_user) {
+                updates.ad_user = true;
+                needsUpdate = true;
+                console.log(`🏷️ [AD LOGIN] Marcando usuário como AD user`);
+              }
+              
+              if (needsUpdate) {
+                try {
+                  await db.update(schema.users)
+                    .set({
+                      ...updates,
+                      updated_at: new Date()
+                    })
+                    .where(eq(schema.users.id, existingUser.id));
+                  
+                  console.log(`📝 [AD LOGIN] Usuário atualizado no banco:`, updates);
+                } catch (updateError) {
+                  console.error(`❌ [AD LOGIN] Erro ao atualizar usuário:`, updateError);
+                }
+              }
+              
+              user = {
+                ...existingUser,
+                ...updates
+              };
+              
+              console.log(`✅ [AD LOGIN] Usuário existente processado: ${user.username}`);
+            } else {
+              // ➕ USUÁRIO NOVO - Criar automaticamente com dados do AD
+              console.log(`➕ [AD LOGIN] Criando novo usuário AD:`);
+              console.log(`   Nome: ${adUser.name}`);
+              console.log(`   Email: ${adUser.email}`);
+              console.log(`   Role: ${roleMapping.role}`);
+              console.log(`   Username: ${adUsernameSimple}`);
+              
+              try {
+                // 🏢 EMPRESA FIXA: ID 3 para usuários do domínio suporte.vixbrasil.com
+                const companyId = 3;
+                
+                // Gerar senha aleatória (nunca será usada para usuários AD)
+                const crypto = await import('crypto');
+                const randomPassword = crypto.randomBytes(32).toString('hex');
+                const { hashPassword } = await import('./utils/password');
+                const hashedPassword = await hashPassword(randomPassword);
+                
+                // Criar usuário no banco
+                const [newUser] = await db.insert(schema.users).values({
+                  username: adUsernameSimple, // felipe.garcia
+                  email: adUser.email,
+                  password: hashedPassword, // Senha dummy (nunca usada)
+                  name: adUser.name,
+                  role: roleMapping.role,
+                  active: true,
+                  ad_user: true, // ✅ Marcar como usuário AD
+                  company_id: companyId, // ✅ Sempre empresa ID 3
+                  created_at: new Date(),
+                  updated_at: new Date()
+                }).returning();
+                
+                user = newUser;
+                console.log(`🎉 [AD LOGIN] Usuário AD criado com sucesso!`);
+                console.log(`   ID: ${user.id}`);
+                console.log(`   Username: ${user.username}`);
+                console.log(`   Role: ${user.role}`);
+                console.log(`   Company ID: ${user.company_id}`);
+                console.log(`   AD User: ${user.ad_user}`);
+                
+              } catch (createError) {
+                console.error(`❌ [AD LOGIN] Erro ao criar usuário AD:`, createError);
+                return res.status(500).json({ 
+                  message: "Erro interno ao criar usuário no sistema. Contate o administrador.",
+                  error: String(createError)
+                });
+              }
+            }
+            
+            isADUser = true;
+          } else {
+            console.log(`❌ [AD LOGIN] Falha na autenticação AD: ${adUser?.message || 'Credenciais inválidas'}`);
+            return res.status(401).json({ 
+              message: adUser?.message || "Credenciais inválidas no Active Directory" 
+            });
+          }
+        } catch (adError) {
+          console.error(`❌ [AD LOGIN] Erro na autenticação AD:`, adError);
+          return res.status(500).json({ 
+            message: "Erro no servidor de autenticação. Tente novamente." 
+          });
+        }
+      } else {
+        // ===== AUTENTICAÇÃO TRADICIONAL =====
+        // Buscar o usuário pelo username
+        user = await storage.getUserByUsername(username);
+        
+        if (!user) {
+          return res.status(401).json({ message: "Credenciais inválidas" });
+        }
+        
+        // Verificar se o usuário está ativo
+        if (user.active === false) {
+          return res.status(401).json({ message: "Conta inativa. Contate o administrador." });
+        }
+        
+        // Verificar a senha - voltar para o import dinâmico que funcionava antes
+        const { verifyPassword } = await import('./utils/password');
+        const passwordValid = await verifyPassword(password, user.password);
+        
+        if (!passwordValid) {
+          return res.status(401).json({ message: "Credenciais inválidas" });
+        }
       }
       
       // Buscar a empresa do usuário, se não for admin
@@ -1917,16 +2142,21 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       console.log(`[AD Debug] Testando autenticação do usuário '${username}' com o AD`);
       const { authenticateAD } = await import('./utils/active-directory');
+      const { mapADGroupsToRole, extractGroupsFromADUser } = await import('./services/ad-role-mapping');
       
       // Tenta autenticar com AD
       const adUser = await authenticateAD(username, password);
       
-      if (!adUser) {
+      if (!adUser || adUser.error) {
         return res.status(401).json({ 
           success: false,
-          message: "Credenciais inválidas no Active Directory" 
+          message: adUser?.message || "Credenciais inválidas no Active Directory" 
         });
       }
+      
+      // Extrair grupos e mapear role
+      const userGroups = extractGroupsFromADUser(adUser.adData);
+      const roleMapping = await mapADGroupsToRole(username, userGroups);
       
       // Autenticação bem-sucedida, retornar dados do usuário (sem informações sensíveis)
       res.json({
@@ -1936,6 +2166,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           username: adUser.username,
           name: adUser.name,
           email: adUser.email,
+          groups: userGroups,
+          mappedRole: roleMapping.role,
+          roleMapping: roleMapping.mappedGroups,
           attributes: Object.keys(adUser.adData || {})
         }
       });
@@ -1945,6 +2178,173 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         success: false, 
         message: 'Erro ao testar autenticação de usuário com AD',
         error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Rota para verificar configuração de grupos do AD
+  router.get("/auth/ad-groups-config", adminRequired, async (req: Request, res: Response) => {
+    try {
+      const { validateADGroupConfiguration, getADGroupMappings } = await import('./services/ad-role-mapping');
+      
+      const validation = validateADGroupConfiguration();
+      const mappings = getADGroupMappings();
+      
+      res.json({
+        validation,
+        mappings,
+        envVariables: {
+          AD_URL: !!process.env.AD_URL,
+          AD_BASE_DN: !!process.env.AD_BASE_DN,
+          AD_USERNAME: !!process.env.AD_USERNAME,
+          AD_PASSWORD: !!process.env.AD_PASSWORD,
+          AD_DOMAIN: !!process.env.AD_DOMAIN,
+          AD_EMAIL_DOMAIN: !!process.env.AD_EMAIL_DOMAIN
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao verificar configuração de grupos AD:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Erro ao verificar configuração de grupos AD',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Rota para verificar se um domínio deve usar AD
+  router.post("/auth/check-domain-ad", async (req: Request, res: Response) => {
+    try {
+      const { domain } = req.body;
+      
+      if (!domain) {
+        return res.status(400).json({ message: "Domínio é obrigatório" });
+      }
+      
+      const { shouldDomainUseAD } = await import('./middleware/domain-detection');
+      const shouldUseAD = shouldDomainUseAD(domain);
+      
+      res.json({
+        domain,
+        shouldUseAD,
+        message: shouldUseAD 
+          ? "Este domínio está configurado para usar Active Directory" 
+          : "Este domínio usa autenticação tradicional"
+      });
+    } catch (error) {
+      console.error('Erro ao verificar domínio:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Erro ao verificar configuração de domínio',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // 🧪 ENDPOINT PARA TESTAR CRIAÇÃO AUTOMÁTICA DE USUÁRIOS AD
+  router.post("/auth/test-ad-user-creation", adminRequired, async (req: Request, res: Response) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ message: "Username e password são obrigatórios" });
+      }
+
+      // Importar utilitários AD
+      const { authenticateAD } = await import('./utils/active-directory');
+      const { mapADGroupsToRole, extractGroupsFromADUser } = await import('./services/ad-role-mapping');
+      
+      console.log(`🧪 [TEST AD] Testando criação automática para usuário: ${username}`);
+      
+      // Normalizar username como na função de login
+      let adUsername = username.trim();
+      
+      if (adUsername.includes('@vixbrasil.com')) {
+        const userPart = adUsername.split('@')[0];
+        adUsername = `${userPart}@vixbrasil.local`;
+      } else if (adUsername.includes('@') && !adUsername.includes('vixbrasil.local')) {
+        adUsername = adUsername.split('@')[0];
+      } else if (!adUsername.includes('@')) {
+        adUsername = `${adUsername}@vixbrasil.local`;
+      }
+      
+      // Tentar autenticar no AD
+      const adUser = await authenticateAD(adUsername, password);
+      
+      if (!adUser || adUser.error) {
+        return res.status(401).json({ 
+          message: "Falha na autenticação AD",
+          error: adUser?.message || 'Credenciais inválidas'
+        });
+      }
+      
+      // Mapear grupos para role
+      const userGroups = extractGroupsFromADUser(adUser.adData);
+      const roleMapping = await mapADGroupsToRole(adUsername, userGroups);
+      
+      // Verificar se usuário já existe (usando mesma lógica do login)
+      const adUsernameSimple = adUsername.split('@')[0];
+      const originalUsernameSimple = username.split('@')[0];
+      
+      let existingUser = null;
+      
+      // Múltiplas tentativas de busca
+      existingUser = await storage.getUserByUsername(username);
+      if (!existingUser && adUsername !== username) {
+        existingUser = await storage.getUserByUsername(adUsername);
+      }
+      if (!existingUser) {
+        existingUser = await storage.getUserByUsername(adUsernameSimple);
+      }
+      if (!existingUser) {
+        existingUser = await storage.getUserByEmail(adUser.email);
+      }
+      
+      const result = {
+        inputProcessing: {
+          originalInput: username,
+          normalizedAdUsername: adUsername,
+          simpleUsername: adUsernameSimple
+        },
+        adUser: {
+          name: adUser.name,
+          email: adUser.email,
+          username: adUser.username
+        },
+        groups: userGroups,
+        roleMapping,
+        existingUser: existingUser ? {
+          id: existingUser.id,
+          username: existingUser.username,
+          email: existingUser.email,
+          role: existingUser.role,
+          ad_user: existingUser.ad_user,
+          company_id: existingUser.company_id
+        } : null,
+        wouldCreateNew: !existingUser,
+        newUserData: !existingUser ? {
+          username: adUsernameSimple,
+          email: adUser.email,
+          name: adUser.name,
+          role: roleMapping.role,
+          ad_user: true,
+          company_id: 3
+        } : null
+      };
+      
+      console.log(`🧪 [TEST AD] Resultado do teste:`, result);
+      
+      res.json({
+        success: true,
+        message: "Teste de criação automática AD concluído com sucesso",
+        data: result
+      });
+      
+    } catch (error) {
+      console.error('🧪 [TEST AD] Erro no teste:', error);
+      res.status(500).json({ 
+        message: "Erro durante o teste de criação automática",
+        error: String(error)
       });
     }
   });
@@ -1999,7 +2399,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Endpoint para criar usuário de suporte e atendente em uma única transação atômica
-  router.post("/support-users", authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
+  router.post("/support-users", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     // Importar e chamar o endpoint de criação integrada
     const { hashPassword } = await import('./utils/password');
     const { createSupportUserEndpoint } = await import('./endpoints/create-support-user');
@@ -2007,7 +2407,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Endpoint para atualizar informações do usuário
-  router.patch("/users/:id", authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
+  router.patch("/users/:id", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -2070,7 +2470,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Endpoint para gerenciar status de ativação de usuários
-  router.patch("/users/:id/toggle-active", authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
+  router.patch("/users/:id/toggle-active", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -2117,7 +2517,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Endpoint para listar todos os usuários (admin e company_admin)
-  router.get("/users", companyAdminRequired, async (req: Request, res: Response) => {
+  // Endpoint para buscar todos os usuários (admins, company_admins, managers e supervisors)
+  router.get("/users", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       // Verificar se queremos incluir usuários inativos
       const includeInactive = req.query.includeInactive === 'true';
@@ -2203,12 +2604,12 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   
   // Rotas para configurações do sistema
   // Configurações gerais
-  router.get("/settings/general", companyAdminRequired, async (req: Request, res: Response) => {
+  router.get("/settings/general", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       const companyId = req.session.companyId;
       
       // Buscar configurações do sistema para a empresa específica
-      const companyName = await getSystemSetting('companyName', 'Ticket Lead', companyId);
+      const companyName = await getSystemSetting('companyName', 'Ticket Wise', companyId);
       const supportEmail = await getSystemSetting('supportEmail', 'suporte@ticketlead.exemplo', companyId);
       const allowCustomerRegistration = await getSystemSetting('allowCustomerRegistration', 'true', companyId);
       
@@ -2224,7 +2625,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.post("/settings/general", companyAdminRequired, async (req: Request, res: Response) => {
+  router.post("/settings/general", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       const { companyName, supportEmail, allowCustomerRegistration } = req.body;
       const companyId = req.session.companyId;
@@ -2246,7 +2647,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Configurações de departamentos
-  router.get("/settings/departments", authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
+  router.get("/settings/departments", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       // Buscar configurações de departamentos
       const departmentsJson = await getSystemSetting('departments', '[]');
@@ -2269,7 +2670,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.post("/settings/departments", authorize(['admin', 'company_admin']), async (req: Request, res: Response) => {
+  router.post("/settings/departments", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       const departments = req.body;
       
@@ -2289,7 +2690,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Configurações de tipos de incidentes
-  router.get("/settings/incident-types", adminRequired, async (req: Request, res: Response) => {
+  router.get("/settings/incident-types", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       // Buscar tipos de incidentes da nova tabela
       const incidentTypes = await db
@@ -4064,7 +4465,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // === NOVAS ROTAS PARA COMPANY_ADMIN ===
   
   // Endpoint para company_admin listar usuários da sua empresa
-  router.get("/company/users", companyAdminRequired, async (req: Request, res: Response) => {
+  router.get("/company/users", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       const includeInactive = req.query.includeInactive === 'true';
       const companyId = req.session.companyId;
@@ -4117,7 +4518,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Endpoint para company_admin listar departamentos da sua empresa
-  router.get("/company/departments", companyAdminRequired, async (req: Request, res: Response) => {
+  router.get("/company/departments", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       const companyId = req.session.companyId;
       

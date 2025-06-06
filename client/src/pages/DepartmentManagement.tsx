@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, FolderIcon, Search, Building2 } from 'lucide-react';
+import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, FolderIcon, Search, Building2, AlertTriangle } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { Department } from '@shared/schema';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -16,6 +16,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from '@/hooks/use-auth';
+
+// Novos imports padronizados
+import { StandardPage, StatusBadge, EmptyState } from '@/components/layout/admin-page-layout';
+import { ActionButtonGroup, SaveButton, CancelButton } from '@/components/ui/standardized-button';
 
 interface DepartmentFormData {
   id?: number;
@@ -44,6 +48,28 @@ const DepartmentManagement: React.FC = () => {
     is_active: true,
   });
   const [isEditing, setIsEditing] = useState(false);
+
+  // Handlers padronizados
+  const handleCreateDepartment = () => {
+    handleCreate();
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+  };
+
+  const handleView = (department: Department) => {
+    // Função para visualizar departamento - implementar depois
+    console.log('Visualizar departamento:', department);
+  };
+
+  const handleEditDepartment = (department: Department) => {
+    handleEdit(department);
+  };
+
+  const handleDeleteDepartment = (department: Department) => {
+    handleDelete(department);
+  };
 
   // Buscar a lista de empresas (apenas para admin)
   const { data: companies = [] } = useQuery<any[]>({
@@ -121,7 +147,7 @@ const DepartmentManagement: React.FC = () => {
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
+        title: 'Erro ao criar',
         description: error instanceof Error ? error.message : 'Erro ao criar departamento',
         variant: 'destructive',
       });
@@ -160,7 +186,7 @@ const DepartmentManagement: React.FC = () => {
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
+        title: 'Erro ao atualizar',
         description: error instanceof Error ? error.message : 'Erro ao atualizar departamento',
         variant: 'destructive',
       });
@@ -189,7 +215,7 @@ const DepartmentManagement: React.FC = () => {
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
+        title: 'Erro ao excluir',
         description: error instanceof Error ? error.message : 'Erro ao excluir departamento',
         variant: 'destructive',
       });
@@ -207,55 +233,57 @@ const DepartmentManagement: React.FC = () => {
     setIsEditing(false);
   };
 
-  // Abrir formulário para criação
+  // Handlers antigos mantidos para compatibilidade
   const handleCreate = () => {
     resetForm();
     setIsDialogOpen(true);
   };
 
-  // Abrir formulário para edição
   const handleEdit = (department: Department) => {
     setCurrentDepartment({
       id: department.id,
       name: department.name,
       description: department.description || '',
-      company_id: department.company_id,
-      is_active: department.is_active,
+      company_id: (department as any).company_id || null,
+      is_active: department.is_active !== false,
     });
     setIsEditing(true);
     setIsDialogOpen(true);
   };
 
-  // Confirmar exclusão
   const handleDelete = (department: Department) => {
     setCurrentDepartment({
       id: department.id,
       name: department.name,
       description: department.description || '',
-      company_id: department.company_id,
-      is_active: department.is_active,
+      company_id: (department as any).company_id || null,
+      is_active: department.is_active !== false,
     });
     setIsDeleteDialogOpen(true);
   };
 
-  // Confirmar ação de exclusão
   const confirmDelete = () => {
     if (currentDepartment.id) {
       deleteDepartmentMutation.mutate(currentDepartment.id);
     }
   };
 
-  // Enviar formulário
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Se não for admin, garantir que a empresa do usuário seja usada
-    const dataToSubmit = {
-      ...currentDepartment,
-      company_id: user?.role === 'admin' ? currentDepartment.company_id : user?.companyId
-    };
+    // Validação básica
+    if (!currentDepartment.name.trim()) {
+      toast({
+        title: 'Erro de validação',
+        description: 'O nome do departamento é obrigatório.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const dataToSubmit = { ...currentDepartment };
     
-    if (isEditing && currentDepartment.id) {
+    if (isEditing) {
       updateDepartmentMutation.mutate(dataToSubmit);
     } else {
       createDepartmentMutation.mutate(dataToSubmit);
@@ -285,44 +313,227 @@ const DepartmentManagement: React.FC = () => {
     return matchesSearchTerm && matchesActiveFilter;
   });
 
+  // Estado de erro
+  if (error) {
+    return (
+      <StandardPage
+        icon={FolderIcon}
+        title="Departamentos"
+        description="Gerencie os departamentos do sistema"
+        createButtonText="Novo Departamento"
+        onCreateClick={handleCreateDepartment}
+        onSearchChange={handleSearchChange}
+        searchValue={searchTerm}
+        searchPlaceholder="Buscar departamentos..."
+      >
+        <div className="flex flex-col items-center justify-center py-12">
+          <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Erro ao carregar dados</h3>
+          <p className="text-muted-foreground mb-4 text-center">
+            {error instanceof Error ? error.message : 'Ocorreu um erro inesperado'}
+          </p>
+          <Button onClick={() => window.location.reload()}>
+            Recarregar Página
+          </Button>
+        </div>
+      </StandardPage>
+    );
+  }
+
+  // Estado vazio quando não há departamentos
+  if (filteredDepartments && filteredDepartments.length === 0 && !isLoading && !searchTerm) {
+    return (
+      <>
+        <StandardPage
+          icon={FolderIcon}
+          title="Departamentos"
+          description="Gerencie os departamentos disponíveis no sistema"
+          createButtonText="Novo Departamento"
+          onCreateClick={handleCreateDepartment}
+          onSearchChange={handleSearchChange}
+          searchValue={searchTerm}
+          searchPlaceholder="Buscar departamentos..."
+        >
+          <EmptyState
+            icon={FolderIcon}
+            title="Nenhum departamento encontrado"
+            description="Não há departamentos cadastrados no sistema. Clique no botão abaixo para criar o primeiro departamento."
+            actionLabel="Criar Primeiro Departamento"
+            onAction={handleCreateDepartment}
+          />
+        </StandardPage>
+
+        {/* Modais mantidos */}
+        {renderModals()}
+      </>
+    );
+  }
+
+  // Função para renderizar os modais
+  function renderModals() {
+    return (
+      <>
+        {/* Modal de formulário */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{isEditing ? 'Editar Departamento' : 'Novo Departamento'}</DialogTitle>
+              <DialogDescription>
+                {isEditing 
+                  ? 'Atualize as informações do departamento abaixo.' 
+                  : 'Preencha as informações para criar um novo departamento.'}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={currentDepartment.name}
+                  onChange={handleInputChange}
+                  placeholder="Ex: Suporte Técnico"
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="description">Descrição</Label>
+                <Textarea
+                  id="description"
+                  name="description"
+                  value={currentDepartment.description}
+                  onChange={handleInputChange}
+                  placeholder="Digite uma breve descrição..."
+                  rows={3}
+                />
+              </div>
+              
+              {user?.role === 'admin' && (
+                <div className="space-y-2">
+                  <Label htmlFor="company_id">Empresa</Label>
+                  <Select
+                    value={currentDepartment.company_id?.toString() || ""}
+                    onValueChange={(value) => 
+                      setCurrentDepartment((prev) => ({
+                        ...prev,
+                        company_id: value ? parseInt(value) : null,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="company_id">
+                      <SelectValue placeholder="Selecione uma empresa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies.map((company: any) => (
+                        <SelectItem key={company.id} value={company.id.toString()}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Departamentos são vinculados a uma empresa específica
+                  </p>
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Label htmlFor="is_active">Ativo</Label>
+                <Switch
+                  id="is_active"
+                  checked={currentDepartment.is_active}
+                  onCheckedChange={(checked) => 
+                    setCurrentDepartment((prev) => ({
+                      ...prev,
+                      is_active: checked,
+                    }))
+                  }
+                />
+              </div>
+              
+              <DialogFooter className="flex gap-3">
+                <CancelButton
+                  onClick={() => setIsDialogOpen(false)}
+                  disabled={createDepartmentMutation.isPending || updateDepartmentMutation.isPending}
+                />
+                <SaveButton
+                  onClick={handleSubmit}
+                  loading={createDepartmentMutation.isPending || updateDepartmentMutation.isPending}
+                  text={isEditing ? 'Salvar Alterações' : 'Criar Departamento'}
+                />
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de confirmação de exclusão */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Departamento</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir o departamento "{currentDepartment.name}"? 
+                Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={deleteDepartmentMutation.isPending}
+              >
+                {deleteDepartmentMutation.isPending && (
+                  <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Sim, excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
+    );
+  }
+
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Departamentos</h1>
-        <Button onClick={handleCreate} className="flex items-center gap-2">
-          <PlusIcon className="w-4 h-4" />
-          Novo Departamento
-        </Button>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Gerenciamento de Departamentos</CardTitle>
-          <CardDescription>Gerencie os departamentos disponíveis no sistema</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
-                <Input 
-                  placeholder="Buscar departamentos" 
-                  className="pl-10" 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch 
-                  id="includeInactive" 
-                  checked={includeInactive} 
-                  onCheckedChange={setIncludeInactive}
-                />
-                <Label htmlFor="includeInactive">Incluir inativos</Label>
-              </div>
-            </div>
+    <>
+      <StandardPage
+        icon={FolderIcon}
+        title="Departamentos"
+        description="Gerencie os departamentos disponíveis no sistema"
+        createButtonText="Novo Departamento"
+        onCreateClick={handleCreateDepartment}
+        onSearchChange={handleSearchChange}
+        searchValue={searchTerm}
+        searchPlaceholder="Buscar departamentos..."
+        isLoading={isLoading}
+      >
+        {/* Filtro adicional para incluir inativos */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <Switch 
+              id="includeInactive" 
+              checked={includeInactive} 
+              onCheckedChange={setIncludeInactive}
+            />
+            <Label htmlFor="includeInactive">Incluir departamentos inativos</Label>
           </div>
+          <div className="text-sm text-muted-foreground">
+            {filteredDepartments ? `${filteredDepartments.length} departamento(s) encontrado(s)` : ''}
+          </div>
+        </div>
 
+        {filteredDepartments && filteredDepartments.length === 0 ? (
+          <EmptyState
+            icon={Search}
+            title="Nenhum departamento encontrado"
+            description={`Não foram encontrados departamentos com o termo "${searchTerm}".`}
+            actionLabel="Limpar busca"
+            onAction={() => setSearchTerm('')}
+          />
+        ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -344,18 +555,6 @@ const DepartmentManagement: React.FC = () => {
                     <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                   </TableRow>
                 ))
-              ) : error ? (
-                <TableRow>
-                  <TableCell colSpan={user?.role === 'admin' ? 5 : 4} className="text-center py-10 text-red-500">
-                    Erro ao carregar departamentos. Tente novamente mais tarde.
-                  </TableCell>
-                </TableRow>
-              ) : filteredDepartments.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={user?.role === 'admin' ? 5 : 4} className="text-center py-10 text-neutral-500">
-                    Nenhum departamento encontrado.
-                  </TableCell>
-                </TableRow>
               ) : (
                 filteredDepartments.map((dept) => (
                   <TableRow key={dept.id} className={!dept.is_active ? "opacity-60" : ""}>
@@ -364,180 +563,33 @@ const DepartmentManagement: React.FC = () => {
                     {user?.role === 'admin' && (
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-neutral-500" />
-                          <span className="text-sm text-neutral-600">
+                          <Building2 className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
                             {(dept as any).company?.name || 'Sistema Global'}
                           </span>
                         </div>
                       </TableCell>
                     )}
                     <TableCell>
-                      {(dept.is_active === undefined || dept.is_active) ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Ativo
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          Inativo
-                        </span>
-                      )}
+                      <StatusBadge isActive={dept.is_active !== false} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handleEdit(dept)}
-                          title="Editar departamento"
-                        >
-                          <PencilIcon className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          onClick={() => handleDelete(dept)}
-                          title="Excluir departamento"
-                        >
-                          <TrashIcon className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      <ActionButtonGroup
+                        onView={() => handleView(dept)}
+                        onEdit={() => handleEditDepartment(dept)}
+                        onDelete={() => handleDeleteDepartment(dept)}
+                      />
                     </TableCell>
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        )}
+      </StandardPage>
 
-      {/* Modal de formulário */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{isEditing ? 'Editar Departamento' : 'Novo Departamento'}</DialogTitle>
-            <DialogDescription>
-              {isEditing 
-                ? 'Atualize as informações do departamento abaixo.' 
-                : 'Preencha as informações para criar um novo departamento.'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome</Label>
-              <Input
-                id="name"
-                name="name"
-                value={currentDepartment.name}
-                onChange={handleInputChange}
-                placeholder="Ex: Suporte Técnico"
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="description">Descrição</Label>
-              <Textarea
-                id="description"
-                name="description"
-                value={currentDepartment.description}
-                onChange={handleInputChange}
-                placeholder="Digite uma breve descrição..."
-                rows={3}
-              />
-            </div>
-            
-            {user?.role === 'admin' && (
-              <div className="space-y-2">
-                <Label htmlFor="company_id">Empresa</Label>
-                <Select
-                  value={currentDepartment.company_id?.toString() || ""}
-                  onValueChange={(value) => 
-                    setCurrentDepartment((prev) => ({
-                      ...prev,
-                      company_id: value ? parseInt(value) : null,
-                    }))
-                  }
-                >
-                  <SelectTrigger id="company_id">
-                    <SelectValue placeholder="Selecione uma empresa" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {companies.map((company: any) => (
-                      <SelectItem key={company.id} value={company.id.toString()}>
-                        {company.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Departamentos são vinculados a uma empresa específica
-                </p>
-              </div>
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="is_active">Ativo</Label>
-              <Switch
-                id="is_active"
-                checked={currentDepartment.is_active}
-                onCheckedChange={(checked) => 
-                  setCurrentDepartment((prev) => ({
-                    ...prev,
-                    is_active: checked,
-                  }))
-                }
-              />
-            </div>
-            
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsDialogOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={createDepartmentMutation.isPending || updateDepartmentMutation.isPending}
-              >
-                {(createDepartmentMutation.isPending || updateDepartmentMutation.isPending) && (
-                  <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {isEditing ? 'Salvar Alterações' : 'Criar Departamento'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal de confirmação de exclusão */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Departamento</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir o departamento "{currentDepartment.name}"? 
-              Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteDepartmentMutation.isPending}
-            >
-              {deleteDepartmentMutation.isPending && (
-                <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Sim, excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+      {renderModals()}
+    </>
   );
 };
 

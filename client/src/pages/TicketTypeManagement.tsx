@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, FolderIcon, Search, Filter, Building2 } from 'lucide-react';
+import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, FolderIcon, Search, Filter, Building2, AlertTriangle, Tags } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { Department, IncidentType } from '@shared/schema';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -16,6 +16,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from '@/hooks/use-auth';
+
+// Novos imports padronizados
+import { StandardPage, StatusBadge, EmptyState } from '@/components/layout/admin-page-layout';
+import { ActionButtonGroup, SaveButton, CancelButton } from '@/components/ui/standardized-button';
 
 interface TicketTypeFormData {
   id?: number;
@@ -49,6 +53,23 @@ const TicketTypeManagement: React.FC = () => {
     is_active: true,
   });
   const [isEditing, setIsEditing] = useState(false);
+
+  // Handlers padronizados
+  const handleCreateTicketType = () => {
+    handleCreate();
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+  };
+
+  const handleEditTicketType = (ticketType: IncidentType) => {
+    handleEdit(ticketType);
+  };
+
+  const handleDeleteTicketType = (ticketType: IncidentType) => {
+    handleDelete(ticketType);
+  };
 
   // Buscar a lista de departamentos - AGORA USANDO A TABELA DEDICADA
   const { 
@@ -158,7 +179,7 @@ const TicketTypeManagement: React.FC = () => {
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
+        title: 'Erro ao criar',
         description: error instanceof Error ? error.message : 'Erro ao criar tipo de chamado',
         variant: 'destructive',
       });
@@ -200,7 +221,7 @@ const TicketTypeManagement: React.FC = () => {
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
+        title: 'Erro ao atualizar',
         description: error instanceof Error ? error.message : 'Erro ao atualizar tipo de chamado',
         variant: 'destructive',
       });
@@ -210,7 +231,6 @@ const TicketTypeManagement: React.FC = () => {
   // Mutation para excluir tipo de chamado
   const deleteTicketTypeMutation = useMutation({
     mutationFn: async (id: number) => {
-      // Usar a API diretamente
       const response = await apiRequest('DELETE', `/api/incident-types/${id}`);
       
       if (!response.ok) {
@@ -230,7 +250,7 @@ const TicketTypeManagement: React.FC = () => {
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
+        title: 'Erro ao excluir',
         description: error instanceof Error ? error.message : 'Erro ao excluir tipo de chamado',
         variant: 'destructive',
       });
@@ -250,76 +270,76 @@ const TicketTypeManagement: React.FC = () => {
     setIsEditing(false);
   };
 
-  // Abrir formulário para criação
+  // Handlers antigos mantidos para compatibilidade
   const handleCreate = () => {
     resetForm();
     setIsDialogOpen(true);
   };
 
-  // Abrir formulário para edição
   const handleEdit = (ticketType: IncidentType) => {
     setCurrentTicketType({
       id: ticketType.id,
       name: ticketType.name,
       value: ticketType.value,
       description: ticketType.description || '',
-      department_id: ticketType.department_id ?? undefined,
-      company_id: ticketType.company_id,
-      is_active: ticketType.is_active,
+      department_id: ticketType.department_id,
+      company_id: (ticketType as any).company_id || undefined,
+      is_active: ticketType.is_active !== false,
     });
     setIsEditing(true);
     setIsDialogOpen(true);
   };
 
-  // Confirmar exclusão
   const handleDelete = (ticketType: IncidentType) => {
     setCurrentTicketType({
       id: ticketType.id,
       name: ticketType.name,
       value: ticketType.value,
       description: ticketType.description || '',
-      department_id: ticketType.department_id ?? undefined,
-      company_id: ticketType.company_id,
-      is_active: ticketType.is_active,
+      department_id: ticketType.department_id,
+      company_id: (ticketType as any).company_id || undefined,
+      is_active: ticketType.is_active !== false,
     });
     setIsDeleteDialogOpen(true);
   };
 
-  // Confirmar ação de exclusão
   const confirmDelete = () => {
     if (currentTicketType.id) {
       deleteTicketTypeMutation.mutate(currentTicketType.id);
     }
   };
 
-  // Enviar formulário
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validar valor de referência - apenas letras, números e sublinhados
-    if (!/^[a-z0-9_]+$/.test(currentTicketType.value)) {
+    // Validação básica
+    if (!currentTicketType.name.trim()) {
       toast({
-        title: 'Valor de referência inválido',
-        description: 'O valor de referência deve conter apenas letras minúsculas, números e sublinhados (_).',
+        title: 'Erro de validação',
+        description: 'O nome do tipo de chamado é obrigatório.',
         variant: 'destructive',
       });
       return;
     }
+
+    if (!currentTicketType.department_id) {
+      toast({
+        title: 'Erro de validação',
+        description: 'O departamento é obrigatório.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const dataToSubmit = { ...currentTicketType };
     
-    // Se não for admin, garantir que a empresa do usuário seja usada
-    const dataToSubmit = {
-      ...currentTicketType,
-      company_id: user?.role === 'admin' ? currentTicketType.company_id : user?.companyId
-    };
-    
-    if (isEditing && currentTicketType.id) {
+    if (isEditing) {
       updateTicketTypeMutation.mutate(dataToSubmit);
     } else {
       createTicketTypeMutation.mutate(dataToSubmit);
     }
   };
 
-  // Atualizar campo do formulário
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setCurrentTicketType((prev) => ({
@@ -361,52 +381,261 @@ const TicketTypeManagement: React.FC = () => {
 
   const isLoading = isLoadingDepartments || isLoadingTicketTypes;
 
-  return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Tipos de Chamado</h1>
-        <Button onClick={handleCreate} className="flex items-center gap-2">
-          <PlusIcon className="w-4 h-4" />
-          Novo Tipo de Chamado
-        </Button>
-      </div>
+  // Estado de erro
+  if (ticketTypesError) {
+    return (
+      <StandardPage
+        icon={Tags}
+        title="Tipos de Chamado"
+        description="Gerencie os tipos de chamado do sistema"
+        createButtonText="Novo Tipo de Chamado"
+        onCreateClick={handleCreateTicketType}
+        onSearchChange={handleSearchChange}
+        searchValue={searchTerm}
+        searchPlaceholder="Buscar tipos de chamado..."
+      >
+        <div className="flex flex-col items-center justify-center py-12">
+          <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Erro ao carregar dados</h3>
+          <p className="text-muted-foreground mb-4 text-center">
+            {ticketTypesError instanceof Error ? ticketTypesError.message : 'Ocorreu um erro inesperado'}
+          </p>
+          <Button onClick={() => window.location.reload()}>
+            Recarregar Página
+          </Button>
+        </div>
+      </StandardPage>
+    );
+  }
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Gerenciamento de Tipos de Chamado</CardTitle>
-          <CardDescription>Gerencie os tipos de chamado disponíveis no sistema</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
-                <Input 
-                  placeholder="Buscar tipos de chamado" 
-                  className="pl-10" 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+  // Estado vazio quando não há tipos de chamado
+  if (filteredTicketTypes && filteredTicketTypes.length === 0 && !isLoading && !searchTerm) {
+    return (
+      <>
+        <StandardPage
+          icon={Tags}
+          title="Tipos de Chamado"
+          description="Gerencie os tipos de chamado disponíveis no sistema"
+          createButtonText="Novo Tipo de Chamado"
+          onCreateClick={handleCreateTicketType}
+          onSearchChange={handleSearchChange}
+          searchValue={searchTerm}
+          searchPlaceholder="Buscar tipos de chamado..."
+        >
+          <EmptyState
+            icon={Tags}
+            title="Nenhum tipo de chamado encontrado"
+            description="Não há tipos de chamado cadastrados no sistema. Clique no botão abaixo para criar o primeiro tipo."
+            actionLabel="Criar Primeiro Tipo"
+            onAction={handleCreateTicketType}
+          />
+        </StandardPage>
+
+        {/* Modais mantidos */}
+        {renderModals()}
+      </>
+    );
+  }
+
+  // Função para renderizar os modais
+  function renderModals() {
+    return (
+      <>
+        {/* Modal de formulário */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{isEditing ? 'Editar Tipo de Chamado' : 'Novo Tipo de Chamado'}</DialogTitle>
+              <DialogDescription>
+                {isEditing 
+                  ? 'Atualize as informações do tipo de chamado abaixo.' 
+                  : 'Preencha as informações para criar um novo tipo de chamado.'}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome do Tipo</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={currentTicketType.name}
+                  onChange={handleInputChange}
+                  placeholder="Ex: Problema de Hardware"
+                  required
                 />
               </div>
-              <div className="flex items-center space-x-2">
-                <Switch 
-                  id="includeInactive" 
-                  checked={includeInactive} 
-                  onCheckedChange={setIncludeInactive}
+              
+              <div className="space-y-2">
+                <Label htmlFor="value">Valor de Referência</Label>
+                <Input
+                  id="value"
+                  name="value"
+                  value={currentTicketType.value}
+                  placeholder="Ex: problema_hardware"
+                  disabled
+                  className="bg-muted"
                 />
-                <Label htmlFor="includeInactive">Incluir inativos</Label>
+                <p className="text-xs text-muted-foreground">
+                  Gerado automaticamente baseado no nome
+                </p>
               </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="description">Descrição</Label>
+                <Textarea
+                  id="description"
+                  name="description"
+                  value={currentTicketType.description}
+                  onChange={handleInputChange}
+                  placeholder="Digite uma breve descrição..."
+                  rows={3}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="department_id">Departamento</Label>
+                <Select
+                  value={currentTicketType.department_id?.toString() || ""}
+                  onValueChange={(value) => 
+                    setCurrentTicketType((prev) => ({
+                      ...prev,
+                      department_id: value ? parseInt(value) : undefined,
+                    }))
+                  }
+                >
+                  <SelectTrigger id="department_id">
+                    <SelectValue placeholder="Selecione um departamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id.toString()}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {user?.role === 'admin' && (
+                <div className="space-y-2">
+                  <Label htmlFor="company_id">Empresa</Label>
+                  <Select
+                    value={currentTicketType.company_id?.toString() || ""}
+                    onValueChange={(value) => 
+                      setCurrentTicketType((prev) => ({
+                        ...prev,
+                        company_id: value ? parseInt(value) : null,
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="company_id">
+                      <SelectValue placeholder="Selecione uma empresa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies.map((company: any) => (
+                        <SelectItem key={company.id} value={company.id.toString()}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Label htmlFor="is_active">Ativo</Label>
+                <Switch
+                  id="is_active"
+                  checked={currentTicketType.is_active}
+                  onCheckedChange={(checked) => 
+                    setCurrentTicketType((prev) => ({
+                      ...prev,
+                      is_active: checked,
+                    }))
+                  }
+                />
+              </div>
+              
+              <DialogFooter className="flex gap-3">
+                <CancelButton
+                  onClick={() => setIsDialogOpen(false)}
+                  disabled={createTicketTypeMutation.isPending || updateTicketTypeMutation.isPending}
+                />
+                <SaveButton
+                  onClick={handleSubmit}
+                  loading={createTicketTypeMutation.isPending || updateTicketTypeMutation.isPending}
+                  text={isEditing ? 'Salvar Alterações' : 'Criar Tipo'}
+                />
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de confirmação de exclusão */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir Tipo de Chamado</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir o tipo de chamado "{currentTicketType.name}"? 
+                Esta ação não pode ser desfeita e pode afetar chamados existentes.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={deleteTicketTypeMutation.isPending}
+              >
+                {deleteTicketTypeMutation.isPending && (
+                  <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                Sim, excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <StandardPage
+        icon={Tags}
+        title="Tipos de Chamado"
+        description="Gerencie os tipos de chamado disponíveis no sistema"
+        createButtonText="Novo Tipo de Chamado"
+        onCreateClick={handleCreateTicketType}
+        onSearchChange={handleSearchChange}
+        searchValue={searchTerm}
+        searchPlaceholder="Buscar tipos de chamado..."
+        isLoading={isLoading}
+      >
+        {/* Filtros adicionais */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center space-x-2">
+              <Switch 
+                id="includeInactive" 
+                checked={includeInactive} 
+                onCheckedChange={setIncludeInactive}
+              />
+              <Label htmlFor="includeInactive">Incluir tipos inativos</Label>
             </div>
+            
             <div className="flex items-center gap-2">
               <Label htmlFor="filterDepartment" className="text-sm whitespace-nowrap">
-                Filtrar por Departamento:
+                Departamento:
               </Label>
               <Select
                 value={selectedDepartmentId?.toString() || 'all'}
                 onValueChange={(value) => setSelectedDepartmentId(value === 'all' ? undefined : parseInt(value))}
               >
                 <SelectTrigger id="filterDepartment" className="w-[200px]">
-                  <SelectValue placeholder="Todos os departamentos" />
+                  <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os departamentos</SelectItem>
@@ -419,7 +648,21 @@ const TicketTypeManagement: React.FC = () => {
               </Select>
             </div>
           </div>
+          
+          <div className="text-sm text-muted-foreground">
+            {filteredTicketTypes ? `${filteredTicketTypes.length} tipo(s) encontrado(s)` : ''}
+          </div>
+        </div>
 
+        {filteredTicketTypes && filteredTicketTypes.length === 0 ? (
+          <EmptyState
+            icon={Search}
+            title="Nenhum tipo de chamado encontrado"
+            description={`Não foram encontrados tipos de chamado com o termo "${searchTerm}".`}
+            actionLabel="Limpar busca"
+            onAction={() => setSearchTerm('')}
+          />
+        ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -443,18 +686,6 @@ const TicketTypeManagement: React.FC = () => {
                     <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                   </TableRow>
                 ))
-              ) : ticketTypesError ? (
-                <TableRow>
-                  <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-red-500">
-                    Erro ao carregar tipos de chamado. Tente novamente mais tarde.
-                  </TableCell>
-                </TableRow>
-              ) : filteredTicketTypes.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-neutral-500">
-                    Nenhum tipo de chamado encontrado.
-                  </TableCell>
-                </TableRow>
               ) : (
                 filteredTicketTypes.map((type) => (
                   <TableRow key={type.id} className={!type.is_active ? "opacity-60" : ""}>
@@ -465,8 +696,8 @@ const TicketTypeManagement: React.FC = () => {
                     {user?.role === 'admin' && (
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-neutral-500" />
-                          <span className="text-sm text-neutral-600">
+                          <Building2 className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
                             {type.company?.name || 'Sistema Global'}
                           </span>
                         </div>
@@ -474,197 +705,24 @@ const TicketTypeManagement: React.FC = () => {
                     )}
                     <TableCell className="max-w-xs truncate">{type.description || "—"}</TableCell>
                     <TableCell>
-                      {(type.is_active === undefined || type.is_active) ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Ativo
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          Inativo
-                        </span>
-                      )}
+                      <StatusBadge isActive={type.is_active !== false} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handleEdit(type)}
-                          title="Editar tipo de chamado"
-                        >
-                          <PencilIcon className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          onClick={() => handleDelete(type)}
-                          title="Excluir tipo de chamado"
-                        >
-                          <TrashIcon className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      <ActionButtonGroup
+                        onEdit={() => handleEditTicketType(type)}
+                        onDelete={() => handleDeleteTicketType(type)}
+                      />
                     </TableCell>
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        )}
+      </StandardPage>
 
-      {/* Modal de formulário */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{isEditing ? 'Editar Tipo de Chamado' : 'Novo Tipo de Chamado'}</DialogTitle>
-            <DialogDescription>
-              {isEditing 
-                ? 'Atualize as informações do tipo de chamado abaixo.' 
-                : 'Preencha as informações para criar um novo tipo de chamado.'}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome do Tipo</Label>
-              <Input
-                id="name"
-                name="name"
-                value={currentTicketType.name}
-                onChange={handleInputChange}
-                placeholder="Ex: Problema de Conexão"
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="description">Descrição</Label>
-              <Textarea
-                id="description"
-                name="description"
-                value={currentTicketType.description}
-                onChange={handleInputChange}
-                placeholder="Digite uma breve descrição..."
-                rows={3}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="department_id">Departamento</Label>
-              <Select
-                value={currentTicketType.department_id?.toString() || ''}
-                onValueChange={(value) => 
-                  setCurrentTicketType((prev) => ({
-                    ...prev,
-                    department_id: value ? parseInt(value) : undefined,
-                  }))
-                }
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um departamento" />
-                </SelectTrigger>
-                <SelectContent>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.id.toString()}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {user?.role === 'admin' && (
-              <div className="space-y-2">
-                <Label htmlFor="company_id">Empresa</Label>
-                <Select
-                  value={currentTicketType.company_id?.toString() || ""}
-                  onValueChange={(value) => 
-                    setCurrentTicketType((prev) => ({
-                      ...prev,
-                      company_id: value ? parseInt(value) : null,
-                    }))
-                  }
-                >
-                  <SelectTrigger id="company_id">
-                    <SelectValue placeholder="Selecione uma empresa" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {companies.map((company: any) => (
-                      <SelectItem key={company.id} value={company.id.toString()}>
-                        {company.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Tipos de chamado são vinculados a uma empresa específica
-                </p>
-              </div>
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="is_active">Ativo</Label>
-              <Switch
-                id="is_active"
-                checked={currentTicketType.is_active}
-                onCheckedChange={(checked) => 
-                  setCurrentTicketType((prev) => ({
-                    ...prev,
-                    is_active: checked,
-                  }))
-                }
-              />
-            </div>
-            
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsDialogOpen(false)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={createTicketTypeMutation.isPending || updateTicketTypeMutation.isPending}
-              >
-                {(createTicketTypeMutation.isPending || updateTicketTypeMutation.isPending) && (
-                  <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {isEditing ? 'Salvar Alterações' : 'Criar Tipo'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal de confirmação de exclusão */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Tipo de Chamado</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja excluir o tipo de chamado "{currentTicketType.name}"? 
-              Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteTicketTypeMutation.isPending}
-            >
-              {deleteTicketTypeMutation.isPending && (
-                <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
-              )}
-              Sim, excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+      {renderModals()}
+    </>
   );
 };
 

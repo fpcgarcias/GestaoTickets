@@ -19,21 +19,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { useLocation } from 'wouter';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
-import { Search, Pencil, UserX, UserCheck, PlusCircle } from 'lucide-react';
+import { Search, Building2, AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCNPJ, cleanCNPJ, isValidCNPJ } from '@/lib/utils';
+
+// Novos imports padronizados
+import { StandardPage, StatusBadge, EmptyState } from '@/components/layout/admin-page-layout';
+import { ActionButtonGroup, SaveButton, CancelButton } from '@/components/ui/standardized-button';
 
 interface Company {
   id: number;
@@ -53,10 +48,12 @@ export default function CompaniesPage() {
   const { toast } = useToast();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -66,6 +63,33 @@ export default function CompaniesPage() {
     phone: '',
     active: true
   });
+
+  // Handlers padronizados
+  const handleCreateCompany = () => {
+    resetForm();
+    setOpenDialog(true);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+  };
+
+  const handleEditCompany = (company: Company) => {
+    setEditingCompany(company);
+    setFormData({
+      name: company.name,
+      email: company.email,
+      domain: company.domain || '',
+      cnpj: company.cnpj ? formatCNPJ(company.cnpj) : '',
+      phone: company.phone || '',
+      active: company.active
+    });
+    setOpenDialog(true);
+  };
+
+  const handleToggleCompanyStatus = async (company: Company) => {
+    await handleToggleStatus(company);
+  };
   
   useEffect(() => {
     if (!authLoading && (!user || user.role !== 'admin')) {
@@ -82,6 +106,7 @@ export default function CompaniesPage() {
     const fetchCompanies = async () => {
       try {
         setIsLoading(true);
+        setError(null);
         const response = await fetch('/api/companies'); 
         
         if (!response.ok) {
@@ -107,8 +132,9 @@ export default function CompaniesPage() {
         setCompanies(formattedData);
       } catch (error) {
         console.error('Erro completo ao carregar empresas:', error);
+        setError(error instanceof Error ? error.message : 'Erro ao carregar empresas');
         toast({
-          title: "Erro",
+          title: "Erro ao carregar",
           description: "Não foi possível carregar a lista de empresas.",
           variant: "destructive",
         });
@@ -157,6 +183,7 @@ export default function CompaniesPage() {
     }
     
     try {
+      setIsSubmitting(true);
       const method = editingCompany ? 'PUT' : 'POST';
       const endpoint = editingCompany 
         ? `/api/companies/${editingCompany.id}` 
@@ -202,24 +229,13 @@ export default function CompaniesPage() {
       setOpenDialog(false);
     } catch (error) {
       toast({
-        title: "Erro ao Salvar",
+        title: "Erro ao salvar",
         description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
-  };
-  
-  const handleEditCompany = (company: Company) => {
-    setEditingCompany(company);
-    setFormData({
-      name: company.name,
-      email: company.email,
-      domain: company.domain || '',
-      cnpj: company.cnpj ? formatCNPJ(company.cnpj) : '',
-      phone: company.phone || '',
-      active: company.active
-    });
-    setOpenDialog(true);
   };
   
   const handleToggleStatus = async (company: Company) => {
@@ -246,7 +262,7 @@ export default function CompaniesPage() {
       });
     } catch (error) {
        toast({
-        title: "Erro ao Alterar Status",
+        title: "Erro ao alterar status",
         description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido.",
         variant: "destructive",
       });
@@ -277,174 +293,212 @@ export default function CompaniesPage() {
   if (authLoading) {
     return <div className="container mx-auto py-10 text-center"><p>Carregando autenticação...</p></div>;
   }
+  
   if (!user || user.role !== 'admin') {
     return null; 
   }
+
+  // Estado de erro
+  if (error) {
+    return (
+      <StandardPage
+        icon={Building2}
+        title="Empresas"
+        description="Gerencie as empresas do sistema"
+        createButtonText="Nova Empresa"
+        onCreateClick={handleCreateCompany}
+        onSearchChange={handleSearchChange}
+        searchValue={searchTerm}
+        searchPlaceholder="Buscar empresas..."
+      >
+        <div className="flex flex-col items-center justify-center py-12">
+          <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Erro ao carregar dados</h3>
+          <p className="text-muted-foreground mb-4 text-center">
+            {error}
+          </p>
+          <Button onClick={() => window.location.reload()}>
+            Recarregar Página
+          </Button>
+        </div>
+      </StandardPage>
+    );
+  }
+
+  // Estado vazio quando não há empresas
+  if (filteredCompanies && filteredCompanies.length === 0 && !isLoading && !searchTerm) {
+    return (
+      <>
+        <StandardPage
+          icon={Building2}
+          title="Empresas"
+          description="Gerencie as empresas cadastradas no sistema"
+          createButtonText="Nova Empresa"
+          onCreateClick={handleCreateCompany}
+          onSearchChange={handleSearchChange}
+          searchValue={searchTerm}
+          searchPlaceholder="Buscar empresas..."
+        >
+          <EmptyState
+            icon={Building2}
+            title="Nenhuma empresa encontrada"
+            description="Não há empresas cadastradas no sistema. Clique no botão abaixo para criar a primeira empresa."
+            actionLabel="Criar Primeira Empresa"
+            onAction={handleCreateCompany}
+          />
+        </StandardPage>
+
+        {/* Modal de formulário */}
+        {renderDialog()}
+      </>
+    );
+  }
+
+  // Função para renderizar o modal
+  function renderDialog() {
+    return (
+      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>{editingCompany ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle>
+            <DialogDescription>
+              {editingCompany ? 'Edite os detalhes da empresa.' : 'Preencha os detalhes para criar uma nova empresa.'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name" className="text-right">Nome</Label>
+                <Input id="name" name="name" value={formData.name} onChange={handleInputChange} className="col-span-3" required />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="email" className="text-right">Email</Label>
+                <Input id="email" name="email" type="email" value={formData.email} onChange={handleInputChange} className="col-span-3" required />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="domain" className="text-right">Domínio</Label>
+                <Input id="domain" name="domain" value={formData.domain} onChange={handleInputChange} className="col-span-3" placeholder="ex: minhaempresa.com"/>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="cnpj" className="text-right">CNPJ</Label>
+                <Input id="cnpj" name="cnpj" value={formData.cnpj} onChange={handleInputChange} className="col-span-3" placeholder="XX.XXX.XXX/0001-XX"/>
+              </div>
+               <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="phone" className="text-right">Telefone</Label>
+                <Input id="phone" name="phone" value={formData.phone} onChange={handleInputChange} className="col-span-3" placeholder="(XX) XXXXX-XXXX"/>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="active" className="text-right">Ativo</Label>
+                <Switch id="active" name="active" checked={formData.active} onCheckedChange={(checked) => setFormData({...formData, active: checked})} className="col-span-3 justify-self-start" />
+              </div>
+            </div>
+            <DialogFooter className="flex gap-3">
+              <CancelButton
+                onClick={() => { resetForm(); setOpenDialog(false); }}
+                disabled={isSubmitting}
+              />
+              <SaveButton
+                onClick={handleSubmit}
+                loading={isSubmitting}
+                text={editingCompany ? 'Salvar Alterações' : 'Criar Empresa'}
+              />
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
+  }
   
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Gerenciamento de Empresas</h1>
-      </div>
-      
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Empresas Cadastradas</CardTitle>
-              <CardDescription>
-                Lista de todas as empresas no sistema.
-              </CardDescription>
-            </div>
-            <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-              <DialogTrigger asChild>
-                <Button onClick={() => { resetForm(); setOpenDialog(true); }}>
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Nova Empresa
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>{editingCompany ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle>
-                  <DialogDescription>
-                    {editingCompany ? 'Edite os detalhes da empresa.' : 'Preencha os detalhes para criar uma nova empresa.'}
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleSubmit}>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="name" className="text-right">Nome</Label>
-                      <Input id="name" name="name" value={formData.name} onChange={handleInputChange} className="col-span-3" required />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="email" className="text-right">Email</Label>
-                      <Input id="email" name="email" type="email" value={formData.email} onChange={handleInputChange} className="col-span-3" required />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="domain" className="text-right">Domínio</Label>
-                      <Input id="domain" name="domain" value={formData.domain} onChange={handleInputChange} className="col-span-3" placeholder="ex: minhaempresa.com"/>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="cnpj" className="text-right">CNPJ</Label>
-                      <Input id="cnpj" name="cnpj" value={formData.cnpj} onChange={handleInputChange} className="col-span-3" placeholder="XX.XXX.XXX/0001-XX"/>
-                    </div>
-                     <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="phone" className="text-right">Telefone</Label>
-                      <Input id="phone" name="phone" value={formData.phone} onChange={handleInputChange} className="col-span-3" placeholder="(XX) XXXXX-XXXX"/>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="active" className="text-right">Ativo</Label>
-                      <Switch id="active" name="active" checked={formData.active} onCheckedChange={(checked) => setFormData({...formData, active: checked})} className="col-span-3 justify-self-start" />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => { resetForm(); setOpenDialog(false); }}>Cancelar</Button>
-                    <Button type="submit">{editingCompany ? 'Salvar Alterações' : 'Criar Empresa'}</Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-2">
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
-                <Input 
-                  placeholder="Buscar por nome, email, CNPJ..." 
-                  className="pl-10" 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch 
-                  id="includeInactive" 
-                  checked={includeInactive} 
-                  onCheckedChange={setIncludeInactive}
-                />
-                <Label htmlFor="includeInactive">Incluir inativas</Label>
-              </div>
+    <>
+      <StandardPage
+        icon={Building2}
+        title="Empresas"
+        description="Gerencie as empresas cadastradas no sistema"
+        createButtonText="Nova Empresa"
+        onCreateClick={handleCreateCompany}
+        onSearchChange={handleSearchChange}
+        searchValue={searchTerm}
+        searchPlaceholder="Buscar por nome, email, CNPJ..."
+        isLoading={isLoading}
+      >
+        {/* Filtros adicionais */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center space-x-2">
+              <Switch 
+                id="includeInactive" 
+                checked={includeInactive} 
+                onCheckedChange={setIncludeInactive}
+              />
+              <Label htmlFor="includeInactive">Incluir empresas inativas</Label>
             </div>
           </div>
+          
+          <div className="text-sm text-muted-foreground">
+            {filteredCompanies ? `${filteredCompanies.length} empresa(s) encontrada(s)` : ''}
+          </div>
+        </div>
 
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>CNPJ</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Data de Criação</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  Array(5).fill(0).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-40" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : filteredCompanies.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10 text-neutral-500">
-                      {searchTerm ? "Nenhuma empresa encontrada para sua busca." : "Nenhuma empresa cadastrada."}
+        {filteredCompanies && filteredCompanies.length === 0 ? (
+          <EmptyState
+            icon={Search}
+            title="Nenhuma empresa encontrada"
+            description={`Não foram encontradas empresas com o termo "${searchTerm}".`}
+            actionLabel="Limpar busca"
+            onAction={() => setSearchTerm('')}
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nome</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>CNPJ</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Data de Criação</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array(5).fill(0).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                filteredCompanies.map((company) => (
+                  <TableRow key={company.id} className={!company.active ? "opacity-60" : ""}>
+                    <TableCell className="font-medium">{company.name}</TableCell>
+                    <TableCell>{company.email}</TableCell>
+                    <TableCell>{company.cnpj ? formatCNPJ(company.cnpj) : '—'}</TableCell>
+                    <TableCell>
+                      <StatusBadge isActive={company.active} />
+                    </TableCell>
+                    <TableCell>
+                      {new Date(company.createdAt).toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <ActionButtonGroup
+                        onEdit={() => handleEditCompany(company)}
+                        onDelete={() => handleToggleCompanyStatus(company)}
+                      />
                     </TableCell>
                   </TableRow>
-                ) : (
-                  filteredCompanies.map((company) => (
-                    <TableRow key={company.id} className={!company.active ? "opacity-60" : ""}>
-                      <TableCell className="font-medium">{company.name}</TableCell>
-                      <TableCell>{company.email}</TableCell>
-                      <TableCell>{company.cnpj ? formatCNPJ(company.cnpj) : '-'}</TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={company.active ? "default" : "outline"}
-                          className={company.active ? "bg-green-500 hover:bg-green-500/80" : "text-neutral-500"}
-                        >
-                          {company.active ? 'Ativo' : 'Inativo'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(company.createdAt).toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleEditCompany(company)}
-                            title="Editar Empresa"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button 
-                            variant={company.active ? "destructive" : "default"} 
-                            size="sm"
-                            className={company.active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
-                            onClick={() => handleToggleStatus(company)}
-                            title={company.active ? "Desativar Empresa" : "Ativar Empresa"}
-                          >
-                            {company.active ? <UserX className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </StandardPage>
+
+      {renderDialog()}
+    </>
   );
 } 
