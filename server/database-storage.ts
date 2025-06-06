@@ -14,7 +14,7 @@ import {
   companies, departments } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, ilike } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike } from "drizzle-orm";
 import { IStorage } from "./storage";
 
 export class DatabaseStorage implements IStorage {
@@ -479,6 +479,170 @@ export class DatabaseStorage implements IStorage {
       
       console.log(`Cliente encontrado: ID ${customer.id}`);
       return this.getTicketsByCustomerId(customer.id);
+    } else if (userRole === 'manager') {
+      console.log('Papel: manager - buscando tickets do manager e subordinados');
+      // Manager pode ver tickets de:
+      // 1. Seus próprios tickets
+      // 2. Tickets de todos os atendentes que têm ele como manager
+      // 3. Tickets não atribuídos dos departamentos dos subordinados
+      
+      const [managerOfficial] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!managerOfficial) {
+        console.log(`Não foi encontrado nenhum atendente para o usuário manager ID ${userId}`);
+        return [];
+      }
+      
+      console.log(`Manager encontrado: ID ${managerOfficial.id}`);
+      
+      try {
+        // Buscar todos os atendentes que têm este manager
+        const subordinates = await db.select().from(officials).where(eq(officials.manager_id, managerOfficial.id));
+        const subordinateIds = subordinates.map(s => s.id);
+        
+        console.log(`Subordinados do manager: ${JSON.stringify(subordinateIds)}`);
+        
+        // Buscar departamentos dos subordinados para tickets não atribuídos
+        const allDepartments = new Set<string>();
+        for (const subordinate of subordinates) {
+          const departments = await this.getOfficialDepartments(subordinate.id);
+          departments.forEach(dept => allDepartments.add(dept.department));
+        }
+        
+        // Buscar seus próprios departamentos também
+        const managerDepartments = await this.getOfficialDepartments(managerOfficial.id);
+        managerDepartments.forEach(dept => allDepartments.add(dept.department));
+        
+        const departmentNames = Array.from(allDepartments);
+        console.log(`Departamentos relevantes: ${JSON.stringify(departmentNames)}`);
+        
+        // Mapear nomes para IDs usando o mapa carregado
+        const departmentIds = departmentNames
+          .map(name => departmentIdMap[name.toLowerCase()])
+          .filter(id => id !== undefined);
+        
+        console.log(`IDs dos departamentos: ${JSON.stringify(departmentIds)}`);
+        
+        const conditions = [];
+        
+        // Tickets do próprio manager
+        conditions.push(eq(tickets.assigned_to_id, managerOfficial.id));
+        
+        // Tickets dos subordinados
+        if (subordinateIds.length > 0) {
+          conditions.push(inArray(tickets.assigned_to_id, subordinateIds));
+        }
+        
+        // Tickets não atribuídos dos departamentos relevantes
+        if (departmentIds.length > 0) {
+          conditions.push(
+            and(
+              isNull(tickets.assigned_to_id),
+              inArray(tickets.department_id, departmentIds)
+            )
+          );
+        }
+        
+        const ticketsData = await db
+          .select()
+          .from(tickets)
+          .where(and(
+            eq(tickets.company_id, managerOfficial.company_id || 0),
+            or(...conditions)
+          ));
+        
+        console.log(`Encontrados ${ticketsData.length} tickets para o manager`);
+        
+        const enrichedTickets = await Promise.all(
+          ticketsData.map(ticket => this.getTicketInternal(ticket.id))
+        );
+        
+        return enrichedTickets.filter(Boolean) as Ticket[];
+      } catch (error) {
+        console.error('Erro ao buscar tickets para manager:', error);
+        return [];
+      }
+    } else if (userRole === 'supervisor') {
+      console.log('Papel: supervisor - buscando tickets do supervisor e subordinados');
+      // Supervisor pode ver tickets de:
+      // 1. Seus próprios tickets
+      // 2. Tickets dos atendentes que têm ele como supervisor
+      // 3. Tickets não atribuídos dos departamentos dos subordinados
+      
+      const [supervisorOfficial] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!supervisorOfficial) {
+        console.log(`Não foi encontrado nenhum atendente para o usuário supervisor ID ${userId}`);
+        return [];
+      }
+      
+      console.log(`Supervisor encontrado: ID ${supervisorOfficial.id}`);
+      
+      try {
+        // Buscar todos os atendentes que têm este supervisor
+        const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, supervisorOfficial.id));
+        const subordinateIds = subordinates.map(s => s.id);
+        
+        console.log(`Subordinados do supervisor: ${JSON.stringify(subordinateIds)}`);
+        
+        // Buscar departamentos dos subordinados para tickets não atribuídos
+        const allDepartments = new Set<string>();
+        for (const subordinate of subordinates) {
+          const departments = await this.getOfficialDepartments(subordinate.id);
+          departments.forEach(dept => allDepartments.add(dept.department));
+        }
+        
+        // Buscar seus próprios departamentos também
+        const supervisorDepartments = await this.getOfficialDepartments(supervisorOfficial.id);
+        supervisorDepartments.forEach(dept => allDepartments.add(dept.department));
+        
+        const departmentNames = Array.from(allDepartments);
+        console.log(`Departamentos relevantes: ${JSON.stringify(departmentNames)}`);
+        
+        // Mapear nomes para IDs usando o mapa carregado
+        const departmentIds = departmentNames
+          .map(name => departmentIdMap[name.toLowerCase()])
+          .filter(id => id !== undefined);
+        
+        console.log(`IDs dos departamentos: ${JSON.stringify(departmentIds)}`);
+        
+        const conditions = [];
+        
+        // Tickets do próprio supervisor
+        conditions.push(eq(tickets.assigned_to_id, supervisorOfficial.id));
+        
+        // Tickets dos subordinados
+        if (subordinateIds.length > 0) {
+          conditions.push(inArray(tickets.assigned_to_id, subordinateIds));
+        }
+        
+        // Tickets não atribuídos dos departamentos relevantes
+        if (departmentIds.length > 0) {
+          conditions.push(
+            and(
+              isNull(tickets.assigned_to_id),
+              inArray(tickets.department_id, departmentIds)
+            )
+          );
+        }
+        
+        const ticketsData = await db
+          .select()
+          .from(tickets)
+          .where(and(
+            eq(tickets.company_id, supervisorOfficial.company_id || 0),
+            or(...conditions)
+          ));
+        
+        console.log(`Encontrados ${ticketsData.length} tickets para o supervisor`);
+        
+        const enrichedTickets = await Promise.all(
+          ticketsData.map(ticket => this.getTicketInternal(ticket.id))
+        );
+        
+        return enrichedTickets.filter(Boolean) as Ticket[];
+      } catch (error) {
+        console.error('Erro ao buscar tickets para supervisor:', error);
+        return [];
+      }
     } else if (userRole === 'support') {
       console.log('Papel: support - buscando tickets do atendente');
       // Atendentes veem tickets de seus departamentos

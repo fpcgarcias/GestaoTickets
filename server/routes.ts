@@ -506,23 +506,115 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       } else if (role === 'manager') {
         if (companyId) {
           conditions.push(eq(schema.tickets.company_id, companyId));
+          
+          // Manager pode ver tickets de:
+          // 1. Seus próprios tickets
+          // 2. Tickets de todos os atendentes que têm ele como manager
+          // 3. Tickets não atribuídos dos departamentos dos atendentes sob sua gestão
+          
+          const [managerOfficial] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId)).limit(1);
+          if (managerOfficial) {
+            // Buscar todos os atendentes que têm este manager
+            const subordinates = await db.select().from(schema.officials).where(eq(schema.officials.manager_id, managerOfficial.id));
+            const subordinateIds = subordinates.map(s => s.id);
+            
+            // Buscar departamentos dos subordinados para tickets não atribuídos
+            const allDepartments = new Set<string>();
+            for (const subordinate of subordinates) {
+              const departments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, subordinate.id));
+              departments.forEach(dept => allDepartments.add(dept.department));
+            }
+            
+            // Buscar seus próprios departamentos também
+            const managerDepartments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, managerOfficial.id));
+            managerDepartments.forEach(dept => allDepartments.add(dept.department));
+            
+            const departmentNames = Array.from(allDepartments);
+            
+            // Mapear nomes de departamentos para IDs
+            const departmentRecords = await db.select().from(schema.departments).where(
+              departmentNames.length > 0 ? inArray(schema.departments.name, departmentNames) : undefined
+            );
+            const departmentIds = departmentRecords.map(d => d.id);
+            
+            const ticketConditions = [
+              eq(schema.tickets.assigned_to_id, managerOfficial.id), // Seus próprios tickets
+            ];
+            
+            if (subordinateIds.length > 0) {
+              ticketConditions.push(inArray(schema.tickets.assigned_to_id, subordinateIds)); // Tickets dos subordinados
+            }
+            
+            if (departmentIds.length > 0) {
+              ticketConditions.push(
+                and(
+                  isNull(schema.tickets.assigned_to_id), // Tickets não atribuídos
+                  inArray(schema.tickets.department_id, departmentIds) // Dos departamentos relevantes
+                )
+              );
+            }
+            
+            conditions.push(or(...ticketConditions));
+          } else {
+            return res.json([]); // Usuário manager não é um atendente
+          }
         } else {
             return res.json([]); // manager sem companyId não deve ver tickets
         }
       } else if (role === 'supervisor') {
         if (companyId) {
           conditions.push(eq(schema.tickets.company_id, companyId));
-          const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId)).limit(1);
-          if (official) {
-            const departments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, official.id));
-            if (departments.length > 0) {
-              const departmentIds = departments.map(d => parseInt(d.department));
-              conditions.push(inArray(schema.tickets.department_id, departmentIds));
-            } else {
-                 return res.json([]); // Supervisor sem departamentos associados não vê tickets
+          
+          // Supervisor pode ver tickets de:
+          // 1. Seus próprios tickets
+          // 2. Tickets dos atendentes que têm ele como supervisor
+          // 3. Tickets não atribuídos dos departamentos dos atendentes sob sua supervisão
+          
+          const [supervisorOfficial] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId)).limit(1);
+          if (supervisorOfficial) {
+            // Buscar todos os atendentes que têm este supervisor
+            const subordinates = await db.select().from(schema.officials).where(eq(schema.officials.supervisor_id, supervisorOfficial.id));
+            const subordinateIds = subordinates.map(s => s.id);
+            
+            // Buscar departamentos dos subordinados para tickets não atribuídos
+            const allDepartments = new Set<string>();
+            for (const subordinate of subordinates) {
+              const departments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, subordinate.id));
+              departments.forEach(dept => allDepartments.add(dept.department));
             }
+            
+            // Buscar seus próprios departamentos também
+            const supervisorDepartments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, supervisorOfficial.id));
+            supervisorDepartments.forEach(dept => allDepartments.add(dept.department));
+            
+            const departmentNames = Array.from(allDepartments);
+            
+            // Mapear nomes de departamentos para IDs
+            const departmentRecords = await db.select().from(schema.departments).where(
+              departmentNames.length > 0 ? inArray(schema.departments.name, departmentNames) : undefined
+            );
+            const departmentIds = departmentRecords.map(d => d.id);
+            
+            const ticketConditions = [
+              eq(schema.tickets.assigned_to_id, supervisorOfficial.id), // Seus próprios tickets
+            ];
+            
+            if (subordinateIds.length > 0) {
+              ticketConditions.push(inArray(schema.tickets.assigned_to_id, subordinateIds)); // Tickets dos subordinados
+            }
+            
+            if (departmentIds.length > 0) {
+              ticketConditions.push(
+                and(
+                  isNull(schema.tickets.assigned_to_id), // Tickets não atribuídos
+                  inArray(schema.tickets.department_id, departmentIds) // Dos departamentos relevantes
+                )
+              );
+            }
+            
+            conditions.push(or(...ticketConditions));
           } else {
-             return res.json([]); // Usuário supervisor não é um atendente
+            return res.json([]); // Usuário supervisor não é um atendente
           }
         } else {
             return res.json([]); // supervisor sem companyId não deve ver tickets
@@ -530,21 +622,39 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       } else if (role === 'support') {
         if (companyId) {
           conditions.push(eq(schema.tickets.company_id, companyId));
+          
+          // Support pode ver tickets de:
+          // 1. Seus próprios tickets (atribuídos a ele)
+          // 2. Tickets não atribuídos dos seus departamentos
+          
           const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId)).limit(1);
           if (official) {
             const departments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, official.id));
             if (departments.length > 0) {
-              const departmentIds = departments.map(d => parseInt(d.department));
-              conditions.push(
-                or(
-                  eq(schema.tickets.assigned_to_id, official.id),
-                  and(
-                    isNull(schema.tickets.assigned_to_id),
-                    inArray(schema.tickets.department_id, departmentIds)
-                  )
-                )
+              const departmentNames = departments.map(d => d.department);
+              
+              // Mapear nomes de departamentos para IDs
+              const departmentRecords = await db.select().from(schema.departments).where(
+                inArray(schema.departments.name, departmentNames)
               );
+              const departmentIds = departmentRecords.map(d => d.id);
+              
+              if (departmentIds.length > 0) {
+                conditions.push(
+                  or(
+                    eq(schema.tickets.assigned_to_id, official.id),
+                    and(
+                      isNull(schema.tickets.assigned_to_id),
+                      inArray(schema.tickets.department_id, departmentIds)
+                    )
+                  )
+                );
+              } else {
+                // Se não conseguiu mapear os departamentos, mostrar apenas tickets atribuídos
+                conditions.push(eq(schema.tickets.assigned_to_id, official.id));
+              }
             } else {
+              // Se não tem departamentos, mostrar apenas tickets atribuídos diretamente
               conditions.push(eq(schema.tickets.assigned_to_id, official.id));
             }
           } else {
