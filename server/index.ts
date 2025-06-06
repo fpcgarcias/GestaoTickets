@@ -3,8 +3,6 @@ import "./loadEnv"; // Importar PRIMEIRO para carregar variáveis de ambiente
 import express, { type Request, Response, NextFunction } from "express";
 import { setupVite, serveStatic, log } from "./vite";
 import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
-import { pool } from "./db";
 import crypto from "crypto";
 import path from "path"; // RESTAURAR esta importação, pois é usada abaixo
 import fs from "fs";
@@ -163,17 +161,8 @@ const notificationService = {
 // Inicializar serviço
 notificationService.initialize();
 
-// Configurar PostgreSQL Session Store para resolver vazamentos de memória em produção
-const PostgreSQLStore = connectPgSimple(session);
-
-// Configurar a sessão com PostgreSQL Store
+// Configurar a sessão com configurações seguras
 app.use(session({
-  store: new PostgreSQLStore({
-    pool: pool,
-    tableName: 'user_sessions',
-    createTableIfMissing: true, // Criar automaticamente se não existir
-    ttl: 24 * 60 * 60, // TTL em segundos (24 horas)
-  }),
   secret: process.env.SESSION_SECRET || generateSecret(),
   resave: false,
   saveUninitialized: false,
@@ -185,8 +174,6 @@ app.use(session({
     sameSite: 'strict' // Proteção CSRF
   }
 }));
-
-console.log('✅ PostgreSQL Session Store configurado (sem mais MemoryStore)');
 
 // === MIDDLEWARE DE LOG MELHORADO ===
 app.use((req, res, next) => {
