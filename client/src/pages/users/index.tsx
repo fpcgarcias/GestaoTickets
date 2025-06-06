@@ -321,12 +321,15 @@ export default function UsersIndex() {
                         </TableCell>
                       )}
                       <TableCell>
-                        <Badge 
-                          variant={userItem.active ? "default" : "outline"}
-                          className={userItem.active ? "bg-green-500 hover:bg-green-500/80" : "text-neutral-500"}
-                        >
-                          {userItem.active ? "Ativo" : "Inativo"}
-                        </Badge>
+                        {(userItem.active === undefined || userItem.active) ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Ativo
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            Inativo
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

@@ -268,16 +268,14 @@ export default function OfficialsIndex() {
                           </TableCell>
                         )}
                         <TableCell>
-                          {official.is_active ? (
-                            <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">
-                              <Check className="w-3 h-3 mr-1" />
+                          {(official.is_active === undefined || official.is_active) ? (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                               Ativo
-                            </Badge>
+                            </span>
                           ) : (
-                            <Badge variant="outline" className="bg-red-100 text-red-800 hover:bg-red-100">
-                              <X className="w-3 h-3 mr-1" />
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                               Inativo
-                            </Badge>
+                            </span>
                           )}
                         </TableCell>
                         <TableCell className="text-center">

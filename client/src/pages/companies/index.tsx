@@ -332,9 +332,18 @@ export default function CompaniesPage() {
                       <Label htmlFor="phone" className="text-right">Telefone</Label>
                       <Input id="phone" name="phone" value={formData.phone} onChange={handleInputChange} className="col-span-3" placeholder="(XX) XXXXX-XXXX"/>
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="active" className="text-right">Ativo</Label>
-                      <Switch id="active" name="active" checked={formData.active} onCheckedChange={(checked) => setFormData({...formData, active: checked})} className="col-span-3 justify-self-start" />
+                    <div className="space-y-2">
+                      <Label htmlFor="active">Ativo</Label>
+                      <Switch
+                        id="active"
+                        checked={formData.active}
+                        onCheckedChange={(checked) => 
+                          setFormData((prev) => ({
+                            ...prev,
+                            active: checked,
+                          }))
+                        }
+                      />
                     </div>
                   </div>
                   <DialogFooter>
@@ -406,12 +415,15 @@ export default function CompaniesPage() {
                       <TableCell>{company.email}</TableCell>
                       <TableCell>{company.cnpj ? formatCNPJ(company.cnpj) : '-'}</TableCell>
                       <TableCell>
-                        <Badge 
-                          variant={company.active ? "default" : "outline"}
-                          className={company.active ? "bg-green-500 hover:bg-green-500/80" : "text-neutral-500"}
-                        >
-                          {company.active ? 'Ativo' : 'Inativo'}
-                        </Badge>
+                        {(company.active === undefined || company.active) ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Ativo
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            Inativo
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {new Date(company.createdAt).toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' })}
