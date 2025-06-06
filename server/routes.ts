@@ -4275,11 +4275,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Atualizar permissões de uma empresa (apenas admin)
   router.put("/company-permissions/:companyId", authRequired, authorize(['admin']), updateCompanyPermissions);
   
-  // Buscar configurações de uso de IA para company_admin
-  router.get("/settings/ai-usage", authRequired, authorize(['company_admin']), getAiUsageSettings);
+  // Buscar configurações de uso de IA para company_admin, manager e supervisor
+  router.get("/settings/ai-usage", authRequired, authorize(['company_admin', 'manager', 'supervisor']), getAiUsageSettings);
   
-  // Atualizar configurações de uso de IA para company_admin
-  router.put("/settings/ai-usage", authRequired, authorize(['company_admin']), updateAiUsageSettings);
+  // Atualizar configurações de uso de IA para company_admin, manager e supervisor
+  router.put("/settings/ai-usage", authRequired, authorize(['company_admin', 'manager', 'supervisor']), updateAiUsageSettings);
 
   // --- FIM DAS ROTAS DE PERMISSÕES ---
 

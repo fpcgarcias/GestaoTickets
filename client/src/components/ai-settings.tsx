@@ -218,7 +218,7 @@ function AiUsageToggle() {
       }
       return response.json();
     },
-    enabled: user?.role === 'company_admin',
+    enabled: user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor',
   });
 
   // Mutação para atualizar configurações de uso
@@ -347,10 +347,10 @@ export default function AiSettings() {
     },
   });
 
-  // Admin vê configuração completa, company_admin vê apenas toggle de uso
+  // Admin vê configuração completa, company_admin, manager e supervisor veem apenas toggle de uso
   if (user?.role === 'admin') {
     return <AdminAiConfiguration />;
-  } else if (user?.role === 'company_admin') {
+  } else if (user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') {
     return <AiUsageToggle />;
   } else {
     return (
