@@ -2078,9 +2078,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Endpoint para criar usuários
   router.post("/users", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
-      const { username, email, password, name, role, avatarUrl } = req.body;
+      const { username, email, password, name, role, avatarUrl, company_id } = req.body;
+      const userRole = req.session?.userRole as string;
+      const sessionCompanyId = req.session?.companyId;
       
       console.log(`Tentando criar usuário: ${name}, email: ${email}, username: ${username}, role: ${role}`);
+      
+      // VALIDAÇÃO CRÍTICA DE SEGURANÇA: Apenas usuários admin podem criar outros admin
+      if (role === 'admin' && userRole !== 'admin') {
+        console.log(`TENTATIVA DE ESCALAÇÃO DE PRIVILÉGIOS: Usuário com role '${userRole}' tentou criar usuário admin`);
+        return res.status(403).json({ 
+          message: "Acesso negado: Apenas administradores globais podem criar outros administradores" 
+        });
+      }
       
       const existingUser = await storage.getUserByUsername(username);
       if (existingUser) {
@@ -2094,6 +2104,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(400).json({ message: "Email já está em uso" });
       }
       
+      // Determinar company_id baseado no role do usuário logado
+      let finalCompanyId: number | undefined;
+      if (userRole === 'admin') {
+        // Admin pode especificar qualquer empresa ou deixar sem empresa
+        finalCompanyId = company_id || undefined;
+      } else {
+        // Outros roles só podem criar usuários para sua própria empresa
+        finalCompanyId = sessionCompanyId;
+      }
+      
       const { hashPassword } = await import('./utils/password');
       const hashedPassword = await hashPassword(password);
       
@@ -2104,6 +2124,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         name,
         role: role as typeof schema.userRoleEnum.enumValues[number],
         avatar_url: avatarUrl,
+        company_id: finalCompanyId,
         active: true 
       });
       
@@ -2141,11 +2162,20 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       }
       
       const { name, email, username, password, role } = req.body;
+      const userRole = req.session?.userRole as string;
       
       // Verificar se o usuário existe
       const existingUser = await storage.getUser(id);
       if (!existingUser) {
         return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+      
+      // VALIDAÇÃO CRÍTICA DE SEGURANÇA: Apenas usuários admin podem alterar role para admin
+      if (role === 'admin' && userRole !== 'admin') {
+        console.log(`TENTATIVA DE ESCALAÇÃO DE PRIVILÉGIOS: Usuário com role '${userRole}' tentou alterar usuário ${id} para admin`);
+        return res.status(403).json({ 
+          message: "Acesso negado: Apenas administradores globais podem definir role de administrador" 
+        });
       }
       
       // Se estamos alterando o nome de usuário, verificar se já existe
@@ -3377,7 +3407,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   );
 
   // --- ROTAS DE SLA DEFINITIONS ---
-  router.get("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin', 'support', 'customer']), async (req: Request, res: Response) => {
+  router.get("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support', 'customer']), async (req: Request, res: Response) => {
     let effectiveCompanyId: number | undefined = undefined; // Inicializada e tipo ajustado
     try {
       const userRole = req.session.userRole as string;
@@ -3402,6 +3432,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           return res.status(403).json({ message: "Company Admin não está associado a nenhuma empresa." });
         }
         effectiveCompanyId = sessionCompanyId; // Company Admin sempre usa o seu companyId da sessão
+      } else if (userRole === 'supervisor') {
+        if (!sessionCompanyId) {
+          return res.status(403).json({ message: "Supervisor não está associado a nenhuma empresa." });
+        }
+        effectiveCompanyId = sessionCompanyId; // Supervisor sempre usa o seu companyId da sessão
       } else if (userRole === 'support') {
         if (!sessionCompanyId) {
           return res.status(403).json({ message: "Support não está associado a nenhuma empresa." });
@@ -3454,7 +3489,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   type DrizzleReturningQuery = any; // Placeholder para tipo de query Drizzle com .returning()
-  router.post("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin', 'support']), async (req: Request, res: Response) => {
+  router.post("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
     let effectiveCompanyId: number | undefined = undefined; // Inicializada e tipo ajustado
     try {
       const userRole = req.session.userRole as string;
@@ -3488,6 +3523,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         effectiveCompanyId = sessionCompanyId;
         if (company_id_from_body !== undefined && company_id_from_body !== sessionCompanyId) {
           console.warn("Company Admin tentou salvar SLA para company_id diferente da sua sessão. Usando company_id da sessão.");
+        }
+      } else if (userRole === 'supervisor') {
+        if (!sessionCompanyId) {
+          return res.status(403).json({ message: "Supervisor não está associado a nenhuma empresa." });
+        }
+        effectiveCompanyId = sessionCompanyId;
+        if (company_id_from_body !== undefined && company_id_from_body !== sessionCompanyId) {
+          console.warn("Supervisor tentou salvar SLA para company_id diferente da sua sessão. Usando company_id da sessão.");
         }
       } else if (userRole === 'support') {
         if (!sessionCompanyId) {

@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   Search, Key, Pencil, Loader2, Copy, AlertTriangle, 
-  User, Check, X, UserCog, UserCheck, UserX, Shield, Save, Building2
+  User, Check, X, UserCog, UserCheck, UserX, Shield, Save, Building2, UserPlus
 } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
+import AddUserDialog from './add-user-dialog';
 
 export default function UsersIndex() {
   const { toast } = useToast();
@@ -31,6 +32,7 @@ export default function UsersIndex() {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [activeStatusDialogOpen, setActiveStatusDialogOpen] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
   
   // Estados para alteração de senha
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
@@ -212,16 +214,16 @@ export default function UsersIndex() {
   // Função para obter o texto de papel do usuário
   const getRoleText = (role: string) => {
     switch(role) {
-      case 'admin': return 'Administrador';
-      case 'support': return 'Suporte';
-      case 'customer': return 'Cliente';
-      case 'manager': return 'Gestor';
+      case 'admin': return 'Administrador Global';
+      case 'company_admin': return 'Administrador da Empresa';
+      case 'manager': return 'Gerente';
       case 'supervisor': return 'Supervisor';
-      case 'viewer': return 'Visualizador';
-      case 'company_admin': return 'Admin Empresa';
+      case 'support': return 'Atendente';
       case 'triage': return 'Triagem';
       case 'quality': return 'Qualidade';
-      case 'integration_bot': return 'Bot Integração';
+      case 'viewer': return 'Visualizador';
+      case 'customer': return 'Cliente';
+      case 'integration_bot': return 'Bot de Integração';
       default: return role;
     }
   };
@@ -236,11 +238,76 @@ export default function UsersIndex() {
     }
   };
 
+  // Função para obter os roles disponíveis baseado no perfil do usuário logado (para edição)
+  const getAvailableRolesForEdit = () => {
+    if (user?.role === 'admin') {
+      return [
+        { value: 'admin', label: 'Administrador Global' },
+        { value: 'company_admin', label: 'Administrador da Empresa' },
+        { value: 'manager', label: 'Gerente' },
+        { value: 'supervisor', label: 'Supervisor' },
+        { value: 'support', label: 'Atendente' },
+        { value: 'triage', label: 'Triagem' },
+        { value: 'quality', label: 'Qualidade' },
+        { value: 'viewer', label: 'Visualizador' },
+        { value: 'customer', label: 'Cliente' },
+        { value: 'integration_bot', label: 'Bot de Integração' }
+      ];
+    } else if (user?.role === 'company_admin') {
+      return [
+        { value: 'company_admin', label: 'Administrador da Empresa' },
+        { value: 'manager', label: 'Gerente' },
+        { value: 'supervisor', label: 'Supervisor' },
+        { value: 'support', label: 'Atendente' },
+        { value: 'triage', label: 'Triagem' },
+        { value: 'quality', label: 'Qualidade' },
+        { value: 'viewer', label: 'Visualizador' },
+        { value: 'customer', label: 'Cliente' }
+      ];
+    } else if (user?.role === 'manager') {
+      return [
+        { value: 'company_admin', label: 'Administrador da Empresa' },
+        { value: 'manager', label: 'Gerente' },
+        { value: 'supervisor', label: 'Supervisor' },
+        { value: 'support', label: 'Atendente' },
+        { value: 'triage', label: 'Triagem' },
+        { value: 'quality', label: 'Qualidade' },
+        { value: 'viewer', label: 'Visualizador' },
+        { value: 'customer', label: 'Cliente' }
+      ];
+    } else if (user?.role === 'supervisor') {
+      return [
+        { value: 'company_admin', label: 'Administrador da Empresa' },
+        { value: 'manager', label: 'Gerente' },
+        { value: 'supervisor', label: 'Supervisor' },
+        { value: 'support', label: 'Atendente' },
+        { value: 'triage', label: 'Triagem' },
+        { value: 'quality', label: 'Qualidade' },
+        { value: 'viewer', label: 'Visualizador' },
+        { value: 'customer', label: 'Cliente' }
+      ];
+    }
+    return [];
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold text-neutral-900">Usuários</h1>
+        <Button onClick={() => setShowAddDialog(true)}>
+          <UserPlus className="mr-2 h-4 w-4" />
+          Adicionar Usuário
+        </Button>
       </div>
+      
+      <AddUserDialog 
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        onCreated={() => {
+          // Atualizar a lista de usuários automaticamente
+          queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+        }}
+      />
 
       <Card>
         <CardHeader>
@@ -569,16 +636,11 @@ export default function UsersIndex() {
                       <SelectValue placeholder="Selecione o perfil" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                      <SelectItem value="company_admin">Admin de Empresa</SelectItem>
-                      <SelectItem value="manager">Gestor</SelectItem>
-                      <SelectItem value="supervisor">Supervisor</SelectItem>
-                      <SelectItem value="support">Suporte</SelectItem>
-                      <SelectItem value="triage">Triagem</SelectItem>
-                      <SelectItem value="customer">Cliente</SelectItem>
-                      <SelectItem value="viewer">Visualizador</SelectItem>
-                      <SelectItem value="quality">Qualidade</SelectItem>
-                      <SelectItem value="integration_bot">Bot de Integração</SelectItem>
+                      {getAvailableRolesForEdit().map((role) => (
+                        <SelectItem key={role.value} value={role.value}>
+                          {role.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
