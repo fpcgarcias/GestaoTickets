@@ -58,8 +58,8 @@ export default function ClientsIndex() {
   });
 
   // Verificar se o usuário tem permissão para acessar esta página
-  // Apenas 'admin', 'support' e 'company_admin' podem ver a lista de clientes
-  const hasAccess = user && (user.role === 'admin' || user.role === 'support' || user.role === 'company_admin');
+  // 'admin', 'support', 'company_admin', 'manager' e 'supervisor' podem ver a lista de clientes
+  const hasAccess = user && (user.role === 'admin' || user.role === 'support' || user.role === 'company_admin' || user.role === 'manager' || user.role === 'supervisor');
 
   if (!hasAccess) {
     return (

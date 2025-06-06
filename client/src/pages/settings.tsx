@@ -130,6 +130,7 @@ export default function Settings() {
   // enabled garante que a query só rode se houver um companyId para buscar.
   const slaQueryEnabled = (!isLoadingAuth && user?.role === 'admin' && !!selectedCompanyId) || 
                         (!isLoadingAuth && user?.role === 'manager' && !!userCompany?.id) ||
+                        (!isLoadingAuth && user?.role === 'supervisor' && !!userCompany?.id) ||
                         (!isLoadingAuth && user?.role === 'company_admin' && !!userCompany?.id) ||
                         (!isLoadingAuth && user?.role === 'support' && !!userCompany?.id);
   console.log(
@@ -152,6 +153,8 @@ export default function Settings() {
       if (user?.role === 'admin' && selectedCompanyId) {
         endpoint = `/api/settings/sla?company_id=${selectedCompanyId}`;
       } else if (user?.role === 'manager' && userCompany?.id) {
+        endpoint = '/api/settings/sla';
+      } else if (user?.role === 'supervisor' && userCompany?.id) {
         endpoint = '/api/settings/sla';
       } else if (user?.role === 'company_admin' && userCompany?.id) {
         endpoint = '/api/settings/sla';
@@ -215,7 +218,7 @@ export default function Settings() {
       }
       return response.json();
     },
-    enabled: !isLoadingAuth && (user?.role === 'admin' || user?.role === 'company_admin'),
+    enabled: !isLoadingAuth && (user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor'),
   });
 
   useEffect(() => {
@@ -300,12 +303,13 @@ export default function Settings() {
   
   const handleSaveSlaSettings = () => {
     if ((user?.role === 'admin' && !selectedCompanyId) || 
-        ((user?.role === 'manager' || user?.role === 'support') && !userCompany?.id)) {
+        ((user?.role === 'manager' || user?.role === 'supervisor' || user?.role === 'support') && !userCompany?.id)) {
       toast({ 
         title: "Seleção Necessária", 
         description: user?.role === 'admin' 
           ? "Selecione uma empresa." 
-          : (user?.role === 'manager' ? "Manager sem empresa associada." : "Support sem empresa associada."), 
+          : (user?.role === 'manager' ? "Manager sem empresa associada." : 
+             user?.role === 'supervisor' ? "Supervisor sem empresa associada." : "Support sem empresa associada."), 
         variant: "destructive" 
       });
       return;
@@ -383,8 +387,8 @@ export default function Settings() {
       
       <Tabs defaultValue={user?.role === 'customer' || user?.role === 'support' ? "notifications" : "general"} className="w-full">
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent mb-6">
-          {/* Aba Geral - apenas para admin e company_admin */}
-          {(user?.role === 'admin' || user?.role === 'company_admin') && (
+          {/* Aba Geral - para admin, company_admin, manager e supervisor */}
+          {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') && (
             <TabsTrigger value="general" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
               Geral
             </TabsTrigger>
@@ -397,8 +401,8 @@ export default function Settings() {
             </TabsTrigger>
           )}
           
-          {/* Aba Email - apenas para admin e company_admin */}
-          {(user?.role === 'admin' || user?.role === 'company_admin') && (
+          {/* Aba Email - para admin, company_admin, manager e supervisor */}
+          {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') && (
             <TabsTrigger value="email" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
               <Mail className="mr-2 h-4 w-4" />
               Configurações de Email
@@ -413,8 +417,8 @@ export default function Settings() {
             </TabsTrigger>
           )}
           
-          {/* Aba IA - apenas para admin e company_admin */}
-          {(user?.role === 'admin' || user?.role === 'company_admin') && (
+          {/* Aba IA - para admin, company_admin, manager e supervisor */}
+          {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') && (
             <TabsTrigger value="ai" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
               <Brain className="mr-2 h-4 w-4" />
               IA
@@ -427,8 +431,8 @@ export default function Settings() {
           </TabsTrigger>
         </TabsList>
         
-        {/* Conteúdo da aba Geral - apenas para admin e company_admin */}
-        {(user?.role === 'admin' || user?.role === 'company_admin') && (
+        {/* Conteúdo da aba Geral - para admin, company_admin, manager e supervisor */}
+        {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') && (
           <TabsContent value="general">
             <Card>
               <CardHeader>
@@ -587,8 +591,8 @@ export default function Settings() {
           </TabsContent>
         )}
         
-        {/* Conteúdo da aba Email - apenas para admin e company_admin */}
-        {(user?.role === 'admin' || user?.role === 'company_admin') && (
+        {/* Conteúdo da aba Email - para admin, company_admin, manager e supervisor */}
+        {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') && (
           <TabsContent value="email">
             <EmailSettings />
           </TabsContent>
@@ -601,8 +605,8 @@ export default function Settings() {
           </TabsContent>
         )}
         
-        {/* Conteúdo da aba IA - apenas para admin e company_admin */}
-        {(user?.role === 'admin' || user?.role === 'company_admin') && (
+        {/* Conteúdo da aba IA - para admin, company_admin, manager e supervisor */}
+        {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') && (
           <TabsContent value="ai">
             <AiSettings />
           </TabsContent>
