@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -17,8 +18,7 @@ import {
   Shield,
   User,
   AlertTriangle,
-  Building2,
-  Users
+  Building2
 } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from '@tanstack/react-query';
@@ -29,10 +29,6 @@ import { ToggleStatusOfficialDialog } from '@/pages/officials/toggle-status-offi
 import { Official } from '@shared/schema';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
-
-// Novos imports padronizados
-import { StandardPage, StatusBadge, EmptyState } from '@/components/layout/admin-page-layout';
-import { ActionButtonGroup, SaveButton, CancelButton } from '@/components/ui/standardized-button';
 
 // Estendendo a interface Official para incluir o user com username
 interface OfficialWithUser extends Official {
@@ -51,7 +47,7 @@ export default function OfficialsIndex() {
   const [selectedOfficial, setSelectedOfficial] = useState<OfficialWithUser | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  const { data: officials = [], isLoading, error } = useQuery<OfficialWithUser[]>({
+  const { data: officials = [], isLoading } = useQuery<OfficialWithUser[]>({
     queryKey: ['/api/officials'],
     staleTime: 0, // Forçar recarregamento
   });
@@ -59,15 +55,6 @@ export default function OfficialsIndex() {
   console.log('[DEBUG Frontend] Officials recebidos:', officials);
   
   const queryClient = useQueryClient();
-
-  // Handlers padronizados
-  const handleCreateOfficial = () => {
-    setShowAddDialog(true);
-  };
-
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value);
-  };
   
   const handleEditOfficial = (official: OfficialWithUser) => {
     setSelectedOfficial(official);
@@ -118,258 +105,227 @@ export default function OfficialsIndex() {
     );
   });
 
-  // Estado de erro
-  if (error) {
-    return (
-      <StandardPage
-        icon={Users}
-        title="Atendentes"
-        description="Gerencie os membros da equipe de suporte"
-        createButtonText="Adicionar Atendente"
-        onCreateClick={handleCreateOfficial}
-        onSearchChange={handleSearchChange}
-        searchValue={searchQuery}
-        searchPlaceholder="Pesquisar atendentes..."
-      >
-        <div className="flex flex-col items-center justify-center py-12">
-          <AlertTriangle className="h-16 w-16 text-destructive mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Erro ao carregar dados</h3>
-          <p className="text-muted-foreground mb-4 text-center">
-            {error instanceof Error ? error.message : 'Ocorreu um erro inesperado'}
-          </p>
-          <Button onClick={() => window.location.reload()}>
-            Recarregar Página
-          </Button>
-        </div>
-      </StandardPage>
-    );
-  }
-
-  // Estado vazio quando não há atendentes
-  if (filteredOfficials && filteredOfficials.length === 0 && !isLoading && !searchQuery) {
-    return (
-      <>
-        <StandardPage
-          icon={Users}
-          title="Atendentes"
-          description="Gerencie os membros da sua equipe de suporte"
-          createButtonText="Adicionar Atendente"
-          onCreateClick={handleCreateOfficial}
-          onSearchChange={handleSearchChange}
-          searchValue={searchQuery}
-          searchPlaceholder="Pesquisar atendentes..."
-        >
-          <EmptyState
-            icon={Users}
-            title="Nenhum atendente encontrado"
-            description="Não há atendentes cadastrados no sistema. Clique no botão abaixo para adicionar o primeiro membro da equipe."
-            actionLabel="Adicionar Primeiro Atendente"
-            onAction={handleCreateOfficial}
-          />
-        </StandardPage>
-
-        {/* Dialogs mantidos */}
-        {renderDialogs()}
-      </>
-    );
-  }
-
-  // Função para renderizar os dialogs
-  function renderDialogs() {
-    return (
-      <>
-        <AddOfficialDialog 
-          open={showAddDialog}
-          onOpenChange={setShowAddDialog}
-          onCreated={(official) => {
-            // Atualizar a lista de atendentes automaticamente depois que um novo for adicionado
-            queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
-          }}
-        />
-        
-        <EditOfficialDialog
-          open={showEditDialog}
-          onOpenChange={setShowEditDialog}
-          official={selectedOfficial}
-          onSaved={() => {
-            // Atualizar a lista após edição
-            queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
-          }}
-        />
-        
-        <ToggleStatusOfficialDialog
-          open={showDeleteDialog}
-          onOpenChange={setShowDeleteDialog}
-          official={selectedOfficial}
-          onStatusChanged={() => {
-            // Atualizar a lista após alteração de status
-            queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
-          }}
-        />
-      </>
-    );
-  }
-
   return (
-    <>
-      <StandardPage
-        icon={Users}
-        title="Atendentes"
-        description="Gerencie os membros da sua equipe de suporte"
-        createButtonText="Adicionar Atendente"
-        onCreateClick={handleCreateOfficial}
-        onSearchChange={handleSearchChange}
-        searchValue={searchQuery}
-        searchPlaceholder="Pesquisar atendentes..."
-        isLoading={isLoading}
-      >
-        {/* Contador de resultados */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-sm text-muted-foreground">
-            {filteredOfficials ? `${filteredOfficials.length} atendente(s) encontrado(s)` : ''}
-          </div>
-        </div>
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-semibold text-neutral-900">Atendentes</h1>
+        <Button onClick={() => setShowAddDialog(true)}>
+          <UserPlus className="mr-2 h-4 w-4" />
+          Adicionar Atendente
+        </Button>
+      </div>
+      
+      <AddOfficialDialog 
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        onCreated={(official) => {
+          // Atualizar a lista de atendentes automaticamente depois que um novo for adicionado
+          queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
+        }}
+      />
+      
+      <EditOfficialDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        official={selectedOfficial}
+        onSaved={() => {
+          // Atualizar a lista após edição
+          queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
+        }}
+      />
+      
+      <ToggleStatusOfficialDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        official={selectedOfficial}
+        onStatusChanged={() => {
+          // Atualizar a lista após alteração de status
+          queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
+        }}
+      />
 
-        {filteredOfficials && filteredOfficials.length === 0 ? (
-          <EmptyState
-            icon={Search}
-            title="Nenhum atendente encontrado"
-            description={`Não foram encontrados atendentes com o termo "${searchQuery}".`}
-            actionLabel="Limpar busca"
-            onAction={() => setSearchQuery('')}
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Login</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Departamento</TableHead>
-                <TableHead>Supervisor</TableHead>
-                <TableHead>Manager</TableHead>
-                {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
-                <TableHead>Status</TableHead>
-                <TableHead>Tickets Atribuídos</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array(5).fill(0).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-28" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                    <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                filteredOfficials.map((official) => {
-                  const username = getUsernameFromOfficial(official);
-                  console.log('Official data:', official);
-                  
-                  // Adicionar logs específicos para debugar a estrutura do user
-                  if (official.user) {
-                    console.log('User data encontrado:', official.user);
-                    console.log('Username do usuário:', official.user.username);
-                  } else {
-                    console.log('Oficial sem propriedade user:', official);
-                    console.log('UserId value:', official.user_id);
-                  }
-                  
-                  return (
-                    <TableRow key={official.id}>
-                      <TableCell className="font-medium">{official.name}</TableCell>
-                      <TableCell>{username}</TableCell>
-                      <TableCell>{official.email}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {official.departments && Array.isArray(official.departments) && official.departments.length > 0 ? (
-                            // Exibir os departamentos
-                            official.departments.map((dept, index) => {
-                              // Se dept é um objeto com propriedade 'department', pegamos essa propriedade
-                              // Se não, assumimos que dept é uma string diretamente
-                              const departmentValue = typeof dept === 'object' && dept !== null && 'department' in dept
-                                ? dept.department
-                                : dept;
-                                
-                              return (
-                                <Badge key={index} variant="outline" className="capitalize">
-                                  {departmentValue}
-                                </Badge>
-                              );
-                            })
-                          ) : (
-                            <span className="text-muted-foreground text-sm">Sem departamento</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {/* Mostrar supervisor */}
-                        {(official as any).supervisor_id ? (
-                          <span className="text-sm text-muted-foreground">
-                            {/* Buscar nome do supervisor nos dados */}
-                            {officials.find(o => o.id === (official as any).supervisor_id)?.name || `ID: ${(official as any).supervisor_id}`}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {/* Mostrar manager */}
-                        {(official as any).manager_id ? (
-                          <span className="text-sm text-muted-foreground">
-                            {/* Buscar nome do manager nos dados */}
-                            {officials.find(o => o.id === (official as any).manager_id)?.name || `ID: ${(official as any).manager_id}`}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      {user?.role === 'admin' && (
+      <Card>
+        <CardHeader>
+          <CardTitle>Gerenciamento de Atendentes</CardTitle>
+          <CardDescription>Gerencie os membros da sua equipe de suporte</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-between mb-6">
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
+              <Input 
+                placeholder="Pesquisar atendentes" 
+                className="pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Login</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Departamento</TableHead>
+                  <TableHead>Supervisor</TableHead>
+                  <TableHead>Manager</TableHead>
+                  {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
+                  <TableHead>Status</TableHead>
+                  <TableHead>Tickets Atribuídos</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  Array(5).fill(0).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-28" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : filteredOfficials && filteredOfficials.length > 0 ? (
+                  filteredOfficials.map((official) => {
+                    const username = getUsernameFromOfficial(official);
+                    console.log('Official data:', official);
+                    
+                    // Adicionar logs específicos para debugar a estrutura do user
+                    if (official.user) {
+                      console.log('User data encontrado:', official.user);
+                      console.log('Username do usuário:', official.user.username);
+                    } else {
+                      console.log('Oficial sem propriedade user:', official);
+                      console.log('UserId value:', official.user_id);
+                    }
+                    
+                    return (
+                      <TableRow key={official.id}>
+                        <TableCell className="font-medium">{official.name}</TableCell>
+                        <TableCell>{username}</TableCell>
+                        <TableCell>{official.email}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">
-                              {(official as any).company?.name || 'Sistema Global'}
-                            </span>
+                          <div className="flex flex-wrap gap-1">
+                            {official.departments && Array.isArray(official.departments) && official.departments.length > 0 ? (
+                              // Exibir os departamentos
+                              official.departments.map((dept, index) => {
+                                // Se dept é um objeto com propriedade 'department', pegamos essa propriedade
+                                // Se não, assumimos que dept é uma string diretamente
+                                const departmentValue = typeof dept === 'object' && dept !== null && 'department' in dept
+                                  ? dept.department
+                                  : dept;
+                                  
+                                return (
+                                  <Badge key={index} variant="outline" className="capitalize">
+                                    {departmentValue}
+                                  </Badge>
+                                );
+                              })
+                            ) : (
+                              <span className="text-neutral-500 text-sm">Sem departamento</span>
+                            )}
                           </div>
                         </TableCell>
-                      )}
-                      <TableCell>
-                        <StatusBadge isActive={official.is_active} />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {(() => {
-                          const count = (official as any).assignedTicketsCount;
-                          if (typeof count === 'number') return count;
-                          if (typeof count === 'string' && !isNaN(Number(count))) return Number(count);
-                          return '—';
-                        })()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <ActionButtonGroup
-                          onEdit={() => handleEditOfficial(official)}
-                          onDelete={() => handleDeleteOfficial(official)}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        )}
-      </StandardPage>
-
-      {renderDialogs()}
-    </>
+                        <TableCell>
+                          {/* Mostrar supervisor */}
+                          {(official as any).supervisor_id ? (
+                            <span className="text-sm text-neutral-600">
+                              {/* Buscar nome do supervisor nos dados */}
+                              {officials.find(o => o.id === (official as any).supervisor_id)?.name || `ID: ${(official as any).supervisor_id}`}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-neutral-400">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {/* Mostrar manager */}
+                          {(official as any).manager_id ? (
+                            <span className="text-sm text-neutral-600">
+                              {/* Buscar nome do manager nos dados */}
+                              {officials.find(o => o.id === (official as any).manager_id)?.name || `ID: ${(official as any).manager_id}`}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-neutral-400">-</span>
+                          )}
+                        </TableCell>
+                        {user?.role === 'admin' && (
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-neutral-500" />
+                              <span className="text-sm text-neutral-600">
+                                {(official as any).company?.name || 'Sistema Global'}
+                              </span>
+                            </div>
+                          </TableCell>
+                        )}
+                        <TableCell>
+                          {official.is_active ? (
+                            <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">
+                              <Check className="w-3 h-3 mr-1" />
+                              Ativo
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-red-100 text-red-800 hover:bg-red-100">
+                              <X className="w-3 h-3 mr-1" />
+                              Inativo
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {(() => {
+                            const count = (official as any).assignedTicketsCount;
+                            if (typeof count === 'number') return count;
+                            if (typeof count === 'string' && !isNaN(Number(count))) return Number(count);
+                            return '-';
+                          })()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleEditOfficial(official)}
+                              title="Editar atendente"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button 
+                              variant={official.is_active ? "destructive" : "default"} 
+                              size="sm"
+                              className={official.is_active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
+                              onClick={() => handleDeleteOfficial(official)}
+                              title={official.is_active ? "Desativar atendente" : "Ativar atendente"}
+                            >
+                              {official.is_active ? 
+                                <UserX className="h-3.5 w-3.5" /> : 
+                                <UserCheck className="h-3.5 w-3.5" />}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={user?.role === 'admin' ? 10 : 9} className="text-center py-10 text-neutral-500">
+                      Nenhum atendente encontrado. Adicione seu primeiro membro de equipe para começar.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

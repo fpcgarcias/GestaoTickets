@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, UserPlus, Pencil, UserX, UserCheck, Building2, Users } from 'lucide-react';
+import { Search, UserPlus, Pencil, UserX, UserCheck, Building2 } from 'lucide-react';
 import { Customer } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,10 +15,6 @@ import { useAuth } from '@/hooks/use-auth';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-
-// Novos imports padronizados
-import { StandardPage, StatusBadge, EmptyState } from '@/components/layout/admin-page-layout';
-import { ActionButtonGroup } from '@/components/ui/standardized-button';
 
 export default function ClientsIndex() {
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -40,34 +36,14 @@ export default function ClientsIndex() {
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
   
-  // Handlers padronizados
-  const handleCreateClient = () => {
-    setShowAddDialog(true);
-  };
-
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value);
-  };
-
-
-
-  const handleEdit = (client: Customer) => {
+  const handleEditClient = (client: Customer) => {
     setSelectedClient(client);
     setShowEditDialog(true);
   };
-
-  const handleDelete = (client: Customer) => {
-    setSelectedClient(client);
-    setShowDeleteDialog(true);
-  };
-  
-  // Handlers antigos mantidos para compatibilidade
-  const handleEditClient = (client: Customer) => {
-    handleEdit(client);
-  };
   
   const handleToggleStatusClient = (client: Customer) => {
-    handleDelete(client);
+    setSelectedClient(client);
+    setShowDeleteDialog(true);
   };
   
   // Filtrar os clientes com base na busca
@@ -87,13 +63,15 @@ export default function ClientsIndex() {
 
   if (!hasAccess) {
     return (
-      <div className="container mx-auto py-6 px-4">
-        <EmptyState
-          icon={Building2}
-          title="Acesso Restrito"
-          description="Esta página é reservada para administradores e atendentes do sistema."
-        />
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Acesso Restrito</CardTitle>
+          <CardDescription>Você não tem permissão para acessar esta página.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p>Esta página é reservada para administradores e atendentes do sistema.</p>
+        </CardContent>
+      </Card>
     );
   }
   
@@ -111,136 +89,16 @@ export default function ClientsIndex() {
     // Se o cliente estiver com user_id mas o status não vier do backend, assumimos que está ativo
     return true;
   };
-
-  // Estado vazio quando não há clientes
-  if (filteredClients && filteredClients.length === 0 && !isLoading && !searchQuery) {
-    return (
-      <>
-        <StandardPage
-          icon={Users}
-          title="Clientes"
-          description="Gerencie os clientes cadastrados no sistema"
-          createButtonText="Adicionar Cliente"
-          onCreateClick={handleCreateClient}
-          onSearchChange={handleSearchChange}
-          searchValue={searchQuery}
-          searchPlaceholder="Pesquisar clientes..."
-        >
-          <EmptyState
-            icon={Users}
-            title="Nenhum cliente encontrado"
-            description="Não há clientes cadastrados no sistema. Clique no botão abaixo para adicionar o primeiro cliente."
-            actionLabel="Adicionar Primeiro Cliente"
-            onAction={handleCreateClient}
-          />
-        </StandardPage>
-
-        <AddClientDialog 
-          open={showAddDialog}
-          onOpenChange={setShowAddDialog}
-          onCreated={() => {
-            queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
-          }}
-        />
-      </>
-    );
-  }
   
   return (
-    <>
-      <StandardPage
-        icon={Users}
-        title="Clientes"
-        description="Gerencie os clientes cadastrados no sistema"
-        createButtonText="Adicionar Cliente"
-        onCreateClick={handleCreateClient}
-        onSearchChange={handleSearchChange}
-        searchValue={searchQuery}
-        searchPlaceholder="Pesquisar clientes..."
-        isLoading={isLoading}
-      >
-        {/* Filtro adicional para incluir inativos */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
-            <Switch 
-              id="includeInactive" 
-              checked={includeInactive} 
-              onCheckedChange={setIncludeInactive}
-            />
-            <Label htmlFor="includeInactive">Incluir clientes inativos</Label>
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {filteredClients ? `${filteredClients.length} cliente(s) encontrado(s)` : ''}
-          </div>
-        </div>
-
-        {filteredClients && filteredClients.length === 0 ? (
-          <EmptyState
-            icon={Search}
-            title="Nenhum cliente encontrado"
-            description={`Não foram encontrados clientes com o termo "${searchQuery}".`}
-            actionLabel="Limpar busca"
-            onAction={() => setSearchQuery('')}
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Telefone</TableHead>
-                {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array(5).fill(0).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-40" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                    {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
-                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-6 w-20 ml-auto" /></TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                filteredClients?.map((client) => {
-                  const isActive = getClientStatus(client);
-                  return (
-                    <TableRow key={client.id} className={!isActive ? "opacity-60" : ""}>
-                      <TableCell className="font-medium">{client.name}</TableCell>
-                      <TableCell>{client.email}</TableCell>
-                      <TableCell>{client.phone || '-'}</TableCell>
-                      {user?.role === 'admin' && (
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Building2 className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">
-                              {client.company || 'Sistema Global'}
-                            </span>
-                          </div>
-                        </TableCell>
-                      )}
-                      <TableCell>
-                        <StatusBadge isActive={isActive} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <ActionButtonGroup
-                          onEdit={() => handleEdit(client)}
-                          onDelete={() => handleDelete(client)}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        )}
-      </StandardPage>
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-semibold text-neutral-900">Clientes</h1>
+        <Button onClick={() => setShowAddDialog(true)}>
+          <UserPlus className="mr-2 h-4 w-4" />
+          Adicionar Cliente
+        </Button>
+      </div>
       
       <AddClientDialog 
         open={showAddDialog}
@@ -270,6 +128,121 @@ export default function ClientsIndex() {
           queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
         }}
       />
-    </>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Gerenciamento de Clientes</CardTitle>
+          <CardDescription>Gerencie os clientes cadastrados no sistema</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
+                <Input 
+                  placeholder="Pesquisar clientes" 
+                  className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="includeInactive" 
+                  checked={includeInactive} 
+                  onCheckedChange={setIncludeInactive}
+                />
+                <Label htmlFor="includeInactive">Incluir inativos</Label>
+              </div>
+            </div>
+          </div>
+
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Telefone</TableHead>
+                  {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  Array(5).fill(0).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                      {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
+                      <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-6 w-20 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : filteredClients.length > 0 ? (
+                  filteredClients.map((client) => {
+                    const isActive = getClientStatus(client);
+                    return (
+                      <TableRow key={client.id} className={!isActive ? "opacity-60" : ""}>
+                        <TableCell className="font-medium">{client.name}</TableCell>
+                        <TableCell>{client.email}</TableCell>
+                        <TableCell>{client.phone || '-'}</TableCell>
+                        {user?.role === 'admin' && (
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-neutral-500" />
+                              <span className="text-sm text-neutral-600">
+                                {client.company || 'Sistema Global'}
+                              </span>
+                            </div>
+                          </TableCell>
+                        )}
+                        <TableCell>
+                          <Badge 
+                            variant={isActive ? "default" : "outline"}
+                            className={isActive ? "bg-green-500 hover:bg-green-500/80" : "text-neutral-500"}
+                          >
+                            {isActive ? "Ativo" : "Inativo"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end space-x-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleEditClient(client)}
+                              title="Editar cliente"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button 
+                              variant={isActive ? "destructive" : "default"}
+                              size="sm"
+                              title={isActive ? "Desativar cliente" : "Ativar cliente"}
+                              onClick={() => handleToggleStatusClient(client)}
+                              className={isActive ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
+                            >
+                              {isActive ? <UserX className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-neutral-500">
+                      Nenhum cliente encontrado. Adicione seu primeiro cliente para começar.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
