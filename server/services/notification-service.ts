@@ -276,7 +276,7 @@ class NotificationService {
         title: 'Novo Ticket Criado',
         message: `Um novo ticket foi criado: ${ticket.title}`,
         ticketId: ticket.id,
-        ticketCode: ticket.ticketId,
+        ticketCode: ticket.ticket_id,
         timestamp: new Date(),
         priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
       };
@@ -284,7 +284,7 @@ class NotificationService {
       this.sendNotificationToAdmins(payload);
       this.sendNotificationToSupport(payload);
       
-      console.log(`Notificação enviada para novo ticket #${ticket.ticketId}`);
+        console.log(`Notificação enviada para novo ticket #${ticket.ticket_id}`);
     } catch (error) {
       console.error('Erro ao notificar sobre novo ticket:', error);
     }
@@ -314,7 +314,7 @@ class NotificationService {
           title: 'Status do Ticket Atualizado',
           message: `O status do seu ticket "${ticket.title}" foi alterado de ${oldStatusName} para ${newStatusName}.`,
           ticketId: ticket.id,
-          ticketCode: ticket.ticketId,
+          ticketCode: ticket.ticket_id,
           timestamp: new Date(),
           priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
         };
@@ -334,9 +334,9 @@ class NotificationService {
       const adminPayload: NotificationPayload = {
         type: 'status_update',
         title: 'Status do Ticket Atualizado',
-        message: `O status do ticket #${ticket.ticketId} "${ticket.title}" foi alterado de ${oldStatusName} para ${newStatusName}.`,
+        message: `O status do ticket #${ticket.ticket_id} "${ticket.title}" foi alterado de ${oldStatusName} para ${newStatusName}.`,
         ticketId: ticket.id,
-        ticketCode: ticket.ticketId,
+        ticketCode: ticket.ticket_id,
         timestamp: new Date(),
         priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
       };
@@ -344,7 +344,7 @@ class NotificationService {
       this.sendNotificationToAdmins(adminPayload);
       this.sendNotificationToSupport(adminPayload);
       
-      console.log(`Notificação enviada para atualização de status do ticket #${ticket.ticketId}`);
+      console.log(`Notificação enviada para atualização de status do ticket #${ticket.ticket_id}`);
     } catch (error) {
       console.error('Erro ao notificar sobre atualização de status do ticket:', error);
     }
@@ -370,9 +370,9 @@ class NotificationService {
         const payload: NotificationPayload = {
           type: 'new_reply',
           title: 'Nova Resposta de Cliente',
-          message: `O cliente respondeu ao ticket #${ticket.ticketId}: "${ticket.title}".`,
+          message: `O cliente respondeu ao ticket #${ticket.ticket_id}: "${ticket.title}".`,
           ticketId: ticket.id,
-          ticketCode: ticket.ticketId,
+          ticketCode: ticket.ticket_id,
           timestamp: new Date(),
           priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
         };
@@ -395,7 +395,7 @@ class NotificationService {
               title: 'Nova Resposta no Seu Ticket',
               message: `Há uma nova resposta no seu ticket "${ticket.title}".`,
               ticketId: ticket.id,
-              ticketCode: ticket.ticketId,
+              ticketCode: ticket.ticket_id,
               timestamp: new Date(),
               priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
             };
@@ -405,7 +405,7 @@ class NotificationService {
         }
       }
       
-      console.log(`Notificação enviada para nova resposta no ticket #${ticket.ticketId}`);
+      console.log(`Notificação enviada para nova resposta no ticket #${ticket.ticket_id}`);
     } catch (error) {
       console.error('Erro ao notificar sobre nova resposta no ticket:', error);
     }
