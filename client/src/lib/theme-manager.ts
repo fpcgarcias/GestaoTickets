@@ -50,6 +50,32 @@ const THEMES = {
       '--destructive': '0 84.2% 60.2%',
       '--destructive-foreground': '210 20% 98%',
     }
+  },
+
+  // Tema Oficina Muda (tons terrosos e naturais)
+  oficinaMuda: {
+    name: 'Oficina Muda',
+    colors: {
+      '--primary': '15 58% 29%', // Marrom Avermelhado (#713127) - cor principal
+      '--primary-foreground': '0 0% 100%', // Branco para contraste
+      '--secondary': '86 15% 40%', // Verde musgo (#5F7254) - tons secundários
+      '--secondary-foreground': '0 0% 100%',
+      '--accent': '45 84% 60%', // Ouro envelhecido (#F1B241) - destaques
+      '--accent-foreground': '15 58% 15%', // Marrom escuro
+      '--background': '45 15% 97%', // Quase branco com toque caramelo
+      '--foreground': '15 45% 15%', // Marrom escuro para texto
+      '--card': '0 0% 100%', // Branco puro para cards
+      '--card-foreground': '15 45% 15%',
+      '--border': '45 20% 85%', // Borda suave derivada do caramelo
+      '--input': '45 15% 95%', // Input com toque caramelo claro
+      '--ring': '15 58% 29%', // Ring da cor principal
+      '--muted': '86 25% 85%', // Verde areia (#ACB586) para elementos suaves
+      '--muted-foreground': '15 25% 45%',
+      '--popover': '0 0% 100%',
+      '--popover-foreground': '15 45% 15%',
+      '--destructive': '0 84.2% 60.2%', // Vermelho padrão para ações destrutivas
+      '--destructive-foreground': '210 20% 98%',
+    }
   }
 };
 
@@ -58,6 +84,8 @@ const DOMAIN_THEME_MAP: Record<string, keyof typeof THEMES> = {
   'suporte.vixbrasil.com': 'vix',
   'sistema.vixbrasil.com': 'vix',
   'vixbrasil.com': 'vix',
+  'suporte.oficinamuda.com.br': 'oficinaMuda',
+  'oficinamuda.com.br': 'oficinaMuda',
   // Adicione outros domínios conforme necessário
   // 'cliente2.com': 'outroTema',
 };
@@ -67,12 +95,36 @@ function detectThemeFromDomain(): keyof typeof THEMES {
   if (typeof window === 'undefined') return 'default';
   
   const hostname = window.location.hostname;
+  const urlParams = new URLSearchParams(window.location.search);
+  
+  // 🧪 MODO DESENVOLVIMENTO: Permitir teste via query parameter
+  // Exemplo: http://localhost:5173/?theme=oficinaMuda
+  const themeParam = urlParams.get('theme');
+  if (themeParam && themeParam in THEMES) {
+    console.log(`🧪 [DEV] Tema forçado via query parameter: ${themeParam}`);
+    return themeParam as keyof typeof THEMES;
+  }
+  
+  // 🧪 MODO DESENVOLVIMENTO: Permitir teste via localStorage
+  // Usar: localStorage.setItem('dev-theme', 'oficinaMuda')
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    const devTheme = localStorage.getItem('dev-theme');
+    if (devTheme && devTheme in THEMES) {
+      console.log(`🧪 [DEV] Tema forçado via localStorage: ${devTheme}`);
+      return devTheme as keyof typeof THEMES;
+    }
+  }
   
   // Verificar se o domínio atual está mapeado para algum tema
   for (const [domain, theme] of Object.entries(DOMAIN_THEME_MAP)) {
     if (hostname === domain || hostname.includes(domain)) {
       return theme;
     }
+  }
+  
+  // Verificar subdomínios de oficinamuda.com.br
+  if (hostname.endsWith('.oficinamuda.com.br') || hostname === 'oficinamuda.com.br') {
+    return 'oficinaMuda';
   }
   
   return 'default';
@@ -112,4 +164,47 @@ export function getCurrentCompanyName(): string {
   
   const detectedTheme = detectThemeFromDomain();
   return THEMES[detectedTheme].name;
-} 
+}
+
+// 🧪 FUNÇÕES DE DESENVOLVIMENTO PARA TESTE DE TEMAS
+export const devUtils = {
+  // Listar todos os temas disponíveis
+  listThemes: () => {
+    console.log('🎨 Temas disponíveis:', Object.keys(THEMES));
+    Object.entries(THEMES).forEach(([key, theme]) => {
+      console.log(`  • ${key}: "${theme.name}"`);
+    });
+  },
+  
+  // Aplicar tema via localStorage (persiste entre reloads)
+  setTheme: (themeName: keyof typeof THEMES) => {
+    if (themeName in THEMES) {
+      localStorage.setItem('dev-theme', themeName);
+      console.log(`🧪 Tema definido: ${themeName}. Recarregue a página para ver as mudanças.`);
+      // Aplicar imediatamente também
+      applyTheme(themeName);
+      // Forçar atualização do nome da empresa
+      window.dispatchEvent(new Event('storage'));
+    } else {
+      console.error(`❌ Tema "${themeName}" não existe. Temas disponíveis:`, Object.keys(THEMES));
+    }
+  },
+  
+  // Limpar tema de desenvolvimento
+  clearTheme: () => {
+    localStorage.removeItem('dev-theme');
+    console.log('🧪 Tema de desenvolvimento removido. Recarregue a página.');
+  },
+  
+  // Obter tema atual
+  getCurrentTheme: () => {
+    const current = detectThemeFromDomain();
+    console.log(`🎯 Tema atual: ${current} ("${THEMES[current].name}")`);
+    return current;
+  }
+};
+
+// Disponibilizar no window para facilitar acesso no console do browser
+if (typeof window !== 'undefined') {
+  (window as any).themeDevUtils = devUtils;
+}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
+import { getCurrentCompanyName } from '@/lib/theme-manager';
 import { Link } from 'wouter';
 import { 
   LayoutDashboard, 
@@ -48,8 +49,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // Usar o nome da empresa dos dados do usuário logado
-  const companyName = user?.company?.name || 'Ticket Wise';
+  // Usar o nome da empresa baseado no tema/domínio
+  const companyName = getCurrentCompanyName();
   
   // Definir itens de navegação com base no papel do usuário
   const navItems = [

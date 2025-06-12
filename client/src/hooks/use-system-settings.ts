@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from './use-auth';
+import { getCurrentCompanyName } from '@/lib/theme-manager';
 
 export interface SystemSettings {
   companyName: string;
@@ -9,7 +10,7 @@ export interface SystemSettings {
 
 // Valores padrão para as configurações do sistema
 const defaultSettings: SystemSettings = {
-  companyName: 'Ticket Wise',
+  companyName: getCurrentCompanyName(),
   supportEmail: 'suporte@ticketflow.com.br',
   allowCustomerRegistration: true
 };
