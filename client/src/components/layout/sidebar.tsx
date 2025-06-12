@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useVersion } from '@/hooks/use-version';
 import { cn } from '@/lib/utils';
-import { getCurrentCompanyName } from '@/lib/theme-manager';
+import { getCurrentCompanyName, getCurrentCompanyLogo } from '@/lib/theme-manager';
 import { Link } from 'wouter';
 import { 
   LayoutDashboard, 
@@ -53,6 +53,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   
   // Usar o nome da empresa baseado no tema/domínio
   const companyName = getCurrentCompanyName();
+  const companyLogo = getCurrentCompanyLogo();
+  
+  console.log('🔍 [SIDEBAR DEBUG] Nome da empresa:', companyName);
+  console.log('🔍 [SIDEBAR DEBUG] Logo da empresa:', companyLogo);
   
   // Definir itens de navegação com base no papel do usuário
   const navItems = [
@@ -79,7 +83,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       {/* Versão desktop da barra lateral */}
       <div className="w-64 bg-white border-r border-neutral-200 flex-shrink-0 hidden md:flex md:flex-col h-screen">
         <div className="p-6 border-b border-neutral-200">
-          <h1 className="text-xl font-semibold text-neutral-900">{companyName}</h1>
+          {companyLogo ? (
+            <div className="flex justify-center">
+              <img 
+                src={companyLogo} 
+                alt={companyName} 
+                className="h-10 w-auto max-w-[180px] object-contain"
+                style={{ maxHeight: '40px' }}
+              />
+            </div>
+          ) : (
+            <h1 className="text-xl font-semibold text-neutral-900">{companyName}</h1>
+          )}
         </div>
         <nav className="p-4 flex-1 overflow-y-auto">
           {filteredNavItems.map((item) => (
@@ -143,7 +158,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
               </SheetTrigger>
               <SheetContent side="left" className="p-0 w-80">
                 <div className="p-6 border-b border-neutral-200">
-                  <h2 className="text-lg font-semibold">{companyName}</h2>
+                  {companyLogo ? (
+                    <div className="flex justify-center">
+                      <img 
+                        src={companyLogo} 
+                        alt={companyName} 
+                        className="h-8 w-auto max-w-[160px] object-contain"
+                        style={{ maxHeight: '32px' }}
+                      />
+                    </div>
+                  ) : (
+                    <h2 className="text-lg font-semibold">{companyName}</h2>
+                  )}
                 </div>
                 <ScrollArea className="flex-1">
                   <nav className="grid gap-1 px-2 py-4">

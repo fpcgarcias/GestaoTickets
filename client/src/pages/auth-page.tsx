@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { formatCNPJ, cleanCNPJ, isValidCNPJ, validatePasswordCriteria, isPasswordValid, type PasswordCriteria } from '@/lib/utils';
-import { getCurrentCompanyName } from '@/lib/theme-manager';
+import { getCurrentCompanyName, getCurrentCompanyLogo } from '@/lib/theme-manager';
 import { Check, X } from 'lucide-react';
 
 export default function AuthPage() {
@@ -17,6 +17,7 @@ export default function AuthPage() {
   const { toast } = useToast();
   // Usar nome da empresa baseado no domínio
   const companyName = getCurrentCompanyName();
+  const companyLogo = getCurrentCompanyLogo();
   const [activeTab, setActiveTab] = useState<string>('login');
   
   // Formulário de login
@@ -179,7 +180,20 @@ export default function AuthPage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">{companyName}</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">
+              {companyLogo ? (
+                <div className="flex justify-center mb-2">
+                  <img 
+                    src={companyLogo} 
+                    alt={companyName} 
+                    className="h-12 w-auto max-w-[200px] object-contain"
+                    style={{ maxHeight: '48px' }}
+                  />
+                </div>
+              ) : (
+                companyName
+              )}
+            </CardTitle>
             <CardDescription className="text-center">Sistema de Gestão de Chamados</CardDescription>
           </CardHeader>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -338,7 +352,20 @@ export default function AuthPage() {
       {/* Lado direito - Informações do produto */}
       <div className="flex-1 bg-primary text-white p-8 hidden md:flex flex-col justify-center">
         <div className="max-w-lg mx-auto">
-          <h1 className="text-4xl font-bold mb-4">{companyName}</h1>
+          <h1 className="text-4xl font-bold mb-4">
+            {companyLogo ? (
+              <div className="flex justify-center mb-4">
+                <img 
+                  src={companyLogo} 
+                  alt={companyName} 
+                  className="h-16 w-auto max-w-[280px] object-contain"
+                  style={{ maxHeight: '64px' }}
+                />
+              </div>
+            ) : (
+              companyName
+            )}
+          </h1>
           <h2 className="text-2xl font-semibold mb-6">Sistema Completo de Gestão de Chamados</h2>
           
           <ul className="space-y-4">

@@ -3960,7 +3960,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Buscar configurações de email
   router.get("/email-config", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
-      const companyId = req.session.companyId;
+      let companyId = req.session.companyId;
+      
+      // Se for admin e especificou company_id na query, usar ele
+      if (req.session.userRole === 'admin' && req.query.company_id) {
+        companyId = parseInt(req.query.company_id as string);
+      }
+      
       const config = await emailConfigService.getEmailConfigForFrontend(companyId);
       res.json(config);
     } catch (error) {
@@ -3972,11 +3978,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Salvar configurações de email
   router.post("/email-config", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
-      const companyId = req.session.companyId;
-      const config: SMTPConfigInput = req.body;
+      let companyId = req.session.companyId;
+      const config: any = { ...req.body };
+      
+      // Se for admin e especificou company_id no body, usar ele
+      if (req.session.userRole === 'admin' && config.company_id) {
+        companyId = config.company_id;
+        // Remover company_id do config antes de salvar
+        delete config.company_id;
+      }
       
       // Debug: Logar o que está chegando
       console.log('[DEBUG] Dados recebidos no backend:', JSON.stringify(config, null, 2));
+      console.log('[DEBUG] Company ID usado:', companyId);
       console.log('[DEBUG] Provider:', config.provider);
       console.log('[DEBUG] From email:', config.from_email);
       console.log('[DEBUG] API Key:', config.api_key ? '***mascarado***' : 'vazio');
@@ -3996,8 +4010,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Buscar templates de email
   router.get("/email-templates", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
-      const companyId = req.session.companyId;
+      let companyId = req.session.companyId;
       const type = req.query.type as string;
+      
+      // Se for admin e especificou company_id na query, usar ele
+      if (req.session.userRole === 'admin' && req.query.company_id) {
+        companyId = parseInt(req.query.company_id as string);
+      }
       
       const templates = await emailConfigService.getEmailTemplates(companyId, type);
       
@@ -4011,11 +4030,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Criar template de email
   router.post("/email-templates", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
-      const companyId = req.session.companyId;
+      let companyId = req.session.companyId;
       const userId = req.session.userId;
+      const templateData: any = { ...req.body };
+      
+      // Se for admin e especificou company_id no body, usar ele
+      if (req.session.userRole === 'admin' && templateData.company_id) {
+        companyId = templateData.company_id;
+        // Remover company_id do templateData antes de salvar
+        delete templateData.company_id;
+      }
       
       const template = await emailConfigService.saveEmailTemplate({
-        ...req.body,
+        ...templateData,
         company_id: companyId,
         created_by_id: userId,
         updated_by_id: userId
@@ -4033,9 +4060,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     try {
       const templateId = parseInt(req.params.id);
       const userId = req.session.userId;
+      const templateData: any = { ...req.body };
+      
+      // Se for admin e especificou company_id no body, remover antes de salvar
+      if (req.session.userRole === 'admin' && templateData.company_id) {
+        delete templateData.company_id;
+      }
       
       const template = await emailConfigService.updateEmailTemplate(templateId, {
-        ...req.body,
+        ...templateData,
         updated_by_id: userId
       });
       

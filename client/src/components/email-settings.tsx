@@ -46,7 +46,10 @@ import {
   Copy,
   Check,
   Code,
-  Monitor
+  Monitor,
+  FileText,
+  AlertCircle,
+  Building2
 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -80,6 +83,11 @@ interface EmailTemplate {
   company_id?: number;
   created_at: string;
   updated_at: string;
+}
+
+interface Company {
+  id: number;
+  name: string;
 }
 
 const EMAIL_TEMPLATE_TYPES = [
@@ -223,6 +231,11 @@ export default function EmailSettings() {
   const { toast } = useToast();
   const { user } = useAuth();
   
+  // Estado para empresa selecionada (apenas para admin)
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>(
+    user?.role === 'admin' ? undefined : user?.company?.id
+  );
+
   // Estados para configurações SMTP
   const [smtpConfig, setSmtpConfig] = useState<SMTPConfig>({
     provider: 'smtp',
@@ -254,20 +267,65 @@ export default function EmailSettings() {
     is_active: true
   });
 
+  // Buscar lista de empresas (apenas para admin)
+  const { 
+    data: companies, 
+    isLoading: isLoadingCompanies 
+  } = useQuery<Company[]>({
+    queryKey: ["/api/companies"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/companies");
+      if (!response.ok) {
+        throw new Error('Falha ao carregar empresas');
+      }
+      return response.json();
+    },
+    enabled: user?.role === 'admin'
+  });
+
+  // Definir empresa padrão para admin quando as empresas são carregadas
+  useEffect(() => {
+    if (user?.role === 'admin' && companies && companies.length > 0 && !selectedCompanyId) {
+      // Se o usuário admin tem uma empresa associada, usar ela
+      const userCompanyId = user?.company?.id;
+      if (userCompanyId && companies.some(c => c.id === userCompanyId)) {
+        setSelectedCompanyId(userCompanyId);
+      } else {
+        // Caso contrário, usar a primeira empresa da lista
+        setSelectedCompanyId(companies[0].id);
+      }
+    }
+  }, [user, companies, selectedCompanyId]);
+
+  // Construir query key dinâmica baseada na empresa selecionada
+  const emailConfigQueryKey = user?.role === 'admin' && selectedCompanyId 
+    ? ["/api/email-config", selectedCompanyId] 
+    : ["/api/email-config"];
+
+  const emailTemplatesQueryKey = user?.role === 'admin' && selectedCompanyId 
+    ? ["/api/email-templates", selectedCompanyId] 
+    : ["/api/email-templates"];
+
   // Buscar configurações de email
   const { 
     data: emailConfig, 
     isLoading: isLoadingConfig,
     refetch: refetchConfig
   } = useQuery<SMTPConfig>({
-    queryKey: ["/api/email-config"],
+    queryKey: emailConfigQueryKey,
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/email-config");
+      let url = "/api/email-config";
+      if (user?.role === 'admin' && selectedCompanyId) {
+        url += `?company_id=${selectedCompanyId}`;
+      }
+      
+      const response = await apiRequest("GET", url);
       if (!response.ok) {
         throw new Error('Falha ao carregar configurações de email');
       }
       return response.json();
-    }
+    },
+    enabled: user?.role !== 'admin' || (user?.role === 'admin' && selectedCompanyId !== undefined)
   });
 
   // Buscar templates de email
@@ -276,14 +334,20 @@ export default function EmailSettings() {
     isLoading: isLoadingTemplates,
     refetch: refetchTemplates
   } = useQuery<EmailTemplate[]>({
-    queryKey: ["/api/email-templates"],
+    queryKey: emailTemplatesQueryKey,
     queryFn: async () => {
-      const response = await apiRequest("GET", "/api/email-templates");
+      let url = "/api/email-templates";
+      if (user?.role === 'admin' && selectedCompanyId) {
+        url += `?company_id=${selectedCompanyId}`;
+      }
+      
+      const response = await apiRequest("GET", url);
       if (!response.ok) {
         throw new Error('Falha ao carregar templates de email');
       }
       return response.json();
-    }
+    },
+    enabled: user?.role !== 'admin' || (user?.role === 'admin' && selectedCompanyId !== undefined)
   });
 
   // Mutation para salvar configurações SMTP
@@ -292,7 +356,14 @@ export default function EmailSettings() {
       console.log('[DEBUG Frontend] Entrando no mutationFn com config:', config);
       console.log('[DEBUG Frontend] Stringifying config:', JSON.stringify(config));
       
-      const response = await apiRequest("POST", "/api/email-config", config);
+      let requestConfig: any = config;
+      
+      // Para admin, enviar company_id no body
+      if (user?.role === 'admin' && selectedCompanyId) {
+        requestConfig = { ...config, company_id: selectedCompanyId };
+      }
+      
+      const response = await apiRequest("POST", "/api/email-config", requestConfig);
       
       console.log('[DEBUG Frontend] Response status:', response.status);
       console.log('[DEBUG Frontend] Response ok:', response.ok);
@@ -325,9 +396,14 @@ export default function EmailSettings() {
   // Mutation para salvar template
   const saveTemplateMutation = useMutation({
     mutationFn: async (template: any) => {
-      const response = await apiRequest("POST", "/api/email-templates", {
-        body: JSON.stringify(template)
-      });
+      let requestTemplate = template;
+      
+      // Para admin, enviar company_id no body
+      if (user?.role === 'admin' && selectedCompanyId) {
+        requestTemplate = { ...template, company_id: selectedCompanyId };
+      }
+      
+      const response = await apiRequest("POST", "/api/email-templates", requestTemplate);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Falha ao salvar template');
@@ -363,9 +439,14 @@ export default function EmailSettings() {
   // Mutation para atualizar template
   const updateTemplateMutation = useMutation({
     mutationFn: async ({ id, template }: { id: number; template: any }) => {
-      const response = await apiRequest("PUT", `/api/email-templates/${id}`, {
-        body: JSON.stringify(template)
-      });
+      let requestTemplate = template;
+      
+      // Para admin, enviar company_id no body
+      if (user?.role === 'admin' && selectedCompanyId) {
+        requestTemplate = { ...template, company_id: selectedCompanyId };
+      }
+      
+      const response = await apiRequest("PUT", `/api/email-templates/${id}`, requestTemplate);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Falha ao atualizar template');
@@ -978,13 +1059,65 @@ export default function EmailSettings() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoadingConfig ? (
-                <div className="flex items-center justify-center p-8">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                  <span className="ml-2">Carregando configurações...</span>
+              {/* Dropdown de seleção de empresa para admin */}
+              {user?.role === 'admin' && (
+                <div className="mb-6 p-4 border rounded-lg bg-blue-50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Building2 className="h-4 w-4 text-blue-600" />
+                    <Label className="text-sm font-medium text-blue-800">
+                      Selecionar Empresa
+                    </Label>
+                  </div>
+                  <Select 
+                    value={selectedCompanyId?.toString() || ''} 
+                    onValueChange={(value) => {
+                      setSelectedCompanyId(value ? parseInt(value) : undefined);
+                      setUserMadeChanges(false); // Reset alterações quando trocar empresa
+                    }}
+                    disabled={isLoadingCompanies}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue 
+                        placeholder={isLoadingCompanies ? "Carregando empresas..." : "Selecione uma empresa"} 
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies?.map(company => (
+                        <SelectItem key={company.id} value={company.id.toString()}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Configurações de email são específicas por empresa
+                  </p>
                 </div>
-              ) : (
-                renderSMTPForm()
+              )}
+
+              {/* Mensagem para admin que ainda não selecionou empresa */}
+              {user?.role === 'admin' && !selectedCompanyId && (
+                <div className="text-center text-neutral-500 p-8 rounded-md border border-dashed">
+                  <Building2 className="h-12 w-12 mx-auto mb-4 text-neutral-400" />
+                  <p className="text-lg font-medium mb-2">Selecione uma empresa</p>
+                  <p className="text-sm">
+                    Para configurar as definições de email, primeiro selecione a empresa desejada.
+                  </p>
+                </div>
+              )}
+
+              {/* Conteúdo principal - só mostra se não for admin ou se admin já selecionou empresa */}
+              {(user?.role !== 'admin' || selectedCompanyId) && (
+                <>
+                  {isLoadingConfig ? (
+                    <div className="flex items-center justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                      <span className="ml-2">Carregando configurações...</span>
+                    </div>
+                  ) : (
+                    renderSMTPForm()
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
@@ -999,7 +1132,52 @@ export default function EmailSettings() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {renderTemplatesList()}
+              {/* Dropdown de seleção de empresa para admin */}
+              {user?.role === 'admin' && (
+                <div className="mb-6 p-4 border rounded-lg bg-blue-50">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Building2 className="h-4 w-4 text-blue-600" />
+                    <Label className="text-sm font-medium text-blue-800">
+                      Selecionar Empresa
+                    </Label>
+                  </div>
+                  <Select 
+                    value={selectedCompanyId?.toString() || ''} 
+                    onValueChange={(value) => setSelectedCompanyId(value ? parseInt(value) : undefined)}
+                    disabled={isLoadingCompanies}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue 
+                        placeholder={isLoadingCompanies ? "Carregando empresas..." : "Selecione uma empresa"} 
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies?.map(company => (
+                        <SelectItem key={company.id} value={company.id.toString()}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Templates de email são específicos por empresa
+                  </p>
+                </div>
+              )}
+
+              {/* Mensagem para admin que ainda não selecionou empresa */}
+              {user?.role === 'admin' && !selectedCompanyId && (
+                <div className="text-center text-neutral-500 p-8 rounded-md border border-dashed">
+                  <Building2 className="h-12 w-12 mx-auto mb-4 text-neutral-400" />
+                  <p className="text-lg font-medium mb-2">Selecione uma empresa</p>
+                  <p className="text-sm">
+                    Para gerenciar templates de email, primeiro selecione a empresa desejada.
+                  </p>
+                </div>
+              )}
+
+              {/* Conteúdo principal - só mostra se não for admin ou se admin já selecionou empresa */}
+              {(user?.role !== 'admin' || selectedCompanyId) && renderTemplatesList()}
             </CardContent>
           </Card>
         </TabsContent>

@@ -166,6 +166,22 @@ export function getCurrentCompanyName(): string {
   return THEMES[detectedTheme].name;
 }
 
+// Função para obter o logo da empresa atual (retorna src da imagem ou null)
+export function getCurrentCompanyLogo(): string | null {
+  if (typeof window === 'undefined') return null;
+  
+  const detectedTheme = detectThemeFromDomain();
+  console.log('🎨 [LOGO DEBUG] Tema detectado:', detectedTheme);
+  
+  if (detectedTheme === 'oficinaMuda') {
+    console.log('✅ [LOGO DEBUG] Logo da Oficina Muda deve ser exibido');
+    return '/logo_muda.png';
+  }
+  
+  console.log('❌ [LOGO DEBUG] Usando texto normal, não é tema oficinaMuda');
+  return null; // Retorna null para usar texto normal
+}
+
 // 🧪 FUNÇÕES DE DESENVOLVIMENTO PARA TESTE DE TEMAS
 export const devUtils = {
   // Listar todos os temas disponíveis
