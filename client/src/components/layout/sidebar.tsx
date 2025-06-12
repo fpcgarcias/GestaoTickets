@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { useVersion } from '@/hooks/use-version';
 import { cn } from '@/lib/utils';
 import { getCurrentCompanyName } from '@/lib/theme-manager';
 import { Link } from 'wouter';
@@ -47,6 +48,7 @@ const SidebarItem = ({ href, icon, label, isActive }: {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const { user, logout } = useAuth();
+  const { currentVersion } = useVersion();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Usar o nome da empresa baseado no tema/domínio
@@ -75,11 +77,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   return (
     <>
       {/* Versão desktop da barra lateral */}
-      <div className="w-64 bg-white border-r border-neutral-200 flex-shrink-0 hidden md:block">
+      <div className="w-64 bg-white border-r border-neutral-200 flex-shrink-0 hidden md:flex md:flex-col h-screen">
         <div className="p-6 border-b border-neutral-200">
           <h1 className="text-xl font-semibold text-neutral-900">{companyName}</h1>
         </div>
-        <nav className="p-4">
+        <nav className="p-4 flex-1 overflow-y-auto">
           {filteredNavItems.map((item) => (
             <SidebarItem 
               key={item.href}
@@ -94,6 +96,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
             />
           ))}
         </nav>
+        
+        {/* Versão do Sistema - Fixo no final */}
+        <div className="p-4 border-t border-neutral-200 mt-auto">
+          <Link href="/changelog">
+            <div className="text-xs text-neutral-500 hover:text-neutral-700 cursor-pointer transition-colors">
+              Versão {currentVersion}
+            </div>
+          </Link>
+        </div>
       </div>
       
       {/* Versão mobile da barra lateral (visível apenas em telas pequenas) */}

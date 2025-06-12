@@ -24,6 +24,7 @@ import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/hooks/use-auth";
 import { useSystemSettings } from "@/hooks/use-system-settings";
 import PermissionsPage from "@/pages/permissions";
+import Changelog from "@/pages/changelog";
 
 function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -130,6 +131,13 @@ function AppContent() {
       <ProtectedRoute path="/customers" component={() => (
         <MainLayout>
           <ClientsIndex />
+        </MainLayout>
+      )} />
+      
+      {/* Rota pública - Changelog */}
+      <Route path="/changelog" component={() => (
+        <MainLayout>
+          <Changelog />
         </MainLayout>
       )} />
       

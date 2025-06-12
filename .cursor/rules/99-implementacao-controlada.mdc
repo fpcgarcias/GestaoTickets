@@ -1,0 +1,102 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Controle de Implementação Automática
+
+## ⚠️ REGRA CRÍTICA: SEMPRE PERGUNTAR ANTES DE IMPLEMENTAR
+
+### Princípio Fundamental
+**NUNCA implemente, instale ou execute qualquer coisa sem EXPLICITAMENTE perguntar ao usuário primeiro.**
+
+## 🚫 Proibições Específicas
+
+### 1. Instalação de Dependências PostgreSQL
+- **NUNCA** sugira ou instale: `pg`, `node-postgres`, `postgresql`, `postgres`
+- **RAZÃO**: Este projeto usa banco Neon (PostgreSQL gerenciado)
+- **ALTERNATIVA**: Usar as conexões já configuradas com Neon
+
+### 2. Execução de Scripts NPM
+- **NUNCA** execute automaticamente:
+  - `npm run dev` (já está rodando)
+  - `npm run build` (ambiente de desenvolvimento)
+  - `npm start`
+  - `npm install` (sem confirmação)
+  - Qualquer script do [package.json](mdc:package.json)
+
+### 3. Comandos de Terminal
+- **NUNCA** execute comandos sem aprovação:
+  - Instalação de pacotes
+  - Comandos de build/compilação
+  - Inicialização de serviços
+  - Modificação de arquivos de configuração
+
+## ✅ Protocolo Obrigatório
+
+### Antes de Qualquer Implementação:
+1. **PERGUNTE EXPLICITAMENTE**: "Posso implementar [DESCRIÇÃO ESPECÍFICA]?"
+2. **EXPLIQUE O MOTIVO**: Por que essa implementação é necessária
+3. **AGUARDE CONFIRMAÇÃO**: Não prossiga sem aprovação explícita
+4. **OFEREÇA ALTERNATIVAS**: Quando possível, apresente opções
+
+### Exemplo de Abordagem Correta:
+```
+"Identifiquei que precisamos conectar ao banco de dados. 
+Posso usar a configuração Neon já existente em [db/index.ts](mdc:db/index.ts)
+ou você gostaria de uma abordagem diferente?"
+```
+
+### Exemplo de Abordagem INCORRETA:
+```
+"Vou instalar o pacote pg para conectar ao PostgreSQL..."
+"Executando npm run build..."
+```
+
+## 🎯 Contexto do Projeto
+
+### Banco de Dados
+- **Tecnologia**: Neon (PostgreSQL gerenciado)
+- **Configuração**: Já está em [drizzle.config.ts](mdc:drizzle.config.ts)
+- **Conexão**: Configurada em [db/](mdc:db/)
+
+### Ambiente de Desenvolvimento
+- **Status**: `npm run dev` já está executando
+- **Objetivo**: Desenvolvimento ativo, não produção
+- **Vite**: Configurado em [vite.config.ts](mdc:vite.config.ts)
+
+### Arquitetura
+- **Frontend**: React com TypeScript
+- **Backend**: Node.js com Express
+- **Database**: Drizzle ORM com Neon PostgreSQL
+- **Build**: Vite para desenvolvimento
+
+## 🔍 Checklist de Validação
+
+Antes de qualquer sugestão, pergunte-se:
+- [ ] Isso realmente precisa ser implementado?
+- [ ] Já existe uma solução similar no projeto?
+- [ ] O usuário solicitou essa implementação específica?
+- [ ] Estou seguindo as tecnologias já estabelecidas?
+- [ ] Perguntei ao usuário antes de prosseguir?
+
+## 📋 Exceções
+
+### Quando NÃO perguntar:
+- Explicações de código existente
+- Análise de problemas
+- Sugestões de melhorias (sem implementar)
+- Documentação
+- Debugging de código já escrito
+
+### Quando SEMPRE perguntar:
+- Qualquer nova implementação
+- Instalação de dependências
+- Execução de comandos
+- Modificação de arquivos
+- Criação de novos arquivos
+- Alteração de configurações
+
+---
+
+**LEMBRE-SE**: Prefira ser um consultor que pergunta a um implementador que assume.
