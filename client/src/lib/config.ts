@@ -10,8 +10,7 @@ interface AppConfig {
 // Detectar ambiente automaticamente
 const isDevelopment = import.meta.env.DEV || 
                      window.location.hostname === 'localhost' || 
-                     window.location.hostname === '127.0.0.1' ||
-                     (window.location.port === '5173' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
+                     window.location.hostname === '127.0.0.1';
 
 const isProduction = !isDevelopment;
 
@@ -50,7 +49,10 @@ console.log('🔧 [CONFIG] Configuração da aplicação:', {
   apiBaseUrl: config.apiBaseUrl,
   wsBaseUrl: config.wsBaseUrl,
   hostname: window.location.hostname,
-  port: window.location.port
+  port: window.location.port,
+  'import.meta.env.DEV': import.meta.env.DEV,
+  'isDevelopment': isDevelopment,
+  'isProduction': isProduction
 });
 
 export default config; 
