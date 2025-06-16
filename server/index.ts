@@ -141,6 +141,8 @@ const notificationService = {
   initialize: () => {
     console.log('Serviço de notificações inicializado');
     
+    // TEMPORARIAMENTE DESABILITADO - possível causa do crash
+    /*
     // Verificar se há usuários órfãos no sistema
     setTimeout(async () => {
       try {
@@ -155,6 +157,7 @@ const notificationService = {
         console.error('Erro ao verificar usuários órfãos:', error);
       }
     }, 5000); // Aguardar 5 segundos para não atrapalhar a inicialização
+    */
   }
 };
 
