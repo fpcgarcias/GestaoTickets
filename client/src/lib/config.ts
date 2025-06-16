@@ -11,7 +11,7 @@ interface AppConfig {
 const isDevelopment = import.meta.env.DEV || 
                      window.location.hostname === 'localhost' || 
                      window.location.hostname === '127.0.0.1' ||
-                     window.location.port === '5173';
+                     (window.location.port === '5173' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
 
 const isProduction = !isDevelopment;
 
