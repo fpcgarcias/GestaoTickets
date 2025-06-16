@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useVersion } from '@/hooks/use-version';
 import { cn } from '@/lib/utils';
-import { getCurrentCompanyName, getCurrentCompanyLogo } from '@/lib/theme-manager';
+import { useTheme } from '@/contexts/theme-context';
 import { Link } from 'wouter';
 import { 
   LayoutDashboard, 
@@ -51,12 +51,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const { currentVersion } = useVersion();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // Usar o nome da empresa baseado no tema/domínio
-  const companyName = getCurrentCompanyName();
-  const companyLogo = getCurrentCompanyLogo();
-  
-  console.log('🔍 [SIDEBAR DEBUG] Nome da empresa:', companyName);
-  console.log('🔍 [SIDEBAR DEBUG] Logo da empresa:', companyLogo);
+  // Usar o tema do contexto (executa apenas uma vez)
+  const { companyName, companyLogo } = useTheme();
   
   // Definir itens de navegação com base no papel do usuário
   const navItems = [

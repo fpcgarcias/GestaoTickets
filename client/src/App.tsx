@@ -20,6 +20,7 @@ import AuthPage from "@/pages/auth-page";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { AuthProvider } from "./hooks/use-auth";
+import { ThemeProvider } from "./contexts/theme-context";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/hooks/use-auth";
 import { useSystemSettings } from "@/hooks/use-system-settings";
@@ -151,8 +152,10 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <Toaster />
-          <AppContent />
+          <ThemeProvider>
+            <Toaster />
+            <AppContent />
+          </ThemeProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

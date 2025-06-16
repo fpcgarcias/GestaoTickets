@@ -8,16 +8,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { formatCNPJ, cleanCNPJ, isValidCNPJ, validatePasswordCriteria, isPasswordValid, type PasswordCriteria } from '@/lib/utils';
-import { getCurrentCompanyName, getCurrentCompanyLogo } from '@/lib/theme-manager';
+import { useTheme } from '@/contexts/theme-context';
 import { Check, X } from 'lucide-react';
 
 export default function AuthPage() {
   const [location, setLocation] = useLocation();
   const { user, login, isLoading, error } = useAuth();
   const { toast } = useToast();
-  // Usar nome da empresa baseado no domínio
-  const companyName = getCurrentCompanyName();
-  const companyLogo = getCurrentCompanyLogo();
+  // Usar nome da empresa baseado no tema do contexto
+  const { companyName, companyLogo } = useTheme();
   const [activeTab, setActiveTab] = useState<string>('login');
   
   // Formulário de login

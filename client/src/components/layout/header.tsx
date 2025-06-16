@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, Menu, User, Settings, LogOut, LayoutDashboard, TicketIcon, UserCog, Building2, FolderIcon, TagIcon } from 'lucide-react';
-import { getCurrentCompanyName } from '@/lib/theme-manager';
+import { useTheme } from '@/contexts/theme-context';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +26,7 @@ export const Header: React.FC = () => {
   const { user, logout } = useAuth();
   
   // Usar o nome da empresa baseado no tema/domínio
-  const companyName = getCurrentCompanyName();
+  const { companyName } = useTheme();
   
   // Use dados do usuário autenticado ou valores padrão
   const currentUser = user || {

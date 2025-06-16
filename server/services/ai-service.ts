@@ -146,12 +146,24 @@ export class AiService {
     dbInstance: any
   ): Promise<AiConfiguration | null> {
     try {
+      // Verificar se a empresa tem permissão para usar IA
+      const [company] = await dbInstance
+        .select({ ai_permission: schema.companies.ai_permission })
+        .from(schema.companies)
+        .where(eq(schema.companies.id, companyId))
+        .limit(1);
+
+      if (!company?.ai_permission) {
+        console.log(`[AI] Empresa ${companyId} não tem permissão para usar IA`);
+        return null;
+      }
+
+      // Buscar configuração global ativa e padrão
       const configs = await dbInstance
         .select()
         .from(schema.aiConfigurations)
         .where(
           and(
-            eq(schema.aiConfigurations.company_id, companyId),
             eq(schema.aiConfigurations.is_active, true),
             eq(schema.aiConfigurations.is_default, true)
           )
@@ -253,13 +265,24 @@ export class AiService {
     companyId: number
   ): Promise<AiAnalysisResult | null> {
     try {
-      // Buscar configuração ativa da empresa
+      // Verificar se a empresa tem permissão para usar IA
+      const [company] = await db
+        .select({ ai_permission: schema.companies.ai_permission })
+        .from(schema.companies)
+        .where(eq(schema.companies.id, companyId))
+        .limit(1);
+
+      if (!company?.ai_permission) {
+        console.log(`[AI] Empresa ${companyId} não tem permissão para usar IA`);
+        return null;
+      }
+
+      // Buscar configuração global ativa e padrão
       const [config] = await db
         .select()
         .from(schema.aiConfigurations)
         .where(
           and(
-            eq(schema.aiConfigurations.company_id, companyId),
             eq(schema.aiConfigurations.is_active, true),
             eq(schema.aiConfigurations.is_default, true)
           )
@@ -267,7 +290,7 @@ export class AiService {
         .limit(1);
 
       if (!config) {
-        console.log(`[AI] Nenhuma configuração ativa encontrada para empresa ${companyId}`);
+        console.log(`[AI] Nenhuma configuração global ativa encontrada`);
         return null;
       }
 
@@ -277,7 +300,7 @@ export class AiService {
         return null;
       }
 
-      console.log(`[AI] Analisando prioridade com ${config.provider}/${config.model}`);
+      console.log(`[AI] Analisando prioridade com ${config.provider}/${config.model} para empresa ${companyId}`);
       const result = await this.executeWithRetry(
         () => provider.analyze(title, description, config),
         config.max_retries || 3

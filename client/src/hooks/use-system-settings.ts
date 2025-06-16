@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from './use-auth';
-import { getCurrentCompanyName } from '@/lib/theme-manager';
+import { useTheme } from '@/contexts/theme-context';
 
 export interface SystemSettings {
   companyName: string;
@@ -8,15 +8,9 @@ export interface SystemSettings {
   allowCustomerRegistration: boolean;
 }
 
-// Valores padrão para as configurações do sistema
-const defaultSettings: SystemSettings = {
-  companyName: getCurrentCompanyName(),
-  supportEmail: 'suporte@ticketflow.com.br',
-  allowCustomerRegistration: true
-};
-
 export function useSystemSettings() {
   const { user } = useAuth();
+  const { companyName } = useTheme();
   
   const { data, isLoading, error } = useQuery<SystemSettings>({
     queryKey: ['/api/settings/general'],
@@ -24,7 +18,11 @@ export function useSystemSettings() {
       if (!res.ok) {
         // Se der 403 (sem permissão), retornar valores padrão
         if (res.status === 403) {
-          return defaultSettings;
+          return {
+            companyName: companyName,
+            supportEmail: 'suporte@ticketflow.com.br',
+            allowCustomerRegistration: true
+          };
         }
         throw new Error('Erro ao carregar configurações');
       }
@@ -41,7 +39,11 @@ export function useSystemSettings() {
   });
 
   // Mesclar configurações carregadas com valores padrão
-  const settings = data || defaultSettings;
+  const settings = data || {
+    companyName: companyName,
+    supportEmail: 'suporte@ticketflow.com.br',
+    allowCustomerRegistration: true
+  };
 
   return {
     // Retorna todos os valores de configuração

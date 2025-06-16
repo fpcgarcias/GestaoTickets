@@ -365,6 +365,7 @@ export default function AiSettings() {
 
 // Componente para administradores - configuração global
 function AdminAiConfiguration() {
+  const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [editingConfig, setEditingConfig] = useState<AiConfiguration | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -531,8 +532,74 @@ function AdminAiConfiguration() {
     }
   };
 
-  const handleTest = () => {
-    // Implemente a lógica para testar a configuração
+  const handleTest = async () => {
+    if (!formData.api_key) {
+      toast({
+        title: "Erro",
+        description: "API Key é obrigatória para teste",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsTestLoading(true);
+    setTestResult(null);
+
+    try {
+      const testPayload = {
+        provider: formData.provider,
+        model: formData.model,
+        api_key: formData.api_key,
+        api_endpoint: formData.api_endpoint,
+        system_prompt: formData.system_prompt || DEFAULT_PROMPTS.system,
+        user_prompt_template: formData.user_prompt_template || DEFAULT_PROMPTS.user,
+        temperature: formData.temperature,
+        max_tokens: formData.max_tokens,
+        timeout_seconds: formData.timeout_seconds,
+        max_retries: formData.max_retries,
+        test_title: testData.test_title || "Sistema de email não está funcionando",
+        test_description: testData.test_description || "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
+      };
+
+      const response = await fetch('/api/ai-configurations/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testPayload),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Falha no teste');
+      }
+
+      if (result.success) {
+        setTestResult(result.result);
+        toast({
+          title: "Sucesso",
+          description: "Teste executado com sucesso!"
+        });
+      } else {
+        throw new Error(result.error || result.message || 'Teste falhou');
+      }
+
+    } catch (error: any) {
+      console.error('Erro no teste da configuração:', error);
+      toast({
+        title: "Erro no teste",
+        description: error.message,
+        variant: "destructive"
+      });
+      setTestResult({
+        priority: 'medium',
+        justification: `Erro no teste: ${error.message}`,
+        confidence: 0,
+        usedFallback: true,
+        processingTimeMs: 0
+      });
+    } finally {
+      setIsTestLoading(false);
+    }
   };
 
   const maskApiKey = (key: string | null | undefined) => {
