@@ -137,23 +137,17 @@ function validateRequest(schemaToValidate: z.ZodType<any, any>) {
 
 // Middleware para verificar se o usuário está autenticado
 function authRequired(req: Request, res: Response, next: NextFnExpress) {
-  console.log('[AUTH_REQUIRED] Session:', JSON.stringify(req.session));
   if (!req.session || !req.session.userId) {
-    console.log('[AUTH_REQUIRED] Falha na autenticação - retornando 401');
     return res.status(401).json({ message: "Não autenticado" });
   }
-  console.log('[AUTH_REQUIRED] Autenticação OK');
   next();
 }
 
 // Middleware para verificar se o usuário é admin
 function adminRequired(req: Request, res: Response, next: NextFnExpress) {
-  console.log('[ADMIN_REQUIRED] Session:', JSON.stringify(req.session));
   if (!req.session || !req.session.userId || req.session.userRole !== 'admin') {
-    console.log('[ADMIN_REQUIRED] Falha na autorização - retornando 403');
     return res.status(403).json({ message: "Acesso negado: Requer perfil de Administrador" });
   }
-  console.log('[ADMIN_REQUIRED] Autorização OK');
   next();
 }
 
@@ -344,7 +338,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         });
       }
       
-      console.log(`[AD Email Test] Testando extração de email para usuário: ${username}`);
+
       
       const { authenticateAD } = await import('./utils/active-directory');
       
@@ -987,8 +981,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Validar os dados recebidos
       const ticketData = insertTicketSchema.parse(req.body);
       
-      console.log(`[DEBUG] Dados para inserção de ticket: ${JSON.stringify(ticketData)}`);
-      
       // ✅ BUSCAR O CUSTOMER_ID E COMPANY_ID BASEADO NO EMAIL FORNECIDO
       let customerId: number | null = null;
       let companyId: number | null = null;
@@ -998,9 +990,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         if (existingCustomer) {
           customerId = existingCustomer.id;
           companyId = existingCustomer.company_id; // ✅ USAR O COMPANY_ID DO CLIENTE
-          console.log(`[DEBUG createTicket] Cliente encontrado: ID ${customerId}, Company ID: ${companyId} para email ${ticketData.customer_email}`);
-        } else {
-          console.log(`[DEBUG createTicket] Cliente não encontrado para email ${ticketData.customer_email} - ticket criado sem customer_id e company_id`);
         }
       }
       
@@ -1011,7 +1000,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       if (companyId && ticketData.title && ticketData.description) {
         try {
-          console.log(`[AI] Analisando prioridade ANTES de salvar ticket...`);
           const aiService = new AiService();
           const aiResult = await aiService.analyzePriority(
             ticketData.title, 
@@ -1022,9 +1010,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           if (aiResult && !aiResult.usedFallback) {
             finalPriority = aiResult.priority;
             aiAnalyzed = true;
-            console.log(`[AI] Prioridade definida pela IA: ${finalPriority} (confiança: ${aiResult.confidence}, justificativa: ${aiResult.justification})`);
-          } else {
-            console.log(`[AI] Usando prioridade padrão devido ao fallback`);
           }
         } catch (aiError) {
           console.error('[AI] Erro na análise de prioridade:', aiError);
@@ -1095,7 +1080,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
                 .returning();
               
               botUserId = createdBot.id;
-              console.log(`[AI] Criado usuário bot com ID: ${botUserId}`);
+
             } else {
               botUserId = botUser[0].id;
             }
@@ -1112,7 +1097,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
                 created_at: new Date()
               });
 
-            console.log(`[AI] Histórico de mudança de prioridade registrado para ticket ${ticket.id}`);
+
           }
         } catch (historyError) {
           console.error('[AI] Erro ao salvar histórico da análise:', historyError);
@@ -1135,15 +1120,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       // 📧 ENVIAR EMAIL DE CONFIRMAÇÃO PARA O CLIENTE
       try {
-        console.log(`[Email] Enviando confirmação para o cliente do ticket ID: ${ticket.id}`);
-        
         if (customerId && ticketData.customer_email) {
           // Buscar dados completos do cliente
           const customer = await storage.getCustomer(customerId);
           
           if (customer) {
-            console.log(`[Email] Enviando confirmação para ${customer.name} (${customer.email})`);
-            
             await emailNotificationService.sendEmailNotification(
               'new_ticket', 
               customer.email, 
@@ -1171,7 +1152,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
               companyId || undefined
             );
             
-            console.log(`[Email] Confirmação enviada com sucesso para o cliente`);
+
           }
         }
       } catch (emailError) {
@@ -1196,14 +1177,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const ticketId = req.body.ticket_id;
       const userId = req.session?.userId;
       
-      // 🔍 DIAGNÓSTICO COMPLETO
-      console.log("=== DIAGNÓSTICO TICKET REPLY ===");
-      console.log("1. Body ANTES da validação:", JSON.stringify(req.body, null, 2));
-      console.log("2. UserId da sessão:", userId);
-      console.log("3. Sessão completa:", JSON.stringify(req.session, null, 2));
-      
       if (!userId) {
-        console.error("❌ ERRO: userId é null/undefined!");
         return res.status(401).json({ message: "Usuário não identificado" });
       }
       
@@ -1230,21 +1204,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         user_id: userId
       };
       
-      console.log("4. Dados FINAIS enviados para storage:", JSON.stringify(replyDataWithUser, null, 2));
-      
       const reply = await storage.createTicketReply(replyDataWithUser);
-      
-      console.log("5. Reply RETORNADO do storage:", JSON.stringify(reply, null, 2));
-      
-      // 🔍 VERIFICAR SE FOI SALVO NO BANCO
-      console.log("6. VERIFICANDO DIRETAMENTE NO BANCO...");
-      const [directCheck] = await db
-        .select()
-        .from(schema.ticketReplies)
-        .where(eq(schema.ticketReplies.id, reply.id));
-        
-      console.log("7. Dados DIRETOS do banco:", JSON.stringify(directCheck, null, 2));
-      console.log("=== FIM DIAGNÓSTICO ===");
       
       // Enviar notificação após salvar a resposta
       if (userId) {
