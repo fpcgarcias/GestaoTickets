@@ -1158,6 +1158,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<void> {
     await db.insert(ticketStatusHistory).values({
       ticket_id: ticketId,
+      change_type: 'status', // Especificar que é mudança de status
       old_status: oldStatus as any,
       new_status: newStatus as any,
       changed_by_id: changedById,

@@ -159,12 +159,22 @@ export const ticketReplies = pgTable("ticket_replies", {
   is_internal: boolean("is_internal").default(false),
 });
 
-// Ticket status history (ajustado para snake_case, removido company_id)
+// Ticket status history expandido para suportar mudanças de status e prioridade
 export const ticketStatusHistory = pgTable("ticket_status_history", {
   id: serial("id").primaryKey(),
   ticket_id: integer("ticket_id").references(() => tickets.id).notNull(),
+  
+  // Campos para mudanças de status (opcionais - usados quando change_type = 'status')
   old_status: ticketStatusEnum("old_status"),
-  new_status: ticketStatusEnum("new_status").notNull(),
+  new_status: ticketStatusEnum("new_status"),
+  
+  // Campos para mudanças de prioridade (opcionais - usados quando change_type = 'priority')
+  old_priority: ticketPriorityEnum("old_priority"),
+  new_priority: ticketPriorityEnum("new_priority"),
+  
+  // Tipo de mudança: 'status' ou 'priority'
+  change_type: text("change_type").notNull().default('status'),
+  
   changed_by_id: integer("changed_by_id").references(() => users.id),
   created_at: timestamp("created_at").defaultNow().notNull(),
 });

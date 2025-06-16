@@ -87,14 +87,18 @@ export const PERIOD_OPTIONS = [
 export function translateTicketStatus(status: string): string {
   const translations: Record<string, string> = {
     'new': 'Novo',
-    'ongoing': 'Em Andamento',
+    'ongoing': 'Em Andamento', 
     'suspended': 'Suspenso',
     'waiting_customer': 'Aguardando Cliente',
     'escalated': 'Escalado',
     'in_analysis': 'Em Análise',
     'pending_deployment': 'Aguardando Deploy',
     'reopened': 'Reaberto',
-    'resolved': 'Resolvido'
+    'resolved': 'Resolvido',
+    // Valores especiais
+    'undefined': 'Não Definido',
+    'null': 'Não Definido',
+    '': 'Não Definido'
   };
   
   return translations[status] || status;

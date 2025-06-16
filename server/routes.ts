@@ -874,13 +874,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(404).json({ message: "Ticket não encontrado" });
       }
 
-      // Buscar histórico de status do ticket
+      // Buscar histórico de status do ticket (incluindo mudanças de prioridade)
       const statusHistory = await db
         .select({
           id: schema.ticketStatusHistory.id,
           ticket_id: schema.ticketStatusHistory.ticket_id,
           old_status: schema.ticketStatusHistory.old_status,
           new_status: schema.ticketStatusHistory.new_status,
+          change_type: schema.ticketStatusHistory.change_type,
+          old_priority: schema.ticketStatusHistory.old_priority,
+          new_priority: schema.ticketStatusHistory.new_priority,
           changed_by_id: schema.ticketStatusHistory.changed_by_id,
           created_at: schema.ticketStatusHistory.created_at,
           user: {
@@ -1003,6 +1006,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       // 🤖 ANÁLISE DE PRIORIDADE COM IA ANTES DE SALVAR O TICKET
       let finalPriority = ticketData.priority || 'medium';
+      let originalPriority = ticketData.priority || 'medium'; // Guardar prioridade original
       let aiAnalyzed = false;
       
       if (companyId && ticketData.title && ticketData.description) {
@@ -1059,6 +1063,57 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             },
             db
           );
+
+          // 🤖 REGISTRAR NO HISTÓRICO SE A IA ALTEROU A PRIORIDADE
+          if (finalPriority !== originalPriority) {
+            console.log(`[AI] IA alterou prioridade de ${originalPriority} para ${finalPriority} - registrando no histórico`);
+            
+            // Buscar ou criar usuário bot para IA
+            let botUser = await db
+              .select()
+              .from(schema.users)
+              .where(eq(schema.users.role, 'integration_bot'))
+              .limit(1);
+
+            let botUserId: number;
+            
+            if (botUser.length === 0) {
+              // Criar usuário bot se não existir
+              const [createdBot] = await db
+                .insert(schema.users)
+                .values({
+                  username: 'ai_robot',
+                  email: 'ai@system.internal',
+                  name: 'Robo IA',
+                  role: 'integration_bot',
+                  password: 'AiBot123!@#', // Senha que atende aos critérios de segurança
+                  active: true,
+                  company_id: null, // Bot global
+                  created_at: new Date(),
+                  updated_at: new Date()
+                })
+                .returning();
+              
+              botUserId = createdBot.id;
+              console.log(`[AI] Criado usuário bot com ID: ${botUserId}`);
+            } else {
+              botUserId = botUser[0].id;
+            }
+
+            // Registrar mudança de prioridade no histórico expandido
+            await db
+              .insert(schema.ticketStatusHistory)
+              .values({
+                ticket_id: ticket.id,
+                change_type: 'priority',
+                old_priority: originalPriority as any,
+                new_priority: finalPriority as any,
+                changed_by_id: botUserId,
+                created_at: new Date()
+              });
+
+            console.log(`[AI] Histórico de mudança de prioridade registrado para ticket ${ticket.id}`);
+          }
         } catch (historyError) {
           console.error('[AI] Erro ao salvar histórico da análise:', historyError);
         }
