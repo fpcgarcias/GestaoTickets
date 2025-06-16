@@ -240,7 +240,7 @@ async function startServer() {
     console.log(`🔍 NODE_ENV: '${process.env.NODE_ENV}'`);
     
     // Verificar se existe pasta dist/public para produção
-    const distPath = path.resolve(import.meta.dirname, "dist/public");
+    const distPath = path.resolve(import.meta.dirname, "..", "dist/public");
     const hasDistFolder = fs.existsSync(distPath);
     
     if (process.env.NODE_ENV === 'production' && hasDistFolder) {
