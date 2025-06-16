@@ -198,11 +198,21 @@ app.use((req, res, next) => {
       // Mascarar dados sensíveis nos logs
       if (capturedJsonResponse) {
         const sanitizedResponse = { ...capturedJsonResponse };
+        // Mascarar TODAS as possíveis informações sensíveis
         if (sanitizedResponse.password) sanitizedResponse.password = '[MASKED]';
+        if (sanitizedResponse.senha) sanitizedResponse.senha = '[MASKED]';
         if (sanitizedResponse.token) sanitizedResponse.token = '[MASKED]';
         if (sanitizedResponse.session) sanitizedResponse.session = '[MASKED]';
+        if (sanitizedResponse.email) sanitizedResponse.email = '[MASKED]';
+        if (sanitizedResponse.username) sanitizedResponse.username = '[MASKED]';
+        if (sanitizedResponse.name) sanitizedResponse.name = '[MASKED]';
         
-        logLine += ` :: ${JSON.stringify(sanitizedResponse)}`;
+        // Se for array de usuários, mascarar cada item
+        if (Array.isArray(sanitizedResponse) || (sanitizedResponse.users && Array.isArray(sanitizedResponse.users))) {
+          logLine += ` :: [USERS_DATA_MASKED]`;
+        } else {
+          logLine += ` :: ${JSON.stringify(sanitizedResponse)}`;
+        }
       }
 
       if (logLine.length > 80) {

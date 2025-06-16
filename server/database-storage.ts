@@ -36,7 +36,7 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(userData: InsertUser): Promise<User> {
     try {
-      console.log('DatabaseStorage.createUser - Iniciando criação com dados:', JSON.stringify(userData, null, 2));
+      // console.log('DatabaseStorage.createUser - Iniciando criação com dados:', JSON.stringify(userData, null, 2)); // REMOVIDO - dados sensíveis
       
       // Verificar campos obrigatórios
       if (!userData.username) {
@@ -62,14 +62,14 @@ export class DatabaseStorage implements IStorage {
         avatar_url: userData.avatar_url || null,
       };
       
-      console.log('DatabaseStorage.createUser - Inserindo no banco com dados tratados:', JSON.stringify(dataWithDefaults, null, 2));
+      // console.log('DatabaseStorage.createUser - Inserindo no banco com dados tratados:', JSON.stringify(dataWithDefaults, null, 2)); // REMOVIDO - dados sensíveis
       const [user] = await db.insert(users).values(dataWithDefaults).returning();
       
       if (!user) {
         throw new Error('Falha ao criar usuário - nenhum registro retornado');
       }
       
-      console.log('DatabaseStorage.createUser - Usuário criado com sucesso:', JSON.stringify(user, null, 2));
+      console.log('DatabaseStorage.createUser - Usuário criado com sucesso:', user.username); // Apenas username, não dados completos
       return user;
     } catch (error) {
       console.error('DatabaseStorage.createUser - Erro:', error);

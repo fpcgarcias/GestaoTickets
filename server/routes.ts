@@ -1518,7 +1518,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   
   router.post("/officials", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor']), async (req: Request, res: Response) => {
     try {
-      console.log(`Iniciando criação de atendente com dados:`, JSON.stringify(req.body, null, 2));
+      // console.log(`Iniciando criação de atendente com dados:`, JSON.stringify(req.body, null, 2)); // REMOVIDO - dados sensíveis
       const { departments, company_id, ...officialData } = req.body;
       
       // Verificar se há departamentos selecionados
