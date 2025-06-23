@@ -783,6 +783,44 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
 
+  router.get("/tickets/average-first-response-time", authRequired, async (req: Request, res: Response) => {
+    try {
+      // Obter o ID do usuário da sessão
+      const userId = req.session.userId;
+      const userRole = req.session.userRole as string;
+      
+      if (!userId || !userRole) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+      
+      // Obter tempo médio de primeira resposta filtrado pelo papel do usuário
+      const averageTime = await storage.getAverageFirstResponseTimeByUserRole(userId, userRole);
+      res.json({ averageTime });
+    } catch (error) {
+      console.error('Erro ao buscar tempo médio de primeira resposta:', error);
+      res.status(500).json({ message: "Falha ao buscar tempo médio de primeira resposta" });
+    }
+  });
+
+  router.get("/tickets/average-resolution-time", authRequired, async (req: Request, res: Response) => {
+    try {
+      // Obter o ID do usuário da sessão
+      const userId = req.session.userId;
+      const userRole = req.session.userRole as string;
+      
+      if (!userId || !userRole) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+      
+      // Obter tempo médio de resolução filtrado pelo papel do usuário
+      const averageTime = await storage.getAverageResolutionTimeByUserRole(userId, userRole);
+      res.json({ averageTime });
+    } catch (error) {
+      console.error('Erro ao buscar tempo médio de resolução:', error);
+      res.status(500).json({ message: "Falha ao buscar tempo médio de resolução" });
+    }
+  });
+
   // Individual ticket by ID
   router.get("/tickets/:id", authRequired, async (req: Request, res: Response) => {
     try {

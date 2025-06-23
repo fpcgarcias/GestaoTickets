@@ -1278,5 +1278,65 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // Obter tempo médio de primeira resposta filtrado pelo papel do usuário
+  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string): Promise<number> {
+    try {
+      // Obter tickets filtrados pelo papel do usuário
+      const userTickets = await this.getTicketsByUserRole(userId, userRole);
+      
+      // Filtrar apenas tickets que têm primeira resposta
+      const ticketsWithFirstResponse = userTickets.filter(ticket => 
+        ticket.first_response_at && ticket.created_at
+      );
+      
+      if (ticketsWithFirstResponse.length === 0) {
+        return 0;
+      }
+      
+      // Calcular tempo médio de primeira resposta em horas
+      const totalResponseTime = ticketsWithFirstResponse.reduce((sum, ticket) => {
+        const createdAt = new Date(ticket.created_at);
+        const firstResponseAt = new Date(ticket.first_response_at!);
+        const responseTime = (firstResponseAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60); // em horas
+        return sum + responseTime;
+      }, 0);
+      
+      return Math.round((totalResponseTime / ticketsWithFirstResponse.length) * 100) / 100;
+    } catch (error) {
+      console.error('Erro ao calcular tempo médio de primeira resposta:', error);
+      return 0;
+    }
+  }
+
+  // Obter tempo médio de resolução filtrado pelo papel do usuário
+  async getAverageResolutionTimeByUserRole(userId: number, userRole: string): Promise<number> {
+    try {
+      // Obter tickets filtrados pelo papel do usuário
+      const userTickets = await this.getTicketsByUserRole(userId, userRole);
+      
+      // Filtrar apenas tickets resolvidos
+      const resolvedTickets = userTickets.filter(ticket => 
+        ticket.status === 'resolved' && ticket.resolved_at && ticket.created_at
+      );
+      
+      if (resolvedTickets.length === 0) {
+        return 0;
+      }
+      
+      // Calcular tempo médio de resolução em horas
+      const totalResolutionTime = resolvedTickets.reduce((sum, ticket) => {
+        const createdAt = new Date(ticket.created_at);
+        const resolvedAt = new Date(ticket.resolved_at!);
+        const resolutionTime = (resolvedAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60); // em horas
+        return sum + resolutionTime;
+      }, 0);
+      
+      return Math.round((totalResolutionTime / resolvedTickets.length) * 100) / 100;
+    } catch (error) {
+      console.error('Erro ao calcular tempo médio de resolução:', error);
+      return 0;
+    }
+  }
+
 
 }

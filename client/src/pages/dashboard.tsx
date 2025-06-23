@@ -3,7 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusDot } from '@/components/tickets/status-badge';
+import { TimeMetricCard } from '@/components/ui/time-metric-card';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
+import { Clock, CheckCircle2 } from 'lucide-react';
 import { 
   PieChart, 
   Pie, 
@@ -51,6 +53,16 @@ export default function Dashboard() {
 
   const { data: recentTicketsData, isLoading: isRecentLoading } = useQuery<RecentTicket[]>({ // Tipo explícito
     queryKey: ['/api/tickets/recent'],
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
+  });
+
+  const { data: avgFirstResponseData, isLoading: isFirstResponseLoading } = useQuery<{ averageTime: number }>({
+    queryKey: ['/api/tickets/average-first-response-time'],
+    refetchInterval: 30000, // Atualiza a cada 30 segundos
+  });
+
+  const { data: avgResolutionData, isLoading: isResolutionLoading } = useQuery<{ averageTime: number }>({
+    queryKey: ['/api/tickets/average-resolution-time'],
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
 
@@ -106,6 +118,24 @@ export default function Dashboard() {
           value={ticketStats.byStatus.resolved} // Acesso direto agora é seguro
           isLoading={isStatsLoading}
           status={TICKET_STATUS.RESOLVED as 'resolved'} // Cast para o tipo literal
+        />
+      </div>
+      
+      {/* Nova seção para métricas de tempo */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <TimeMetricCard
+          title="Tempo Médio de Primeira Resposta"
+          description="Tempo médio entre a criação e primeira resposta dos chamados"
+          value={avgFirstResponseData?.averageTime || 0}
+          isLoading={isFirstResponseLoading}
+          icon={<Clock className="h-4 w-4 text-blue-500" />}
+        />
+        <TimeMetricCard
+          title="Tempo Médio de Resolução"
+          description="Tempo médio entre a criação e resolução dos chamados"
+          value={avgResolutionData?.averageTime || 0}
+          isLoading={isResolutionLoading}
+          icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
         />
       </div>
       

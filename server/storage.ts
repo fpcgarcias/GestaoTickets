@@ -83,6 +83,10 @@ export interface IStorage {
   getRecentTickets(limit?: number): Promise<Ticket[]>;
   getTicketStatsByUserRole(userId: number, userRole: string): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
   getRecentTicketsByUserRole(userId: number, userRole: string, limit?: number): Promise<Ticket[]>;
+  
+  // Time metrics operations
+  getAverageFirstResponseTimeByUserRole(userId: number, userRole: string): Promise<number>;
+  getAverageResolutionTimeByUserRole(userId: number, userRole: string): Promise<number>;
 
   // Company operations (adicionar se não existir)
   getCompany(id: number): Promise<any | undefined>;
@@ -833,6 +837,46 @@ export class MemStorage implements IStorage {
   async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 5): Promise<Ticket[]> {
     const userTickets = await this.getTicketsByUserRole(userId, userRole);
     return userTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
+  }
+
+  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string): Promise<number> {
+    const userTickets = await this.getTicketsByUserRole(userId, userRole);
+    const ticketsWithFirstResponse = Array.from(userTickets).filter(ticket => 
+      ticket.firstResponseAt && ticket.createdAt
+    );
+    
+    if (ticketsWithFirstResponse.length === 0) {
+      return 0;
+    }
+    
+    const totalResponseTime = ticketsWithFirstResponse.reduce((sum, ticket) => {
+      const createdAt = new Date(ticket.createdAt);
+      const firstResponseAt = new Date(ticket.firstResponseAt!);
+      const responseTime = (firstResponseAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+      return sum + responseTime;
+    }, 0);
+    
+    return Math.round((totalResponseTime / ticketsWithFirstResponse.length) * 100) / 100;
+  }
+
+  async getAverageResolutionTimeByUserRole(userId: number, userRole: string): Promise<number> {
+    const userTickets = await this.getTicketsByUserRole(userId, userRole);
+    const resolvedTickets = Array.from(userTickets).filter(ticket => 
+      ticket.status === 'resolved' && ticket.resolvedAt && ticket.createdAt
+    );
+    
+    if (resolvedTickets.length === 0) {
+      return 0;
+    }
+    
+    const totalResolutionTime = resolvedTickets.reduce((sum, ticket) => {
+      const createdAt = new Date(ticket.createdAt);
+      const resolvedAt = new Date(ticket.resolvedAt!);
+      const resolutionTime = (resolvedAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+      return sum + resolutionTime;
+    }, 0);
+    
+    return Math.round((totalResolutionTime / resolvedTickets.length) * 100) / 100;
   }
 
   async getCompany(id: number): Promise<any | undefined> {
