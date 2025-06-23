@@ -444,11 +444,18 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Nenhum supervisor</SelectItem>
-                        {Array.isArray(existingOfficials) ? existingOfficials.map((official: any) => (
-                          <SelectItem key={official.id} value={official.id.toString()}>
-                            {official.name || 'Nome não disponível'} ({official.email || 'Email não disponível'})
-                          </SelectItem>
-                        )) : null}
+                        {Array.isArray(existingOfficials) ? existingOfficials
+                          .filter((official: any) => {
+                            // Filtrar apenas supervisores
+                            return official && 
+                                   official.user && 
+                                   official.user.role === 'supervisor';
+                          })
+                          .map((official: any) => (
+                            <SelectItem key={official.id} value={official.id.toString()}>
+                              {official.name || 'Nome não disponível'} ({official.email || 'Email não disponível'})
+                            </SelectItem>
+                          )) : null}
                       </SelectContent>
                     </Select>
                   </div>
@@ -468,11 +475,18 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Nenhum manager</SelectItem>
-                        {Array.isArray(existingOfficials) ? existingOfficials.map((official: any) => (
-                          <SelectItem key={official.id} value={official.id.toString()}>
-                            {official.name || 'Nome não disponível'} ({official.email || 'Email não disponível'})
-                          </SelectItem>
-                        )) : null}
+                        {Array.isArray(existingOfficials) ? existingOfficials
+                          .filter((official: any) => {
+                            // Filtrar apenas managers e company_admins
+                            return official && 
+                                   official.user && 
+                                   (official.user.role === 'manager' || official.user.role === 'company_admin');
+                          })
+                          .map((official: any) => (
+                            <SelectItem key={official.id} value={official.id.toString()}>
+                              {official.name || 'Nome não disponível'} ({official.email || 'Email não disponível'})
+                            </SelectItem>
+                          )) : null}
                       </SelectContent>
                     </Select>
                   </div>

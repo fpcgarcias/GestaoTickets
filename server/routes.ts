@@ -753,8 +753,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
       
-      // Obter estatísticas de tickets filtradas pelo papel do usuário
-      const stats = await storage.getTicketStatsByUserRole(userId, userRole);
+      // Obter filtro de atendente se fornecido
+      const officialId = req.query.official_id ? parseInt(req.query.official_id as string) : undefined;
+      
+      // Obter estatísticas de tickets filtradas pelo papel do usuário e atendente
+      const stats = await storage.getTicketStatsByUserRole(userId, userRole, officialId);
       res.json(stats);
     } catch (error) {
       console.error('Erro ao buscar estatísticas de tickets:', error);
@@ -773,9 +776,10 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       }
       
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+      const officialId = req.query.official_id ? parseInt(req.query.official_id as string) : undefined;
       
-      // Obter tickets recentes filtrados pelo papel do usuário
-      const tickets = await storage.getRecentTicketsByUserRole(userId, userRole, limit);
+      // Obter tickets recentes filtrados pelo papel do usuário e atendente
+      const tickets = await storage.getRecentTicketsByUserRole(userId, userRole, limit, officialId);
       res.json(tickets);
     } catch (error) {
       console.error('Erro ao buscar tickets recentes:', error);
@@ -793,8 +797,10 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
       
-      // Obter tempo médio de primeira resposta filtrado pelo papel do usuário
-      const averageTime = await storage.getAverageFirstResponseTimeByUserRole(userId, userRole);
+      const officialId = req.query.official_id ? parseInt(req.query.official_id as string) : undefined;
+      
+      // Obter tempo médio de primeira resposta filtrado pelo papel do usuário e atendente
+      const averageTime = await storage.getAverageFirstResponseTimeByUserRole(userId, userRole, officialId);
       res.json({ averageTime });
     } catch (error) {
       console.error('Erro ao buscar tempo médio de primeira resposta:', error);
@@ -812,8 +818,10 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
       
-      // Obter tempo médio de resolução filtrado pelo papel do usuário
-      const averageTime = await storage.getAverageResolutionTimeByUserRole(userId, userRole);
+      const officialId = req.query.official_id ? parseInt(req.query.official_id as string) : undefined;
+      
+      // Obter tempo médio de resolução filtrado pelo papel do usuário e atendente
+      const averageTime = await storage.getAverageResolutionTimeByUserRole(userId, userRole, officialId);
       res.json({ averageTime });
     } catch (error) {
       console.error('Erro ao buscar tempo médio de resolução:', error);
@@ -1527,26 +1535,45 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Official endpoints
   router.get("/officials", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
-      console.log('======== REQUISIÇÃO PARA /api/officials ========');
-      console.log('Sessão do usuário:', req.session);
-      console.log('User ID na sessão:', req.session?.userId);
-      console.log('User Role na sessão:', req.session?.userRole);
-      
       const userRole = req.session?.userRole as string;
+      const userId = req.session?.userId;
       const companyId = req.session?.companyId;
       
-      console.log('Buscando lista de atendentes...');
       const allOfficials = await storage.getOfficials();
-      console.log(`Encontrados ${allOfficials.length} atendentes no storage`);
       
-      // Filtrar por empresa se não for admin
-      const officials = userRole === 'admin' 
-        ? allOfficials 
-        : allOfficials.filter(official => official.company_id === companyId);
+      let officials = allOfficials;
       
-      console.log(`Após filtro de empresa: ${officials.length} atendentes`);
-      console.log('[DEBUG /api/officials] Dados filtrados:', JSON.stringify(officials, null, 2)); 
-      console.log('========= FIM DA REQUISIÇÃO /api/officials =========');
+      // FILTRAR BASEADO NA ROLE DO USUÁRIO
+      if (userRole === 'admin') {
+        // ADMIN: VÊ TODOS OS ATENDENTES ATIVOS DE TODAS AS EMPRESAS
+        officials = allOfficials.filter(official => official.is_active);
+        
+      } else if (userRole === 'company_admin' || userRole === 'manager') {
+        // COMPANY_ADMIN e MANAGER: VÊM TODOS OS ATENDENTES ATIVOS DA SUA EMPRESA
+        officials = allOfficials.filter(official => 
+          official.is_active && official.company_id === companyId
+        );
+        
+      } else if (userRole === 'supervisor') {
+        // SUPERVISOR: VÊ ELE PRÓPRIO + SUBORDINADOS DIRETOS
+        const currentUserOfficial = allOfficials.find(official => official.user_id === userId);
+        
+        if (currentUserOfficial) {
+          officials = allOfficials.filter(official => {
+            const isHimself = official.id === currentUserOfficial.id;
+            const isSubordinate = official.supervisor_id === currentUserOfficial.id;
+            const isActive = official.is_active;
+            
+            return isActive && (isHimself || isSubordinate);
+          });
+        } else {
+          officials = [];
+        }
+        
+      } else {
+        // TODAS AS OUTRAS ROLES: NÃO VEEM O DROPDOWN
+        officials = [];
+      }
       res.json(officials);
     } catch (error) {
       console.error('Erro ao buscar atendentes:', error);
@@ -1710,7 +1737,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       // Se recebemos dados do usuário e o atendente tem um usuário associado, atualizá-lo
       if (user && official.user_id) {
-        console.log(`Atualizando dados do usuário ${official.user_id} associado ao atendente ${id}:`, user);
         
         // Preparar os dados de atualização do usuário
         const userUpdateData: any = {};

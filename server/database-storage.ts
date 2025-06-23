@@ -194,7 +194,7 @@ export class DatabaseStorage implements IStorage {
 
   // Official operations
   async getOfficials(): Promise<Official[]> {
-    // Buscar todos os oficiais com informações de usuário, supervisor, manager e empresa
+    // Buscar todos os oficiais com informações de usuário e empresa
     const allOfficials = await db
       .select({
         official: officials,
@@ -203,31 +203,17 @@ export class DatabaseStorage implements IStorage {
           id: companies.id,
           name: companies.name,
         },
-        supervisor: {
-          id: sql<number>`supervisor.id`,
-          name: sql<string>`supervisor.name`,
-          email: sql<string>`supervisor.email`,
-        },
-        manager: {
-          id: sql<number>`manager.id`, 
-          name: sql<string>`manager.name`,
-          email: sql<string>`manager.email`,
-        },
       })
       .from(officials)
       .leftJoin(users, eq(officials.user_id, users.id))
-      .leftJoin(companies, eq(officials.company_id, companies.id))
-      .leftJoin(sql`officials supervisor`, eq(officials.supervisor_id, sql`supervisor.id`))
-      .leftJoin(sql`officials manager`, eq(officials.manager_id, sql`manager.id`));
+      .leftJoin(companies, eq(officials.company_id, companies.id));
     
     // Transformar o resultado em um formato mais amigável
-    const mappedOfficials = allOfficials.map(({ official, user, company, supervisor, manager }) => {
+    const mappedOfficials = allOfficials.map(({ official, user, company }) => {
       return {
         ...official,
         user: user || undefined,
         company: company && company.id ? company : null,
-        supervisor: supervisor.id ? supervisor : undefined,
-        manager: manager.id ? manager : undefined,
       };
     });
     
@@ -244,7 +230,7 @@ export class DatabaseStorage implements IStorage {
           .where(eq(tickets.assigned_to_id, official.id));
         
         const ticketCountNumber = parseInt(String(ticketCount?.count || 0), 10);
-        console.log(`[DEBUG] Oficial ${official.name} (ID: ${official.id}) - Contagem de tickets:`, ticketCountNumber);
+  
         
         // Anexar o array de objetos OfficialDepartment e a contagem de tickets
         return { 
@@ -400,7 +386,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      console.log(`[DEBUG] Filtrando departamentos para empresa ID: ${companyIdToFilter}`);
+
       
       // Buscar departamentos da tabela departments real, filtrados por empresa
       const departmentsList = await db
@@ -412,7 +398,7 @@ export class DatabaseStorage implements IStorage {
             : undefined // Admin vê todos
         );
       
-      console.log(`[DEBUG] Departamentos encontrados: ${JSON.stringify(departmentsList.map(d => ({id: d.id, name: d.name, company_id: d.company_id})))}`);
+
       
       if (departmentsList.length > 0) {
         // Criar um mapa simples de departamentos (nome exato -> id)
@@ -424,7 +410,7 @@ export class DatabaseStorage implements IStorage {
           return acc;
         }, {} as Record<string, number>);
         
-        console.log('[DEBUG] Mapa de departamentos criado:', departmentIdMap);
+
       } else {
         console.warn('Nenhum departamento encontrado na tabela departments para a empresa');
       }
@@ -825,18 +811,17 @@ export class DatabaseStorage implements IStorage {
     const ticket = result.ticket; // Separar dados do ticket
     const customerData = result.customer; // Separar dados do cliente (pode ser null)
     
-    console.log(`[DEBUG getTicket] Ticket ID: ${id}, CustomerId: ${ticket.customer_id}, Customer data:`, customerData);
-    console.log(`[DEBUG getTicket] UserRole: ${userRole}, UserCompanyId: ${userCompanyId}, TicketCompanyId: ${ticket.company_id}, CustomerCompanyId: ${customerData?.company_id}`);
+
     
     // ADMIN SEMPRE VÊ TUDO - sem exceções!
     if (userRole === 'admin') {
-      console.log(`[DEBUG getTicket] Admin detectado - acesso liberado para todos os dados`);
+
     } else if (userRole && userCompanyId) {
       // Apenas para usuários não-admin verificar restrições de empresa
       const ticketCompanyId = ticket.company_id || customerData?.company_id;
       
       if (ticketCompanyId && ticketCompanyId !== userCompanyId) {
-        console.log(`[DEBUG getTicket] Acesso negado: Ticket pertence à empresa ${ticketCompanyId}, usuário pertence à empresa ${userCompanyId}`);
+
         return undefined; // Usuário não pode ver este ticket
       }
     }
@@ -983,7 +968,7 @@ export class DatabaseStorage implements IStorage {
         company_id: ticketData.company_id ? Number(ticketData.company_id) : null, // ✅ Incluir company_id
       };
 
-      console.log("[DEBUG] Dados para inserção de ticket:", JSON.stringify(ticketInsertData));
+  
 
       // @ts-ignore - Ignorar erro de tipo temporariamente se status não bater exatamente
       const [insertedTicket] = await db.insert(tickets).values(ticketInsertData).returning();
@@ -995,12 +980,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTicket(id: number, ticketData: Partial<Ticket>, changedById?: number): Promise<Ticket | undefined> {
-    console.log(`[DEBUG] Iniciando updateTicket para ticket ID ${id}. Dados recebidos:`, JSON.stringify(ticketData));
+
     
     // Se estamos atualizando o status, primeiro adicionamos ao histórico
     if (ticketData.status) {
       const [currentTicket] = await db.select().from(tickets).where(eq(tickets.id, id));
-      console.log(`[DEBUG] Status fornecido: ${ticketData.status}. Status atual:`, currentTicket?.status);
+      
       
       if (currentTicket && currentTicket.status !== ticketData.status) {
         await this.addTicketStatusHistory(
@@ -1009,12 +994,12 @@ export class DatabaseStorage implements IStorage {
           ticketData.status,
           changedById
         );
-        console.log(`[DEBUG] Adicionado ao histórico a mudança de status de ${currentTicket.status} para ${ticketData.status} pelo usuário ${changedById}`);
+        
       }
     }
     
     if (ticketData.assigned_to_id !== undefined) {
-      console.log(`[DEBUG] Atualizando assigned_to_id do ticket ${id} para ${ticketData.assigned_to_id === null ? 'null' : ticketData.assigned_to_id}`);
+
     }
     
     try {
@@ -1027,15 +1012,15 @@ export class DatabaseStorage implements IStorage {
         .where(eq(tickets.id, id))
         .returning();
       
-      console.log(`[DEBUG] Resultado da atualização:`, JSON.stringify(ticket));
+
       
       if (!ticket) {
-        console.log(`[DEBUG] Nenhum ticket retornado após a atualização. Ticket não encontrado?`);
+
         return undefined;
       }
       
       const updatedTicket = await this.getTicketInternal(ticket.id); // Usar método interno
-      console.log(`[DEBUG] Ticket completo após atualização:`, JSON.stringify(updatedTicket));
+
       return updatedTicket;
     } catch (error) {
       console.error(`[ERROR] Erro ao atualizar ticket ${id}:`, error);
@@ -1083,18 +1068,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTicketReply(replyData: InsertTicketReply): Promise<TicketReply> {
-    console.log("[DEBUG createTicketReply] Dados recebidos:", JSON.stringify(replyData, null, 2));
+
     
     // 🎯 SEPARAR campos da REPLY dos campos do TICKET
     const { status, assigned_to_id, type, ...replyOnlyData } = replyData;
     
-    console.log("[DEBUG createTicketReply] Dados APENAS da reply:", JSON.stringify(replyOnlyData, null, 2));
-    console.log("[DEBUG createTicketReply] Dados do ticket:", { status, assigned_to_id, type });
+
     
     // ✅ INSERIR APENAS OS CAMPOS QUE PERTENCEM À TABELA ticket_replies
     const [reply] = await db.insert(ticketReplies).values(replyOnlyData).returning();
     
-    console.log("[DEBUG createTicketReply] Reply salva no banco:", JSON.stringify(reply, null, 2));
+
     
     // Atualizações do ticket a serem feitas
     const ticketUpdates: Partial<Ticket> = {};
@@ -1205,10 +1189,15 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Obter estatísticas dos tickets filtrados pelo papel do usuário
-  async getTicketStatsByUserRole(userId: number, userRole: string): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+  async getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
     try {
       // Obter tickets filtrados pelo papel do usuário
-      const userTickets = await this.getTicketsByUserRole(userId, userRole);
+      let userTickets = await this.getTicketsByUserRole(userId, userRole);
+      
+      // Filtrar por atendente se especificado
+      if (officialId) {
+        userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
+      }
       
       const byStatus = {
         new: 0,
@@ -1263,10 +1252,15 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Obter tickets recentes filtrados pelo papel do usuário
-  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 10): Promise<Ticket[]> {
+  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 10, officialId?: number): Promise<Ticket[]> {
     try {
       // Obter tickets filtrados pelo papel do usuário
-      const userTickets = await this.getTicketsByUserRole(userId, userRole);
+      let userTickets = await this.getTicketsByUserRole(userId, userRole);
+      
+      // Filtrar por atendente se especificado
+      if (officialId) {
+        userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
+      }
       
       // Ordenar tickets por data de criação (mais recentes primeiro) e limitar
       return userTickets
@@ -1279,10 +1273,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Obter tempo médio de primeira resposta filtrado pelo papel do usuário
-  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string): Promise<number> {
+  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number): Promise<number> {
     try {
       // Obter tickets filtrados pelo papel do usuário
-      const userTickets = await this.getTicketsByUserRole(userId, userRole);
+      let userTickets = await this.getTicketsByUserRole(userId, userRole);
+      
+      // Filtrar por atendente se especificado
+      if (officialId) {
+        userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
+      }
       
       // Filtrar apenas tickets que têm primeira resposta
       const ticketsWithFirstResponse = userTickets.filter(ticket => 
@@ -1309,10 +1308,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Obter tempo médio de resolução filtrado pelo papel do usuário
-  async getAverageResolutionTimeByUserRole(userId: number, userRole: string): Promise<number> {
+  async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number): Promise<number> {
     try {
       // Obter tickets filtrados pelo papel do usuário
-      const userTickets = await this.getTicketsByUserRole(userId, userRole);
+      let userTickets = await this.getTicketsByUserRole(userId, userRole);
+      
+      // Filtrar por atendente se especificado
+      if (officialId) {
+        userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
+      }
       
       // Filtrar apenas tickets resolvidos
       const resolvedTickets = userTickets.filter(ticket => 

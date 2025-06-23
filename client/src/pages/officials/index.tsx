@@ -52,7 +52,7 @@ export default function OfficialsIndex() {
     staleTime: 0, // Forçar recarregamento
   });
   
-  console.log('[DEBUG Frontend] Officials recebidos:', officials);
+  
   
   const queryClient = useQueryClient();
   
@@ -197,16 +197,6 @@ export default function OfficialsIndex() {
                 ) : filteredOfficials && filteredOfficials.length > 0 ? (
                   filteredOfficials.map((official) => {
                     const username = getUsernameFromOfficial(official);
-                    console.log('Official data:', official);
-                    
-                    // Adicionar logs específicos para debugar a estrutura do user
-                    if (official.user) {
-                      console.log('User data encontrado:', official.user);
-                      console.log('Username do usuário:', official.user.username);
-                    } else {
-                      console.log('Oficial sem propriedade user:', official);
-                      console.log('UserId value:', official.user_id);
-                    }
                     
                     return (
                       <TableRow key={official.id}>

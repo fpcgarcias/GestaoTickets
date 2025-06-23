@@ -81,12 +81,12 @@ export interface IStorage {
     byPriority: Record<string, number>;
   }>;
   getRecentTickets(limit?: number): Promise<Ticket[]>;
-  getTicketStatsByUserRole(userId: number, userRole: string): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
-  getRecentTicketsByUserRole(userId: number, userRole: string, limit?: number): Promise<Ticket[]>;
+  getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
+  getRecentTicketsByUserRole(userId: number, userRole: string, limit?: number, officialId?: number): Promise<Ticket[]>;
   
   // Time metrics operations
-  getAverageFirstResponseTimeByUserRole(userId: number, userRole: string): Promise<number>;
-  getAverageResolutionTimeByUserRole(userId: number, userRole: string): Promise<number>;
+  getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number): Promise<number>;
+  getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number): Promise<number>;
 
   // Company operations (adicionar se não existir)
   getCompany(id: number): Promise<any | undefined>;
@@ -823,9 +823,15 @@ export class MemStorage implements IStorage {
     return [];
   }
 
-  async getTicketStatsByUserRole(userId: number, userRole: string): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+  async getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
     // Simulação: Filtrar tickets pelo usuário/papel e depois calcular estatísticas
-    const userTickets = await this.getTicketsByUserRole(userId, userRole);
+    let userTickets = await this.getTicketsByUserRole(userId, userRole);
+    
+    // Filtrar por atendente se especificado
+    if (officialId) {
+      userTickets = userTickets.filter(ticket => ticket.assignedToId === officialId);
+    }
+    
     const stats = { total: userTickets.length, byStatus: {}, byPriority: {} };
     userTickets.forEach(ticket => {
       stats.byStatus[ticket.status] = (stats.byStatus[ticket.status] || 0) + 1;
@@ -834,13 +840,25 @@ export class MemStorage implements IStorage {
     return stats;
   }
 
-  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 5): Promise<Ticket[]> {
-    const userTickets = await this.getTicketsByUserRole(userId, userRole);
+  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 5, officialId?: number): Promise<Ticket[]> {
+    let userTickets = await this.getTicketsByUserRole(userId, userRole);
+    
+    // Filtrar por atendente se especificado
+    if (officialId) {
+      userTickets = userTickets.filter(ticket => ticket.assignedToId === officialId);
+    }
+    
     return userTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
   }
 
-  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string): Promise<number> {
-    const userTickets = await this.getTicketsByUserRole(userId, userRole);
+  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number): Promise<number> {
+    let userTickets = await this.getTicketsByUserRole(userId, userRole);
+    
+    // Filtrar por atendente se especificado
+    if (officialId) {
+      userTickets = userTickets.filter(ticket => ticket.assignedToId === officialId);
+    }
+    
     const ticketsWithFirstResponse = Array.from(userTickets).filter(ticket => 
       ticket.firstResponseAt && ticket.createdAt
     );
@@ -859,8 +877,14 @@ export class MemStorage implements IStorage {
     return Math.round((totalResponseTime / ticketsWithFirstResponse.length) * 100) / 100;
   }
 
-  async getAverageResolutionTimeByUserRole(userId: number, userRole: string): Promise<number> {
-    const userTickets = await this.getTicketsByUserRole(userId, userRole);
+  async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number): Promise<number> {
+    let userTickets = await this.getTicketsByUserRole(userId, userRole);
+    
+    // Filtrar por atendente se especificado
+    if (officialId) {
+      userTickets = userTickets.filter(ticket => ticket.assignedToId === officialId);
+    }
+    
     const resolvedTickets = Array.from(userTickets).filter(ticket => 
       ticket.status === 'resolved' && ticket.resolvedAt && ticket.createdAt
     );

@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatusDot } from '@/components/tickets/status-badge';
 import { TimeMetricCard } from '@/components/ui/time-metric-card';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
-import { Clock, CheckCircle2 } from 'lucide-react';
+import { Clock, CheckCircle2, Users } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from '@/hooks/use-auth';
 import { 
   PieChart, 
   Pie, 
@@ -44,33 +46,116 @@ interface RecentTicket {
   priority: string;
 }
 
+interface Official {
+  id: number;
+  name: string;
+  email: string;
+  is_active: boolean;
+  company_id?: number;
+  supervisor_id?: number;
+  manager_id?: number;
+}
+
 export default function Dashboard() {
+  const { user } = useAuth();
+  const [selectedOfficialId, setSelectedOfficialId] = useState<string>('all');
+
+  // Verificar se deve exibir o filtro de atendentes
+  // APENAS admin, company_admin, manager e supervisor devem ver o dropdown
+  // support, customer, etc. NÃO devem ver
+  const shouldShowOfficialFilter = user?.role && ['admin', 'company_admin', 'manager', 'supervisor'].includes(user.role);
+
+  // Buscar atendentes apenas se necessário
+  const { data: officials = [], isLoading: isOfficialsLoading } = useQuery<Official[]>({
+    queryKey: ['/api/officials', user?.id, user?.role], // Incluir user.id e role na chave
+    enabled: shouldShowOfficialFilter,
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
+
+
+
+  // Filtrar atendentes baseado na role do usuário
+  const getFilteredOfficials = () => {
+    if (!officials || !user) return [];
+    
+    // A API já está filtrando corretamente por role, então apenas retornamos os dados
+    return officials.filter((official: Official) => official.is_active);
+  };
+
+  const filteredOfficials = getFilteredOfficials();
+
+  // Construir query key com filtro de atendente
+  const getQueryKey = (endpoint: string) => {
+    const baseKey = [endpoint];
+    if (selectedOfficialId !== 'all') {
+      baseKey.push(`official_${selectedOfficialId}`);
+    }
+    return baseKey;
+  };
+
+  // Construir query params para as APIs
+  const getQueryParams = () => {
+    const params = new URLSearchParams();
+    if (selectedOfficialId !== 'all') {
+      params.append('official_id', selectedOfficialId);
+    }
+    return params.toString();
+  };
+
   // Utilizamos as rotas que já filtram tickets baseados no papel do usuário
-  const { data: ticketStatsData, isLoading: isStatsLoading } = useQuery<TicketStats>({ // Tipo explícito
-    queryKey: ['/api/tickets/stats'],
+  const { data: ticketStatsData, isLoading: isStatsLoading } = useQuery<TicketStats>({
+    queryKey: getQueryKey('/api/tickets/stats'),
+    queryFn: async () => {
+      const params = getQueryParams();
+      const url = `/api/tickets/stats${params ? `?${params}` : ''}`;
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch stats');
+      return response.json();
+    },
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
 
-  const { data: recentTicketsData, isLoading: isRecentLoading } = useQuery<RecentTicket[]>({ // Tipo explícito
-    queryKey: ['/api/tickets/recent'],
+  const { data: recentTicketsData, isLoading: isRecentLoading } = useQuery<RecentTicket[]>({
+    queryKey: getQueryKey('/api/tickets/recent'),
+    queryFn: async () => {
+      const params = getQueryParams();
+      const url = `/api/tickets/recent${params ? `?${params}` : ''}`;
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch recent tickets');
+      return response.json();
+    },
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
 
   const { data: avgFirstResponseData, isLoading: isFirstResponseLoading } = useQuery<{ averageTime: number }>({
-    queryKey: ['/api/tickets/average-first-response-time'],
+    queryKey: getQueryKey('/api/tickets/average-first-response-time'),
+    queryFn: async () => {
+      const params = getQueryParams();
+      const url = `/api/tickets/average-first-response-time${params ? `?${params}` : ''}`;
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch avg first response time');
+      return response.json();
+    },
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
 
   const { data: avgResolutionData, isLoading: isResolutionLoading } = useQuery<{ averageTime: number }>({
-    queryKey: ['/api/tickets/average-resolution-time'],
+    queryKey: getQueryKey('/api/tickets/average-resolution-time'),
+    queryFn: async () => {
+      const params = getQueryParams();
+      const url = `/api/tickets/average-resolution-time${params ? `?${params}` : ''}`;
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch avg resolution time');
+      return response.json();
+    },
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
 
   // Garantir que os dados não sejam undefined antes de acessar propriedades
   const ticketStats = ticketStatsData || { 
     total: 0, 
-    byStatus: { new: 0, ongoing: 0, resolved: 0 }, // Garantir que as chaves existam
-    byPriority: { low: 0, medium: 0, high: 0, critical: 0 } // Garantir que as chaves existam
+    byStatus: { new: 0, ongoing: 0, resolved: 0 }, 
+    byPriority: { low: 0, medium: 0, high: 0, critical: 0 } 
   };
   const recentTickets = Array.isArray(recentTicketsData) ? recentTicketsData : [];
 
@@ -93,7 +178,29 @@ export default function Dashboard() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-neutral-900 mb-6">Painel de Controle</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-semibold text-neutral-900">Painel de Controle</h1>
+        
+        {/* Filtro de Atendente */}
+        {shouldShowOfficialFilter && (
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-neutral-500" />
+            <Select value={selectedOfficialId} onValueChange={setSelectedOfficialId}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Selecione um atendente" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Atendentes</SelectItem>
+                {filteredOfficials.map((official: Official) => (
+                  <SelectItem key={official.id} value={official.id.toString()}>
+                    {official.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <StatCard 

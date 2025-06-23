@@ -479,7 +479,13 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                   <SelectContent>
                     <SelectItem value="none">Nenhum supervisor</SelectItem>
                     {Array.isArray(existingOfficials) ? existingOfficials
-                      .filter((off: any) => off && off.id !== official?.id) // Não incluir o próprio atendente
+                      .filter((off: any) => {
+                        // Filtrar apenas supervisores, excluindo o próprio atendente
+                        return off && 
+                               off.id !== official?.id && 
+                               off.user && 
+                               off.user.role === 'supervisor';
+                      })
                       .map((off: any) => (
                         <SelectItem key={off.id} value={off.id.toString()}>
                           {off.name || 'Nome não disponível'} ({off.email || 'Email não disponível'})
@@ -505,7 +511,13 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                   <SelectContent>
                     <SelectItem value="none">Nenhum manager</SelectItem>
                     {Array.isArray(existingOfficials) ? existingOfficials
-                      .filter((off: any) => off && off.id !== official?.id) // Não incluir o próprio atendente
+                      .filter((off: any) => {
+                        // Filtrar apenas managers e company_admins, excluindo o próprio atendente
+                        return off && 
+                               off.id !== official?.id && 
+                               off.user && 
+                               (off.user.role === 'manager' || off.user.role === 'company_admin');
+                      })
                       .map((off: any) => (
                         <SelectItem key={off.id} value={off.id.toString()}>
                           {off.name || 'Nome não disponível'} ({off.email || 'Email não disponível'})
