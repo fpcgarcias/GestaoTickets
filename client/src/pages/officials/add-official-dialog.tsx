@@ -6,10 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle, X, ChevronsUpDown, Copy } from "lucide-react";
+import { CheckCircle, X, ChevronsUpDown, Copy, AlertTriangle, UserPlus, Link } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
@@ -21,9 +22,11 @@ interface AddOfficialDialogProps {
   onCreated?: (official: any) => void;
 }
 
-interface Company {
+interface ExistingUser {
   id: number;
   name: string;
+  email: string;
+  username: string;
 }
 
 export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficialDialogProps) {
@@ -34,27 +37,36 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    username: '',
+    username: '', // Manter por compatibilidade, mas não usar
     departments: [] as string[],
     userId: null as number | null,
     isActive: true,
     avatarUrl: null as string | null,
     supervisor_id: null as number | null,
     manager_id: null as number | null,
-    company_id: user?.company?.id || null as number | null,
+    company_id: null as number | null,
   });
 
   const [submitting, setSubmitting] = useState(false);
   const [userCreated, setUserCreated] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState('');
-  const [popoverOpen, setPopoverOpen] = useState(false);
-  
-  // Buscar lista de empresas (apenas para admin)
-  const { data: companies, isLoading: isLoadingCompanies } = useQuery<Company[]>({
+  const [showLinkOption, setShowLinkOption] = useState(false);
+  const [existingUser, setExistingUser] = useState<ExistingUser | null>(null);
+  const [linkingUser, setLinkingUser] = useState(false);
+
+  // Carregar empresas (apenas para admin)
+  const { data: companiesData } = useQuery({
     queryKey: ['/api/companies'],
-    enabled: user?.role === 'admin', // Apenas buscar empresas se o usuário for admin
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/companies');
+      if (!response.ok) {
+        throw new Error('Erro ao carregar empresas');
+      }
+      return response.json();
+    },
+    enabled: user?.role === 'admin',
   });
-  
+
   // Carregar departamentos disponíveis do banco de dados
   const { data: departmentsData } = useQuery({
     queryKey: ["/api/departments", formData.company_id],
@@ -125,61 +137,79 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     }));
   };
 
-  const createOfficialMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest('POST', '/api/officials', data);
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Erro ao criar atendente');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
-      setSubmitting(false);
-      setUserCreated(true);
-      toast({
-        title: "Atendente adicionado",
-        description: "O atendente foi adicionado com sucesso.",
-      });
-    },
-    onError: (error) => {
-      setSubmitting(false);
-      toast({
-        title: "Erro ao adicionar atendente",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  });
-
   const createSupportUserMutation = useMutation({
     mutationFn: async (userData: any) => {
       console.log('Enviando dados para criar usuário de suporte:', JSON.stringify(userData, null, 2));
-      const res = await apiRequest('POST', '/api/support-users', userData);
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || errorData.error || 'Erro ao criar usuário e atendente');
+      
+      // Fazer a requisição manualmente para ter controle total da resposta
+      const fullUrl = `/api/support-users`.startsWith('http') ? `/api/support-users` : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5173'}/api/support-users`;
+      
+      const response = await fetch(fullUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(userData)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.log('Resposta de erro completa do servidor:', JSON.stringify(errorData, null, 2));
+        console.log('Status da resposta:', response.status);
+        
+        // Criar erro personalizado que preserva as propriedades extras
+        const error = new Error(errorData.message || errorData.error || 'Erro ao criar usuário e atendente') as any;
+        error.suggestion = errorData.suggestion;
+        error.existingUser = errorData.existingUser;
+        error.status = response.status;
+        throw error;
       }
-      return res.json();
+      
+      return response.json();
     },
     onSuccess: (data) => {
       setSubmitting(false);
       
-      // Mostrar mensagem de sucesso e senha gerada
-      toast({
-        title: "Atendente criado com sucesso",
-        description: `Senha para primeiro acesso: ${generatedPassword}`,
-        variant: "default",
-        duration: 10000, // 10 segundos para copiar a senha
-      });
+      if (linkingUser) {
+        // Mensagem diferente para vinculação
+        toast({
+          title: "Usuário vinculado como atendente",
+          description: "O usuário foi vinculado como atendente com sucesso.",
+          variant: "default",
+        });
+      } else {
+        // Mostrar mensagem de sucesso e senha gerada para novos usuários
+        toast({
+          title: "Atendente criado com sucesso",
+          description: `Senha para primeiro acesso: ${generatedPassword}`,
+          variant: "default",
+          duration: 10000, // 10 segundos para copiar a senha
+        });
+      }
       
       // Fechar o diálogo e resetar o formulário
       handleCloseDialog();
       onCreated && onCreated(data.official);
     },
-    onError: (error) => {
+    onError: (error: any) => {
       setSubmitting(false);
+      
+      console.log('Erro capturado:', error);
+      console.log('Error message:', error.message);
+      console.log('Error suggestion:', error.suggestion);
+      console.log('Error existingUser:', error.existingUser);
+      console.log('Error status:', error.status);
+      
+      // Verificar se é um erro de usuário existente
+      if ((error.message === "Usuário já existe" && error.suggestion === "link_existing") || 
+          (error.status === 409 && error.existingUser)) {
+        console.log('Detectado usuário existente, mostrando opção de vinculação');
+        setExistingUser(error.existingUser);
+        setShowLinkOption(true);
+        return;
+      }
+      
       toast({
         title: "Erro ao criar atendente",
         description: error.message,
@@ -223,9 +253,10 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     
     setSubmitting(true);
     
-    // Generate a random password for the user
-    const password = generateSecurePassword();
-    setGeneratedPassword(password);
+    const password = linkingUser ? undefined : generateSecurePassword();
+    if (password) {
+      setGeneratedPassword(password);
+    }
     
     // Criar o usuário e atendente em uma única operação
     // IMPORTANTE: usar email como username para manter consistência
@@ -241,7 +272,35 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       supervisor_id: formData.supervisor_id,
       manager_id: formData.manager_id,
       company_id: formData.company_id,
+      linkExistingUser: linkingUser,
     });
+  };
+
+  const handleLinkExistingUser = () => {
+    if (existingUser) {
+      // Preencher o formulário com dados do usuário existente
+      setFormData(prev => ({
+        ...prev,
+        name: existingUser.name,
+        email: existingUser.email,
+        username: existingUser.username,
+      }));
+      setLinkingUser(true);
+      setShowLinkOption(false);
+    }
+  };
+
+  const handleCreateNewUser = () => {
+    // Limpar o formulário e continuar com a criação normal
+    setShowLinkOption(false);
+    setExistingUser(null);
+    setLinkingUser(false);
+    setFormData(prev => ({
+      ...prev,
+      email: '',
+      name: '',
+      username: '',
+    }));
   };
 
   const handleCloseDialog = () => {
@@ -260,6 +319,9 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     });
     setUserCreated(false);
     setGeneratedPassword('');
+    setShowLinkOption(false);
+    setExistingUser(null);
+    setLinkingUser(false);
     onOpenChange(false);
   };
 
@@ -269,11 +331,67 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
         {!userCreated ? (
           <>
             <DialogHeader>
-              <DialogTitle>Adicionar Atendente</DialogTitle>
+              <DialogTitle>
+                {linkingUser ? "Vincular Usuário como Atendente" : "Adicionar Atendente"}
+              </DialogTitle>
               <DialogDescription>
-                Adicione um novo membro à sua equipe de suporte.
+                {linkingUser 
+                  ? "Vinculando usuário existente como atendente da equipe de suporte."
+                  : "Adicione um novo membro à sua equipe de suporte."
+                }
               </DialogDescription>
             </DialogHeader>
+
+            {/* Alerta de usuário existente */}
+            {showLinkOption && existingUser && (
+              <Alert className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="space-y-3">
+                    <p>Já existe um usuário com este email:</p>
+                    <div className="bg-gray-50 p-3 rounded-md">
+                      <p><strong>Nome:</strong> {existingUser.name}</p>
+                      <p><strong>Email:</strong> {existingUser.email}</p>
+                      <p><strong>Username:</strong> {existingUser.username}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={handleLinkExistingUser}
+                        className="flex items-center gap-1"
+                      >
+                        <Link className="h-3 w-3" />
+                        Vincular como Atendente
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={handleCreateNewUser}
+                      >
+                        Usar Email Diferente
+                      </Button>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Alerta de vinculação ativa */}
+            {linkingUser && existingUser && (
+              <Alert className="mb-4 border-green-200 bg-green-50">
+                <UserPlus className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800">
+                  <div className="space-y-2">
+                    <p>Vinculando usuário existente como atendente:</p>
+                    <div className="bg-white p-2 rounded border">
+                      <p><strong>{existingUser.name}</strong> ({existingUser.email})</p>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -286,6 +404,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="col-span-3"
                     required
+                    disabled={linkingUser}
                   />
                 </div>
                 
@@ -301,26 +420,26 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                     className="col-span-3"
                     placeholder="email@empresa.com"
                     required
+                    disabled={linkingUser}
                   />
                 </div>
                 
                 {/* Campo de seleção de empresa - apenas para admin */}
                 {user?.role === 'admin' && (
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="company_id" className="text-right">
-                      Empresa *
+                    <Label htmlFor="company" className="text-right">
+                      Empresa
                     </Label>
                     <div className="col-span-3">
                       <Select 
                         value={formData.company_id?.toString() || ""} 
                         onValueChange={(value) => setFormData({ ...formData, company_id: value ? parseInt(value) : null })}
-                        disabled={isLoadingCompanies}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder={isLoadingCompanies ? "Carregando..." : "Selecione a empresa"} />
+                          <SelectValue placeholder="Selecionar empresa" />
                         </SelectTrigger>
                         <SelectContent>
-                          {companies?.map(company => (
+                          {companiesData?.map((company: any) => (
                             <SelectItem key={company.id} value={company.id.toString()}>
                               {company.name}
                             </SelectItem>
@@ -331,102 +450,61 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                   </div>
                 )}
                 
-                {/* Campo de empresa para não-admin (apenas visualização) */}
-                {user?.role !== 'admin' && user?.company && (
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="company_readonly" className="text-right">
-                      Empresa
-                    </Label>
-                    <Input
-                      id="company_readonly"
-                      value={user.company.name}
-                      disabled
-                      className="col-span-3 bg-gray-100"
-                    />
-                  </div>
-                )}
-                
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">
                     Departamentos
                   </Label>
-                  <div className="col-span-3 space-y-2">
-                    <div className="flex flex-wrap gap-1 mb-1">
-                      {Array.isArray(formData.departments) ? formData.departments.map((dept: string) => {
-                        const departmentInfo = Array.isArray(availableDepartments)
-                          ? availableDepartments.find((d: { value: string; label: string; id: number }) => d.value === dept)
-                          : null;
-                        return (
-                          <Badge key={dept} variant="secondary" className="gap-1">
-                            {departmentInfo?.label || dept}
-                            <button
-                              type="button"
-                              className="rounded-full outline-none hover:bg-neutral-200 flex items-center justify-center"
-                              onClick={() => removeDepartment(dept)}
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </Badge>
-                        );
-                      }) : null}
-                      {(!Array.isArray(formData.departments) || formData.departments.length === 0) && (
-                        <span className="text-sm text-neutral-500">Nenhum departamento selecionado</span>
-                      )}
-                    </div>
-                    
-                    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+                  <div className="col-span-3">
+                    <Popover>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           role="combobox"
-                          aria-expanded={popoverOpen}
                           className="w-full justify-between"
                         >
-                          <span>Selecionar departamentos</span>
+                          {formData.departments.length > 0
+                            ? `${formData.departments.length} selecionado(s)`
+                            : "Selecionar departamentos"}
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-full p-0">
                         <Command>
-                          <CommandInput placeholder="Buscar departamento..." className="h-9" />
+                          <CommandInput placeholder="Buscar departamento..." />
                           <CommandEmpty>Nenhum departamento encontrado.</CommandEmpty>
                           <CommandGroup>
-                            {Array.isArray(availableDepartments) ? availableDepartments.map((dept: { value: string; label: string; id: number }) => (
+                            {availableDepartments.map((department: {value: string, label: string, id: number}) => (
                               <CommandItem
-                                key={dept.value}
-                                value={dept.value}
-                                onSelect={() => {
-                                  // Selecionar departamento quando item for clicado
-                                  toggleDepartment(dept.value);
-                                }}
+                                key={department.value}
+                                value={department.value}
+                                onSelect={() => toggleDepartment(department.value)}
                               >
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleDepartment(dept.value);
-                                    }}
-                                  >
-                                    <Checkbox 
-                                      checked={formData.departments.includes(dept.value)}
-                                      className="mr-2"
-                                    />
-                                  </div>
-                                  <span 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleDepartment(dept.value);
-                                    }}
-                                  >
-                                    {dept.label}
-                                  </span>
-                                </div>
+                                <Checkbox
+                                  checked={formData.departments.includes(department.value)}
+                                  className="mr-2"
+                                />
+                                {department.label}
                               </CommandItem>
-                            )) : null}
+                            ))}
                           </CommandGroup>
                         </Command>
                       </PopoverContent>
                     </Popover>
+                    
+                                         {/* Mostrar departamentos selecionados */}
+                     {formData.departments.length > 0 && (
+                       <div className="flex flex-wrap gap-1 mt-2">
+                         {formData.departments.map((department: string) => (
+                           <Badge key={department} variant="secondary" className="flex items-center gap-1">
+                             {department}
+                             <X 
+                               className="h-3 w-3 cursor-pointer" 
+                               onClick={() => removeDepartment(department)}
+                             />
+                           </Badge>
+                         ))}
+                       </div>
+                     )}
                   </div>
                 </div>
                 
@@ -445,15 +523,15 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                       <SelectContent>
                         <SelectItem value="none">Nenhum supervisor</SelectItem>
                         {Array.isArray(existingOfficials) ? existingOfficials
-                          .filter((official: any) => {
+                          .filter((off: any) => {
                             // Filtrar apenas supervisores
-                            return official && 
-                                   official.user && 
-                                   official.user.role === 'supervisor';
+                            return off && 
+                                   off.user && 
+                                   off.user.role === 'supervisor';
                           })
-                          .map((official: any) => (
-                            <SelectItem key={official.id} value={official.id.toString()}>
-                              {official.name || 'Nome não disponível'} ({official.email || 'Email não disponível'})
+                          .map((off: any) => (
+                            <SelectItem key={off.id} value={off.id.toString()}>
+                              {off.name || 'Nome não disponível'} ({off.email || 'Email não disponível'})
                             </SelectItem>
                           )) : null}
                       </SelectContent>
@@ -476,15 +554,15 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                       <SelectContent>
                         <SelectItem value="none">Nenhum manager</SelectItem>
                         {Array.isArray(existingOfficials) ? existingOfficials
-                          .filter((official: any) => {
+                          .filter((off: any) => {
                             // Filtrar apenas managers e company_admins
-                            return official && 
-                                   official.user && 
-                                   (official.user.role === 'manager' || official.user.role === 'company_admin');
+                            return off && 
+                                   off.user && 
+                                   (off.user.role === 'manager' || off.user.role === 'company_admin');
                           })
-                          .map((official: any) => (
-                            <SelectItem key={official.id} value={official.id.toString()}>
-                              {official.name || 'Nome não disponível'} ({official.email || 'Email não disponível'})
+                          .map((off: any) => (
+                            <SelectItem key={off.id} value={off.id.toString()}>
+                              {off.name || 'Nome não disponível'} ({off.email || 'Email não disponível'})
                             </SelectItem>
                           )) : null}
                       </SelectContent>
@@ -498,7 +576,10 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? "Adicionando..." : "Adicionar Atendente"}
+                  {submitting ? 
+                    (linkingUser ? "Vinculando..." : "Adicionando...") : 
+                    (linkingUser ? "Vincular Atendente" : "Adicionar Atendente")
+                  }
                 </Button>
               </DialogFooter>
             </form>
@@ -508,45 +589,32 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
             <DialogHeader>
               <DialogTitle className="flex items-center">
                 <CheckCircle className="mr-2 h-6 w-6 text-green-600" />
-                Atendente Adicionado
+                {linkingUser ? "Usuário Vinculado" : "Atendente Adicionado"}
               </DialogTitle>
               <DialogDescription>
-                O atendente foi adicionado com sucesso.
+                {linkingUser 
+                  ? "O usuário foi vinculado como atendente com sucesso."
+                  : "O atendente foi adicionado com sucesso."
+                }
               </DialogDescription>
             </DialogHeader>
             
-            <div className="py-6">
-              <div className="mb-4">
-                <p className="font-medium mb-1">Dados de Acesso:</p>
-                <p><strong>Nome de Usuário (Login):</strong> {formData.email}</p>
-                <p><strong>Email:</strong> {formData.email}</p>
-                <p className="flex items-center gap-2">
-                  <strong>Senha Temporária:</strong> {generatedPassword}
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => {
-                      navigator.clipboard.writeText(generatedPassword);
-                      toast({
-                        title: "Senha copiada",
-                        description: "A senha foi copiada para a área de transferência.",
-                        duration: 3000,
-                      });
-                    }}
-                    className="h-6 w-6"
-                    type="button"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </p>
+            {!linkingUser && (
+              <div className="py-6">
+                <div className="mb-4">
+                  <p className="font-medium mb-1">Dados de Acesso:</p>
+                  <p><strong>Nome de Usuário (Login):</strong> {formData.email}</p>
+                  <p><strong>Email:</strong> {formData.email}</p>
+                  <p><strong>Senha Temporária:</strong> {generatedPassword}</p>
+                </div>
+                
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded-md">
+                  <p className="text-amber-800 text-sm">
+                    Anote a senha temporária! Ela não poderá ser recuperada depois que esta janela for fechada.
+                  </p>
+                </div>
               </div>
-              
-              <div className="bg-amber-50 border border-amber-200 p-3 rounded-md">
-                <p className="text-amber-800 text-sm">
-                  Anote a senha temporária! Ela não poderá ser recuperada depois que esta janela for fechada.
-                </p>
-              </div>
-            </div>
+            )}
             
             <DialogFooter>
               <Button onClick={handleCloseDialog}>Fechar</Button>

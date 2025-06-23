@@ -226,3 +226,20 @@ export function isPasswordValid(password: string): boolean {
   const criteria = validatePasswordCriteria(password);
   return Object.values(criteria).every(criterion => criterion);
 }
+
+// Função para traduzir roles de usuários para labels mais amigáveis
+export const translateUserRole = (role: string): string => {
+  const roleMap: Record<string, string> = {
+    'admin': '👑 Admin',
+    'support': '🎧 Suporte',
+    'customer': '👤 Cliente',
+    'integration_bot': '🤖 Robô IA',
+    'quality': '📝 Qualidade',
+    'triage': '🔍 Triagem',
+    'company_admin': '🏢 Administrador',
+    'viewer': '👁️ Visualizador',
+    'supervisor': '👨‍💼 Supervisor',
+    'manager': '📊 Gestor'
+  };
+  return roleMap[role] || role;
+};

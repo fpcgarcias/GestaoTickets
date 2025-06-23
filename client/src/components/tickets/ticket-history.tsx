@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatDate, translateTicketStatus } from '@/lib/utils';
+import { formatDate, translateTicketStatus, translateUserRole } from '@/lib/utils';
 
 // Função para traduzir prioridades
 const translatePriority = (priority: string): string => {
@@ -105,12 +105,9 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                 💼 Comentário Interno
               </Badge>
             )}
-            {reply.user?.role && (
+            {reply.user?.role && ['integration_bot', 'quality', 'triage', 'admin'].includes(reply.user.role) && (
               <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                {reply.user.role === 'support' ? '🎧 Suporte' : 
-                 reply.user.role === 'admin' ? '👑 Admin' :
-                 reply.user.role === 'customer' ? '👤 Cliente' : 
-                 reply.user.role === 'manager' ? '📊 Gestor' : reply.user.role}
+                {translateUserRole(reply.user.role)}
               </Badge>
             )}
           </div>
@@ -169,13 +166,9 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                 {getPriorityIcon(newPriority, 'new')} {translatePriority(newPriority)}
               </Badge>
               
-              {statusChange.user?.role && (
+              {statusChange.user?.role && ['integration_bot', 'quality', 'triage', 'admin'].includes(statusChange.user.role) && (
                 <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 ml-2">
-                  {statusChange.user.role === 'support' ? '🎧 Suporte' : 
-                   statusChange.user.role === 'admin' ? '👑 Admin' :
-                   statusChange.user.role === 'customer' ? '👤 Cliente' : 
-                   statusChange.user.role === 'manager' ? '📊 Gestor' : 
-                   statusChange.user.role === 'integration_bot' ? '🤖 Robo IA' : statusChange.user.role}
+                  {translateUserRole(statusChange.user.role)}
                 </Badge>
               )}
             </div>
@@ -225,13 +218,9 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                 ✅ {translateTicketStatus(statusChange.new_status || 'não definido')}
               </Badge>
               
-              {statusChange.user?.role && (
+              {statusChange.user?.role && ['integration_bot', 'quality', 'triage', 'admin'].includes(statusChange.user.role) && (
                 <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 ml-2">
-                  {statusChange.user.role === 'support' ? '🎧 Suporte' : 
-                   statusChange.user.role === 'admin' ? '👑 Admin' :
-                   statusChange.user.role === 'customer' ? '👤 Cliente' : 
-                   statusChange.user.role === 'manager' ? '📊 Gestor' : 
-                   statusChange.user.role === 'integration_bot' ? '🤖 Robo IA' : statusChange.user.role}
+                  {translateUserRole(statusChange.user.role)}
                 </Badge>
               )}
             </div>

@@ -1,5 +1,6 @@
 /**
  * Endpoint para criar um usuário de suporte e o respectivo atendente em uma única transação
+ * Agora suporta vincular usuários existentes como atendentes
  * Garante a atomicidade da operação - ou cria ambos os registros ou nenhum
  */
 
@@ -17,7 +18,7 @@ export async function createSupportUserEndpoint(
   hashPassword: (password: string) => Promise<string>
 ) {
   try {
-    console.log('=== Iniciando criação de usuário de suporte e atendente ===');
+    console.log('=== Iniciando criação/vinculação de usuário de suporte e atendente ===');
     console.log('Dados recebidos:', JSON.stringify(req.body, null, 2));
     
     const { 
@@ -30,8 +31,13 @@ export async function createSupportUserEndpoint(
       isActive = true,
       supervisorId = null,
       managerId = null,
-      company_id = null // Novo campo para empresa
+      company_id = null,
+      linkExistingUser // Novo campo para indicar se deve vincular usuário existente
     } = req.body;
+    
+    // Garantir que linkExistingUser seja boolean
+    const shouldLinkUser = Boolean(linkExistingUser);
+    console.log('linkExistingUser recebido:', linkExistingUser, 'convertido para:', shouldLinkUser);
     
     // Verificar campos obrigatórios
     if (!username) {
@@ -39,9 +45,6 @@ export async function createSupportUserEndpoint(
     }
     if (!email) {
       return res.status(400).json({ message: "Email é obrigatório" });
-    }
-    if (!password) {
-      return res.status(400).json({ message: "Senha é obrigatória" });
     }
     if (!name) {
       return res.status(400).json({ message: "Nome é obrigatório" });
@@ -63,50 +66,112 @@ export async function createSupportUserEndpoint(
     
     console.log(`Usuário role: ${userRole}, Company ID efetivo: ${effectiveCompanyId}`);
     
-    // Verificar se o usuário já existe
-    const existingUser = await storage.getUserByUsername(username);
-    if (existingUser) {
-      console.log(`Erro: Nome de usuário '${username}' já existe`);
-      return res.status(400).json({ message: "Nome de usuário já existe" });
-    }
-    
-    const existingEmail = await storage.getUserByEmail(email);
-    if (existingEmail) {
-      console.log(`Erro: Email '${email}' já está em uso`);
-      return res.status(400).json({ message: "Email já está em uso" });
-    }
-    
     // Verificar se já existe um atendente com esse email
     const existingOfficial = await storage.getOfficialByEmail(email);
     if (existingOfficial) {
       console.log(`Erro: Já existe um atendente com o email '${email}'`);
       return res.status(400).json({ message: "Já existe um atendente com este email" });
     }
+
+    // Verificar se o usuário já existe
+    const existingUser = await storage.getUserByEmail(email);
+    
+    if (existingUser && !shouldLinkUser) {
+      // Se o usuário existe mas não foi solicitado para vincular, retornar erro com opção
+      console.log(`Usuário com email '${email}' já existe. Sugerindo vinculação.`);
+      console.log('shouldLinkUser:', shouldLinkUser);
+      console.log('existingUser data:', JSON.stringify(existingUser, null, 2));
+      
+      const responseData = { 
+        message: "Usuário já existe",
+        suggestion: "link_existing",
+        existingUser: {
+          id: existingUser.id,
+          name: existingUser.name,
+          email: existingUser.email,
+          username: existingUser.username
+        }
+      };
+      
+      console.log('Resposta 409 sendo enviada:', JSON.stringify(responseData, null, 2));
+      return res.status(409).json(responseData);
+    }
+    
+    if (existingUser && shouldLinkUser) {
+      // Verificar se o usuário existente pode ser vinculado como atendente
+      const allowedRoles = ['support', 'admin', 'company_admin', 'manager', 'supervisor'];
+      if (!allowedRoles.includes(existingUser.role)) {
+        // Permitir vincular usuários com roles administrativos/de suporte
+        return res.status(400).json({ 
+          message: `Este usuário não pode ser vinculado como atendente. Apenas usuários com role ${allowedRoles.join(', ')} podem ser atendentes.` 
+        });
+      }
+      
+      console.log(`Vinculando usuário existente (ID: ${existingUser.id}, role: ${existingUser.role}) como atendente`);
+    } else if (!existingUser && shouldLinkUser) {
+      // Se solicitou vincular mas o usuário não existe, retornar erro
+      return res.status(404).json({ message: "Usuário não encontrado para vinculação" });
+    }
+
+    // Verificar se deve criar novo usuário
+    if (!existingUser && !shouldLinkUser) {
+      // Verificar se usuário com username já existe
+      const existingUsername = await storage.getUserByUsername(username);
+      if (existingUsername) {
+        console.log(`Erro: Nome de usuário '${username}' já existe`);
+        return res.status(400).json({ message: "Nome de usuário já existe" });
+      }
+      
+      // Verificar password para novos usuários
+      if (!password) {
+        return res.status(400).json({ message: "Senha é obrigatória para novos usuários" });
+      }
+    }
     
     // Usar uma transação para garantir atomicidade
     const result = await withTransaction(async () => {
-      console.log('Iniciando transação para criar usuário e atendente');
+      console.log('Iniciando transação para criar/vincular usuário e atendente');
       
-      // Criptografar senha
-      const hashedPassword = await hashPassword(password);
+      let user;
       
-      // 1. Criar o usuário
-      console.log('Criando usuário com papel "support"');
-      const userData: InsertUser = {
-        username,
-        email,
-        password: hashedPassword,
-        name,
-        role: 'support',
-        avatar_url: avatarUrl,
-        active: true,
-        company_id: effectiveCompanyId,
-      };
-      
-      const user = await storage.createUser(userData);
-      console.log(`Usuário criado com ID: ${user.id}, Company ID: ${effectiveCompanyId}`);
+      if (!existingUser) {
+        // Criptografar senha apenas para novos usuários
+        const hashedPassword = await hashPassword(password);
+        
+        // 1. Criar o usuário
+        console.log('Criando usuário com papel "support"');
+        const userData: InsertUser = {
+          username,
+          email,
+          password: hashedPassword,
+          name,
+          role: 'support',
+          avatar_url: avatarUrl,
+          active: true,
+          company_id: effectiveCompanyId,
+        };
+        
+        user = await storage.createUser(userData);
+        console.log(`Usuário criado com ID: ${user.id}, Company ID: ${effectiveCompanyId}`);
+      } else {
+        user = existingUser;
+        console.log(`Usando usuário existente ID: ${user.id}`);
+        
+        // Atualizar company_id se necessário e se for admin
+        if (userRole === 'admin' && effectiveCompanyId !== user.company_id) {
+          console.log(`Atualizando company_id do usuário de ${user.company_id} para ${effectiveCompanyId}`);
+          const updatedUser = await storage.updateUser(user.id, { company_id: effectiveCompanyId });
+          if (updatedUser) {
+            user = updatedUser;
+          }
+        }
+      }
       
       // 2. Criar o atendente
+      if (!user) {
+        throw new Error('Usuário é obrigatório para criar atendente');
+      }
+      
       console.log(`Criando atendente para usuário ID: ${user.id}`);
       // Garantir que pelo menos um departamento seja fornecido
       if (!userDepartments || !Array.isArray(userDepartments) || userDepartments.length === 0) {
@@ -186,11 +251,11 @@ export async function createSupportUserEndpoint(
       console.log(`Departamento final escolhido: ${defaultDepartment}`);
       
       const officialData: any = {
-        name,
-        email,
+        name: name || user.name, // Usar nome fornecido ou nome do usuário existente
+        email: user.email, // Usar email do usuário
         user_id: user.id,
         is_active: isActive,
-        avatar_url: avatarUrl,
+        avatar_url: avatarUrl || user.avatar_url,
         department: defaultDepartment, // Para compatibilidade com a coluna existente no banco
         supervisor_id: supervisorId,
         manager_id: managerId,
@@ -224,26 +289,30 @@ export async function createSupportUserEndpoint(
         }
       }
       
-      return { user, official, userDepartments };
+      return { user, official, userDepartments, wasLinked: shouldLinkUser };
     });
     
     // Remover a senha do resultado
-    const { user, official, userDepartments: departments } = result;
+    const { user, official, userDepartments: departments, wasLinked } = result;
+    if (!user) {
+      throw new Error('Falha ao obter dados do usuário');
+    }
     const { password: _, ...userWithoutPassword } = user;
     
     // Retornar o resultado completo
-    console.log('=== Criação de usuário de suporte e atendente concluída com sucesso ===');
+    console.log('=== Criação/vinculação de usuário de suporte e atendente concluída com sucesso ===');
     res.status(201).json({
       user: userWithoutPassword,
       official: {
         ...official,
         departments: departments
-      }
+      },
+      wasLinked
     });
   } catch (error: any) {
-    console.error('Erro ao criar usuário de suporte e atendente:', error);
+    console.error('Erro ao criar/vincular usuário de suporte e atendente:', error);
     res.status(500).json({
-      message: "Falha ao criar usuário e atendente",
+      message: "Falha ao criar/vincular usuário e atendente",
       error: error.message || String(error)
     });
   }
