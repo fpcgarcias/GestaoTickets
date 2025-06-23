@@ -8,9 +8,13 @@
       "title": "Implementação de novas funcionalidades",
       "type": "update",
       "changes": {
-        "fixed": [
+        "new": [
           "Implementação de filtro de atendentes no dashboard",
-          "Implementação de widgets de tempo médio de primeiro atendimento e tempo médio de resolução de chamados"
+          "Implementação de widgets de tempo médio de primeiro atendimento e tempo médio de resolução de chamados",
+          "Implantação do filtro de datas no dashboard"
+        ],
+        "fixed": [
+          "Ajuste no cálculo do SLA, descontando o período em que o ticket estava pendente"
         ]
       }
     },
