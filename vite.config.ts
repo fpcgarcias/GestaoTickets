@@ -39,6 +39,34 @@ export default defineConfig({
     sourcemap: process.env.NODE_ENV !== 'production',
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
+      onwarn(warning, warn) {
+        // Suprimir warnings específicos do Zod relacionados a comentários mal formatados
+        if (
+          warning.code === 'UNRECOGNIZED_COMMENT' && 
+          warning.loc && 
+          warning.loc.file && 
+          warning.loc.file.includes('node_modules/zod')
+        ) {
+          return;
+        }
+        
+        // Suprimir warnings de comentários que contêm anotações específicas do Zod
+        if (
+          warning.message && 
+          (warning.message.includes('contains an annotation that Rollup cannot interpret') ||
+           warning.message.includes('/* @__PURE__ */') ||
+           warning.message.includes('core._parse') ||
+           warning.message.includes('core._safeParse') ||
+           warning.message.includes('core._parseAsync') ||
+           warning.message.includes('core._safeParseAsync') ||
+           warning.message.includes('$ZodIP'))
+        ) {
+          return;
+        }
+        
+        // Para outros warnings, usar o comportamento padrão
+        warn(warning);
+      },
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom'],
@@ -76,6 +104,10 @@ export default defineConfig({
       },
       treeshake: {
         moduleSideEffects: false
+      },
+      external: (id) => {
+        // Não bundlar dependências do Node.js no build do cliente
+        return id.startsWith('node:') || id.startsWith('fs') || id.startsWith('path');
       }
     },
     assetsInlineLimit: 4096,
