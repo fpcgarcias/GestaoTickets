@@ -3,13 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Clock, AlertTriangle, CheckCircle, User, Mail } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { calculateSLAStatus, formatTimeRemaining, getBusinessHoursConfig } from '@shared/utils/sla-calculator';
+import { calculateSLAStatus, formatTimeRemaining, getBusinessHoursConfig, convertStatusHistoryToPeriods } from '@shared/utils/sla-calculator';
 
 interface SLAStatusProps {
   ticketCreatedAt: string;
   ticketPriority: string;
   ticketStatus: string;
   ticketCompanyId: number;
+  ticketId: number;
   resolvedAt?: string;
 }
 
@@ -18,6 +19,7 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
   ticketPriority,
   ticketStatus,
   ticketCompanyId,
+  ticketId,
   resolvedAt
 }) => {
   const [timeRemaining, setTimeRemaining] = useState<string>('');
@@ -37,6 +39,20 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
     },
     enabled: !!ticketCompanyId,
   });
+
+  // Buscar histórico de status para cálculo preciso de SLA
+  const { data: statusHistory } = useQuery({
+    queryKey: [`/api/tickets/${ticketId}/status-history`],
+    queryFn: async () => {
+      const response = await fetch(`/api/tickets/${ticketId}/status-history`);
+      if (!response.ok) {
+        throw new Error('Erro ao buscar histórico de status');
+      }
+      return response.json();
+    },
+    enabled: !!ticketId,
+    staleTime: 30 * 1000, // 30 segundos
+  });
   
   useEffect(() => {
     console.log('SLAStatus - Debug data:', {
@@ -47,7 +63,9 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
       ticketPriority,
       ticketStatus,
       ticketCompanyId,
-      resolvedAt
+      ticketId,
+      resolvedAt,
+      statusHistory
     });
     
     if (isLoading || error || !slaSettingsData || !ticketCreatedAt) return;
@@ -82,14 +100,32 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
         return;
       }
       
-      // Calcular SLA usando o novo sistema
+      // Converter histórico de status para períodos (se disponível)
+      let statusPeriods: any[] = [];
+      if (statusHistory && Array.isArray(statusHistory)) {
+        try {
+          statusPeriods = convertStatusHistoryToPeriods(
+            createdDate,
+            ticketStatus as any,
+            statusHistory
+          );
+          console.log('SLAStatus - Status periods:', statusPeriods);
+        } catch (historyError) {
+          console.warn('Erro ao processar histórico de status:', historyError);
+          statusPeriods = [];
+        }
+      }
+      
+      // Calcular SLA usando o novo sistema com histórico
       const businessHours = getBusinessHoursConfig();
       const slaResult = calculateSLAStatus(
         createdDate,
         resolutionTimeHours,
         new Date(),
         resolvedDate,
-        businessHours
+        businessHours,
+        statusPeriods, // Usar histórico processado
+        ticketStatus as any
       );
       
       console.log('SLAStatus - SLA result:', slaResult);
@@ -146,7 +182,7 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
     } catch (error) {
       console.error("Erro no cálculo de SLA:", error);
     }
-  }, [slaSettingsData, isLoading, error, ticketCreatedAt, ticketPriority, ticketStatus, ticketCompanyId, resolvedAt]);
+  }, [slaSettingsData, isLoading, error, ticketCreatedAt, ticketPriority, ticketStatus, ticketCompanyId, ticketId, resolvedAt, statusHistory]);
   
   if (isLoading) {
     return (

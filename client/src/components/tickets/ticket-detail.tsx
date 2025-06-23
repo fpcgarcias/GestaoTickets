@@ -103,6 +103,7 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
               ticketPriority={ticket.priority} 
               ticketStatus={ticket.status}
               ticketCompanyId={ticket.company_id}
+              ticketId={ticket.id}
               resolvedAt={ticket.resolved_at ? (typeof ticket.resolved_at === 'string' ? ticket.resolved_at : new Date(ticket.resolved_at).toISOString()) : undefined}
             />
           </div>

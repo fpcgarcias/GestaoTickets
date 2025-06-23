@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Clock, AlertTriangle, CheckCircle, Pause } from 'lucide-react';
-import { calculateSLAStatus, formatTimeRemaining, getBusinessHoursConfig } from '@shared/utils/sla-calculator';
+import { calculateSLAStatus, formatTimeRemaining, getBusinessHoursConfig, convertStatusHistoryToPeriods } from '@shared/utils/sla-calculator';
 import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
 
 interface SLAIndicatorProps {
@@ -9,6 +9,7 @@ interface SLAIndicatorProps {
   ticketPriority: string;
   ticketStatus: TicketStatus;
   ticketCompanyId: number;
+  ticketId: number;
   resolvedAt?: string;
 }
 
@@ -17,6 +18,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   ticketPriority,
   ticketStatus,
   ticketCompanyId,
+  ticketId,
   resolvedAt
 }) => {
   const [timeRemaining, setTimeRemaining] = useState<string>('');
@@ -37,6 +39,19 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     enabled: !!ticketCompanyId,
   });
   
+  const { data: statusHistory } = useQuery({
+    queryKey: [`/api/tickets/${ticketId}/status-history`],
+    queryFn: async () => {
+      const response = await fetch(`/api/tickets/${ticketId}/status-history`);
+      if (!response.ok) {
+        throw new Error('Erro ao buscar histórico de status');
+      }
+      return response.json();
+    },
+    enabled: !!ticketId,
+    staleTime: 30 * 1000,
+  });
+  
   useEffect(() => {
     console.log('SLAIndicator - Debug data:', {
       slaSettingsData,
@@ -46,7 +61,9 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
       ticketPriority,
       ticketStatus,
       ticketCompanyId,
-      resolvedAt
+      ticketId,
+      resolvedAt,
+      statusHistory
     });
     
     if (isLoading || error || !slaSettingsData || !ticketCreatedAt) return;
@@ -88,7 +105,23 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
         return;
       }
       
-      // Calcular SLA usando o novo sistema
+      // Converter histórico de status para períodos (se disponível)
+      let statusPeriods: any[] = [];
+      if (statusHistory && Array.isArray(statusHistory)) {
+        try {
+          statusPeriods = convertStatusHistoryToPeriods(
+            createdDate,
+            ticketStatus,
+            statusHistory
+          );
+          console.log('SLAIndicator - Status periods:', statusPeriods);
+        } catch (historyError) {
+          console.warn('Erro ao processar histórico de status:', historyError);
+          statusPeriods = [];
+        }
+      }
+      
+      // Calcular SLA usando o novo sistema com histórico
       const businessHours = getBusinessHoursConfig();
       const slaResult = calculateSLAStatus(
         createdDate,
@@ -96,7 +129,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
         new Date(),
         resolvedDate,
         businessHours,
-        [], // TODO: implementar histórico de status
+        statusPeriods,
         ticketStatus
       );
       
@@ -119,7 +152,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     } catch (error) {
       console.error("Erro no cálculo de SLA:", error);
     }
-  }, [slaSettingsData, isLoading, error, ticketCreatedAt, ticketPriority, ticketStatus, ticketCompanyId, resolvedAt]);
+  }, [slaSettingsData, isLoading, error, ticketCreatedAt, ticketPriority, ticketStatus, ticketCompanyId, ticketId, resolvedAt, statusHistory]);
   
   if (isSlaFinished(ticketStatus)) {
     return (

@@ -81,12 +81,12 @@ export interface IStorage {
     byPriority: Record<string, number>;
   }>;
   getRecentTickets(limit?: number): Promise<Ticket[]>;
-  getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
-  getRecentTicketsByUserRole(userId: number, userRole: string, limit?: number, officialId?: number): Promise<Ticket[]>;
+  getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
+  getRecentTicketsByUserRole(userId: number, userRole: string, limit?: number, officialId?: number, startDate?: Date, endDate?: Date): Promise<Ticket[]>;
   
   // Time metrics operations
-  getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number): Promise<number>;
-  getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number): Promise<number>;
+  getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number>;
+  getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number>;
 
   // Company operations (adicionar se não existir)
   getCompany(id: number): Promise<any | undefined>;
@@ -823,13 +823,21 @@ export class MemStorage implements IStorage {
     return [];
   }
 
-  async getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+  async getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
     // Simulação: Filtrar tickets pelo usuário/papel e depois calcular estatísticas
     let userTickets = await this.getTicketsByUserRole(userId, userRole);
     
     // Filtrar por atendente se especificado
     if (officialId) {
       userTickets = userTickets.filter(ticket => ticket.assignedToId === officialId);
+    }
+    
+    // Filtrar por período se especificado
+    if (startDate && endDate) {
+      userTickets = userTickets.filter(ticket => {
+        const createdAt = new Date(ticket.createdAt);
+        return createdAt >= startDate && createdAt <= endDate;
+      });
     }
     
     const stats = { total: userTickets.length, byStatus: {}, byPriority: {} };
@@ -840,7 +848,7 @@ export class MemStorage implements IStorage {
     return stats;
   }
 
-  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 5, officialId?: number): Promise<Ticket[]> {
+  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 5, officialId?: number, startDate?: Date, endDate?: Date): Promise<Ticket[]> {
     let userTickets = await this.getTicketsByUserRole(userId, userRole);
     
     // Filtrar por atendente se especificado
@@ -848,15 +856,31 @@ export class MemStorage implements IStorage {
       userTickets = userTickets.filter(ticket => ticket.assignedToId === officialId);
     }
     
+    // Filtrar por período se especificado
+    if (startDate && endDate) {
+      userTickets = userTickets.filter(ticket => {
+        const createdAt = new Date(ticket.createdAt);
+        return createdAt >= startDate && createdAt <= endDate;
+      });
+    }
+    
     return userTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
   }
 
-  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number): Promise<number> {
+  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number> {
     let userTickets = await this.getTicketsByUserRole(userId, userRole);
     
     // Filtrar por atendente se especificado
     if (officialId) {
       userTickets = userTickets.filter(ticket => ticket.assignedToId === officialId);
+    }
+    
+    // Filtrar por período se especificado
+    if (startDate && endDate) {
+      userTickets = userTickets.filter(ticket => {
+        const createdAt = new Date(ticket.createdAt);
+        return createdAt >= startDate && createdAt <= endDate;
+      });
     }
     
     const ticketsWithFirstResponse = Array.from(userTickets).filter(ticket => 
@@ -867,6 +891,8 @@ export class MemStorage implements IStorage {
       return 0;
     }
     
+    // Calcular tempo médio de primeira resposta em horas (implementação simples para MemStorage)
+    // TODO: Implementar lógica de períodos suspensos quando necessário
     const totalResponseTime = ticketsWithFirstResponse.reduce((sum, ticket) => {
       const createdAt = new Date(ticket.createdAt);
       const firstResponseAt = new Date(ticket.firstResponseAt!);
@@ -877,12 +903,20 @@ export class MemStorage implements IStorage {
     return Math.round((totalResponseTime / ticketsWithFirstResponse.length) * 100) / 100;
   }
 
-  async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number): Promise<number> {
+  async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number> {
     let userTickets = await this.getTicketsByUserRole(userId, userRole);
     
     // Filtrar por atendente se especificado
     if (officialId) {
       userTickets = userTickets.filter(ticket => ticket.assignedToId === officialId);
+    }
+    
+    // Filtrar por período se especificado
+    if (startDate && endDate) {
+      userTickets = userTickets.filter(ticket => {
+        const createdAt = new Date(ticket.createdAt);
+        return createdAt >= startDate && createdAt <= endDate;
+      });
     }
     
     const resolvedTickets = Array.from(userTickets).filter(ticket => 
@@ -893,6 +927,8 @@ export class MemStorage implements IStorage {
       return 0;
     }
     
+    // Calcular tempo médio de resolução em horas (implementação simples para MemStorage)
+    // TODO: Implementar lógica de períodos suspensos quando necessário
     const totalResolutionTime = resolvedTickets.reduce((sum, ticket) => {
       const createdAt = new Date(ticket.createdAt);
       const resolvedAt = new Date(ticket.resolvedAt!);

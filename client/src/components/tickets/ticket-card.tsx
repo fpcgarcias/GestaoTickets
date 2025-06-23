@@ -196,6 +196,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
               ticketPriority={priority} 
               ticketStatus={status}
               ticketCompanyId={companyId}
+              ticketId={id}
               resolvedAt={ticket.resolved_at ? (typeof ticket.resolved_at === 'string' ? ticket.resolved_at : new Date(ticket.resolved_at).toISOString()) : undefined}
             />
           </div>

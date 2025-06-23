@@ -306,4 +306,53 @@ export function formatTimeRemaining(timeMs: number, isBreached: boolean = false)
  */
 export function getBusinessHoursConfig(): BusinessHours {
   return DEFAULT_BUSINESS_HOURS;
+}
+
+/**
+ * Converte histórico de status do banco para períodos de status para cálculo de SLA
+ */
+export function convertStatusHistoryToPeriods(
+  ticketCreatedAt: Date,
+  currentStatus: TicketStatus,
+  statusHistory: any[]
+): StatusPeriod[] {
+  const periods: StatusPeriod[] = [];
+  
+  // Filtrar apenas mudanças de status (não prioridade)
+  const statusChanges = statusHistory
+    .filter(h => h.change_type === 'status')
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  
+  let currentPeriodStart = ticketCreatedAt;
+  let currentPeriodStatus: TicketStatus = 'new'; // Status inicial
+  
+  // Processar cada mudança de status
+  for (const change of statusChanges) {
+    const changeTime = new Date(change.created_at);
+    
+    // Finalizar período anterior
+    if (currentPeriodStart < changeTime) {
+      periods.push({
+        status: currentPeriodStatus,
+        startTime: currentPeriodStart,
+        endTime: changeTime
+      });
+    }
+    
+    // Iniciar novo período
+    currentPeriodStart = changeTime;
+    currentPeriodStatus = (change.new_status || currentPeriodStatus) as TicketStatus;
+  }
+  
+  // Adicionar período final (do último status até agora)
+  const now = new Date();
+  if (currentPeriodStart < now) {
+    periods.push({
+      status: currentPeriodStatus,
+      startTime: currentPeriodStart,
+      endTime: now
+    });
+  }
+  
+  return periods;
 } 

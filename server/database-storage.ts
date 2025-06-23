@@ -14,8 +14,9 @@ import {
   companies, departments } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike, asc } from "drizzle-orm";
 import { IStorage } from "./storage";
+import { isSlaPaused } from "@shared/ticket-utils";
 
 export class DatabaseStorage implements IStorage {
   // User operations
@@ -1189,7 +1190,7 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Obter estatísticas dos tickets filtrados pelo papel do usuário
-  async getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+  async getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
     try {
       // Obter tickets filtrados pelo papel do usuário
       let userTickets = await this.getTicketsByUserRole(userId, userRole);
@@ -1197,6 +1198,14 @@ export class DatabaseStorage implements IStorage {
       // Filtrar por atendente se especificado
       if (officialId) {
         userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
+      }
+      
+      // Filtrar por período se especificado
+      if (startDate && endDate) {
+        userTickets = userTickets.filter(ticket => {
+          const createdAt = new Date(ticket.created_at);
+          return createdAt >= startDate && createdAt <= endDate;
+        });
       }
       
       const byStatus = {
@@ -1252,7 +1261,7 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Obter tickets recentes filtrados pelo papel do usuário
-  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 10, officialId?: number): Promise<Ticket[]> {
+  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 10, officialId?: number, startDate?: Date, endDate?: Date): Promise<Ticket[]> {
     try {
       // Obter tickets filtrados pelo papel do usuário
       let userTickets = await this.getTicketsByUserRole(userId, userRole);
@@ -1260,6 +1269,14 @@ export class DatabaseStorage implements IStorage {
       // Filtrar por atendente se especificado
       if (officialId) {
         userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
+      }
+      
+      // Filtrar por período se especificado
+      if (startDate && endDate) {
+        userTickets = userTickets.filter(ticket => {
+          const createdAt = new Date(ticket.created_at);
+          return createdAt >= startDate && createdAt <= endDate;
+        });
       }
       
       // Ordenar tickets por data de criação (mais recentes primeiro) e limitar
@@ -1273,7 +1290,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Obter tempo médio de primeira resposta filtrado pelo papel do usuário
-  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number): Promise<number> {
+  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number> {
     try {
       // Obter tickets filtrados pelo papel do usuário
       let userTickets = await this.getTicketsByUserRole(userId, userRole);
@@ -1281,6 +1298,14 @@ export class DatabaseStorage implements IStorage {
       // Filtrar por atendente se especificado
       if (officialId) {
         userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
+      }
+      
+      // Filtrar por período se especificado
+      if (startDate && endDate) {
+        userTickets = userTickets.filter(ticket => {
+          const createdAt = new Date(ticket.created_at);
+          return createdAt >= startDate && createdAt <= endDate;
+        });
       }
       
       // Filtrar apenas tickets que têm primeira resposta
@@ -1292,13 +1317,29 @@ export class DatabaseStorage implements IStorage {
         return 0;
       }
       
-      // Calcular tempo médio de primeira resposta em horas
-      const totalResponseTime = ticketsWithFirstResponse.reduce((sum, ticket) => {
+      // Calcular tempo médio de primeira resposta considerando períodos de suspensão
+      const totalResponseTime = await ticketsWithFirstResponse.reduce(async (sumPromise, ticket) => {
+        const sum = await sumPromise;
         const createdAt = new Date(ticket.created_at);
         const firstResponseAt = new Date(ticket.first_response_at!);
-        const responseTime = (firstResponseAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60); // em horas
-        return sum + responseTime;
-      }, 0);
+        
+        // Buscar histórico de status para calcular tempo efetivo
+        const statusHistory = await db
+          .select()
+          .from(ticketStatusHistory)
+          .where(eq(ticketStatusHistory.ticket_id, ticket.id))
+          .orderBy(asc(ticketStatusHistory.created_at));
+        
+        // Calcular tempo efetivo excluindo períodos suspensos
+        const effectiveTime = this.calculateEffectiveTime(
+          createdAt,
+          firstResponseAt,
+          statusHistory,
+          'new' // Status inicial
+        );
+        
+        return sum + (effectiveTime / (1000 * 60 * 60)); // converter para horas
+      }, Promise.resolve(0));
       
       return Math.round((totalResponseTime / ticketsWithFirstResponse.length) * 100) / 100;
     } catch (error) {
@@ -1308,7 +1349,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Obter tempo médio de resolução filtrado pelo papel do usuário
-  async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number): Promise<number> {
+  async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number> {
     try {
       // Obter tickets filtrados pelo papel do usuário
       let userTickets = await this.getTicketsByUserRole(userId, userRole);
@@ -1316,6 +1357,14 @@ export class DatabaseStorage implements IStorage {
       // Filtrar por atendente se especificado
       if (officialId) {
         userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
+      }
+      
+      // Filtrar por período se especificado
+      if (startDate && endDate) {
+        userTickets = userTickets.filter(ticket => {
+          const createdAt = new Date(ticket.created_at);
+          return createdAt >= startDate && createdAt <= endDate;
+        });
       }
       
       // Filtrar apenas tickets resolvidos
@@ -1327,19 +1376,84 @@ export class DatabaseStorage implements IStorage {
         return 0;
       }
       
-      // Calcular tempo médio de resolução em horas
-      const totalResolutionTime = resolvedTickets.reduce((sum, ticket) => {
+      // Calcular tempo médio de resolução considerando períodos de suspensão
+      const totalResolutionTime = await resolvedTickets.reduce(async (sumPromise, ticket) => {
+        const sum = await sumPromise;
         const createdAt = new Date(ticket.created_at);
         const resolvedAt = new Date(ticket.resolved_at!);
-        const resolutionTime = (resolvedAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60); // em horas
-        return sum + resolutionTime;
-      }, 0);
+        
+        // Buscar histórico de status para calcular tempo efetivo
+        const statusHistory = await db
+          .select()
+          .from(ticketStatusHistory)
+          .where(eq(ticketStatusHistory.ticket_id, ticket.id))
+          .orderBy(asc(ticketStatusHistory.created_at));
+        
+        // Calcular tempo efetivo excluindo períodos suspensos
+        const effectiveTime = this.calculateEffectiveTime(
+          createdAt,
+          resolvedAt,
+          statusHistory,
+          'new' // Status inicial
+        );
+        
+        return sum + (effectiveTime / (1000 * 60 * 60)); // converter para horas
+      }, Promise.resolve(0));
       
       return Math.round((totalResolutionTime / resolvedTickets.length) * 100) / 100;
     } catch (error) {
       console.error('Erro ao calcular tempo médio de resolução:', error);
       return 0;
     }
+  }
+
+  /**
+   * Calcula o tempo efetivo excluindo períodos de suspensão
+   * Baseado na lógica do SLA calculator
+   */
+  private calculateEffectiveTime(
+    startTime: Date,
+    endTime: Date,
+    statusHistory: TicketStatusHistory[],
+    initialStatus: string
+  ): number {
+    let totalEffectiveTime = 0;
+    let currentPeriodStart = startTime;
+    let currentStatus = initialStatus;
+    
+    // Se não há histórico, considerar período inteiro como ativo
+    if (statusHistory.length === 0) {
+      return !isSlaPaused(currentStatus as any) ? (endTime.getTime() - startTime.getTime()) : 0;
+    }
+    
+    // Processar cada mudança de status
+    for (const change of statusHistory) {
+      const changeTime = new Date(change.created_at);
+      
+      // Se o período atual não está pausado, contar o tempo
+      if (!isSlaPaused(currentStatus as any) && currentPeriodStart < changeTime) {
+        const periodEnd = changeTime > endTime ? endTime : changeTime;
+        if (currentPeriodStart < periodEnd) {
+          totalEffectiveTime += periodEnd.getTime() - currentPeriodStart.getTime();
+        }
+      }
+      
+      // Atualizar para o próximo período
+      currentPeriodStart = changeTime;
+      currentStatus = change.new_status || currentStatus;
+      
+      // Se ultrapassou o tempo final, parar
+      if (changeTime >= endTime) {
+        break;
+      }
+    }
+    
+    // Período final (do último status até o fim)
+    if (currentPeriodStart < endTime && !isSlaPaused(currentStatus as any)) {
+      totalEffectiveTime += endTime.getTime() - currentPeriodStart.getTime();
+    }
+    
+    return totalEffectiveTime;
   }
 
 

@@ -5,9 +5,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusDot } from '@/components/tickets/status-badge';
 import { TimeMetricCard } from '@/components/ui/time-metric-card';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
-import { Clock, CheckCircle2, Users } from 'lucide-react';
+import { Clock, CheckCircle2, Users, Calendar } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from '@/hooks/use-auth';
+import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { 
   PieChart, 
   Pie, 
@@ -40,10 +45,12 @@ interface TicketStats {
 interface RecentTicket {
   id: number;
   title: string;
-  customer: { email?: string };
-  created_at: string;
   status: 'new' | 'ongoing' | 'resolved';
-  priority: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  created_at: string;
+  customer?: {
+    name: string;
+  };
 }
 
 interface Official {
@@ -56,8 +63,60 @@ interface Official {
   manager_id?: number;
 }
 
+// Opções de períodos pré-definidos
+const PERIOD_OPTIONS = [
+  { value: 'current_month', label: 'Mês Atual' },
+  { value: 'last_month', label: 'Mês Passado' },
+  { value: 'current_year', label: 'Ano Atual' },
+  { value: 'custom', label: 'Personalizado' }
+];
+
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, isLoading: isLoadingAuth } = useAuth();
+  const [selectedCompany, setSelectedCompany] = useState<string>("all");
+  
+  // Estados para filtro de período
+  const [selectedPeriod, setSelectedPeriod] = useState('current_month');
+  const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined);
+  const [customEndDate, setCustomEndDate] = useState<Date | undefined>(undefined);
+  const [isCustomPeriod, setIsCustomPeriod] = useState(false);
+
+  // Função para calcular datas baseado no período selecionado
+  const getPeriodDates = () => {
+    const now = new Date();
+    
+    switch (selectedPeriod) {
+      case 'current_month':
+        return {
+          startDate: startOfMonth(now),
+          endDate: endOfMonth(now)
+        };
+      case 'last_month':
+        const lastMonth = subMonths(now, 1);
+        return {
+          startDate: startOfMonth(lastMonth),
+          endDate: endOfMonth(lastMonth)
+        };
+      case 'current_year':
+        return {
+          startDate: startOfYear(now),
+          endDate: endOfYear(now)
+        };
+      case 'custom':
+        return {
+          startDate: customStartDate || startOfMonth(now),
+          endDate: customEndDate || endOfMonth(now)
+        };
+      default:
+        return {
+          startDate: startOfMonth(now),
+          endDate: endOfMonth(now)
+        };
+    }
+  };
+
+  const { startDate, endDate } = getPeriodDates();
+
   const [selectedOfficialId, setSelectedOfficialId] = useState<string>('all');
 
   // Verificar se deve exibir o filtro de atendentes
@@ -71,8 +130,6 @@ export default function Dashboard() {
     enabled: shouldShowOfficialFilter,
     staleTime: 5 * 60 * 1000, // 5 minutos
   });
-
-
 
   // Filtrar atendentes baseado na role do usuário
   const getFilteredOfficials = () => {
@@ -102,11 +159,27 @@ export default function Dashboard() {
     return params.toString();
   };
 
+  // Construir parâmetros de query incluindo período
+  const getQueryParamsWithPeriod = () => {
+    const periodParams = new URLSearchParams();
+    
+    // Adicionar filtro de atendente se selecionado
+    if (selectedOfficialId !== 'all') {
+      periodParams.append('official_id', selectedOfficialId);
+    }
+    
+    // Adicionar datas do período
+    periodParams.append('start_date', startDate.toISOString());
+    periodParams.append('end_date', endDate.toISOString());
+    
+    return periodParams.toString();
+  };
+
   // Utilizamos as rotas que já filtram tickets baseados no papel do usuário
   const { data: ticketStatsData, isLoading: isStatsLoading } = useQuery<TicketStats>({
-    queryKey: getQueryKey('/api/tickets/stats'),
+    queryKey: ['tickets/stats', startDate.toISOString(), endDate.toISOString(), selectedOfficialId],
     queryFn: async () => {
-      const params = getQueryParams();
+      const params = getQueryParamsWithPeriod();
       const url = `/api/tickets/stats${params ? `?${params}` : ''}`;
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch stats');
@@ -116,9 +189,9 @@ export default function Dashboard() {
   });
 
   const { data: recentTicketsData, isLoading: isRecentLoading } = useQuery<RecentTicket[]>({
-    queryKey: getQueryKey('/api/tickets/recent'),
+    queryKey: ['tickets/recent', startDate.toISOString(), endDate.toISOString(), selectedOfficialId],
     queryFn: async () => {
-      const params = getQueryParams();
+      const params = getQueryParamsWithPeriod();
       const url = `/api/tickets/recent${params ? `?${params}` : ''}`;
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch recent tickets');
@@ -128,9 +201,9 @@ export default function Dashboard() {
   });
 
   const { data: avgFirstResponseData, isLoading: isFirstResponseLoading } = useQuery<{ averageTime: number }>({
-    queryKey: getQueryKey('/api/tickets/average-first-response-time'),
+    queryKey: ['tickets/average-first-response-time', startDate.toISOString(), endDate.toISOString(), selectedOfficialId],
     queryFn: async () => {
-      const params = getQueryParams();
+      const params = getQueryParamsWithPeriod();
       const url = `/api/tickets/average-first-response-time${params ? `?${params}` : ''}`;
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch avg first response time');
@@ -140,9 +213,9 @@ export default function Dashboard() {
   });
 
   const { data: avgResolutionData, isLoading: isResolutionLoading } = useQuery<{ averageTime: number }>({
-    queryKey: getQueryKey('/api/tickets/average-resolution-time'),
+    queryKey: ['tickets/average-resolution-time', startDate.toISOString(), endDate.toISOString(), selectedOfficialId],
     queryFn: async () => {
-      const params = getQueryParams();
+      const params = getQueryParamsWithPeriod();
       const url = `/api/tickets/average-resolution-time${params ? `?${params}` : ''}`;
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch avg resolution time');
@@ -181,26 +254,97 @@ export default function Dashboard() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold text-neutral-900">Painel de Controle</h1>
         
-        {/* Filtro de Atendente */}
-        {shouldShowOfficialFilter && (
+        {/* Filtros */}
+        <div className="flex items-center gap-4">
+          {/* Filtro de período */}
           <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-neutral-500" />
-            <Select value={selectedOfficialId} onValueChange={setSelectedOfficialId}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Selecione um atendente" />
+            <Calendar className="h-4 w-4 text-neutral-500" />
+            <Select value={selectedPeriod} onValueChange={(value) => {
+              setSelectedPeriod(value);
+              setIsCustomPeriod(value === 'custom');
+            }}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Período" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os Atendentes</SelectItem>
-                {filteredOfficials.map((official: Official) => (
-                  <SelectItem key={official.id} value={official.id.toString()}>
-                    {official.name}
+                {PERIOD_OPTIONS.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            
+            {/* Calendários para período personalizado */}
+            {isCustomPeriod && (
+              <>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-32">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {customStartDate ? format(customStartDate, 'dd/MM', { locale: ptBR }) : 'Início'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <CalendarComponent
+                      mode="single"
+                      selected={customStartDate}
+                      onSelect={setCustomStartDate}
+                      initialFocus
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+                
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-32">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {customEndDate ? format(customEndDate, 'dd/MM', { locale: ptBR }) : 'Fim'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <CalendarComponent
+                      mode="single"
+                      selected={customEndDate}
+                      onSelect={setCustomEndDate}
+                      initialFocus
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </>
+            )}
+            
+            {/* Indicador discreto do período */}
+            <span className="text-xs text-muted-foreground">
+              {format(startDate, 'dd/MM/yy', { locale: ptBR })} - {format(endDate, 'dd/MM/yy', { locale: ptBR })}
+            </span>
           </div>
-        )}
+          
+          {/* Filtro de Atendente */}
+          {shouldShowOfficialFilter && (
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-neutral-500" />
+              <Select value={selectedOfficialId} onValueChange={setSelectedOfficialId}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Todos os Atendentes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Atendentes</SelectItem>
+                  {filteredOfficials.map((official: Official) => (
+                    <SelectItem key={official.id} value={official.id.toString()}>
+                      {official.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
       </div>
+      
+
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <StatCard 
@@ -376,7 +520,7 @@ export default function Dashboard() {
                     <div>
                       <p className="font-medium">{ticket.title}</p>
                       <p className="text-sm text-neutral-500">
-                        {ticket.customer.email} • {new Date(ticket.created_at).toLocaleDateString('pt-BR')}
+                        {ticket.customer?.name} • {new Date(ticket.created_at).toLocaleDateString('pt-BR')}
                       </p>
                     </div>
                   </div>

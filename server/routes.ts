@@ -753,11 +753,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
       
-      // Obter filtro de atendente se fornecido
+      // Obter filtros se fornecidos
       const officialId = req.query.official_id ? parseInt(req.query.official_id as string) : undefined;
+      const startDate = req.query.start_date ? new Date(req.query.start_date as string) : undefined;
+      const endDate = req.query.end_date ? new Date(req.query.end_date as string) : undefined;
       
-      // Obter estatísticas de tickets filtradas pelo papel do usuário e atendente
-      const stats = await storage.getTicketStatsByUserRole(userId, userRole, officialId);
+      // Obter estatísticas de tickets filtradas pelo papel do usuário, atendente e período
+      const stats = await storage.getTicketStatsByUserRole(userId, userRole, officialId, startDate, endDate);
       res.json(stats);
     } catch (error) {
       console.error('Erro ao buscar estatísticas de tickets:', error);
@@ -777,9 +779,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
       const officialId = req.query.official_id ? parseInt(req.query.official_id as string) : undefined;
+      const startDate = req.query.start_date ? new Date(req.query.start_date as string) : undefined;
+      const endDate = req.query.end_date ? new Date(req.query.end_date as string) : undefined;
       
-      // Obter tickets recentes filtrados pelo papel do usuário e atendente
-      const tickets = await storage.getRecentTicketsByUserRole(userId, userRole, limit, officialId);
+      // Obter tickets recentes filtrados pelo papel do usuário, atendente e período
+      const tickets = await storage.getRecentTicketsByUserRole(userId, userRole, limit, officialId, startDate, endDate);
       res.json(tickets);
     } catch (error) {
       console.error('Erro ao buscar tickets recentes:', error);
@@ -798,9 +802,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       }
       
       const officialId = req.query.official_id ? parseInt(req.query.official_id as string) : undefined;
+      const startDate = req.query.start_date ? new Date(req.query.start_date as string) : undefined;
+      const endDate = req.query.end_date ? new Date(req.query.end_date as string) : undefined;
       
-      // Obter tempo médio de primeira resposta filtrado pelo papel do usuário e atendente
-      const averageTime = await storage.getAverageFirstResponseTimeByUserRole(userId, userRole, officialId);
+      // Obter tempo médio de primeira resposta filtrado pelo papel do usuário, atendente e período
+      const averageTime = await storage.getAverageFirstResponseTimeByUserRole(userId, userRole, officialId, startDate, endDate);
       res.json({ averageTime });
     } catch (error) {
       console.error('Erro ao buscar tempo médio de primeira resposta:', error);
@@ -819,9 +825,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       }
       
       const officialId = req.query.official_id ? parseInt(req.query.official_id as string) : undefined;
+      const startDate = req.query.start_date ? new Date(req.query.start_date as string) : undefined;
+      const endDate = req.query.end_date ? new Date(req.query.end_date as string) : undefined;
       
-      // Obter tempo médio de resolução filtrado pelo papel do usuário e atendente
-      const averageTime = await storage.getAverageResolutionTimeByUserRole(userId, userRole, officialId);
+      // Obter tempo médio de resolução filtrado pelo papel do usuário, atendente e período
+      const averageTime = await storage.getAverageResolutionTimeByUserRole(userId, userRole, officialId, startDate, endDate);
       res.json({ averageTime });
     } catch (error) {
       console.error('Erro ao buscar tempo médio de resolução:', error);
