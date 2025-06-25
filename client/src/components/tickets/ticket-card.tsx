@@ -45,10 +45,17 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
   // Determinar se o usuário é cliente
   const isCustomer = user?.role === 'customer';
   
-  const { data: allOfficialsData, isLoading: isOfficialsLoading } = useQuery<Official[]>({
+  const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
     queryKey: ['/api/officials'],
+    queryFn: async () => {
+      const res = await fetch('/api/officials?limit=1000'); // Buscar todos para o dropdown
+      if (!res.ok) throw new Error('Erro ao carregar atendentes');
+      return res.json();
+    },
     staleTime: 5 * 60 * 1000,
   });
+
+  const allOfficialsData = officialsResponse?.data || [];
 
   // Simplificando completamente a lógica - mostrar TODOS os atendentes
   // Não filtrar por departamento para garantir que SEMPRE apareça atendentes

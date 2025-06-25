@@ -125,11 +125,18 @@ export default function Dashboard() {
   const shouldShowOfficialFilter = user?.role && ['admin', 'company_admin', 'manager', 'supervisor'].includes(user.role);
 
   // Buscar atendentes apenas se necessário
-  const { data: officials = [], isLoading: isOfficialsLoading } = useQuery<Official[]>({
+  const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
     queryKey: ['/api/officials', user?.id, user?.role], // Incluir user.id e role na chave
+    queryFn: async () => {
+      const res = await fetch('/api/officials?limit=1000'); // Buscar todos para o dashboard
+      if (!res.ok) throw new Error('Erro ao carregar atendentes');
+      return res.json();
+    },
     enabled: shouldShowOfficialFilter,
     staleTime: 5 * 60 * 1000, // 5 minutos
   });
+
+  const officials = officialsResponse?.data || [];
 
   // Filtrar atendentes baseado na role do usuário
   const getFilteredOfficials = () => {

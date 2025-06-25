@@ -23,6 +23,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { AddOfficialDialog } from './add-official-dialog';
 import { EditOfficialDialog } from './edit-official-dialog';
 import { ToggleStatusOfficialDialog } from '@/pages/officials/toggle-status-official-dialog';
@@ -46,11 +48,34 @@ export default function OfficialsIndex() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedOfficial, setSelectedOfficial] = useState<OfficialWithUser | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [includeInactive, setIncludeInactive] = useState(false);
   
-  const { data: officials = [], isLoading } = useQuery<OfficialWithUser[]>({
-    queryKey: ['/api/officials'],
+  // Reset page when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
+  const { data: officialsResponse, isLoading } = useQuery({
+    queryKey: ['/api/officials', currentPage, searchQuery, includeInactive ? 'all' : 'active'],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '50',
+        ...(includeInactive && { includeInactive: 'true' }),
+        ...(searchQuery && { search: searchQuery }),
+      });
+      
+      const res = await fetch(`/api/officials?${params}`);
+      if (!res.ok) throw new Error('Erro ao carregar atendentes');
+      return res.json();
+    },
     staleTime: 0, // Forçar recarregamento
   });
+
+  const officials = officialsResponse?.data || [];
+  const pagination = officialsResponse?.pagination;
   
   
   
@@ -92,18 +117,7 @@ export default function OfficialsIndex() {
     return official.email || '-';
   };
   
-  // Filtrar os atendentes com base na busca
-  const filteredOfficials = officials?.filter(official => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    const username = getUsernameFromOfficial(official);
-    
-    return (
-      official.name.toLowerCase().includes(query) ||
-      official.email.toLowerCase().includes(query) ||
-      (username && username.toLowerCase().includes(query))
-    );
-  });
+  // Não precisamos mais filtrar no frontend, pois a busca é feita no backend
 
   return (
     <div>
@@ -120,7 +134,9 @@ export default function OfficialsIndex() {
         onOpenChange={setShowAddDialog}
         onCreated={(official) => {
           // Atualizar a lista de atendentes automaticamente depois que um novo for adicionado
-          queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
+          queryClient.invalidateQueries({ predicate: (query) => 
+            query.queryKey[0] === '/api/officials' 
+          });
         }}
       />
       
@@ -130,7 +146,9 @@ export default function OfficialsIndex() {
         official={selectedOfficial}
         onSaved={() => {
           // Atualizar a lista após edição
-          queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
+          queryClient.invalidateQueries({ predicate: (query) => 
+            query.queryKey[0] === '/api/officials' 
+          });
         }}
       />
       
@@ -140,7 +158,9 @@ export default function OfficialsIndex() {
         official={selectedOfficial}
         onStatusChanged={() => {
           // Atualizar a lista após alteração de status
-          queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
+          queryClient.invalidateQueries({ predicate: (query) => 
+            query.queryKey[0] === '/api/officials' 
+          });
         }}
       />
 
@@ -151,14 +171,24 @@ export default function OfficialsIndex() {
         </CardHeader>
         <CardContent>
           <div className="flex justify-between mb-6">
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
-              <Input 
-                placeholder="Pesquisar atendentes" 
-                className="pl-10"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+            <div className="flex items-center gap-4">
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
+                <Input 
+                  placeholder="Pesquisar atendentes" 
+                  className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="includeInactive" 
+                  checked={includeInactive} 
+                  onCheckedChange={setIncludeInactive}
+                />
+                <Label htmlFor="includeInactive">Incluir inativos</Label>
+              </div>
             </div>
           </div>
 
@@ -194,8 +224,8 @@ export default function OfficialsIndex() {
                       <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                     </TableRow>
                   ))
-                ) : filteredOfficials && filteredOfficials.length > 0 ? (
-                  filteredOfficials.map((official) => {
+                ) : officials && officials.length > 0 ? (
+                  officials.map((official: any) => {
                     const username = getUsernameFromOfficial(official);
                     
                     return (
@@ -312,6 +342,60 @@ export default function OfficialsIndex() {
               </TableBody>
             </Table>
           </div>
+          
+          {/* Paginação */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {((pagination.page - 1) * pagination.limit) + 1} a {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} atendentes
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={!pagination.hasPrev}
+                  onClick={() => pagination.hasPrev && setCurrentPage(pagination.page - 1)}
+                >
+                  Anterior
+                </Button>
+                
+                {/* Páginas numeradas */}
+                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (pagination.totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (pagination.page <= 3) {
+                    pageNum = i + 1;
+                  } else if (pagination.page >= pagination.totalPages - 2) {
+                    pageNum = pagination.totalPages - 4 + i;
+                  } else {
+                    pageNum = pagination.page - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={pagination.page === pageNum ? "bg-primary text-white hover:bg-primary/90" : ""}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={!pagination.hasNext}
+                  onClick={() => pagination.hasNext && setCurrentPage(pagination.page + 1)}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

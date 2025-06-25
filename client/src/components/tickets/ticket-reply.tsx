@@ -49,10 +49,17 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const canModifyAssignment = !isCustomer;
   
   // Buscar a lista de atendentes disponíveis (apenas para não-clientes)
-  const { data: officials, isLoading: isLoadingOfficials } = useQuery<Official[]>({
+  const { data: officialsResponse, isLoading: isLoadingOfficials } = useQuery({
     queryKey: ["/api/officials"],
+    queryFn: async () => {
+      const res = await fetch('/api/officials?limit=1000'); // Buscar todos para o dropdown
+      if (!res.ok) throw new Error('Erro ao carregar atendentes');
+      return res.json();
+    },
     enabled: !isCustomer, // Só busca se não for cliente
   });
+
+  const officials = officialsResponse?.data || [];
 
   // Buscar dados de tipos de incidentes usando a API correta
   const { data: incidentTypesData, isLoading: isLoadingIncidentTypes } = useQuery<IncidentType[]>({

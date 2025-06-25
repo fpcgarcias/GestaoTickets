@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, UserPlus, Pencil, UserX, UserCheck, Building2 } from 'lucide-react';
+import { Search, UserPlus, Pencil, UserX, UserCheck, Building2, Upload } from 'lucide-react';
 import { Customer } from '@shared/schema';
 import { queryClient } from '@/lib/queryClient';
 import { Skeleton } from '@/components/ui/skeleton';
 import AddClientDialog from './add-client-dialog';
 import EditClientDialog from './edit-client-dialog';
 import ToggleStatusClientDialog from './toggle-status-client-dialog';
+import BulkImportDialog from './bulk-import-dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -20,21 +21,32 @@ export default function ClientsIndex() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showBulkImportDialog, setShowBulkImportDialog] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const { user } = useAuth();
   
-  const { data: clients = [], isLoading } = useQuery<Customer[]>({
-    queryKey: ['/api/customers', includeInactive ? 'all' : 'active'],
+  const { data: clientsResponse, isLoading } = useQuery({
+    queryKey: ['/api/customers', includeInactive ? 'all' : 'active', currentPage, searchQuery],
     queryFn: async () => {
-      const url = includeInactive ? '/api/customers?includeInactive=true' : '/api/customers';
-      const res = await fetch(url);
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '50',
+        ...(includeInactive && { includeInactive: 'true' }),
+        ...(searchQuery && { search: searchQuery }),
+      });
+      
+      const res = await fetch(`/api/customers?${params}`);
       if (!res.ok) throw new Error('Erro ao carregar clientes');
       return res.json();
     },
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
+
+  const clients = clientsResponse?.data || [];
+  const pagination = clientsResponse?.pagination;
   
   const handleEditClient = (client: Customer) => {
     setSelectedClient(client);
@@ -46,16 +58,11 @@ export default function ClientsIndex() {
     setShowDeleteDialog(true);
   };
   
-  // Filtrar os clientes com base na busca
-  const filteredClients = clients?.filter(client => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      client.name.toLowerCase().includes(query) ||
-      client.email.toLowerCase().includes(query) ||
-      (client.company && client.company.toLowerCase().includes(query))
-    );
-  });
+  // Reset page when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1); // Reset to first page when searching
+  };
 
   // Verificar se o usuário tem permissão para acessar esta página
   // 'admin', 'support', 'company_admin', 'manager' e 'supervisor' podem ver a lista de clientes
@@ -94,10 +101,18 @@ export default function ClientsIndex() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold text-neutral-900">Clientes</h1>
-        <Button onClick={() => setShowAddDialog(true)}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          Adicionar Cliente
-        </Button>
+        <div className="flex gap-2">
+          {user?.role === 'admin' && (
+            <Button onClick={() => setShowBulkImportDialog(true)} variant="outline">
+              <Upload className="mr-2 h-4 w-4" />
+              Importar em Lote
+            </Button>
+          )}
+          <Button onClick={() => setShowAddDialog(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Adicionar Cliente
+          </Button>
+        </div>
       </div>
       
       <AddClientDialog 
@@ -128,6 +143,15 @@ export default function ClientsIndex() {
           queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
         }}
       />
+      
+      <BulkImportDialog
+        open={showBulkImportDialog}
+        onOpenChange={setShowBulkImportDialog}
+        onImported={() => {
+          // Atualizar a lista após importação
+          queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+        }}
+      />
 
       <Card>
         <CardHeader>
@@ -143,7 +167,7 @@ export default function ClientsIndex() {
                   placeholder="Pesquisar clientes" 
                   className="pl-10"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                 />
               </div>
               <div className="flex items-center space-x-2">
@@ -181,8 +205,8 @@ export default function ClientsIndex() {
                       <TableCell><Skeleton className="h-6 w-20 ml-auto" /></TableCell>
                     </TableRow>
                   ))
-                ) : filteredClients.length > 0 ? (
-                  filteredClients.map((client) => {
+                ) : clients.length > 0 ? (
+                  clients.map((client: any) => {
                     const isActive = getClientStatus(client);
                     return (
                       <TableRow key={client.id} className={!isActive ? "opacity-60" : ""}>
@@ -244,6 +268,60 @@ export default function ClientsIndex() {
               </TableBody>
             </Table>
           </div>
+          
+          {/* Paginação */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {((pagination.page - 1) * pagination.limit) + 1} a {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} clientes
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={!pagination.hasPrev}
+                  onClick={() => pagination.hasPrev && setCurrentPage(pagination.page - 1)}
+                >
+                  Anterior
+                </Button>
+                
+                {/* Páginas numeradas */}
+                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (pagination.totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (pagination.page <= 3) {
+                    pageNum = i + 1;
+                  } else if (pagination.page >= pagination.totalPages - 2) {
+                    pageNum = pagination.totalPages - 4 + i;
+                  } else {
+                    pageNum = pagination.page - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={pagination.page === pageNum ? "bg-primary text-white hover:bg-primary/90" : ""}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={!pagination.hasNext}
+                  onClick={() => pagination.hasNext && setCurrentPage(pagination.page + 1)}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

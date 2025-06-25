@@ -724,7 +724,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Stats and dashboard endpoints
-  // Busca tickets com base no papel do usuário
+  // Busca tickets com base no papel do usuário com paginação
   router.get("/tickets/user-role", authRequired, async (req: Request, res: Response) => {
     try {
       // Obter o ID do usuário da sessão
@@ -735,8 +735,42 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(401).json({ message: "Usuário não autenticado" });
       }
       
+      // Parâmetros de paginação
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 20; // 20 por página para tickets
+      const search = (req.query.search as string) || '';
+      
       const tickets = await storage.getTicketsByUserRole(userId, userRole);
-      res.json(tickets);
+      
+      // Aplicar filtro de busca se fornecido
+      let filteredTickets = tickets;
+      if (search) {
+        const searchLower = search.toLowerCase();
+        filteredTickets = tickets.filter(ticket => 
+          ticket.title.toLowerCase().includes(searchLower) ||
+          ticket.description.toLowerCase().includes(searchLower) ||
+          ticket.ticket_id.toLowerCase().includes(searchLower) ||
+          (ticket.customer_email && ticket.customer_email.toLowerCase().includes(searchLower))
+        );
+      }
+      
+      // Calcular paginação
+      const total = filteredTickets.length;
+      const totalPages = Math.ceil(total / limit);
+      const offset = (page - 1) * limit;
+      const paginatedTickets = filteredTickets.slice(offset, offset + limit);
+      
+      res.json({
+        data: paginatedTickets,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        }
+      });
     } catch (error) {
       console.error('Erro ao buscar tickets por papel do usuário:', error);
       res.status(500).json({ message: "Falha ao buscar tickets para o usuário" });
@@ -1303,10 +1337,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  // Customer endpoints
+  // Customer endpoints with pagination
   router.get("/customers", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
-      // Verificar se deve incluir clientes inativos
+      // Parâmetros de paginação
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50; // 50 por página por padrão
+      const search = (req.query.search as string) || '';
       const includeInactive = req.query.includeInactive === 'true';
       const userRole = req.session?.userRole as string;
       const companyId = req.session?.companyId;
@@ -1344,11 +1381,37 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       );
       
       // Filtrar os clientes inativos se necessário
-      const filteredCustomers = includeInactive 
+      let filteredCustomers = includeInactive 
         ? enrichedCustomers 
         : enrichedCustomers.filter(customer => customer.active);
       
-      res.json(filteredCustomers);
+      // Aplicar filtro de busca se fornecido
+      if (search) {
+        const searchLower = search.toLowerCase();
+        filteredCustomers = filteredCustomers.filter(customer => 
+          customer.name.toLowerCase().includes(searchLower) ||
+          customer.email.toLowerCase().includes(searchLower) ||
+          (customer.company && customer.company.toLowerCase().includes(searchLower))
+        );
+      }
+      
+      // Calcular paginação
+      const total = filteredCustomers.length;
+      const totalPages = Math.ceil(total / limit);
+      const offset = (page - 1) * limit;
+      const paginatedCustomers = filteredCustomers.slice(offset, offset + limit);
+      
+      res.json({
+        data: paginatedCustomers,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        }
+      });
     } catch (error) {
       console.error('Erro ao buscar clientes:', error);
       res.status(500).json({ message: "Falha ao buscar clientes" });
@@ -1540,9 +1603,151 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
 
-  // Official endpoints
+  // Bulk import endpoint for customers - processar na memória
+  const csvUpload = multer({ 
+    storage: multer.memoryStorage(), // Processar na memória
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+      if (allowedTypes.includes(file.mimetype) || file.originalname.endsWith('.csv')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Tipo de arquivo não suportado. Use CSV ou Excel.'));
+      }
+    }
+  });
+
+  router.post("/customers/bulk-import", authRequired, adminRequired, csvUpload.single('file'), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Nenhum arquivo foi enviado" });
+      }
+
+      const companyId = parseInt(req.body.company_id);
+      if (!companyId || isNaN(companyId)) {
+        return res.status(400).json({ message: "ID da empresa é obrigatório" });
+      }
+
+      // Processar arquivo da memória
+      const fileContent = req.file.buffer.toString('utf-8');
+      
+      // Parse CSV content
+      const lines = fileContent.split('\n').filter(line => line.trim());
+      if (lines.length < 2) {
+        return res.status(400).json({ message: "Arquivo deve conter pelo menos uma linha de dados além do cabeçalho" });
+      }
+
+      const headers = lines[0].split(';').map(h => h.trim());
+      const dataLines = lines.slice(1);
+      
+      // Validate required headers
+      const requiredHeaders = ['email', 'name'];
+      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+      if (missingHeaders.length > 0) {
+        return res.status(400).json({ 
+          message: `Cabeçalhos obrigatórios não encontrados: ${missingHeaders.join(', ')}` 
+        });
+      }
+
+      const results = {
+        success: 0,
+        errors: [] as Array<{ row: number; email: string; error: string }>,
+        skipped: 0, // Usuários que já existem
+        total: dataLines.length
+      };
+
+      const { generateSecurePassword, hashPassword } = await import('./utils/password');
+
+      // Process each line
+      for (let i = 0; i < dataLines.length; i++) {
+        const line = dataLines[i];
+        const values = line.split(';').map(v => v.trim());
+        
+        try {
+          // Create data object from headers and values
+          const userData: any = {};
+          headers.forEach((header, index) => {
+            userData[header] = values[index] || '';
+          });
+
+          // Validate required fields
+          if (!userData.email || !userData.name) {
+            results.errors.push({
+              row: i + 2, // +2 porque começamos na linha 2 (header = linha 1)
+              email: userData.email || 'N/A',
+              error: 'Email e nome são obrigatórios'
+            });
+            continue;
+          }
+
+          // Check if email already exists - SE EXISTIR, IGNORA (não é erro)
+          const existingCustomer = await storage.getCustomerByEmail(userData.email);
+          if (existingCustomer) {
+            results.skipped++;
+            continue; // Simplesmente ignora, não conta como erro
+          }
+
+          const existingUser = await storage.getUserByEmail(userData.email);
+          if (existingUser) {
+            results.skipped++;
+            continue; // Simplesmente ignora, não conta como erro
+          }
+
+          // Use email as username if not provided
+          const username = userData.username || userData.email;
+          
+          // Use provided password or generate one
+          const password = userData.password || generateSecurePassword();
+          const hashedPassword = await hashPassword(password);
+
+          // Create user
+          const user = await storage.createUser({
+            username,
+            email: userData.email,
+            password: hashedPassword,
+            name: userData.name,
+            role: 'customer' as typeof schema.userRoleEnum.enumValues[number],
+            company_id: companyId,
+            active: userData.active !== 'false', // Default to true unless explicitly false
+            ad_user: userData.ad_user === 'true', // Default to false unless explicitly true
+          });
+
+          // Create customer
+          await storage.createCustomer({
+            name: userData.name,
+            email: userData.email,
+            phone: userData.phone || '',
+            company: '', // Will be filled by company relationship
+            user_id: user.id,
+            company_id: companyId,
+          });
+
+          results.success++;
+        } catch (error) {
+          results.errors.push({
+            row: i + 2,
+            email: values[headers.indexOf('email')] || 'N/A',
+            error: error instanceof Error ? error.message : 'Erro desconhecido'
+          });
+        }
+      }
+
+      res.json(results);
+    } catch (error) {
+      console.error('Erro na importação em lote:', error);
+      res.status(500).json({ message: "Erro interno do servidor", error: String(error) });
+    }
+  });
+
+  // Official endpoints with pagination
   router.get("/officials", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
+      // Parâmetros de paginação
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50; // 50 por página para atendentes
+      const search = (req.query.search as string) || '';
+      const includeInactive = req.query.includeInactive === 'true';
+      
       const userRole = req.session?.userRole as string;
       const userId = req.session?.userId;
       const companyId = req.session?.companyId;
@@ -1553,14 +1758,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       // FILTRAR BASEADO NA ROLE DO USUÁRIO
       if (userRole === 'admin') {
-        // ADMIN: VÊ TODOS OS ATENDENTES ATIVOS DE TODAS AS EMPRESAS
-        officials = allOfficials.filter(official => official.is_active);
+        // ADMIN: VÊ TODOS OS ATENDENTES (ATIVOS OU TODOS SE includeInactive=true)
+        officials = includeInactive ? allOfficials : allOfficials.filter(official => official.is_active);
         
       } else if (userRole === 'company_admin' || userRole === 'manager') {
-        // COMPANY_ADMIN e MANAGER: VÊM TODOS OS ATENDENTES ATIVOS DA SUA EMPRESA
-        officials = allOfficials.filter(official => 
-          official.is_active && official.company_id === companyId
-        );
+        // COMPANY_ADMIN e MANAGER: VÊM TODOS OS ATENDENTES DA SUA EMPRESA
+        officials = allOfficials.filter(official => {
+          const sameCompany = official.company_id === companyId;
+          const isActive = includeInactive || official.is_active;
+          return sameCompany && isActive;
+        });
         
       } else if (userRole === 'supervisor') {
         // SUPERVISOR: VÊ ELE PRÓPRIO + SUBORDINADOS DIRETOS
@@ -1570,7 +1777,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           officials = allOfficials.filter(official => {
             const isHimself = official.id === currentUserOfficial.id;
             const isSubordinate = official.supervisor_id === currentUserOfficial.id;
-            const isActive = official.is_active;
+            const isActive = includeInactive || official.is_active;
             
             return isActive && (isHimself || isSubordinate);
           });
@@ -1582,7 +1789,33 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         // TODAS AS OUTRAS ROLES: NÃO VEEM O DROPDOWN
         officials = [];
       }
-      res.json(officials);
+      
+      // Aplicar filtro de busca se fornecido
+      if (search) {
+        const searchLower = search.toLowerCase();
+        officials = officials.filter(official => 
+          official.name.toLowerCase().includes(searchLower) ||
+          official.email.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      // Calcular paginação
+      const total = officials.length;
+      const totalPages = Math.ceil(total / limit);
+      const offset = (page - 1) * limit;
+      const paginatedOfficials = officials.slice(offset, offset + limit);
+      
+      res.json({
+        data: paginatedOfficials,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        }
+      });
     } catch (error) {
       console.error('Erro ao buscar atendentes:', error);
       res.status(500).json({ message: "Falha ao buscar atendentes", error: String(error) });
@@ -2360,10 +2593,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
 
-  // Endpoint para listar todos os usuários (admin e company_admin)
+  // Endpoint para listar todos os usuários com paginação (admin e company_admin)
   router.get("/users", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
-      // Verificar se queremos incluir usuários inativos
+      // Parâmetros de paginação
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50; // 50 por página por padrão
+      const search = (req.query.search as string) || '';
       const includeInactive = req.query.includeInactive === 'true';
       const userRole = req.session?.userRole as string;
       const companyId = req.session?.companyId;
@@ -2374,9 +2610,20 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         await storage.getActiveUsers();
       
       // Se for admin, mostrar todos. Se for company_admin, filtrar por empresa
-      const filteredUsers = userRole === 'admin' 
+      let filteredUsers = userRole === 'admin' 
         ? allUsers 
         : allUsers.filter(user => user.company_id === companyId);
+      
+      // Aplicar filtro de busca se fornecido
+      if (search) {
+        const searchLower = search.toLowerCase();
+        filteredUsers = filteredUsers.filter(user => 
+          user.name.toLowerCase().includes(searchLower) ||
+          user.email.toLowerCase().includes(searchLower) ||
+          user.username.toLowerCase().includes(searchLower) ||
+          user.role.toLowerCase().includes(searchLower)
+        );
+      }
       
       // Não retornar as senhas
       const usersWithoutPasswords = filteredUsers.map(user => {
@@ -2384,7 +2631,23 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return userWithoutPassword;
       });
       
-      res.json(usersWithoutPasswords);
+      // Calcular paginação
+      const total = usersWithoutPasswords.length;
+      const totalPages = Math.ceil(total / limit);
+      const offset = (page - 1) * limit;
+      const paginatedUsers = usersWithoutPasswords.slice(offset, offset + limit);
+      
+      res.json({
+        data: paginatedUsers,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasNext: page < totalPages,
+          hasPrev: page > 1
+        }
+      });
     } catch (error) {
       console.error('Erro ao listar usuários:', error);
       res.status(500).json({ message: "Falha ao listar usuários", error: String(error) });

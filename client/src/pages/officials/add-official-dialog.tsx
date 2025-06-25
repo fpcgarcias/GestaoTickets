@@ -91,11 +91,12 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
   const { data: existingOfficials = [] } = useQuery<any[]>({
     queryKey: ['/api/officials', formData.company_id],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/officials');
+      const response = await apiRequest('GET', '/api/officials?limit=1000');
       if (!response.ok) {
         throw new Error('Erro ao carregar atendentes');
       }
-      const officials = await response.json();
+      const data = await response.json();
+      const officials = data.data || data; // Compatibilidade com novo formato
       
       // Se for admin e tiver empresa selecionada, filtrar por empresa
       if (user?.role === 'admin' && formData.company_id) {

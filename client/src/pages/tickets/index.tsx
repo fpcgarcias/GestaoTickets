@@ -46,15 +46,36 @@ export default function TicketsIndex() {
     to: undefined 
   });
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Pegar estado de autenticação
   const { user, isLoading: isAuthLoading } = useAuth();
 
-  // Busca tickets com base no papel do usuário
-  const { data: tickets, isLoading: isTicketsLoading } = useQuery<Ticket[]>({
-    queryKey: ['/api/tickets/user-role'],
+  // Reset page when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
+  // Busca tickets com base no papel do usuário com paginação
+  const { data: ticketsResponse, isLoading: isTicketsLoading } = useQuery({
+    queryKey: ['/api/tickets/user-role', currentPage, searchQuery],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '20',
+        ...(searchQuery && { search: searchQuery }),
+      });
+      
+      const res = await fetch(`/api/tickets/user-role?${params}`);
+      if (!res.ok) throw new Error('Erro ao carregar tickets');
+      return res.json();
+    },
     enabled: !!user,
   });
+
+  const tickets = ticketsResponse?.data || [];
+  const pagination = ticketsResponse?.pagination;
 
   // 🆕 Busca departamentos (filtrado por empresa automaticamente no backend)
   const { data: departments, isLoading: isDepartmentsLoading } = useQuery<Department[]>({
@@ -63,10 +84,17 @@ export default function TicketsIndex() {
   });
 
   // 🆕 Busca atendentes (filtrado por empresa automaticamente no backend)  
-  const { data: officials, isLoading: isOfficialsLoading } = useQuery<Official[]>({
+  const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
     queryKey: ['/api/officials'],
+    queryFn: async () => {
+      const res = await fetch('/api/officials?limit=1000'); // Buscar todos para o dropdown
+      if (!res.ok) throw new Error('Erro ao carregar atendentes');
+      return res.json();
+    },
     enabled: !!user,
   });
+
+  const officials = officialsResponse?.data || [];
 
   // Mutação para atribuir atendente
   const assignTicketMutation = useMutation({
@@ -254,7 +282,7 @@ export default function TicketsIndex() {
               placeholder="Buscar chamado" 
               className="pl-10"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
             />
           </div>
 
@@ -480,14 +508,56 @@ export default function TicketsIndex() {
         )}
       </div>
 
-      {/* Pagination */}
-      {filteredTickets && filteredTickets.length > 0 && (
-        <div className="flex justify-end mt-6">
+      {/* Paginação */}
+      {pagination && pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between mt-6">
+          <div className="text-sm text-muted-foreground">
+            Mostrando {((pagination.page - 1) * pagination.limit) + 1} a {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} chamados
+          </div>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" disabled>Anterior</Button>
-            <Button variant="outline" size="sm" className="bg-primary text-white hover:bg-primary/90">1</Button>
-            <Button variant="outline" size="sm">2</Button>
-            <Button variant="outline" size="sm">Próxima</Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              disabled={!pagination.hasPrev}
+              onClick={() => pagination.hasPrev && setCurrentPage(pagination.page - 1)}
+            >
+              Anterior
+            </Button>
+            
+            {/* Páginas numeradas */}
+            {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+              let pageNum;
+              if (pagination.totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (pagination.page <= 3) {
+                pageNum = i + 1;
+              } else if (pagination.page >= pagination.totalPages - 2) {
+                pageNum = pagination.totalPages - 4 + i;
+              } else {
+                pageNum = pagination.page - 2 + i;
+              }
+              
+              return (
+                <Button
+                  key={pageNum}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={pagination.page === pageNum ? "bg-primary text-white hover:bg-primary/90" : ""}
+                >
+                  {pageNum}
+                </Button>
+              );
+            })}
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              disabled={!pagination.hasNext}
+              onClick={() => pagination.hasNext && setCurrentPage(pagination.page + 1)}
+            >
+              Próxima
+            </Button>
           </div>
         </div>
       )}

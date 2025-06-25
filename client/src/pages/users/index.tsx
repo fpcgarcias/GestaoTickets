@@ -30,6 +30,7 @@ export default function UsersIndex() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [activeStatusDialogOpen, setActiveStatusDialogOpen] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -72,17 +73,32 @@ export default function UsersIndex() {
     setEditDialogOpen(true);
   };
 
-  // Carrega usuários com ou sem usuários inativos
-  const { data: users, isLoading } = useQuery({
-    queryKey: ['/api/users', includeInactive ? 'all' : 'active'],
+  // Reset page when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1); // Reset to first page when searching
+  };
+
+  // Carrega usuários com paginação
+  const { data: usersResponse, isLoading } = useQuery({
+    queryKey: ['/api/users', includeInactive ? 'all' : 'active', currentPage, searchTerm],
     queryFn: async () => {
-      const url = includeInactive ? '/api/users?includeInactive=true' : '/api/users';
-      const res = await fetch(url);
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '50',
+        ...(includeInactive && { includeInactive: 'true' }),
+        ...(searchTerm && { search: searchTerm }),
+      });
+      
+      const res = await fetch(`/api/users?${params}`);
       if (!res.ok) throw new Error('Erro ao carregar usuários');
       return res.json();
     },
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
+
+  const users = usersResponse?.data || [];
+  const pagination = usersResponse?.pagination;
   
   // Mutação para ativar/desativar usuário
   const toggleUserStatusMutation = useMutation({
@@ -202,14 +218,7 @@ export default function UsersIndex() {
     });
   };
 
-  // Filtragem de usuários
-  const filteredUsers = users && searchTerm 
-    ? users.filter((user: any) => 
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.username.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : users;
+  // Não precisamos mais filtrar no frontend, pois a busca é feita no backend
     
   // Função para obter o texto de papel do usuário
   const getRoleText = (role: string) => {
@@ -323,7 +332,7 @@ export default function UsersIndex() {
                   placeholder="Buscar usuários" 
                   className="pl-10" 
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                 />
               </div>
               <div className="flex items-center space-x-2">
@@ -363,8 +372,8 @@ export default function UsersIndex() {
                       <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                     </TableRow>
                   ))
-                ) : filteredUsers && filteredUsers.length > 0 ? (
-                  filteredUsers.map((userItem: any) => (
+                ) : users && users.length > 0 ? (
+                  users.map((userItem: any) => (
                     <TableRow key={userItem.id} className={!userItem.active ? "opacity-60" : ""}>
                       <TableCell>{userItem.name}</TableCell>
                       <TableCell>{userItem.username}</TableCell>
@@ -441,6 +450,60 @@ export default function UsersIndex() {
               </TableBody>
             </Table>
           </div>
+          
+          {/* Paginação */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {((pagination.page - 1) * pagination.limit) + 1} a {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} usuários
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={!pagination.hasPrev}
+                  onClick={() => pagination.hasPrev && setCurrentPage(pagination.page - 1)}
+                >
+                  Anterior
+                </Button>
+                
+                {/* Páginas numeradas */}
+                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (pagination.totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (pagination.page <= 3) {
+                    pageNum = i + 1;
+                  } else if (pagination.page >= pagination.totalPages - 2) {
+                    pageNum = pagination.totalPages - 4 + i;
+                  } else {
+                    pageNum = pagination.page - 2 + i;
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={pagination.page === pageNum ? "bg-primary text-white hover:bg-primary/90" : ""}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  disabled={!pagination.hasNext}
+                  onClick={() => pagination.hasNext && setCurrentPage(pagination.page + 1)}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
       
