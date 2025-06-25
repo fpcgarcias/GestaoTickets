@@ -39,16 +39,9 @@ export function useNotifications() {
     // Construir URL do WebSocket usando a configuração centralizada
     const wsUrl = `${config.wsBaseUrl}/ws`;
     
-    console.log('🔌 [WEBSOCKET] Iniciando conexão - VERSÃO 2025-01-02');
-    console.log('🔧 [WEBSOCKET] Ambiente:', config.isDevelopment ? 'DEVELOPMENT' : 'PRODUCTION');
-    console.log('📍 [WEBSOCKET] URL da página:', window.location.href);
-    console.log('⚡ [WEBSOCKET] URL WebSocket:', wsUrl);
-    console.log('👤 [WEBSOCKET] Usuário autenticado:', user.name);
-    
     const newSocket = new WebSocket(wsUrl);
 
     newSocket.onopen = () => {
-      console.log('✅ [WEBSOCKET] Conectado com sucesso!');
       setConnected(true);
       setConnectionError(null);
       
@@ -60,19 +53,16 @@ export function useNotifications() {
           userRole: user.role
         };
         newSocket.send(JSON.stringify(authMessage));
-        console.log('📤 [WEBSOCKET] Mensagem de autenticação enviada:', authMessage);
       }
     };
 
     newSocket.onclose = (event) => {
-      console.log('🔴 [WEBSOCKET] Desconectado:', event.code, event.reason);
       setConnected(false);
       setSocket(null);
       
       // Tentar reconectar após 3 segundos se não foi fechamento intencional
       if (event.code !== 1000 && isAuthenticated) {
         setTimeout(() => {
-          console.log('🔄 [WEBSOCKET] Tentando reconectar...');
           // O useEffect será disparado novamente pela mudança de estado
         }, 3000);
       }
@@ -87,7 +77,6 @@ export function useNotifications() {
     newSocket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('📨 [WEBSOCKET] Notificação recebida:', data);
         
         if (data.type === 'notification') {
           setNotifications(prev => [data.notification, ...prev.slice(0, 99)]);

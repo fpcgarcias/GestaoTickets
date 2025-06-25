@@ -195,11 +195,13 @@ class NotificationService {
       }
 
       // TODO: Implementar envio real de email
-      // Por enquanto, apenas log
-      console.log(`📧 Email seria enviado para ${user.email}:`);
-      console.log(`   Título: ${payload.title}`);
-      console.log(`   Mensagem: ${payload.message}`);
-      console.log(`   Tipo: ${payload.type}`);
+      // Por enquanto, apenas log em desenvolvimento
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`📧 Email seria enviado para ${user.email}:`);
+        console.log(`   Título: ${payload.title}`);
+        console.log(`   Mensagem: ${payload.message}`);
+        console.log(`   Tipo: ${payload.type}`);
+      }
       
       // Aqui você pode integrar com:
       // - Nodemailer

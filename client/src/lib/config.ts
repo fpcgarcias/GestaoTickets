@@ -43,16 +43,6 @@ function getConfig(): AppConfig {
 
 export const config = getConfig();
 
-// Log da configuração para debug
-console.log('🔧 [CONFIG] Configuração da aplicação:', {
-  ambiente: config.isDevelopment ? 'DEVELOPMENT' : 'PRODUCTION',
-  apiBaseUrl: config.apiBaseUrl,
-  wsBaseUrl: config.wsBaseUrl,
-  hostname: window.location.hostname,
-  port: window.location.port,
-  'import.meta.env.DEV': import.meta.env.DEV,
-  'isDevelopment': isDevelopment,
-  'isProduction': isProduction
-});
+// Log da configuração removido para reduzir ruído no console
 
 export default config; 

@@ -3309,34 +3309,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   router.get("/companies", authRequired, adminRequired, async (req: Request, res: Response) => {
     console.log('[/API/COMPANIES] Session no início da rota:', JSON.stringify(req.session)); // Mantendo o log original dos middlewares
     try {
-        console.log("[DEBUG] Iniciando busca de empresas");
-        
         // Verificar conexão com o banco
-        console.log("[DEBUG] Verificando conexão com o banco...");
         const testConnection = await db.select().from(schema.companies).limit(1);
-        console.log("[DEBUG] Teste de conexão:", testConnection.length > 0 ? "OK" : "Nenhum dado retornado");
-        
-        // Exibir estrutura da tabela para diagnóstico
-        console.log("[DEBUG] Estrutura da tabela companies:", Object.keys(schema.companies));
         
         // Buscar todas as empresas
-        console.log("[DEBUG] Executando query completa...");
         const companies = await db.select().from(schema.companies).orderBy(desc(schema.companies.id));
-        
-        console.log("[DEBUG] Query executada. Número de empresas encontradas:", companies.length);
-        if (companies.length > 0) {
-            console.log("[DEBUG] Primeira empresa:", JSON.stringify(companies[0], null, 2));
-            console.log("[DEBUG] Tipos dos campos:", {
-                id: typeof companies[0].id,
-                name: typeof companies[0].name,
-                email: typeof companies[0].email,
-                active: typeof companies[0].active,
-                created_at: typeof companies[0].created_at,
-                updated_at: typeof companies[0].updated_at
-            });
-        } else {
-            console.log("[DEBUG] Nenhuma empresa encontrada na tabela");
-        }
         
         res.json(companies);
     } catch (error) {
@@ -4846,7 +4823,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           if (userId && userRole) {
             // Adicionar o cliente ao serviço de notificações
             notificationService.addClient(ws, userId, userRole);
-            console.log(`WebSocket autenticado: usuário ${userId}, role ${userRole}`);
           }
         }
       } catch (error) {

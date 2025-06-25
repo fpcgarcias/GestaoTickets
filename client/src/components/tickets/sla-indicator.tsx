@@ -53,19 +53,6 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   });
   
   useEffect(() => {
-    console.log('SLAIndicator - Debug data:', {
-      slaSettingsData,
-      isLoading,
-      error,
-      ticketCreatedAt,
-      ticketPriority,
-      ticketStatus,
-      ticketCompanyId,
-      ticketId,
-      resolvedAt,
-      statusHistory
-    });
-    
     if (isLoading || error || !slaSettingsData || !ticketCreatedAt) return;
     
     // Verificar se o SLA está pausado ou finalizado
@@ -82,19 +69,15 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
       if (slaSettingsData && typeof slaSettingsData === 'object' && 'settings' in slaSettingsData) {
         // Formato novo da API
         const slaSetting = (slaSettingsData as any).settings[ticketPriority];
-        console.log('SLAIndicator - SLA setting found:', slaSetting);
         if (!slaSetting || !slaSetting.resolution_time_hours) return;
         resolutionTimeHours = slaSetting.resolution_time_hours;
       } else {
         // Formato antigo (array)
         const slaSettings = Array.isArray(slaSettingsData) ? slaSettingsData : [];
         const slaSetting = slaSettings.find((s: any) => s.priority === ticketPriority);
-        console.log('SLAIndicator - SLA setting found (legacy):', slaSetting);
         if (!slaSetting) return;
         resolutionTimeHours = slaSetting.resolutionTimeHours || slaSetting.resolution_time_hours || 24;
       }
-      
-      console.log('SLAIndicator - Resolution time hours:', resolutionTimeHours);
       
       // Converter datas
       const createdDate = new Date(ticketCreatedAt);
@@ -114,7 +97,6 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
             ticketStatus,
             statusHistory
           );
-          console.log('SLAIndicator - Status periods:', statusPeriods);
         } catch (historyError) {
           console.warn('Erro ao processar histórico de status:', historyError);
           statusPeriods = [];
@@ -132,8 +114,6 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
         statusPeriods,
         ticketStatus
       );
-      
-      console.log('SLAIndicator - SLA result:', slaResult);
       
       setPercentConsumed(slaResult.percentConsumed);
       setSlaStatus(slaResult.status);
@@ -173,7 +153,6 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   }
 
   if (error || !slaSettingsData || !timeRemaining) {
-    console.log('SLAIndicator - Not showing due to:', { error, slaSettingsData, timeRemaining });
     return null;
   }
   

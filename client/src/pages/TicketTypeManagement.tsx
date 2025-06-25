@@ -105,7 +105,6 @@ const TicketTypeManagement: React.FC = () => {
         url += `?${queryParams.toString()}`;
       }
       
-      console.log(`[DEBUG] Acessando URL para buscar tipos de chamado: ${url}`);
       const response = await apiRequest('GET', url);
       
       if (!response.ok) {
@@ -122,7 +121,6 @@ const TicketTypeManagement: React.FC = () => {
       }
       
       const data = await response.json();
-      console.log('[DEBUG] Tipos de chamado recebidos:', data);
       return data;
     },
   });

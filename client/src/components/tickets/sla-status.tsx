@@ -55,19 +55,6 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
   });
   
   useEffect(() => {
-    console.log('SLAStatus - Debug data:', {
-      slaSettingsData,
-      isLoading,
-      error,
-      ticketCreatedAt,
-      ticketPriority,
-      ticketStatus,
-      ticketCompanyId,
-      ticketId,
-      resolvedAt,
-      statusHistory
-    });
-    
     if (isLoading || error || !slaSettingsData || !ticketCreatedAt) return;
     
     try {
@@ -77,19 +64,15 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
       if (slaSettingsData && typeof slaSettingsData === 'object' && 'settings' in slaSettingsData) {
         // Formato novo da API
         const slaSetting = (slaSettingsData as any).settings[ticketPriority];
-        console.log('SLAStatus - SLA setting found:', slaSetting);
         if (!slaSetting || !slaSetting.resolution_time_hours) return;
         resolutionTimeHours = slaSetting.resolution_time_hours;
       } else {
         // Formato antigo (array)
         const slaSettings = Array.isArray(slaSettingsData) ? slaSettingsData : [];
         const slaSetting = slaSettings.find((s: any) => s.priority === ticketPriority);
-        console.log('SLAStatus - SLA setting found (legacy):', slaSetting);
         if (!slaSetting) return;
         resolutionTimeHours = slaSetting.resolutionTimeHours || slaSetting.resolution_time_hours || 24;
       }
-      
-      console.log('SLAStatus - Resolution time hours:', resolutionTimeHours);
       
       // Converter datas
       const createdDate = new Date(ticketCreatedAt);
@@ -109,7 +92,6 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
             ticketStatus as any,
             statusHistory
           );
-          console.log('SLAStatus - Status periods:', statusPeriods);
         } catch (historyError) {
           console.warn('Erro ao processar histórico de status:', historyError);
           statusPeriods = [];
@@ -127,8 +109,6 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
         statusPeriods, // Usar histórico processado
         ticketStatus as any
       );
-      
-      console.log('SLAStatus - SLA result:', slaResult);
       
       setPercentConsumed(slaResult.percentConsumed);
       setSlaStatus(slaResult.status);
@@ -203,7 +183,6 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
   }
 
   if (error || !slaSettingsData || !timeRemaining) {
-    console.log('SLAStatus - Not showing due to:', { error, slaSettingsData, timeRemaining });
     return null;
   }
   

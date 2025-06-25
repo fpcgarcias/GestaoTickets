@@ -105,7 +105,6 @@ function detectThemeFromDomain(): ThemeKey {
   // 🧪 MODO DESENVOLVIMENTO: Query parameter tem prioridade
   const themeParam = urlParams.get('theme');
   if (themeParam && themeParam in THEMES) {
-    console.log(`🧪 [THEME CONTEXT] Tema forçado via query parameter: ${themeParam}`);
     return themeParam as ThemeKey;
   }
   
@@ -113,7 +112,6 @@ function detectThemeFromDomain(): ThemeKey {
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     const devTheme = localStorage.getItem('dev-theme');
     if (devTheme && devTheme in THEMES) {
-      console.log(`🧪 [THEME CONTEXT] Tema forçado via localStorage: ${devTheme}`);
       return devTheme as ThemeKey;
     }
   }
@@ -121,18 +119,15 @@ function detectThemeFromDomain(): ThemeKey {
   // Verificar domínios mapeados
   for (const [domain, theme] of Object.entries(DOMAIN_THEME_MAP)) {
     if (hostname === domain || hostname.includes(domain)) {
-      console.log(`🌐 [THEME CONTEXT] Tema detectado por domínio: ${theme} (${domain})`);
       return theme;
     }
   }
   
   // Verificar subdomínios específicos
   if (hostname.endsWith('.oficinamuda.com.br') || hostname === 'oficinamuda.com.br') {
-    console.log(`🌐 [THEME CONTEXT] Tema detectado por subdomínio: oficinaMuda`);
     return 'oficinaMuda';
   }
   
-  console.log(`🌐 [THEME CONTEXT] Usando tema padrão para: ${hostname}`);
   return 'default';
 }
 
@@ -189,15 +184,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       isLoading: false,
     });
     
-    console.log(`🎨 [THEME CONTEXT] Tema configurado: ${detectedTheme} ("${theme.name}")`);
-    
-    // Log do logo
-    const logo = getLogoForTheme(detectedTheme);
-    if (logo) {
-      console.log(`✅ [THEME CONTEXT] Logo configurado: ${logo}`);
-    } else {
-      console.log(`❌ [THEME CONTEXT] Sem logo - usando texto`);
-    }
+    // Theme configured successfully
   }, []); // Executa apenas uma vez
 
   return (
@@ -221,24 +208,17 @@ export const devUtils = {
   setTheme: (themeName: ThemeKey) => {
     if (themeName in THEMES) {
       localStorage.setItem('dev-theme', themeName);
-      console.log(`🧪 Tema definido: ${themeName}. Recarregue a página para ver as mudanças.`);
       window.location.reload();
-    } else {
-      console.error(`❌ Tema "${themeName}" não existe. Temas disponíveis:`, Object.keys(THEMES));
     }
   },
   
   clearTheme: () => {
     localStorage.removeItem('dev-theme');
-    console.log('🧪 Tema de desenvolvimento removido. Recarregue a página.');
     window.location.reload();
   },
   
   listThemes: () => {
-    console.log('🎨 Temas disponíveis:', Object.keys(THEMES));
-    Object.entries(THEMES).forEach(([key, theme]) => {
-      console.log(`  • ${key}: "${theme.name}"`);
-    });
+    return Object.keys(THEMES);
   }
 };
 

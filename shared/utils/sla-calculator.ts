@@ -181,38 +181,18 @@ function calculateEffectiveBusinessTime(
   statusPeriods: StatusPeriod[],
   businessHours: BusinessHours = DEFAULT_BUSINESS_HOURS
 ): number {
-  console.log('calculateEffectiveBusinessTime - Input:', {
-    ticketCreatedAt,
-    currentTime,
-    statusPeriods: statusPeriods.map(p => ({
-      status: p.status,
-      startTime: p.startTime,
-      endTime: p.endTime,
-      isPaused: isSlaPaused(p.status)
-    }))
-  });
-  
   let totalEffectiveTime = 0;
   let lastActiveEnd = ticketCreatedAt;
   
   // Se não há histórico de status, considerar tempo total como ativo
   if (statusPeriods.length === 0) {
     const simpleTime = calculateBusinessTimeMs(ticketCreatedAt, currentTime, businessHours);
-    console.log('calculateEffectiveBusinessTime - No history, using simple calculation:', simpleTime / (1000 * 60 * 60), 'hours');
     return simpleTime;
   }
   
   for (const period of statusPeriods) {
     const periodStart = new Date(period.startTime);
     const periodEnd = new Date(period.endTime);
-    
-    console.log('calculateEffectiveBusinessTime - Processing period:', {
-      status: period.status,
-      startTime: periodStart,
-      endTime: periodEnd,
-      isPaused: isSlaPaused(period.status),
-      duration: (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60)
-    });
     
     // Se o status NÃO pausa o SLA, contar o tempo
     if (!isSlaPaused(period.status)) {
@@ -223,16 +203,7 @@ function calculateEffectiveBusinessTime(
         const periodTime = calculateBusinessTimeMs(effectiveStart, periodEnd, businessHours);
         totalEffectiveTime += periodTime;
         lastActiveEnd = periodEnd;
-        
-        console.log('calculateEffectiveBusinessTime - Added active period time:', {
-          effectiveStart,
-          periodEnd,
-          periodTime: periodTime / (1000 * 60 * 60),
-          totalSoFar: totalEffectiveTime / (1000 * 60 * 60)
-        });
       }
-    } else {
-      console.log('calculateEffectiveBusinessTime - Skipped paused period:', period.status);
     }
   }
   
@@ -243,17 +214,8 @@ function calculateEffectiveBusinessTime(
     if (lastPeriodEnd < currentTime) {
       const finalPeriodTime = calculateBusinessTimeMs(lastPeriodEnd, currentTime, businessHours);
       totalEffectiveTime += finalPeriodTime;
-      
-      console.log('calculateEffectiveBusinessTime - Added final period time:', {
-        lastPeriodEnd,
-        currentTime,
-        finalPeriodTime: finalPeriodTime / (1000 * 60 * 60),
-        totalFinal: totalEffectiveTime / (1000 * 60 * 60)
-      });
     }
   }
-  
-  console.log('calculateEffectiveBusinessTime - Total effective time:', totalEffectiveTime / (1000 * 60 * 60), 'hours');
   
   return totalEffectiveTime;
 }
@@ -270,20 +232,6 @@ export function calculateSLAStatus(
   statusPeriods: StatusPeriod[] = [],
   currentStatus: TicketStatus = 'new'
 ): SLAResult {
-  console.log('calculateSLAStatus - Input:', {
-    ticketCreatedAt,
-    slaHours,
-    currentTime,
-    resolvedAt,
-    currentStatus,
-    statusPeriods: statusPeriods.map(p => ({
-      status: p.status,
-      startTime: p.startTime,
-      endTime: p.endTime,
-      duration: p.endTime.getTime() - p.startTime.getTime()
-    }))
-  });
-  
   // Se já foi resolvido, calcular baseado na data de resolução
   const isResolved = !!resolvedAt || isSlaFinished(currentStatus);
   let effectiveEndTime = currentTime;
@@ -298,8 +246,6 @@ export function calculateSLAStatus(
     }
   }
   
-  console.log('calculateSLAStatus - Effective end time:', effectiveEndTime, 'isResolved:', isResolved);
-  
   const isPaused = !isResolved && isSlaPaused(currentStatus);
   
   // Calcular a data de vencimento do SLA
@@ -313,8 +259,6 @@ export function calculateSLAStatus(
     // Fallback: calcular tempo simples se não há histórico
     timeElapsed = calculateBusinessTimeMs(ticketCreatedAt, effectiveEndTime, businessHours);
   }
-  
-  console.log('calculateSLAStatus - Time elapsed (ms):', timeElapsed, 'Time elapsed (h):', timeElapsed / (1000 * 60 * 60));
   
   // Tempo total do SLA em milissegundos
   const totalSlaMs = slaHours * 60 * 60 * 1000;
@@ -347,8 +291,6 @@ export function calculateSLAStatus(
     status,
     isPaused
   };
-  
-  console.log('calculateSLAStatus - Result:', result);
   
   return result;
 }
@@ -392,23 +334,10 @@ export function convertStatusHistoryToPeriods(
 ): StatusPeriod[] {
   const periods: StatusPeriod[] = [];
   
-  console.log('convertStatusHistoryToPeriods - Input:', {
-    ticketCreatedAt,
-    currentStatus,
-    statusHistory: statusHistory.map(h => ({
-      change_type: h.change_type,
-      old_status: h.old_status,
-      new_status: h.new_status,
-      created_at: h.created_at
-    }))
-  });
-  
   // Filtrar apenas mudanças de status (não prioridade)
   const statusChanges = statusHistory
     .filter(h => h.change_type === 'status')
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  
-  console.log('convertStatusHistoryToPeriods - Filtered status changes:', statusChanges);
   
   let currentPeriodStart = ticketCreatedAt;
   let currentPeriodStatus: TicketStatus = 'new'; // Status inicial
@@ -425,7 +354,6 @@ export function convertStatusHistoryToPeriods(
         endTime: changeTime
       };
       periods.push(period);
-      console.log('convertStatusHistoryToPeriods - Added period:', period);
     }
     
     // Iniciar novo período
@@ -451,10 +379,7 @@ export function convertStatusHistoryToPeriods(
       endTime: finalEndTime
     };
     periods.push(finalPeriod);
-    console.log('convertStatusHistoryToPeriods - Added final period:', finalPeriod);
   }
-  
-  console.log('convertStatusHistoryToPeriods - Final periods:', periods);
   
   return periods;
 } 
