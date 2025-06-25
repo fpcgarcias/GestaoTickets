@@ -61,6 +61,7 @@ export const users = pgTable("users", {
   avatar_url: text("avatar_url"),
   active: boolean("active").notNull().default(true),
   ad_user: boolean("ad_user").default(false),
+  must_change_password: boolean("must_change_password").notNull().default(false),
   company_id: integer("company_id").references(() => companies.id),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),

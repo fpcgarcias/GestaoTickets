@@ -2249,6 +2249,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(401).json({ message: "Credenciais inválidas" });
       }
       
+      // Verificar se o usuário deve trocar a senha no próximo login
+      if (user.must_change_password) {
+        return res.status(200).json({ 
+          must_change_password: true,
+          user_id: user.id,
+          message: "Você deve alterar sua senha antes de continuar"
+        });
+      }
+      
       // Buscar a empresa do usuário, se não for admin
       let company = null;
       if (user.company_id) {
@@ -2335,6 +2344,111 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       });
     } else {
       res.json({ success: true });
+    }
+  });
+
+  // Endpoint para forçar troca de senha no primeiro login
+  router.post("/auth/change-forced-password", async (req: Request, res: Response) => {
+    try {
+      const { user_id, old_password, new_password } = req.body;
+      
+      if (!user_id || !old_password || !new_password) {
+        return res.status(400).json({ 
+          message: "ID do usuário, senha atual e nova senha são obrigatórios" 
+        });
+      }
+      
+      // Buscar o usuário
+      const user = await storage.getUser(user_id);
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+      
+      // Verificar se o usuário realmente deve trocar a senha
+      if (!user.must_change_password) {
+        return res.status(400).json({ 
+          message: "Este usuário não precisa trocar a senha" 
+        });
+      }
+      
+      // Verificar a senha atual
+      const { verifyPassword, hashPassword } = await import('./utils/password');
+      const passwordValid = await verifyPassword(old_password, user.password);
+      
+      if (!passwordValid) {
+        return res.status(401).json({ message: "Senha atual incorreta" });
+      }
+      
+      // Verificar se a nova senha não é a padrão
+      const DEFAULT_PASSWORD = "123Mudar@!";
+      if (new_password === DEFAULT_PASSWORD) {
+        return res.status(400).json({ 
+          message: "Você não pode usar a senha padrão. Escolha uma senha diferente." 
+        });
+      }
+      
+      // Validar critérios da nova senha (pode usar a mesma validação do registro)
+      if (new_password.length < 8) {
+        return res.status(400).json({ 
+          message: "A nova senha deve ter pelo menos 8 caracteres" 
+        });
+      }
+      
+      // Criptografar a nova senha
+      const hashedNewPassword = await hashPassword(new_password);
+      
+      // Atualizar a senha e remover a flag de must_change_password
+      await db
+        .update(schema.users)
+        .set({ 
+          password: hashedNewPassword,
+          must_change_password: false,
+          updated_at: new Date()
+        })
+        .where(eq(schema.users.id, user_id));
+      
+      // Retornar sucesso
+      res.json({ 
+        success: true, 
+        message: "Senha alterada com sucesso" 
+      });
+      
+    } catch (error) {
+      console.error('Erro ao alterar senha forçada:', error);
+      res.status(500).json({ message: "Erro interno do servidor" });
+    }
+  });
+
+  // Endpoint para marcar usuários como "deve trocar senha" (para importação em lote)
+  router.post("/auth/mark-users-must-change-password", adminRequired, async (req: Request, res: Response) => {
+    try {
+      const { user_ids } = req.body;
+      
+      if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
+        return res.status(400).json({ 
+          message: "Lista de IDs de usuários é obrigatória" 
+        });
+      }
+      
+      // Atualizar todos os usuários especificados
+      const result = await db
+        .update(schema.users)
+        .set({ 
+          must_change_password: true,
+          updated_at: new Date()
+        })
+        .where(sql`${schema.users.id} IN (${sql.join(user_ids.map((id: number) => sql`${id}`), sql`, `)})`)
+        .returning({ id: schema.users.id, username: schema.users.username });
+      
+      res.json({ 
+        success: true, 
+        message: `${result.length} usuários marcados para trocar senha`,
+        updated_users: result
+      });
+      
+    } catch (error) {
+      console.error('Erro ao marcar usuários para trocar senha:', error);
+      res.status(500).json({ message: "Erro interno do servidor" });
     }
   });
   

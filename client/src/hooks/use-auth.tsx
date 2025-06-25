@@ -32,6 +32,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   company: Company | null;
+  mustChangePassword: { show: boolean; userId: number | null };
+  clearMustChangePassword: () => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,6 +43,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [company, setCompany] = useState<Company | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
+  const [mustChangePassword, setMustChangePassword] = useState<{ show: boolean; userId: number | null }>({ 
+    show: false, 
+    userId: null 
+  });
 
   const { data, isLoading: isQueryLoading, error: queryError } = useQuery({
     queryKey: ['/api/auth/me'],
@@ -83,6 +89,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Resposta inválida do servidor');
       }
 
+      // Verificar se o usuário precisa trocar a senha
+      if (userData.must_change_password) {
+        setMustChangePassword({ show: true, userId: userData.user_id });
+        return; // Não continuar com o login normal
+      }
+
       setUser(userData);
       if (userData.company) {
         setCompany(userData.company);
@@ -94,6 +106,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(err instanceof Error ? err : new Error('Falha ao fazer login'));
       throw err;
     }
+  };
+
+  const clearMustChangePassword = () => {
+    setMustChangePassword({ show: false, userId: null });
   };
 
   const logout = async () => {
@@ -115,7 +131,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     error,
     login,
     logout,
-    isAuthenticated: !!user
+    isAuthenticated: !!user,
+    mustChangePassword,
+    clearMustChangePassword
   };
 
   return (

@@ -10,10 +10,11 @@ import { useToast } from '@/hooks/use-toast';
 import { formatCNPJ, cleanCNPJ, isValidCNPJ, validatePasswordCriteria, isPasswordValid, type PasswordCriteria } from '@/lib/utils';
 import { useTheme } from '@/contexts/theme-context';
 import { Check, X } from 'lucide-react';
+import { ForcedPasswordChangeModal } from '@/components/forced-password-change-modal';
 
 export default function AuthPage() {
   const [location, setLocation] = useLocation();
-  const { user, login, isLoading, error } = useAuth();
+  const { user, login, isLoading, error, mustChangePassword, clearMustChangePassword } = useAuth();
   const { toast } = useToast();
   // Usar nome da empresa baseado no tema do contexto
   const { companyName, companyLogo } = useTheme();
@@ -68,15 +69,37 @@ export default function AuthPage() {
     e.preventDefault();
     try {
       await login(loginData.username, loginData.password);
+      // Se chegou até aqui e não há modal de troca de senha, login foi bem-sucedido
+      if (!mustChangePassword.show) {
+        toast({
+          title: "Login realizado",
+          description: "Você foi autenticado com sucesso.",
+        });
+        setLocation('/');
+      }
+    } catch (err) {
+      toast({
+        title: "Erro no login",
+        description: "Credenciais inválidas. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePasswordChangeSuccess = async () => {
+    // Após trocar a senha com sucesso, tentar fazer login novamente
+    try {
+      clearMustChangePassword();
+      await login(loginData.username, loginData.password);
       toast({
         title: "Login realizado",
-        description: "Você foi autenticado com sucesso.",
+        description: "Senha alterada e login realizado com sucesso!",
       });
       setLocation('/');
     } catch (err) {
       toast({
         title: "Erro no login",
-        description: "Credenciais inválidas. Tente novamente.",
+        description: "Erro ao fazer login após trocar senha. Tente novamente.",
         variant: "destructive",
       });
     }
@@ -391,6 +414,14 @@ export default function AuthPage() {
           </ul>
         </div>
       </div>
+      
+      {/* Modal de troca de senha obrigatória */}
+      {mustChangePassword.show && mustChangePassword.userId && (
+        <ForcedPasswordChangeModal
+          userId={mustChangePassword.userId}
+          onSuccess={handlePasswordChangeSuccess}
+        />
+      )}
     </div>
   );
 }
