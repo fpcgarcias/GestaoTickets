@@ -25,12 +25,32 @@ import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { AddOfficialDialog } from './add-official-dialog';
 import { EditOfficialDialog } from './edit-official-dialog';
 import { ToggleStatusOfficialDialog } from '@/pages/officials/toggle-status-official-dialog';
 import { Official } from '@shared/schema';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
+
+// Interface para empresa
+interface Company {
+  id: number;
+  name: string;
+  email: string;
+  domain?: string;
+  active: boolean;
+  cnpj?: string;
+  phone?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 // Estendendo a interface Official para incluir o user com username
 interface OfficialWithUser extends Official {
@@ -50,6 +70,7 @@ export default function OfficialsIndex() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
   
   // Reset page when search changes
   const handleSearchChange = (value: string) => {
@@ -57,14 +78,21 @@ export default function OfficialsIndex() {
     setCurrentPage(1); // Reset to first page when searching
   };
 
+  // Reset page when company filter changes
+  const handleCompanyChange = (value: string) => {
+    setSelectedCompanyId(value);
+    setCurrentPage(1); // Reset to first page when filtering
+  };
+
   const { data: officialsResponse, isLoading } = useQuery({
-    queryKey: ['/api/officials', currentPage, searchQuery, includeInactive ? 'all' : 'active'],
+    queryKey: ['/api/officials', currentPage, searchQuery, includeInactive ? 'all' : 'active', selectedCompanyId],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: '50',
         ...(includeInactive && { includeInactive: 'true' }),
         ...(searchQuery && { search: searchQuery }),
+        ...(selectedCompanyId !== 'all' && user?.role === 'admin' && { company_id: selectedCompanyId }),
       });
       
       const res = await fetch(`/api/officials?${params}`);
@@ -72,6 +100,18 @@ export default function OfficialsIndex() {
       return res.json();
     },
     staleTime: 0, // Forçar recarregamento
+  });
+
+  // Buscar empresas apenas para admin
+  const { data: companies = [], isLoading: isLoadingCompanies } = useQuery<Company[]>({
+    queryKey: ['/api/companies'],
+    queryFn: async () => {
+      const res = await fetch('/api/companies');
+      if (!res.ok) throw new Error('Erro ao carregar empresas');
+      return res.json();
+    },
+    enabled: user?.role === 'admin',
+    refetchInterval: 30000,
   });
 
   const officials = officialsResponse?.data || [];
@@ -91,33 +131,16 @@ export default function OfficialsIndex() {
     setShowDeleteDialog(true);
   };
   
-  // Função para obter o username do atendente de qualquer estrutura possível
-  const getUsernameFromOfficial = (official: any): string => {
-    // Caso 1: o usuário está na propriedade 'user'
-    if (official.user && official.user.username) {
-      return official.user.username;
-    }
-    
-    // Caso 2: username está diretamente no atendente
-    if (official.username) {
-      return official.username;
-    }
-    
-    // Caso 3: pode estar em outra estrutura como user_id: {username: ...}
-    if (official.user_id && typeof official.user_id === 'object' && (official.user_id as any).username) {
-      return (official.user_id as any).username;
-    }
-    
-    // Caso 4: pode estar em userData
-    if (official.userData && official.userData.username) {
-      return official.userData.username;
-    }
-    
-    // Caso 5: fallback para email se nenhum username for encontrado
-    return official.email || '-';
-  };
+
   
-  // Não precisamos mais filtrar no frontend, pois a busca é feita no backend
+  // Função para obter o nome da empresa
+  const getCompanyName = (companyId: number | null) => {
+    if (!companyId) return 'Sistema Global';
+    const company = companies.find(c => c.id === companyId);
+    return company?.name || 'Empresa não encontrada';
+  };
+
+  // Ordenação e filtros já são feitos no backend
 
   return (
     <div>
@@ -181,6 +204,33 @@ export default function OfficialsIndex() {
                   onChange={(e) => handleSearchChange(e.target.value)}
                 />
               </div>
+              
+              {/* Filtro por empresa - apenas para admin */}
+              {user?.role === 'admin' && (
+                <div className="w-64">
+                  <Select value={selectedCompanyId} onValueChange={handleCompanyChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filtrar por empresa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as empresas</SelectItem>
+                      {isLoadingCompanies ? (
+                        <SelectItem value="loading" disabled>Carregando empresas...</SelectItem>
+                      ) : (
+                        companies
+                          .filter(company => company.active) // Mostrar apenas empresas ativas
+                          .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
+                          .map((company) => (
+                            <SelectItem key={company.id} value={company.id.toString()}>
+                              {company.name}
+                            </SelectItem>
+                          ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
               <div className="flex items-center space-x-2">
                 <Switch 
                   id="includeInactive" 
@@ -197,7 +247,6 @@ export default function OfficialsIndex() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
-                  <TableHead>Login</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Departamento</TableHead>
                   <TableHead>Supervisor</TableHead>
@@ -213,7 +262,6 @@ export default function OfficialsIndex() {
                   Array(5).fill(0).map((_, i) => (
                     <TableRow key={i}>
                       <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-28" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-24" /></TableCell>
@@ -226,18 +274,15 @@ export default function OfficialsIndex() {
                   ))
                 ) : officials && officials.length > 0 ? (
                   officials.map((official: any) => {
-                    const username = getUsernameFromOfficial(official);
-                    
                     return (
                       <TableRow key={official.id}>
                         <TableCell className="font-medium">{official.name}</TableCell>
-                        <TableCell>{username}</TableCell>
                         <TableCell>{official.email}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {official.departments && Array.isArray(official.departments) && official.departments.length > 0 ? (
                               // Exibir os departamentos
-                              official.departments.map((dept, index) => {
+                              official.departments.map((dept: any, index: number) => {
                                 // Se dept é um objeto com propriedade 'department', pegamos essa propriedade
                                 // Se não, assumimos que dept é uma string diretamente
                                 const departmentValue = typeof dept === 'object' && dept !== null && 'department' in dept
@@ -260,7 +305,7 @@ export default function OfficialsIndex() {
                           {(official as any).supervisor_id ? (
                             <span className="text-sm text-neutral-600">
                               {/* Buscar nome do supervisor nos dados */}
-                              {officials.find(o => o.id === (official as any).supervisor_id)?.name || `ID: ${(official as any).supervisor_id}`}
+                              {officials.find((o: any) => o.id === (official as any).supervisor_id)?.name || `ID: ${(official as any).supervisor_id}`}
                             </span>
                           ) : (
                             <span className="text-sm text-neutral-400">-</span>
@@ -271,7 +316,7 @@ export default function OfficialsIndex() {
                           {(official as any).manager_id ? (
                             <span className="text-sm text-neutral-600">
                               {/* Buscar nome do manager nos dados */}
-                              {officials.find(o => o.id === (official as any).manager_id)?.name || `ID: ${(official as any).manager_id}`}
+                              {officials.find((o: any) => o.id === (official as any).manager_id)?.name || `ID: ${(official as any).manager_id}`}
                             </span>
                           ) : (
                             <span className="text-sm text-neutral-400">-</span>
@@ -334,8 +379,11 @@ export default function OfficialsIndex() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={user?.role === 'admin' ? 10 : 9} className="text-center py-10 text-neutral-500">
-                      Nenhum atendente encontrado. Adicione seu primeiro membro de equipe para começar.
+                    <TableCell colSpan={user?.role === 'admin' ? 9 : 8} className="text-center py-10 text-neutral-500">
+                      {searchQuery || selectedCompanyId !== 'all' 
+                        ? "Nenhum atendente encontrado com os filtros aplicados." 
+                        : "Nenhum atendente encontrado. Adicione seu primeiro membro de equipe para começar."
+                      }
                     </TableCell>
                   </TableRow>
                 )}
@@ -348,6 +396,11 @@ export default function OfficialsIndex() {
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-muted-foreground">
                 Mostrando {((pagination.page - 1) * pagination.limit) + 1} a {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} atendentes
+                {selectedCompanyId !== 'all' && user?.role === 'admin' && (
+                  <span className="ml-2 text-neutral-500">
+                    (filtrado por: {getCompanyName(parseInt(selectedCompanyId))})
+                  </span>
+                )}
               </div>
               <div className="flex items-center space-x-2">
                 <Button 

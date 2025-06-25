@@ -43,8 +43,8 @@ interface Company {
   active: boolean;
   cnpj?: string;
   phone?: string;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export default function CompaniesPage() {
@@ -100,8 +100,8 @@ export default function CompaniesPage() {
           active: company.active !== undefined ? company.active : true,
           cnpj: company.cnpj || '',
           phone: company.phone || '',
-          createdAt: company.createdAt || new Date().toISOString(),
-          updatedAt: company.updatedAt || new Date().toISOString()
+          created_at: company.created_at || new Date().toISOString(),
+          updated_at: company.updated_at || new Date().toISOString()
         })) : [];
         
         setCompanies(formattedData);
@@ -188,8 +188,8 @@ export default function CompaniesPage() {
         name: company.name || '',
         email: company.email || '',
         active: company.active !== undefined ? company.active : true,
-        createdAt: company.createdAt || new Date().toISOString(),
-        updatedAt: company.updatedAt || new Date().toISOString()
+        created_at: company.created_at || new Date().toISOString(),
+        updated_at: company.updated_at || new Date().toISOString()
       })) : [];
       setCompanies(formattedData);
 
@@ -426,7 +426,7 @@ export default function CompaniesPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {new Date(company.createdAt).toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                        {new Date(company.created_at).toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' })}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

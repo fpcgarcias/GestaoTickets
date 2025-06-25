@@ -5,7 +5,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertTicketSchema, insertTicketReplySchema, slaDefinitions, departments as departmentsSchema, userRoleEnum } from "@shared/schema";
-import { eq, desc, isNull, sql, and, ne, or, inArray, type SQLWrapper } from "drizzle-orm";
+import { eq, desc, asc, isNull, sql, and, ne, or, inArray, ilike, type SQLWrapper } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import { db } from "./db";
 import { notificationService } from "./services/notification-service";
@@ -584,9 +584,12 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             const departmentNames = Array.from(allDepartments);
             
             // Mapear nomes de departamentos para IDs
-            const departmentRecords = await db.select().from(schema.departments).where(
-              departmentNames.length > 0 ? inArray(schema.departments.name, departmentNames) : undefined
-            );
+            let departmentRecords = [];
+            if (departmentNames.length > 0) {
+              departmentRecords = await db.select().from(schema.departments).where(
+                inArray(schema.departments.name, departmentNames)
+              );
+            }
             const departmentIds = departmentRecords.map(d => d.id);
             
             const ticketConditions = [
@@ -1345,16 +1348,26 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const limit = parseInt(req.query.limit as string) || 50; // 50 por página por padrão
       const search = (req.query.search as string) || '';
       const includeInactive = req.query.includeInactive === 'true';
+      const filterCompanyId = req.query.company_id ? parseInt(req.query.company_id as string) : null;
       const userRole = req.session?.userRole as string;
-      const companyId = req.session?.companyId;
+      const sessionCompanyId = req.session?.companyId;
       
       // Buscar todos os clientes
       const allCustomers = await storage.getCustomers();
       
-      // Filtrar por empresa se não for admin
-      const customers = userRole === 'admin' 
-        ? allCustomers 
-        : allCustomers.filter(customer => customer.company_id === companyId);
+      // Aplicar filtros de empresa
+      let customers = allCustomers;
+      
+      if (userRole === 'admin') {
+        // Admin pode filtrar por empresa específica ou ver todas
+        if (filterCompanyId) {
+          customers = allCustomers.filter(customer => customer.company_id === filterCompanyId);
+        }
+        // Se filterCompanyId for null, mostra todos
+      } else {
+        // Usuários não-admin sempre veem apenas sua empresa
+        customers = allCustomers.filter(customer => customer.company_id === sessionCompanyId);
+      }
       
       // Carregar as informações de cada cliente
       const enrichedCustomers = await Promise.all(
@@ -1394,6 +1407,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           (customer.company && customer.company.toLowerCase().includes(searchLower))
         );
       }
+      
+      // Ordenação já é feita no banco de dados via DatabaseStorage.getCustomers()
       
       // Calcular paginação
       const total = filteredCustomers.length;
@@ -1747,30 +1762,35 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const limit = parseInt(req.query.limit as string) || 50; // 50 por página para atendentes
       const search = (req.query.search as string) || '';
       const includeInactive = req.query.includeInactive === 'true';
+      const filterCompanyId = req.query.company_id ? parseInt(req.query.company_id as string) : null;
       
       const userRole = req.session?.userRole as string;
       const userId = req.session?.userId;
-      const companyId = req.session?.companyId;
+      const sessionCompanyId = req.session?.companyId;
       
       const allOfficials = await storage.getOfficials();
       
       let officials = allOfficials;
       
-      // FILTRAR BASEADO NA ROLE DO USUÁRIO
+      // APLICAR FILTROS DE EMPRESA
       if (userRole === 'admin') {
-        // ADMIN: VÊ TODOS OS ATENDENTES (ATIVOS OU TODOS SE includeInactive=true)
-        officials = includeInactive ? allOfficials : allOfficials.filter(official => official.is_active);
+        // ADMIN: pode filtrar por empresa específica ou ver todos
+        if (filterCompanyId) {
+          officials = allOfficials.filter(official => official.company_id === filterCompanyId);
+        }
+        // Se filterCompanyId for null, mostra todos
+        officials = includeInactive ? officials : officials.filter(official => official.is_active);
         
       } else if (userRole === 'company_admin' || userRole === 'manager') {
-        // COMPANY_ADMIN e MANAGER: VÊM TODOS OS ATENDENTES DA SUA EMPRESA
+        // COMPANY_ADMIN e MANAGER: VÊM TODOS OS ATENDENTES DA SUA EMPRESA (ignora filterCompanyId)
         officials = allOfficials.filter(official => {
-          const sameCompany = official.company_id === companyId;
+          const sameCompany = official.company_id === sessionCompanyId;
           const isActive = includeInactive || official.is_active;
           return sameCompany && isActive;
         });
         
       } else if (userRole === 'supervisor') {
-        // SUPERVISOR: VÊ ELE PRÓPRIO + SUBORDINADOS DIRETOS
+        // SUPERVISOR: VÊ ELE PRÓPRIO + SUBORDINADOS DIRETOS (ignora filterCompanyId)
         const currentUserOfficial = allOfficials.find(official => official.user_id === userId);
         
         if (currentUserOfficial) {
@@ -1786,7 +1806,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         }
         
       } else {
-        // TODAS AS OUTRAS ROLES: NÃO VEEM O DROPDOWN
+        // TODAS AS OUTRAS ROLES: NÃO VEEM O DROPDOWN (ignora filterCompanyId)
         officials = [];
       }
       
@@ -2601,18 +2621,28 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const limit = parseInt(req.query.limit as string) || 50; // 50 por página por padrão
       const search = (req.query.search as string) || '';
       const includeInactive = req.query.includeInactive === 'true';
+      const filterCompanyId = req.query.company_id ? parseInt(req.query.company_id as string) : null;
       const userRole = req.session?.userRole as string;
-      const companyId = req.session?.companyId;
+      const sessionCompanyId = req.session?.companyId;
       
       // Buscar usuários
       const allUsers = includeInactive ? 
         await storage.getAllUsers() : 
         await storage.getActiveUsers();
       
-      // Se for admin, mostrar todos. Se for company_admin, filtrar por empresa
-      let filteredUsers = userRole === 'admin' 
-        ? allUsers 
-        : allUsers.filter(user => user.company_id === companyId);
+      // Aplicar filtros de empresa
+      let filteredUsers = allUsers;
+      
+      if (userRole === 'admin') {
+        // Admin pode filtrar por empresa específica ou ver todos
+        if (filterCompanyId) {
+          filteredUsers = allUsers.filter(user => user.company_id === filterCompanyId);
+        }
+        // Se filterCompanyId for null, mostra todos
+      } else {
+        // Usuários não-admin sempre veem apenas sua empresa
+        filteredUsers = allUsers.filter(user => user.company_id === sessionCompanyId);
+      }
       
       // Aplicar filtro de busca se fornecido
       if (search) {
@@ -2624,6 +2654,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           user.role.toLowerCase().includes(searchLower)
         );
       }
+      
+      // Ordenação já é feita no banco de dados via DatabaseStorage.getActiveUsers()/getAllUsers()
       
       // Não retornar as senhas
       const usersWithoutPasswords = filteredUsers.map(user => {
@@ -2811,20 +2843,85 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  // Rota para usuários não-admin obterem tipos de incidentes
+  // Rota para usuários obterem tipos de incidentes com paginação
   router.get("/incident-types", authRequired, async (req: Request, res: Response) => {
     try {
-      // Verificar se o usuário tem uma empresa associada
-      if (!req.session.companyId && (req.session.userRole as string) !== 'admin') {
+      // Parâmetros de paginação
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50; // 50 por página por padrão
+      const search = (req.query.search as string) || '';
+      const active_only = req.query.active_only === "true";
+      const filterCompanyId = req.query.company_id ? parseInt(req.query.company_id as string) : null;
+      const department_id = req.query.department_id ? parseInt(req.query.department_id as string) : null;
+      const userRole = req.session?.userRole as string;
+      const sessionCompanyId = req.session.companyId;
+
+      // Verificar se o usuário tem uma empresa associada (exceto admin)
+      if (!sessionCompanyId && userRole !== 'admin') {
         return res.status(400).json({ message: "Usuário sem empresa associada" });
       }
-      
-      const userRole = req.session?.userRole as string;
-      
+
+      const conditions: SQLWrapper[] = [];
+
+      // Lógica de filtro por empresa
+      if (userRole === 'admin') {
+        // Admin pode filtrar por empresa específica ou ver todas
+        if (filterCompanyId) {
+          conditions.push(eq(schema.incidentTypes.company_id, filterCompanyId));
+        }
+        // Se filterCompanyId for null, mostra todos
+      } else {
+        // Usuários não-admin veem sua empresa + globais (company_id IS NULL)
+        if (sessionCompanyId) {
+          conditions.push(
+            or(
+              isNull(schema.incidentTypes.company_id),
+              eq(schema.incidentTypes.company_id, sessionCompanyId)
+            )
+          );
+        }
+      }
+
+      if (active_only) {
+        conditions.push(eq(schema.incidentTypes.is_active, true));
+      }
+
+      if (department_id) {
+        conditions.push(eq(schema.incidentTypes.department_id, department_id));
+      }
+
+      // Filtro por busca (nome ou descrição)
+      if (search) {
+        const searchCondition = or(
+          ilike(schema.incidentTypes.name, `%${search}%`),
+          ilike(schema.incidentTypes.description, `%${search}%`)
+        );
+        if (searchCondition) {
+          conditions.push(searchCondition);
+        }
+      }
+
+      // Contar total de registros com filtros aplicados
+      let countQuery = db
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(schema.incidentTypes);
+
+      if (conditions.length > 0) {
+        countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
+      }
+
+      const [{ count: totalCount }] = await countQuery;
+
+      // Calcular offset para paginação
+      const offset = (page - 1) * limit;
+
       // Se for admin, incluir informações da empresa
       if (userRole === 'admin') {
         const incidentTypes = await db.query.incidentTypes.findMany({
-          orderBy: [schema.incidentTypes.id],
+          where: conditions.length > 0 ? and(...conditions) : undefined,
+          orderBy: [asc(schema.incidentTypes.name)], // Ordenação alfabética
+          limit: limit,
+          offset: offset,
           with: {
             company: {
               columns: {
@@ -2835,26 +2932,43 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           }
         });
         
-        return res.json(incidentTypes);
+        const totalPages = Math.ceil(totalCount / limit);
+        
+        return res.json({
+          incidentTypes: incidentTypes,
+          pagination: {
+            current: page,
+            pages: totalPages,
+            total: totalCount,
+            limit: limit
+          }
+        });
       } else {
         // Para outros usuários, buscar sem informações da empresa
-        let query = db
+        let queryBuilder = db
           .select()
           .from(schema.incidentTypes);
-        
-        // Se não for admin, filtrar pela empresa
-        if (req.session.companyId) {
-          query = query.where(
-            or( // Adicionado OR para incluir globais (company_id IS NULL)
-               isNull(schema.incidentTypes.company_id),
-               eq(schema.incidentTypes.company_id, req.session.companyId)
-            )
-          ) as typeof query;
+
+        if (conditions.length > 0) {
+          queryBuilder = queryBuilder.where(and(...conditions)) as typeof queryBuilder;
         }
+
+        const incidentTypes = await queryBuilder
+          .orderBy(asc(schema.incidentTypes.name)) // Ordenação alfabética
+          .limit(limit)
+          .offset(offset);
         
-        const incidentTypes = await query.orderBy(schema.incidentTypes.id);
+        const totalPages = Math.ceil(totalCount / limit);
         
-        return res.json(incidentTypes);
+        return res.json({
+          incidentTypes: incidentTypes,
+          pagination: {
+            current: page,
+            pages: totalPages,
+            total: totalCount,
+            limit: limit
+          }
+        });
       }
     } catch (error) {
       console.error('Erro ao obter tipos de incidentes para usuário:', error);
@@ -2971,47 +3085,72 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   );
 
-  // Rota para usuários não-admin obterem departamentos
+  // Rota para usuários não-admin obterem departamentos com paginação
   router.get("/departments", authRequired, async (req: Request, res: Response) => {
     try {
-      const { active_only, company_id: queryCompanyId } = req.query;
-      const sessionCompanyId = req.session.companyId;
+      // Parâmetros de paginação
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50; // 50 por página por padrão
+      const search = (req.query.search as string) || '';
+      const active_only = req.query.active_only === "true";
+      const filterCompanyId = req.query.company_id ? parseInt(req.query.company_id as string) : null;
       const userRole = req.session?.userRole as string;
+      const sessionCompanyId = req.session.companyId;
 
       const conditions: SQLWrapper[] = [];
 
+      // Lógica de filtro por empresa
       if (userRole === 'admin') {
-        // Admin: se queryCompanyId for fornecido, filtra por ele. Caso contrário, não filtra por company_id (vê todos).
-        if (queryCompanyId) {
-          conditions.push(eq(departmentsSchema.company_id, parseInt(queryCompanyId as string, 10)));
+        // Admin pode filtrar por empresa específica ou ver todas
+        if (filterCompanyId) {
+          conditions.push(eq(departmentsSchema.company_id, filterCompanyId));
         }
-        // Se queryCompanyId não for fornecido, NENHUMA condição de company_id é adicionada para o admin.
-      } else if (userRole === 'company_admin') {
-        // Company_admin: vê apenas departamentos da sua empresa
-        if (sessionCompanyId) {
-          conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
-        } else {
-          return res.status(403).json({ message: "Acesso negado: ID da empresa não encontrado na sessão." });
-        }
+        // Se filterCompanyId for null, mostra todos
       } else {
-        // Não Admin: requer um companyId da sessão.
+        // Usuários não-admin sempre veem apenas sua empresa
         if (sessionCompanyId) {
           conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
         } else {
-          // Usuário não-admin sem companyId na sessão não pode ver departamentos.
           return res.status(403).json({ message: "Acesso negado: ID da empresa não encontrado na sessão." });
         }
       }
 
-      if (active_only === "true") {
+      if (active_only) {
         conditions.push(eq(departmentsSchema.is_active, true));
       }
+
+      // Filtro por busca (nome ou descrição)
+      if (search) {
+        const searchCondition = or(
+          ilike(departmentsSchema.name, `%${search}%`),
+          ilike(departmentsSchema.description, `%${search}%`)
+        );
+        if (searchCondition) {
+          conditions.push(searchCondition);
+        }
+      }
+
+      // Contar total de registros com filtros aplicados
+      let countQuery = db
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(departmentsSchema);
+
+      if (conditions.length > 0) {
+        countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
+      }
+
+      const [{ count: totalCount }] = await countQuery;
+
+      // Calcular offset para paginação
+      const offset = (page - 1) * limit;
 
       // Se for admin, incluir informações da empresa
       if (userRole === 'admin') {
         const departments = await db.query.departments.findMany({
           where: conditions.length > 0 ? and(...conditions) : undefined,
-          orderBy: [desc(departmentsSchema.created_at)],
+          orderBy: [asc(departmentsSchema.name)], // Ordenação alfabética
+          limit: limit,
+          offset: offset,
           with: {
             company: {
               columns: {
@@ -3022,7 +3161,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           }
         });
         
-        res.json(departments);
+        const totalPages = Math.ceil(totalCount / limit);
+        
+        res.json({
+          departments,
+          pagination: {
+            current: page,
+            pages: totalPages,
+            total: totalCount,
+            limit: limit
+          }
+        });
       } else {
         // Para outros usuários, buscar sem informações da empresa
         let queryBuilder = db
@@ -3033,8 +3182,22 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           queryBuilder = queryBuilder.where(and(...conditions)) as typeof queryBuilder;
         }
 
-        const departments = await queryBuilder.orderBy(desc(departmentsSchema.created_at));
-        res.json(departments);
+        const departments = await queryBuilder
+          .orderBy(asc(departmentsSchema.name)) // Ordenação alfabética
+          .limit(limit)
+          .offset(offset);
+        
+        const totalPages = Math.ceil(totalCount / limit);
+        
+        res.json({
+          departments,
+          pagination: {
+            current: page,
+            pages: totalPages,
+            total: totalCount,
+            limit: limit
+          }
+        });
       }
     } catch (error) {
       console.error("Error fetching departments:", error);

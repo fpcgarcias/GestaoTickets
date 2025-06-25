@@ -25,11 +25,24 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import AddUserDialog from './add-user-dialog';
 
+interface Company {
+  id: number;
+  name: string;
+  email: string;
+  domain?: string;
+  active: boolean;
+  cnpj?: string;
+  phone?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export default function UsersIndex() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [activeStatusDialogOpen, setActiveStatusDialogOpen] = useState(false);
@@ -79,15 +92,22 @@ export default function UsersIndex() {
     setCurrentPage(1); // Reset to first page when searching
   };
 
+  // Reset page when company filter changes
+  const handleCompanyChange = (value: string) => {
+    setSelectedCompanyId(value);
+    setCurrentPage(1); // Reset to first page when filtering
+  };
+
   // Carrega usuários com paginação
   const { data: usersResponse, isLoading } = useQuery({
-    queryKey: ['/api/users', includeInactive ? 'all' : 'active', currentPage, searchTerm],
+    queryKey: ['/api/users', includeInactive ? 'all' : 'active', currentPage, searchTerm, selectedCompanyId],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: '50',
         ...(includeInactive && { includeInactive: 'true' }),
         ...(searchTerm && { search: searchTerm }),
+        ...(selectedCompanyId !== 'all' && user?.role === 'admin' && { company_id: selectedCompanyId }),
       });
       
       const res = await fetch(`/api/users?${params}`);
@@ -97,8 +117,22 @@ export default function UsersIndex() {
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
 
+  // Buscar empresas apenas para admin
+  const { data: companies = [], isLoading: isLoadingCompanies } = useQuery<Company[]>({
+    queryKey: ['/api/companies'],
+    queryFn: async () => {
+      const res = await fetch('/api/companies');
+      if (!res.ok) throw new Error('Erro ao carregar empresas');
+      return res.json();
+    },
+    enabled: user?.role === 'admin',
+    refetchInterval: 30000,
+  });
+
   const users = usersResponse?.data || [];
   const pagination = usersResponse?.pagination;
+  
+  // Ordenação já é feita no banco de dados
   
   // Mutação para ativar/desativar usuário
   const toggleUserStatusMutation = useMutation({
@@ -218,8 +252,6 @@ export default function UsersIndex() {
     });
   };
 
-  // Não precisamos mais filtrar no frontend, pois a busca é feita no backend
-    
   // Função para obter o texto de papel do usuário
   const getRoleText = (role: string) => {
     switch(role) {
@@ -245,6 +277,13 @@ export default function UsersIndex() {
         active: !selectedUser.active
       });
     }
+  };
+
+  // Função para obter o nome da empresa
+  const getCompanyName = (companyId: number | null) => {
+    if (!companyId) return 'Sistema Global';
+    const company = companies.find(c => c.id === companyId);
+    return company?.name || 'Empresa não encontrada';
   };
 
   // Função para obter os roles disponíveis baseado no perfil do usuário logado (para edição)
@@ -335,6 +374,33 @@ export default function UsersIndex() {
                   onChange={(e) => handleSearchChange(e.target.value)}
                 />
               </div>
+              
+              {/* Filtro por empresa - apenas para admin */}
+              {user?.role === 'admin' && (
+                <div className="w-64">
+                  <Select value={selectedCompanyId} onValueChange={handleCompanyChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filtrar por empresa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as empresas</SelectItem>
+                      {isLoadingCompanies ? (
+                        <SelectItem value="loading" disabled>Carregando empresas...</SelectItem>
+                      ) : (
+                        companies
+                          .filter(company => company.active) // Mostrar apenas empresas ativas
+                          .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
+                          .map((company) => (
+                            <SelectItem key={company.id} value={company.id.toString()}>
+                              {company.name}
+                            </SelectItem>
+                          ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
               <div className="flex items-center space-x-2">
                 <Switch 
                   id="includeInactive" 
@@ -351,7 +417,6 @@ export default function UsersIndex() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
-                  <TableHead>Nome de usuário</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Perfil</TableHead>
                   {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
@@ -364,7 +429,6 @@ export default function UsersIndex() {
                   Array(5).fill(0).map((_, i) => (
                     <TableRow key={i}>
                       <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                      <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                       {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-24" /></TableCell>}
@@ -372,11 +436,10 @@ export default function UsersIndex() {
                       <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                     </TableRow>
                   ))
-                ) : users && users.length > 0 ? (
+                ) : users.length > 0 ? (
                   users.map((userItem: any) => (
                     <TableRow key={userItem.id} className={!userItem.active ? "opacity-60" : ""}>
                       <TableCell>{userItem.name}</TableCell>
-                      <TableCell>{userItem.username}</TableCell>
                       <TableCell>{userItem.email}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-normal">
@@ -391,7 +454,7 @@ export default function UsersIndex() {
                           <div className="flex items-center gap-2">
                             <Building2 className="h-4 w-4 text-neutral-500" />
                             <span className="text-sm text-neutral-600">
-                              {userItem.company?.name || 'Sistema Global'}
+                              {getCompanyName(userItem.company_id)}
                             </span>
                           </div>
                         </TableCell>
@@ -442,8 +505,11 @@ export default function UsersIndex() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={user?.role === 'admin' ? 7 : 6} className="text-center py-10 text-neutral-500">
-                      Nenhum usuário encontrado.
+                    <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-neutral-500">
+                      {searchTerm || selectedCompanyId !== 'all' 
+                        ? "Nenhum usuário encontrado com os filtros aplicados." 
+                        : "Nenhum usuário encontrado."
+                      }
                     </TableCell>
                   </TableRow>
                 )}
@@ -456,6 +522,11 @@ export default function UsersIndex() {
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-muted-foreground">
                 Mostrando {((pagination.page - 1) * pagination.limit) + 1} a {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} usuários
+                {selectedCompanyId !== 'all' && user?.role === 'admin' && (
+                  <span className="ml-2 text-neutral-500">
+                    (filtrado por: {getCompanyName(parseInt(selectedCompanyId))})
+                  </span>
+                )}
               </div>
               <div className="flex items-center space-x-2">
                 <Button 

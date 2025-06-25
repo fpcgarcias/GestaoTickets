@@ -121,7 +121,8 @@ export class DatabaseStorage implements IStorage {
       })
       .from(users)
       .leftJoin(companies, eq(users.company_id, companies.id))
-      .where(eq(users.active, true));
+      .where(eq(users.active, true))
+      .orderBy(asc(users.name));
     
     return activeUsersWithCompanies.map(({ user, company }) => ({
       ...user,
@@ -139,7 +140,8 @@ export class DatabaseStorage implements IStorage {
         }
       })
       .from(users)
-      .leftJoin(companies, eq(users.company_id, companies.id));
+      .leftJoin(companies, eq(users.company_id, companies.id))
+      .orderBy(asc(users.name));
     
     return usersWithCompanies.map(({ user, company }) => ({
       ...user,
@@ -161,7 +163,7 @@ export class DatabaseStorage implements IStorage {
   
   // Customer operations
   async getCustomers(): Promise<Customer[]> {
-    return db.select().from(customers);
+    return db.select().from(customers).orderBy(asc(customers.name));
   }
 
   async getCustomer(id: number): Promise<Customer | undefined> {

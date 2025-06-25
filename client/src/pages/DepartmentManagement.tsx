@@ -33,6 +33,8 @@ const DepartmentManagement: React.FC = () => {
   // Estados para filtros e busca
   const [searchTerm, setSearchTerm] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   
   // Estados para o formulário
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -59,15 +61,33 @@ const DepartmentManagement: React.FC = () => {
     enabled: user?.role === 'admin',
   });
 
-  // Buscar a lista de departamentos
+  // Buscar a lista de departamentos com paginação
   const { 
-    data: departments = [], 
+    data: departmentsResponse, 
     isLoading,
     error,
-  } = useQuery<Department[]>({
-    queryKey: ['/departments', { active_only: !includeInactive }],
+  } = useQuery<{
+    departments: Department[];
+    pagination: {
+      current: number;
+      pages: number;
+      total: number;
+      limit: number;
+    };
+  }>({
+    queryKey: ['/departments', { 
+      active_only: !includeInactive, 
+      search: searchTerm,
+      page: currentPage,
+      company_id: selectedCompanyId
+    }],
     queryFn: async ({ queryKey }) => {
-      const [_, params] = queryKey as [string, { active_only: boolean }];
+      const [_, params] = queryKey as [string, { 
+        active_only: boolean; 
+        search?: string;
+        page: number;
+        company_id: number | null;
+      }];
       
       let url = '/api/departments';
       
@@ -76,11 +96,17 @@ const DepartmentManagement: React.FC = () => {
       if (params.active_only) {
         queryParams.append('active_only', 'true');
       }
-      
-      // Adicionar parâmetros à URL se houver algum
-      if (queryParams.toString()) {
-        url += `?${queryParams.toString()}`;
+      if (params.search && params.search.trim()) {
+        queryParams.append('search', params.search.trim());
       }
+      queryParams.append('page', params.page.toString());
+      queryParams.append('limit', '50');
+      if (params.company_id) {
+        queryParams.append('company_id', params.company_id.toString());
+      }
+      
+      // Adicionar parâmetros à URL
+      url += `?${queryParams.toString()}`;
       
       const response = await apiRequest('GET', url);
       
@@ -92,6 +118,25 @@ const DepartmentManagement: React.FC = () => {
       return response.json();
     },
   });
+
+  const departments = departmentsResponse?.departments || [];
+  const pagination = departmentsResponse?.pagination;
+
+  // Resetar página quando filtros mudarem
+  const handleCompanyChange = (companyId: number | null) => {
+    setSelectedCompanyId(companyId);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (search: string) => {
+    setSearchTerm(search);
+    setCurrentPage(1);
+  };
+
+  const handleIncludeInactiveChange = (include: boolean) => {
+    setIncludeInactive(include);
+    setCurrentPage(1);
+  };
 
   // Mutation para criar departamento
   const createDepartmentMutation = useMutation({
@@ -271,19 +316,12 @@ const DepartmentManagement: React.FC = () => {
     }));
   };
 
-  // Filtrar departamentos pelo termo de busca
-  const filteredDepartments = departments.filter(dept => {
-    // Filtro pelo termo de busca
-    const matchesSearchTerm = 
-      dept.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (dept.description?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-    
-    // Filtro pelo status ativo/inativo
-    const isActive = dept.is_active === undefined ? true : dept.is_active;
-    const matchesActiveFilter = includeInactive || isActive;
-    
-    return matchesSearchTerm && matchesActiveFilter;
-  });
+  // Função para obter nome da empresa
+  const getCompanyName = (companyId: number | null) => {
+    if (!companyId) return 'Sistema Global';
+    const company = companies.find(c => c.id === companyId);
+    return company?.name || 'Sistema Global';
+  };
 
   return (
     <div>
@@ -309,14 +347,36 @@ const DepartmentManagement: React.FC = () => {
                   placeholder="Buscar departamentos" 
                   className="pl-10" 
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                 />
               </div>
+              
+              {user?.role === 'admin' && (
+                <div className="w-64">
+                  <Select
+                    value={selectedCompanyId?.toString() || "all"}
+                    onValueChange={(value) => handleCompanyChange(value === "all" ? null : parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filtrar por empresa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as empresas</SelectItem>
+                      {companies.map((company: any) => (
+                        <SelectItem key={company.id} value={company.id.toString()}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
               <div className="flex items-center space-x-2">
                 <Switch 
                   id="includeInactive" 
                   checked={includeInactive} 
-                  onCheckedChange={setIncludeInactive}
+                  onCheckedChange={handleIncludeInactiveChange}
                 />
                 <Label htmlFor="includeInactive">Incluir inativos</Label>
               </div>
@@ -350,14 +410,14 @@ const DepartmentManagement: React.FC = () => {
                     Erro ao carregar departamentos. Tente novamente mais tarde.
                   </TableCell>
                 </TableRow>
-              ) : filteredDepartments.length === 0 ? (
+              ) : departments.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={user?.role === 'admin' ? 5 : 4} className="text-center py-10 text-neutral-500">
                     Nenhum departamento encontrado.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredDepartments.map((dept) => (
+                departments.map((dept) => (
                   <TableRow key={dept.id} className={!dept.is_active ? "opacity-60" : ""}>
                     <TableCell className="font-medium">{dept.name}</TableCell>
                     <TableCell className="max-w-xs truncate">{dept.description || "—"}</TableCell>
@@ -366,7 +426,7 @@ const DepartmentManagement: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <Building2 className="h-4 w-4 text-neutral-500" />
                           <span className="text-sm text-neutral-600">
-                            {(dept as any).company?.name || 'Sistema Global'}
+                            {(dept as any).company?.name || getCompanyName(dept.company_id)}
                           </span>
                         </div>
                       </TableCell>
@@ -407,6 +467,36 @@ const DepartmentManagement: React.FC = () => {
               )}
             </TableBody>
           </Table>
+          
+          {/* Paginação */}
+          {pagination && pagination.pages > 1 && (
+            <div className="flex items-center justify-between px-2 py-4">
+              <div className="text-sm text-neutral-600">
+                Mostrando {departments.length} de {pagination.total} departamentos
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                >
+                  Anterior
+                </Button>
+                <div className="text-sm text-neutral-600">
+                  Página {currentPage} de {pagination.pages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage >= pagination.pages}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

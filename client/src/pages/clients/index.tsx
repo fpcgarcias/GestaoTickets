@@ -16,6 +16,25 @@ import { useAuth } from '@/hooks/use-auth';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface Company {
+  id: number;
+  name: string;
+  email: string;
+  domain?: string;
+  active: boolean;
+  cnpj?: string;
+  phone?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export default function ClientsIndex() {
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -25,17 +44,19 @@ export default function ClientsIndex() {
   const [selectedClient, setSelectedClient] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const { user } = useAuth();
   
   const { data: clientsResponse, isLoading } = useQuery({
-    queryKey: ['/api/customers', includeInactive ? 'all' : 'active', currentPage, searchQuery],
+    queryKey: ['/api/customers', includeInactive ? 'all' : 'active', currentPage, searchQuery, selectedCompanyId],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: '50',
         ...(includeInactive && { includeInactive: 'true' }),
         ...(searchQuery && { search: searchQuery }),
+        ...(selectedCompanyId !== 'all' && user?.role === 'admin' && { company_id: selectedCompanyId }),
       });
       
       const res = await fetch(`/api/customers?${params}`);
@@ -45,8 +66,22 @@ export default function ClientsIndex() {
     refetchInterval: 30000, // Atualiza a cada 30 segundos
   });
 
+  // Buscar empresas apenas para admin
+  const { data: companies = [], isLoading: isLoadingCompanies } = useQuery<Company[]>({
+    queryKey: ['/api/companies'],
+    queryFn: async () => {
+      const res = await fetch('/api/companies');
+      if (!res.ok) throw new Error('Erro ao carregar empresas');
+      return res.json();
+    },
+    enabled: user?.role === 'admin',
+    refetchInterval: 30000,
+  });
+
   const clients = clientsResponse?.data || [];
   const pagination = clientsResponse?.pagination;
+  
+  // Ordenação já é feita no backend, filtro por empresa também é feito no backend
   
   const handleEditClient = (client: Customer) => {
     setSelectedClient(client);
@@ -62,6 +97,12 @@ export default function ClientsIndex() {
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
     setCurrentPage(1); // Reset to first page when searching
+  };
+
+  // Reset page when company filter changes
+  const handleCompanyChange = (value: string) => {
+    setSelectedCompanyId(value);
+    setCurrentPage(1); // Reset to first page when filtering
   };
 
   // Verificar se o usuário tem permissão para acessar esta página
@@ -95,6 +136,13 @@ export default function ClientsIndex() {
     
     // Se o cliente estiver com user_id mas o status não vier do backend, assumimos que está ativo
     return true;
+  };
+
+  // Função para obter o nome da empresa
+  const getCompanyName = (companyId: number | null) => {
+    if (!companyId) return 'Sistema Global';
+    const company = companies.find(c => c.id === companyId);
+    return company?.name || 'Empresa não encontrada';
   };
   
   return (
@@ -170,6 +218,33 @@ export default function ClientsIndex() {
                   onChange={(e) => handleSearchChange(e.target.value)}
                 />
               </div>
+              
+              {/* Filtro por empresa - apenas para admin */}
+              {user?.role === 'admin' && (
+                <div className="w-64">
+                  <Select value={selectedCompanyId} onValueChange={handleCompanyChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filtrar por empresa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as empresas</SelectItem>
+                      {isLoadingCompanies ? (
+                        <SelectItem value="loading" disabled>Carregando empresas...</SelectItem>
+                      ) : (
+                        companies
+                          .filter(company => company.active) // Mostrar apenas empresas ativas
+                          .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
+                          .map((company) => (
+                            <SelectItem key={company.id} value={company.id.toString()}>
+                              {company.name}
+                            </SelectItem>
+                          ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
               <div className="flex items-center space-x-2">
                 <Switch 
                   id="includeInactive" 
@@ -218,7 +293,7 @@ export default function ClientsIndex() {
                             <div className="flex items-center gap-2">
                               <Building2 className="h-4 w-4 text-neutral-500" />
                               <span className="text-sm text-neutral-600">
-                                {client.company || 'Sistema Global'}
+                                {getCompanyName(client.company_id)}
                               </span>
                             </div>
                           </TableCell>
@@ -261,7 +336,10 @@ export default function ClientsIndex() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-neutral-500">
-                      Nenhum cliente encontrado. Adicione seu primeiro cliente para começar.
+                      {searchQuery || selectedCompanyId !== 'all' 
+                        ? "Nenhum cliente encontrado com os filtros aplicados." 
+                        : "Nenhum cliente encontrado. Adicione seu primeiro cliente para começar."
+                      }
                     </TableCell>
                   </TableRow>
                 )}
@@ -274,6 +352,11 @@ export default function ClientsIndex() {
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-muted-foreground">
                 Mostrando {((pagination.page - 1) * pagination.limit) + 1} a {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} clientes
+                {selectedCompanyId !== 'all' && user?.role === 'admin' && (
+                  <span className="ml-2 text-neutral-500">
+                    (filtrado por: {getCompanyName(parseInt(selectedCompanyId))})
+                  </span>
+                )}
               </div>
               <div className="flex items-center space-x-2">
                 <Button 

@@ -36,6 +36,8 @@ const TicketTypeManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | undefined>(undefined);
   const [includeInactive, setIncludeInactive] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   
   // Estados para o formulário
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -52,9 +54,17 @@ const TicketTypeManagement: React.FC = () => {
 
   // Buscar a lista de departamentos - AGORA USANDO A TABELA DEDICADA
   const { 
-    data: departments = [], 
+    data: departmentsResponse, 
     isLoading: isLoadingDepartments,
-  } = useQuery<Department[]>({
+  } = useQuery<{
+    departments: Department[];
+    pagination: {
+      current: number;
+      pages: number;
+      total: number;
+      limit: number;
+    };
+  }>({
     queryKey: ['/departments'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/departments');
@@ -65,6 +75,8 @@ const TicketTypeManagement: React.FC = () => {
       return response.json();
     },
   });
+
+  const departments = departmentsResponse?.departments || [];
 
   // Buscar a lista de empresas (apenas para admin)
   const { data: companies = [] } = useQuery<any[]>({
@@ -80,15 +92,35 @@ const TicketTypeManagement: React.FC = () => {
     enabled: user?.role === 'admin',
   });
 
-  // Buscar a lista de tipos de chamado - AGORA USANDO A TABELA DEDICADA
+  // Buscar a lista de tipos de chamado com paginação
   const { 
-    data: ticketTypes = [], 
+    data: ticketTypesResponse, 
     isLoading: isLoadingTicketTypes,
     error: ticketTypesError,
-  } = useQuery<IncidentType[]>({
-    queryKey: ['/incident-types', { department_id: selectedDepartmentId, active_only: !includeInactive }],
+  } = useQuery<{
+    incidentTypes: IncidentType[];
+    pagination: {
+      current: number;
+      pages: number;
+      total: number;
+      limit: number;
+    };
+  }>({
+    queryKey: ['/incident-types', { 
+      department_id: selectedDepartmentId, 
+      active_only: !includeInactive,
+      search: searchTerm,
+      page: currentPage,
+      company_id: selectedCompanyId
+    }],
     queryFn: async ({ queryKey }) => {
-      const [_, params] = queryKey as [string, { department_id?: number, active_only: boolean }];
+      const [_, params] = queryKey as [string, { 
+        department_id?: number;
+        active_only: boolean;
+        search?: string;
+        page: number;
+        company_id: number | null;
+      }];
       let url = '/api/incident-types';
       
       // Adicionar parâmetros de query
@@ -99,11 +131,17 @@ const TicketTypeManagement: React.FC = () => {
       if (params.active_only) {
         queryParams.append('active_only', 'true');
       }
-      
-      // Adicionar parâmetros à URL se houver algum
-      if (queryParams.toString()) {
-        url += `?${queryParams.toString()}`;
+      if (params.search && params.search.trim()) {
+        queryParams.append('search', params.search.trim());
       }
+      queryParams.append('page', params.page.toString());
+      queryParams.append('limit', '50');
+      if (params.company_id) {
+        queryParams.append('company_id', params.company_id.toString());
+      }
+      
+      // Adicionar parâmetros à URL
+      url += `?${queryParams.toString()}`;
       
       const response = await apiRequest('GET', url);
       
@@ -124,6 +162,30 @@ const TicketTypeManagement: React.FC = () => {
       return data;
     },
   });
+
+  const ticketTypes = ticketTypesResponse?.incidentTypes || [];
+  const pagination = ticketTypesResponse?.pagination;
+
+  // Resetar página quando filtros mudarem
+  const handleCompanyChange = (companyId: number | null) => {
+    setSelectedCompanyId(companyId);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (search: string) => {
+    setSearchTerm(search);
+    setCurrentPage(1);
+  };
+
+  const handleDepartmentChange = (departmentId: number | undefined) => {
+    setSelectedDepartmentId(departmentId);
+    setCurrentPage(1);
+  };
+
+  const handleIncludeInactiveChange = (include: boolean) => {
+    setIncludeInactive(include);
+    setCurrentPage(1);
+  };
 
   // Mutation para criar tipo de chamado
   const createTicketTypeMutation = useMutation({
@@ -342,20 +404,12 @@ const TicketTypeManagement: React.FC = () => {
     }
   }, [currentTicketType.name]);
 
-  // Filtrar tipos de chamado pelo termo de busca e status (ativo/inativo)
-  const filteredTicketTypes = ticketTypes.filter(type => {
-    // Filtro pelo termo de busca
-    const matchesSearchTerm = 
-      type.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (type.description?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-    
-    // Filtro pelo status ativo/inativo
-    // Consideramos todos os tipos como ativos se a propriedade is_active não estiver definida
-    const isActive = type.is_active === undefined ? true : type.is_active;
-    const matchesActiveFilter = includeInactive || isActive;
-    
-    return matchesSearchTerm && matchesActiveFilter;
-  });
+  // Função para obter nome da empresa
+  const getCompanyName = (companyId: number | null) => {
+    if (!companyId) return 'Sistema Global';
+    const company = companies.find(c => c.id === companyId);
+    return company?.name || 'Sistema Global';
+  };
 
   const isLoading = isLoadingDepartments || isLoadingTicketTypes;
 
@@ -383,14 +437,36 @@ const TicketTypeManagement: React.FC = () => {
                   placeholder="Buscar tipos de chamado" 
                   className="pl-10" 
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                 />
               </div>
+              
+              {user?.role === 'admin' && (
+                <div className="w-64">
+                  <Select
+                    value={selectedCompanyId?.toString() || "all"}
+                    onValueChange={(value) => handleCompanyChange(value === "all" ? null : parseInt(value))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filtrar por empresa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as empresas</SelectItem>
+                      {companies.map((company: any) => (
+                        <SelectItem key={company.id} value={company.id.toString()}>
+                          {company.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
               <div className="flex items-center space-x-2">
                 <Switch 
                   id="includeInactive" 
                   checked={includeInactive} 
-                  onCheckedChange={setIncludeInactive}
+                  onCheckedChange={handleIncludeInactiveChange}
                 />
                 <Label htmlFor="includeInactive">Incluir inativos</Label>
               </div>
@@ -401,7 +477,7 @@ const TicketTypeManagement: React.FC = () => {
               </Label>
               <Select
                 value={selectedDepartmentId?.toString() || 'all'}
-                onValueChange={(value) => setSelectedDepartmentId(value === 'all' ? undefined : parseInt(value))}
+                onValueChange={(value) => handleDepartmentChange(value === 'all' ? undefined : parseInt(value))}
               >
                 <SelectTrigger id="filterDepartment" className="w-[200px]">
                   <SelectValue placeholder="Todos os departamentos" />
@@ -447,14 +523,14 @@ const TicketTypeManagement: React.FC = () => {
                     Erro ao carregar tipos de chamado. Tente novamente mais tarde.
                   </TableCell>
                 </TableRow>
-              ) : filteredTicketTypes.length === 0 ? (
+              ) : ticketTypes.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-neutral-500">
                     Nenhum tipo de chamado encontrado.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredTicketTypes.map((type) => (
+                ticketTypes.map((type) => (
                   <TableRow key={type.id} className={!type.is_active ? "opacity-60" : ""}>
                     <TableCell className="font-medium">{type.name}</TableCell>
                     <TableCell>
@@ -465,7 +541,7 @@ const TicketTypeManagement: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <Building2 className="h-4 w-4 text-neutral-500" />
                           <span className="text-sm text-neutral-600">
-                            {type.company?.name || 'Sistema Global'}
+                            {type.company?.name || getCompanyName(type.company_id)}
                           </span>
                         </div>
                       </TableCell>
@@ -507,6 +583,36 @@ const TicketTypeManagement: React.FC = () => {
               )}
             </TableBody>
           </Table>
+          
+          {/* Paginação */}
+          {pagination && pagination.pages > 1 && (
+            <div className="flex items-center justify-between px-2 py-4">
+              <div className="text-sm text-neutral-600">
+                Mostrando {ticketTypes.length} de {pagination.total} tipos de chamado
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                >
+                  Anterior
+                </Button>
+                <div className="text-sm text-neutral-600">
+                  Página {currentPage} de {pagination.pages}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage >= pagination.pages}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
