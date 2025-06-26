@@ -60,7 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     { href: "/tickets", icon: <TicketIcon size={20} />, label: "Chamados", roles: ['admin', 'support', 'customer', 'company_admin', 'manager', 'supervisor', 'viewer'] },
     { href: "/clients", icon: <Users size={20} />, label: "Clientes", roles: ['admin', 'support', 'company_admin', 'manager', 'supervisor'] },
     { href: "/users", icon: <Users size={20} />, label: "Usuários", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes", roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support'] },
     { href: "/companies", icon: <Building2 size={20} />, label: "Empresas", roles: ['admin'] },
     { href: "/permissions", icon: <Shield size={20} />, label: "Permissões", roles: ['admin'] },
     { href: "/departments", icon: <FolderIcon size={20} />, label: "Departamentos", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },

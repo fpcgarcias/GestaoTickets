@@ -57,10 +57,16 @@ const AppRoutes = () => {
           <>
             <Route path="/users" element={<UsersPage />} />
             <Route path="/users/:id" element={<UserDetailsPage />} />
-            <Route path="/officials" element={<OfficialsPage />} />
-            <Route path="/officials/:id" element={<OfficialDetailsPage />} />
             <Route path="/customers" element={<CustomersPage />} />
             <Route path="/customers/:id" element={<CustomerDetailsPage />} />
+          </>
+        )}
+        
+        {/* Rotas de gestão de atendentes (admin, company_admin, manager, supervisor, support) */}
+        {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor' || user?.role === 'support') && (
+          <>
+            <Route path="/officials" element={<OfficialsPage />} />
+            <Route path="/officials/:id" element={<OfficialDetailsPage />} />
           </>
         )}
         

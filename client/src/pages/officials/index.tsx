@@ -97,7 +97,9 @@ export default function OfficialsIndex() {
       
       const res = await fetch(`/api/officials?${params}`);
       if (!res.ok) throw new Error('Erro ao carregar atendentes');
-      return res.json();
+      const data = await res.json();
+      
+      return data;
     },
     staleTime: 0, // Forçar recarregamento
   });
@@ -139,6 +141,12 @@ export default function OfficialsIndex() {
     const company = companies.find(c => c.id === companyId);
     return company?.name || 'Empresa não encontrada';
   };
+
+  // Garantir que companies é sempre um array válido
+  const safeCompanies = Array.isArray(companies) ? companies : [];
+  
+  // Garantir que officials é sempre um array válido
+  const safeOfficials = Array.isArray(officials) ? officials : [];
 
   // Ordenação e filtros já são feitos no backend
 
@@ -217,7 +225,7 @@ export default function OfficialsIndex() {
                       {isLoadingCompanies ? (
                         <SelectItem value="loading" disabled>Carregando empresas...</SelectItem>
                       ) : (
-                        companies
+                        safeCompanies
                           .filter(company => company.active) // Mostrar apenas empresas ativas
                           .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
                           .map((company) => (
@@ -272,8 +280,8 @@ export default function OfficialsIndex() {
                       <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                     </TableRow>
                   ))
-                ) : officials && officials.length > 0 ? (
-                  officials.map((official: any) => {
+                ) : safeOfficials && safeOfficials.length > 0 ? (
+                  safeOfficials.map((official: any) => {
                     return (
                       <TableRow key={official.id}>
                         <TableCell className="font-medium">{official.name}</TableCell>
@@ -305,7 +313,7 @@ export default function OfficialsIndex() {
                           {(official as any).supervisor_id ? (
                             <span className="text-sm text-neutral-600">
                               {/* Buscar nome do supervisor nos dados */}
-                              {officials.find((o: any) => o.id === (official as any).supervisor_id)?.name || `ID: ${(official as any).supervisor_id}`}
+                              {safeOfficials.find((o: any) => o.id === (official as any).supervisor_id)?.name || `ID: ${(official as any).supervisor_id}`}
                             </span>
                           ) : (
                             <span className="text-sm text-neutral-400">-</span>
@@ -316,7 +324,7 @@ export default function OfficialsIndex() {
                           {(official as any).manager_id ? (
                             <span className="text-sm text-neutral-600">
                               {/* Buscar nome do manager nos dados */}
-                              {officials.find((o: any) => o.id === (official as any).manager_id)?.name || `ID: ${(official as any).manager_id}`}
+                              {safeOfficials.find((o: any) => o.id === (official as any).manager_id)?.name || `ID: ${(official as any).manager_id}`}
                             </span>
                           ) : (
                             <span className="text-sm text-neutral-400">-</span>

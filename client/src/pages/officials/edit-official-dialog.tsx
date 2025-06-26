@@ -96,7 +96,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
   });
 
   // Carregar departamentos disponíveis do banco de dados
-  const { data: departmentsData } = useQuery({
+  const { data: departmentsResponse } = useQuery({
     queryKey: ["/api/departments", formData.company_id],
     queryFn: async () => {
       let url = '/api/departments?active_only=true';
@@ -114,6 +114,9 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
     },
     enabled: user?.role !== 'admin' || formData.company_id !== null, // Para admin, só buscar se empresa estiver selecionada
   });
+
+  // Extrair departamentos da estrutura paginada
+  const departmentsData = departmentsResponse?.departments || departmentsResponse?.data || departmentsResponse || [];
 
   // Carregar atendentes existentes para seleção de supervisor/manager
   const { data: existingOfficials = [] } = useQuery<any[]>({
@@ -137,11 +140,11 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
   });
 
   // Mapear departamentos do banco para o formato usado no componente
-  const availableDepartments = departmentsData?.map((dept: { id: number; name: string; description?: string }) => ({
+  const availableDepartments = Array.isArray(departmentsData) ? departmentsData.map((dept: { id: number; name: string; description?: string }) => ({
     value: dept.name, // Usar o nome direto do banco
     label: dept.name,
     id: dept.id
-  })) || [];
+  })) : [];
 
   // Carregar dados do atendente quando o componente abrir
   useEffect(() => {

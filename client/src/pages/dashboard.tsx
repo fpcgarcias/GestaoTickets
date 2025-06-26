@@ -120,9 +120,9 @@ export default function Dashboard() {
   const [selectedOfficialId, setSelectedOfficialId] = useState<string>('all');
 
   // Verificar se deve exibir o filtro de atendentes
-  // APENAS admin, company_admin, manager e supervisor devem ver o dropdown
-  // support, customer, etc. NÃO devem ver
-  const shouldShowOfficialFilter = user?.role && ['admin', 'company_admin', 'manager', 'supervisor'].includes(user.role);
+  // APENAS admin, company_admin, manager, supervisor e support devem ver o dropdown
+  // customer, viewer, etc. NÃO devem ver
+  const shouldShowOfficialFilter = user?.role && ['admin', 'company_admin', 'manager', 'supervisor', 'support'].includes(user.role);
 
   // Buscar atendentes apenas se necessário
   const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({

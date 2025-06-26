@@ -1860,29 +1860,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         // Se filterCompanyId for null, mostra todos
         officials = includeInactive ? officials : officials.filter(official => official.is_active);
         
-      } else if (userRole === 'company_admin' || userRole === 'manager') {
-        // COMPANY_ADMIN e MANAGER: VÊM TODOS OS ATENDENTES DA SUA EMPRESA (ignora filterCompanyId)
+      } else if (userRole === 'company_admin' || userRole === 'manager' || userRole === 'supervisor' || userRole === 'support') {
+        // COMPANY_ADMIN, MANAGER, SUPERVISOR e SUPPORT: VÊM TODOS OS ATENDENTES DA SUA EMPRESA (ignora filterCompanyId)
         officials = allOfficials.filter(official => {
           const sameCompany = official.company_id === sessionCompanyId;
           const isActive = includeInactive || official.is_active;
           return sameCompany && isActive;
         });
-        
-      } else if (userRole === 'supervisor') {
-        // SUPERVISOR: VÊ ELE PRÓPRIO + SUBORDINADOS DIRETOS (ignora filterCompanyId)
-        const currentUserOfficial = allOfficials.find(official => official.user_id === userId);
-        
-        if (currentUserOfficial) {
-          officials = allOfficials.filter(official => {
-            const isHimself = official.id === currentUserOfficial.id;
-            const isSubordinate = official.supervisor_id === currentUserOfficial.id;
-            const isActive = includeInactive || official.is_active;
-            
-            return isActive && (isHimself || isSubordinate);
-          });
-        } else {
-          officials = [];
-        }
         
       } else {
         // TODAS AS OUTRAS ROLES: NÃO VEEM O DROPDOWN (ignora filterCompanyId)
@@ -1921,7 +1905,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.post("/officials", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor']), async (req: Request, res: Response) => {
+  router.post("/officials", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
       // console.log(`Iniciando criação de atendente com dados:`, JSON.stringify(req.body, null, 2)); // REMOVIDO - dados sensíveis
       const { departments, company_id, ...officialData } = req.body;
@@ -2014,7 +1998,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.patch("/officials/:id", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor']), async (req: Request, res: Response) => {
+  router.patch("/officials/:id", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -2181,7 +2165,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Rota para alternar status (ativar/inativar) de um atendente
-  router.patch("/officials/:id/toggle-active", authRequired, async (req: Request, res: Response) => {
+  router.patch("/officials/:id/toggle-active", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -2233,7 +2217,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.delete("/officials/:id", authRequired, async (req: Request, res: Response) => {
+  router.delete("/officials/:id", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
