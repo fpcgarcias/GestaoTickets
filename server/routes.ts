@@ -1432,6 +1432,85 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       res.status(500).json({ message: "Falha ao buscar clientes" });
     }
   });
+
+  // Endpoint específico para buscar clientes no formulário de tickets
+  router.get("/customers/search", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
+    try {
+      const search = (req.query.q as string) || '';
+      const userRole = req.session?.userRole as string;
+      const sessionCompanyId = req.session.companyId;
+
+      // Buscar todos os clientes
+      const allCustomers = await storage.getCustomers();
+      
+      // Filtrar por empresa se necessário
+      let customers = allCustomers;
+      
+      if (userRole === 'admin') {
+        // Admin pode especificar empresa ou ver TODOS se não especificar
+        const filterCompanyId = req.query.company_id ? parseInt(req.query.company_id as string) : null;
+        if (filterCompanyId) {
+          customers = allCustomers.filter(customer => customer.company_id === filterCompanyId);
+        }
+        // Admin sem filtro de empresa = ver todos
+      } else {
+        // Usuários não-admin veem apenas sua empresa
+        if (sessionCompanyId) {
+          customers = allCustomers.filter(customer => customer.company_id === sessionCompanyId);
+        } else {
+          customers = [];
+        }
+      }
+
+      // Filtrar apenas clientes ativos
+      customers = customers.filter(customer => customer.active);
+
+      // Aplicar busca se fornecida
+      if (search) {
+        const searchLower = search.toLowerCase();
+        customers = customers.filter(customer =>
+          customer.name.toLowerCase().includes(searchLower) ||
+          customer.email.toLowerCase().includes(searchLower) ||
+          (customer.company && customer.company.toLowerCase().includes(searchLower))
+        );
+        // Limitar apenas quando há busca específica
+        customers = customers.slice(0, 50);
+      }
+
+      // Se não há busca, retornar todos os clientes (filtro será feito no frontend)
+      const limitedCustomers = customers;
+
+      // Enriquecer dados dos clientes
+      const enrichedCustomers = await Promise.all(
+        limitedCustomers.map(async (customer) => {
+          let userData = null;
+          if (customer.user_id) {
+            try {
+              userData = await storage.getUser(customer.user_id);
+            } catch (userError) {
+              // Silenciar warning para produção
+            }
+          }
+
+          return {
+            ...customer,
+            active: userData ? userData.active : true,
+            user: userData ? {
+              id: userData.id,
+              username: userData.username,
+              role: userData.role,
+              active: userData.active
+            } : null
+          };
+        })
+      );
+
+      res.json(enrichedCustomers);
+    } catch (error) {
+      console.error('Erro ao buscar clientes:', error);
+      res.status(500).json({ message: "Falha ao buscar clientes" });
+    }
+  });
   
   router.post("/customers", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {

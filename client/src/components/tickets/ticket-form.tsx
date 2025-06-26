@@ -29,6 +29,7 @@ import { useLocation } from 'wouter';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { FileUpload } from './file-upload';
+import { CustomerSearch } from './customer-search';
 
 // Garante que PRIORITY_LEVELS.LOW etc. sejam tratados como literais específicos.
 // Zod z.enum requer um array não vazio de strings literais.
@@ -78,14 +79,8 @@ export const TicketForm = () => {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
 
-  // Adicionar uma consulta para buscar os clientes, habilitada apenas se não for 'customer'
-  const { data: customersData, isLoading: isLoadingCustomers } = useQuery<{data: Customer[], pagination: any}>({
-    queryKey: ["/api/customers"],
-    enabled: user?.role !== 'customer', // Desabilitar para 'customer'
-  });
-
-  // Garantir que customers é um array
-  const customers = Array.isArray(customersData?.data) ? customersData.data : [];
+  // Não precisamos mais buscar todos os clientes antecipadamente
+  // O componente CustomerSearch fará a busca conforme necessário
 
   const form = useForm<ExtendedInsertTicket>({
     resolver: zodResolver(extendedInsertTicketSchema),
@@ -189,13 +184,9 @@ export const TicketForm = () => {
     } else {
       // Para outras roles, usar o cliente selecionado no formulário
       if (data.customerId) {
-        const selectedCustomer = customers.find((c: Customer) => c.id === data.customerId);
-        if (selectedCustomer) {
-          ticketDataToSend.customer_email = selectedCustomer.email;
-          (ticketDataToSend as any).customer_id = selectedCustomer.id;
-          // Se o cliente selecionado tiver company_id e for necessário
-          // (ticketDataToSend as any).company_id = selectedCustomer.company_id; // Ajuste conforme a estrutura de Customer
-        }
+        // Os dados do cliente já foram definidos pelo CustomerSearch
+        (ticketDataToSend as any).customer_id = data.customerId;
+        // O email já está no data.customer_email
       }
     }
     
@@ -229,20 +220,11 @@ export const TicketForm = () => {
     if (user && (user.role as any) === 'customer') {
       // Pré-selecionar o cliente e email diretamente dos dados do usuário
       form.setValue('customer_email', user.email);
-      if (user.id) { // Certifique-se que user.id é o esperado para customerId
-        // O campo 'customerId' no formulário é usado para o select,
-        // mas para o 'customer' não há select, então isso pode não ser estritamente necessário
-        // a menos que outra lógica dependa dele.
-        // form.setValue('customerId', typeof user.id === 'string' ? parseInt(user.id) : user.id);
+      if (user.id) {
+        form.setValue('customerId', typeof user.id === 'string' ? parseInt(user.id) : user.id);
       }
-      // Forçar atualização do campo de email se necessário (geralmente React Hook Form cuida disso)
-      // O campo nome do cliente já deve ser preenchido pelo `value` do Input.
-    } else if (customers.length > 0) {
-      // Lógica existente para outras roles, se necessário, ou pode ser removida se
-      // a seleção do cliente já cobre isso.
-      // Este bloco pode ser redundante se o Select já define o email ao mudar o cliente.
     }
-  }, [user, customers, form]);
+  }, [user, form]);
 
   return (
     <Card>
@@ -267,34 +249,17 @@ export const TicketForm = () => {
                         className="bg-gray-100"
                       />
                     ) : (
-                      // Se for admin/support, mostrar a lista de seleção
-                      <Select
-                        onValueChange={(value) => {
-                          const customerId = parseInt(value);
+                      // Se for admin/support, mostrar o componente de busca de clientes
+                      <CustomerSearch
+                        value={field.value}
+                        onValueChange={(customerId, customer) => {
                           field.onChange(customerId);
-                          
                           // Atualizar automaticamente o email
-                          // Usar 'customers' que é garantido como array
-                          const selectedCustomer = customers.find((c: Customer) => c.id === customerId);
-                          if (selectedCustomer) {
-                            form.setValue('customer_email', selectedCustomer.email);
-                          }
+                          form.setValue('customer_email', customer.email);
                         }}
-                        defaultValue={field.value?.toString()}
-                      >
-                        <FormControl>
-                          <SelectTrigger disabled={isLoadingCustomers || (user?.role as any) === 'customer'}>
-                            <SelectValue placeholder={isLoadingCustomers ? "Carregando clientes..." : "Selecione um cliente"} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {customers.map((customer: Customer) => (
-                            <SelectItem key={customer.id} value={customer.id.toString()}>
-                              {customer.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        placeholder="Buscar cliente..."
+                        disabled={false}
+                      />
                     )}
                     <FormMessage />
                   </FormItem>
