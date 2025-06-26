@@ -79,13 +79,13 @@ export const TicketForm = () => {
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
 
   // Adicionar uma consulta para buscar os clientes, habilitada apenas se não for 'customer'
-  const { data: customersData, isLoading: isLoadingCustomers } = useQuery<Customer[]>({
+  const { data: customersData, isLoading: isLoadingCustomers } = useQuery<{data: Customer[], pagination: any}>({
     queryKey: ["/api/customers"],
     enabled: user?.role !== 'customer', // Desabilitar para 'customer'
   });
 
   // Garantir que customers é um array
-  const customers = Array.isArray(customersData) ? customersData : [];
+  const customers = Array.isArray(customersData?.data) ? customersData.data : [];
 
   const form = useForm<ExtendedInsertTicket>({
     resolver: zodResolver(extendedInsertTicketSchema),
@@ -95,7 +95,7 @@ export const TicketForm = () => {
       customer_email: '',
       customerId: undefined,
       type: '',
-      priority: 'medium' as const,
+      priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
       department_id: undefined,
       incident_type_id: undefined,
     },
@@ -203,20 +203,20 @@ export const TicketForm = () => {
   };
 
   // Buscar dados de departamentos
-  const { data: departmentsData } = useQuery<Department[]>({
+  const { data: departmentsData } = useQuery<{departments: Department[], pagination: any}>({
     queryKey: ["/api/departments"],
   });
 
   // Garantir que departments é um array
-  const departments = Array.isArray(departmentsData) ? departmentsData : [];
+  const departments = Array.isArray(departmentsData?.departments) ? departmentsData.departments : [];
 
   // Buscar dados de tipos de incidentes
-  const { data: incidentTypesData } = useQuery<IncidentType[]>({
+  const { data: incidentTypesData } = useQuery<{incidentTypes: IncidentType[], pagination: any}>({
     queryKey: ["/api/incident-types"],
   });
 
   // Garantir que incidentTypes é um array
-  const incidentTypes = Array.isArray(incidentTypesData) ? incidentTypesData : [];
+  const incidentTypes = Array.isArray(incidentTypesData?.incidentTypes) ? incidentTypesData.incidentTypes : [];
 
   // Filtrar tipos de incidentes pelo departamento selecionado
   const selectedDepartmentId = form.watch('department_id');
@@ -226,7 +226,7 @@ export const TicketForm = () => {
 
   // Efeito para pré-selecionar o cliente quando o usuário for customer
   useEffect(() => {
-    if (user?.role === 'customer') {
+    if (user && (user.role as any) === 'customer') {
       // Pré-selecionar o cliente e email diretamente dos dados do usuário
       form.setValue('customer_email', user.email);
       if (user.id) { // Certifique-se que user.id é o esperado para customerId
@@ -259,7 +259,7 @@ export const TicketForm = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Cliente</FormLabel>
-                    {user?.role === 'customer' ? (
+                    {(user?.role as any) === 'customer' ? (
                       // Se for cliente, mostrar o nome do próprio cliente sem opção de mudança
                       <Input 
                         value={user?.name || ''} // Usar user.name diretamente
@@ -283,7 +283,7 @@ export const TicketForm = () => {
                         defaultValue={field.value?.toString()}
                       >
                         <FormControl>
-                          <SelectTrigger disabled={isLoadingCustomers || user?.role === 'customer'}>
+                          <SelectTrigger disabled={isLoadingCustomers || (user?.role as any) === 'customer'}>
                             <SelectValue placeholder={isLoadingCustomers ? "Carregando clientes..." : "Selecione um cliente"} />
                           </SelectTrigger>
                         </FormControl>
@@ -315,8 +315,8 @@ export const TicketForm = () => {
                         onBlur={field.onBlur}
                         name={field.name}
                         ref={field.ref}
-                        disabled={user?.role === 'customer' || (user?.role !== 'customer' && !form.getValues('customerId'))} // Desabilitar se não for customer e nenhum cliente selecionado
-                        className={user?.role === 'customer' ? "bg-gray-100" : ""}
+                        disabled={(user?.role as any) === 'customer' || ((user?.role as any) !== 'customer' && !form.getValues('customerId'))} // Desabilitar se não for customer e nenhum cliente selecionado
+                        className={(user?.role as any) === 'customer' ? "bg-gray-100" : ""}
                       />
                     </FormControl>
                     <FormMessage />
