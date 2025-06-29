@@ -1,0 +1,1639 @@
+[{
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('ai_analysis_history_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "ticket_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "ai_configuration_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "input_title",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "input_description",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "suggested_priority",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "ai_response_raw",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "ai_justification",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "provider",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "model",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "request_tokens",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "response_tokens",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "processing_time_ms",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "status",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "error_message",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "retry_count",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": "0"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_analysis_history",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('ai_configurations_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "name",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "provider",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "model",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "api_key",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "api_endpoint",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "system_prompt",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "user_prompt_template",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "temperature",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": "'0.1'::text"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "max_tokens",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": "100"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "timeout_seconds",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": "30"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "max_retries",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": "3"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "fallback_priority",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "YES",
+  "column_default": "'medium'::ticket_priority"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "is_active",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "is_default",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "false"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "created_by_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ai_configurations",
+  "column_name": "updated_by_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('companies_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "name",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "email",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "domain",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "active",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "cnpj",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "phone",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "ai_permission",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "plan_contracted",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "employee_count",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "additional_agents",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": "0"
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "ticket_package",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "companies",
+  "column_name": "uses_flexible_sla",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "false"
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('customers_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "name",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "email",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "phone",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "company",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "user_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "avatar_url",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "customers",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "department_priorities",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('department_priorities_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "department_priorities",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "department_priorities",
+  "column_name": "department_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "department_priorities",
+  "column_name": "name",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "department_priorities",
+  "column_name": "weight",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "department_priorities",
+  "column_name": "color",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": "'#6B7280'::text"
+}, {
+  "table_schema": "public",
+  "table_name": "department_priorities",
+  "column_name": "is_active",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "department_priorities",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "YES",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "department_priorities",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "YES",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "departments",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('departments_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "departments",
+  "column_name": "name",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "departments",
+  "column_name": "description",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "departments",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "departments",
+  "column_name": "is_active",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "departments",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "departments",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('email_templates_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "name",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "type",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "description",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "subject_template",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "html_template",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "text_template",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "is_active",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "is_default",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "false"
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "available_variables",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "created_by_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "email_templates",
+  "column_name": "updated_by_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('incident_types_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types",
+  "column_name": "name",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types",
+  "column_name": "value",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types",
+  "column_name": "department_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types",
+  "column_name": "is_active",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "incident_types",
+  "column_name": "description",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "migrations",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('migrations_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "migrations",
+  "column_name": "name",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "migrations",
+  "column_name": "executed_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "official_departments",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('official_departments_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "official_departments",
+  "column_name": "official_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "official_departments",
+  "column_name": "department",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "official_departments",
+  "column_name": "created_at",
+  "data_type": "timestamp with time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('officials_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "name",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "email",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "user_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "is_active",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "avatar_url",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "supervisor_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "manager_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "officials",
+  "column_name": "department_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "sla_configurations",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('sla_configurations_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "sla_configurations",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "sla_configurations",
+  "column_name": "department_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "sla_configurations",
+  "column_name": "incident_type_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "sla_configurations",
+  "column_name": "priority_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "sla_configurations",
+  "column_name": "response_time_hours",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "sla_configurations",
+  "column_name": "resolution_time_hours",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "sla_configurations",
+  "column_name": "is_active",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "sla_configurations",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "YES",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "sla_configurations",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "YES",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "sla_definitions",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('sla_definitions_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "sla_definitions",
+  "column_name": "priority",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "sla_definitions",
+  "column_name": "response_time_hours",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "sla_definitions",
+  "column_name": "resolution_time_hours",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "sla_definitions",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "sla_definitions",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "sla_definitions",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "system_settings",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('system_settings_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "system_settings",
+  "column_name": "key",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "system_settings",
+  "column_name": "value",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "system_settings",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "system_settings",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "system_settings",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('ticket_attachments_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "ticket_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "user_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "filename",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "original_filename",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "file_size",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "mime_type",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "s3_key",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "s3_bucket",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "uploaded_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "is_deleted",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "false"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "deleted_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_attachments",
+  "column_name": "deleted_by_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_replies",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('ticket_replies_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_replies",
+  "column_name": "ticket_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_replies",
+  "column_name": "user_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_replies",
+  "column_name": "message",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_replies",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_replies",
+  "column_name": "is_internal",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "false"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('ticket_status_history_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "ticket_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "old_status",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "new_status",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "changed_by_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "change_type",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": "'status'::text"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "old_priority",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_status_history",
+  "column_name": "new_priority",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_types",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('ticket_types_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_types",
+  "column_name": "name",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_types",
+  "column_name": "value",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_types",
+  "column_name": "description",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_types",
+  "column_name": "department_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_types",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_types",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_types",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "ticket_types",
+  "column_name": "is_active",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('tickets_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "ticket_id",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "title",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "description",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "status",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "NO",
+  "column_default": "'new'::ticket_status"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "priority",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "NO",
+  "column_default": "'medium'::ticket_priority"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "type",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "customer_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "customer_email",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "assigned_to_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "first_response_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "resolved_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "sla_breached",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "false"
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "department_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "incident_type_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "tickets",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('user_notification_settings_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "user_id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "new_ticket_assigned",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "ticket_status_changed",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "new_reply_received",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "ticket_escalated",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "ticket_due_soon",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "new_customer_registered",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "new_user_created",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "system_maintenance",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "email_notifications",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "browser_notifications",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "push_notifications",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "false"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "notification_hours_start",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": "9"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "notification_hours_end",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": "18"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "weekend_notifications",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "false"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "digest_frequency",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": "'never'::text"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "user_notification_settings",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "user_sessions",
+  "column_name": "sid",
+  "data_type": "character varying",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "user_sessions",
+  "column_name": "sess",
+  "data_type": "json",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "user_sessions",
+  "column_name": "expire",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "id",
+  "data_type": "integer",
+  "is_nullable": "NO",
+  "column_default": "nextval('users_id_seq'::regclass)"
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "username",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "password",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "email",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "name",
+  "data_type": "text",
+  "is_nullable": "NO",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "role",
+  "data_type": "USER-DEFINED",
+  "is_nullable": "NO",
+  "column_default": "'customer'::user_role"
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "avatar_url",
+  "data_type": "text",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "created_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "updated_at",
+  "data_type": "timestamp without time zone",
+  "is_nullable": "NO",
+  "column_default": "now()"
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "active",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "true"
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "ad_user",
+  "data_type": "boolean",
+  "is_nullable": "YES",
+  "column_default": "false"
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "company_id",
+  "data_type": "integer",
+  "is_nullable": "YES",
+  "column_default": null
+}, {
+  "table_schema": "public",
+  "table_name": "users",
+  "column_name": "must_change_password",
+  "data_type": "boolean",
+  "is_nullable": "NO",
+  "column_default": "false"
+}]

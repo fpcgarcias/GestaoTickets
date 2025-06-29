@@ -48,6 +48,7 @@ export const companies = pgTable("companies", {
   cnpj: text("cnpj"),
   phone: text("phone"),
   ai_permission: boolean("ai_permission").notNull().default(true), // Permite que a empresa use IA
+  uses_flexible_sla: boolean("uses_flexible_sla").notNull().default(false), // Flag para sistema de SLA flexível
 });
 
 // Users table for authentication (ajustado para snake_case conforme banco)
@@ -113,7 +114,7 @@ export const officials = pgTable("officials", {
 export const officialDepartments = pgTable("official_departments", {
   id: serial("id").primaryKey(),
   official_id: integer("official_id").references(() => officials.id).notNull(),
-  department: text("department").notNull(), // Não é enum no banco
+  department_id: integer("department_id").references(() => departments.id).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -381,6 +382,33 @@ export const aiAnalysisHistory = pgTable("ai_analysis_history", {
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Tabela para prioridades customizáveis por departamento
+export const departmentPriorities = pgTable("department_priorities", {
+  id: serial("id").primaryKey(),
+  company_id: integer("company_id").references(() => companies.id).notNull(),
+  department_id: integer("department_id").references(() => departments.id).notNull(),
+  name: text("name").notNull(),
+  weight: integer("weight").notNull(), // 1 = menor prioridade, maior número = maior prioridade
+  color: text("color").default("#6B7280"),
+  is_active: boolean("is_active").default(true).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Tabela para configurações de SLA granulares
+export const slaConfigurations = pgTable("sla_configurations", {
+  id: serial("id").primaryKey(),
+  company_id: integer("company_id").references(() => companies.id).notNull(),
+  department_id: integer("department_id").references(() => departments.id).notNull(),
+  incident_type_id: integer("incident_type_id").references(() => incidentTypes.id).notNull(),
+  priority_id: integer("priority_id").references(() => departmentPriorities.id), // NULL = usa prioridade padrão
+  response_time_hours: integer("response_time_hours").notNull(),
+  resolution_time_hours: integer("resolution_time_hours").notNull(),
+  is_active: boolean("is_active").default(true).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Schema for inserting companies
 export const insertCompanySchema = createInsertSchema(companies).omit({
   id: true,
@@ -516,6 +544,20 @@ export const insertAiAnalysisHistorySchema = createInsertSchema(aiAnalysisHistor
   created_at: true,
 });
 
+// Schema for inserting department priorities
+export const insertDepartmentPrioritySchema = createInsertSchema(departmentPriorities).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+// Schema for inserting SLA configurations
+export const insertSlaConfigurationSchema = createInsertSchema(slaConfigurations).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
 // Types
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -601,6 +643,20 @@ export type AiAnalysisHistory = typeof aiAnalysisHistory.$inferSelect & {
   company?: Partial<Company>;
 };
 export type InsertAiAnalysisHistory = z.infer<typeof insertAiAnalysisHistorySchema>;
+
+export type DepartmentPriority = typeof departmentPriorities.$inferSelect & {
+  company?: Partial<Company>;
+  department?: Partial<Department>;
+};
+export type InsertDepartmentPriority = z.infer<typeof insertDepartmentPrioritySchema>;
+
+export type SlaConfiguration = typeof slaConfigurations.$inferSelect & {
+  company?: Partial<Company>;
+  department?: Partial<Department>;
+  incident_type?: Partial<IncidentType>;
+  priority?: Partial<DepartmentPriority>;
+};
+export type InsertSlaConfiguration = z.infer<typeof insertSlaConfigurationSchema>;
 
 // Relation declarations
 
@@ -734,5 +790,38 @@ export const aiAnalysisHistoryRelations = relations(aiAnalysisHistory, ({ one })
   company: one(companies, {
     fields: [aiAnalysisHistory.company_id],
     references: [companies.id],
+  }),
+}));
+
+// Relações para a tabela de prioridades por departamento
+export const departmentPrioritiesRelations = relations(departmentPriorities, ({ one, many }) => ({
+  company: one(companies, {
+    fields: [departmentPriorities.company_id],
+    references: [companies.id],
+  }),
+  department: one(departments, {
+    fields: [departmentPriorities.department_id],
+    references: [departments.id],
+  }),
+  slaConfigurations: many(slaConfigurations),
+}));
+
+// Relações para a tabela de configurações de SLA
+export const slaConfigurationsRelations = relations(slaConfigurations, ({ one }) => ({
+  company: one(companies, {
+    fields: [slaConfigurations.company_id],
+    references: [companies.id],
+  }),
+  department: one(departments, {
+    fields: [slaConfigurations.department_id],
+    references: [departments.id],
+  }),
+  incident_type: one(incidentTypes, {
+    fields: [slaConfigurations.incident_type_id],
+    references: [incidentTypes.id],
+  }),
+  priority: one(departmentPriorities, {
+    fields: [slaConfigurations.priority_id],
+    references: [departmentPriorities.id],
   }),
 }));

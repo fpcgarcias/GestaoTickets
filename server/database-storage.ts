@@ -26,7 +26,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(ilike(users.username, username));
+    const [user] = await db.select().from(users).where(eq(users.username, username));
     return user || undefined;
   }
 
@@ -37,40 +37,35 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(userData: InsertUser): Promise<User> {
     try {
-      // console.log('DatabaseStorage.createUser - Iniciando criação com dados:', JSON.stringify(userData, null, 2)); // REMOVIDO - dados sensíveis
+      console.log('DatabaseStorage.createUser - Iniciando criação com dados:', JSON.stringify(userData, null, 2));
       
       // Verificar campos obrigatórios
       if (!userData.username) {
         throw new Error('Nome de usuário é obrigatório');
       }
       if (!userData.email) {
-        throw new Error('Email do usuário é obrigatório');
-      }
-      if (!userData.name) {
-        throw new Error('Nome do usuário é obrigatório');
+        throw new Error('Email é obrigatório');
       }
       if (!userData.password) {
-        throw new Error('Senha do usuário é obrigatória');
-      }
-      if (!userData.role) {
-        throw new Error('Papel do usuário é obrigatório');
+        throw new Error('Senha é obrigatória');
       }
       
-      // Garantir que campos opcionais tenham valores adequados
+      // Garantir que isActive tem um valor padrão verdadeiro
       const dataWithDefaults = {
         ...userData,
-        active: userData.active !== false,
+        is_active: userData.is_active !== false, // default para true
         avatar_url: userData.avatar_url || null,
+        force_password_change: userData.force_password_change || false
       };
       
-      // console.log('DatabaseStorage.createUser - Inserindo no banco com dados tratados:', JSON.stringify(dataWithDefaults, null, 2)); // REMOVIDO - dados sensíveis
+      console.log('DatabaseStorage.createUser - Inserindo no banco com dados tratados:', JSON.stringify(dataWithDefaults, null, 2));
       const [user] = await db.insert(users).values(dataWithDefaults).returning();
       
       if (!user) {
         throw new Error('Falha ao criar usuário - nenhum registro retornado');
       }
       
-      console.log('DatabaseStorage.createUser - Usuário criado com sucesso:', user.username); // Apenas username, não dados completos
+      console.log('DatabaseStorage.createUser - Usuário criado com sucesso:', JSON.stringify(user, null, 2));
       return user;
     } catch (error) {
       console.error('DatabaseStorage.createUser - Erro:', error);
@@ -95,7 +90,7 @@ export class DatabaseStorage implements IStorage {
   async inactivateUser(id: number): Promise<User | undefined> {
     const [user] = await db
       .update(users)
-      .set({ active: false, updated_at: new Date() })
+      .set({ is_active: false, updated_at: new Date() })
       .where(eq(users.id, id))
       .returning();
     return user || undefined;
@@ -104,49 +99,23 @@ export class DatabaseStorage implements IStorage {
   async activateUser(id: number): Promise<User | undefined> {
     const [user] = await db
       .update(users)
-      .set({ active: true, updated_at: new Date() })
+      .set({ is_active: true, updated_at: new Date() })
       .where(eq(users.id, id))
       .returning();
     return user || undefined;
   }
 
   async getActiveUsers(): Promise<User[]> {
-    const activeUsersWithCompanies = await db
-      .select({
-        user: users,
-        company: {
-          id: companies.id,
-          name: companies.name,
-        }
-      })
+    return db
+      .select()
       .from(users)
-      .leftJoin(companies, eq(users.company_id, companies.id))
-      .where(eq(users.active, true))
-      .orderBy(asc(users.name));
-    
-    return activeUsersWithCompanies.map(({ user, company }) => ({
-      ...user,
-      company: company && company.id ? company : null
-    }));
+      .where(eq(users.is_active, true));
   }
   
   async getAllUsers(): Promise<User[]> {
-    const usersWithCompanies = await db
-      .select({
-        user: users,
-        company: {
-          id: companies.id,
-          name: companies.name,
-        }
-      })
-      .from(users)
-      .leftJoin(companies, eq(users.company_id, companies.id))
-      .orderBy(asc(users.name));
-    
-    return usersWithCompanies.map(({ user, company }) => ({
-      ...user,
-      company: company && company.id ? company : null
-    }));
+    return db
+      .select()
+      .from(users);
   }
 
   // Company operations
@@ -163,7 +132,7 @@ export class DatabaseStorage implements IStorage {
   
   // Customer operations
   async getCustomers(): Promise<Customer[]> {
-    return db.select().from(customers).orderBy(asc(customers.name));
+    return db.select().from(customers);
   }
 
   async getCustomer(id: number): Promise<Customer | undefined> {
@@ -197,26 +166,22 @@ export class DatabaseStorage implements IStorage {
 
   // Official operations
   async getOfficials(): Promise<Official[]> {
-    // Buscar todos os oficiais com informações de usuário e empresa
-    const allOfficials = await db
-      .select({
-        official: officials,
-        user: users,
-        company: {
-          id: companies.id,
-          name: companies.name,
-        },
-      })
-      .from(officials)
-      .leftJoin(users, eq(officials.user_id, users.id))
-      .leftJoin(companies, eq(officials.company_id, companies.id));
+    const officialsData = await db.select().from(officials);
     
-    // Transformar o resultado em um formato mais amigável
-    const mappedOfficials = allOfficials.map(({ official, user, company }) => {
+    const mappedOfficials = officialsData.map(official => {
       return {
         ...official,
-        user: user || undefined,
-        company: company && company.id ? company : null,
+        // Garantir que os campos tenham valores padrão
+        avatar_url: official.avatar_url || null,
+        phone: official.phone || null,
+        department: official.department || null,
+        hire_date: official.hire_date || null,
+        salary: official.salary || null,
+        manager_id: official.manager_id || null,
+        supervisor_id: official.supervisor_id || null,
+        is_active: official.is_active !== false, // Garantir boolean
+        created_at: official.created_at || new Date(),
+        updated_at: official.updated_at || new Date()
       };
     });
     
@@ -226,6 +191,16 @@ export class DatabaseStorage implements IStorage {
         // Buscar os registros de departamento da tabela de junção
         const departmentsData: OfficialDepartment[] = await this.getOfficialDepartments(official.id);
         
+        // Buscar os nomes dos departamentos pelos IDs
+        const departmentNames = await Promise.all(
+          departmentsData.map(async (od) => {
+            const [dept] = await db.select({ name: departments.name })
+              .from(departments)
+              .where(eq(departments.id, od.department_id));
+            return dept?.name || `Dept-${od.department_id}`;
+          })
+        );
+        
         // Buscar a contagem de tickets atribuídos
         const [ticketCount] = await db
           .select({ count: sql<number>`COUNT(*)` })
@@ -233,13 +208,29 @@ export class DatabaseStorage implements IStorage {
           .where(eq(tickets.assigned_to_id, official.id));
         
         const ticketCountNumber = parseInt(String(ticketCount?.count || 0), 10);
+        
+        // Buscar dados do usuário associado
+        let userData = undefined;
+        if (official.user_id) {
+          const [user] = await db
+            .select({
+              id: users.id,
+              username: users.username,
+              email: users.email,
+              role: users.role
+            })
+            .from(users)
+            .where(eq(users.id, official.user_id));
+          userData = user;
+        }
   
         
-        // Anexar o array de objetos OfficialDepartment e a contagem de tickets
+        // Anexar o array de nomes de departamentos, contagem de tickets e dados do usuário
         return { 
           ...official, 
-          departments: departmentsData,
-          assignedTicketsCount: ticketCountNumber
+          departments: departmentNames,
+          assignedTicketsCount: ticketCountNumber,
+          user: userData
         };
       })
     );
@@ -343,24 +334,46 @@ export class DatabaseStorage implements IStorage {
     return department;
   }
   
-  async removeOfficialDepartment(officialId: number, department: string): Promise<boolean> {
+  async removeOfficialDepartment(officialId: number, departmentName: string): Promise<boolean> {
+    // Buscar o department_id pelo nome
+    const [dept] = await db
+      .select()
+      .from(departments)
+      .where(eq(departments.name, departmentName));
+    
+    if (!dept) {
+      console.warn(`Departamento não encontrado: ${departmentName}`);
+      return false;
+    }
+    
     await db
       .delete(officialDepartments)
       .where(
         and(
           eq(officialDepartments.official_id, officialId),
-          eq(officialDepartments.department, department)
+          eq(officialDepartments.department_id, dept.id)
         )
       );
     return true;
   }
   
-  async getOfficialsByDepartment(department: string): Promise<Official[]> {
+  async getOfficialsByDepartment(departmentName: string): Promise<Official[]> {
+    // Buscar o department_id pelo nome
+    const [dept] = await db
+      .select()
+      .from(departments)
+      .where(eq(departments.name, departmentName));
+    
+    if (!dept) {
+      console.warn(`Departamento não encontrado: ${departmentName}`);
+      return [];
+    }
+    
     const departmentOfficials = await db
       .select()
       .from(officialDepartments)
       .innerJoin(officials, eq(officialDepartments.official_id, officials.id))
-      .where(eq(officialDepartments.department, department));
+      .where(eq(officialDepartments.department_id, dept.id));
     
     return departmentOfficials.map(row => row.officials);
   }
@@ -369,68 +382,12 @@ export class DatabaseStorage implements IStorage {
   async getTicketsByUserRole(userId: number, userRole: string): Promise<Ticket[]> {
     console.log(`Buscando tickets para usuário ID ${userId} com papel ${userRole}`);
     
-    // Carregar o mapeamento de departamentos (string -> id) da tabela departments real
-    let departmentIdMap: Record<string, number> = {}; 
-    try {
-      // Primeiro, determinar qual empresa usar para filtrar departamentos
-      let companyIdToFilter: number | null = null;
-      
-      if (userRole === 'support') {
-        // Para support, pegar a empresa do oficial
-        const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
-        if (official?.company_id) {
-          companyIdToFilter = official.company_id;
-        }
-      } else if (userRole === 'company_admin') {
-        // Para company_admin, pegar a empresa do usuário
-        const [user] = await db.select().from(users).where(eq(users.id, userId));
-        if (user?.company_id) {
-          companyIdToFilter = user.company_id;
-        }
-      }
-      
-
-      
-      // Buscar departamentos da tabela departments real, filtrados por empresa
-      const departmentsList = await db
-        .select()
-        .from(departments)
-        .where(
-          companyIdToFilter 
-            ? eq(departments.company_id, companyIdToFilter)
-            : undefined // Admin vê todos
-        );
-      
-
-      
-      if (departmentsList.length > 0) {
-        // Criar um mapa simples de departamentos (nome exato -> id)
-        departmentIdMap = departmentsList.reduce((acc: Record<string, number>, dept: any) => {
-          if (dept.name && dept.id) {
-            const nameLower = dept.name.toLowerCase();
-            acc[nameLower] = dept.id;
-          }
-          return acc;
-        }, {} as Record<string, number>);
-        
-
-      } else {
-        console.warn('Nenhum departamento encontrado na tabela departments para a empresa');
-      }
-      
-    } catch (e) {
-        console.error("Erro ao buscar mapeamento de departamentos:", e);
-        // Continuar sem o mapeamento pode levar a resultados incorretos
-    }
-    
     // Comportamento baseado no papel do usuário
     if (userRole === 'admin') {
       console.log('Papel: admin - retornando todos os tickets');
-      // Administradores veem todos os tickets
       return this.getTickets();
     } else if (userRole === 'company_admin') {
       console.log('Papel: company_admin - buscando tickets da empresa');
-      // Company admins veem todos os tickets da sua empresa
       const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!user || !user.company_id) {
         console.log(`Company_admin sem empresa associada para o usuário ID ${userId}`);
@@ -440,7 +397,6 @@ export class DatabaseStorage implements IStorage {
       console.log(`Buscando tickets da empresa ID ${user.company_id}`);
       
       try {
-        // Buscar todos os tickets da empresa
         const ticketsData = await db
           .select()
           .from(tickets)
@@ -459,7 +415,6 @@ export class DatabaseStorage implements IStorage {
       }
     } else if (userRole === 'customer') {
       console.log('Papel: customer - buscando tickets do cliente');
-      // Clientes veem apenas seus próprios tickets
       const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
       if (!customer) {
         console.log(`Não foi encontrado nenhum cliente para o usuário ID ${userId}`);
@@ -470,10 +425,6 @@ export class DatabaseStorage implements IStorage {
       return this.getTicketsByCustomerId(customer.id);
     } else if (userRole === 'manager') {
       console.log('Papel: manager - buscando tickets do manager e subordinados');
-      // Manager pode ver tickets de:
-      // 1. Seus próprios tickets
-      // 2. Tickets de todos os atendentes que têm ele como manager
-      // 3. Tickets não atribuídos dos departamentos dos subordinados
       
       const [managerOfficial] = await db.select().from(officials).where(eq(officials.user_id, userId));
       if (!managerOfficial) {
@@ -484,31 +435,23 @@ export class DatabaseStorage implements IStorage {
       console.log(`Manager encontrado: ID ${managerOfficial.id}`);
       
       try {
-        // Buscar todos os atendentes que têm este manager
         const subordinates = await db.select().from(officials).where(eq(officials.manager_id, managerOfficial.id));
         const subordinateIds = subordinates.map(s => s.id);
         
         console.log(`Subordinados do manager: ${JSON.stringify(subordinateIds)}`);
         
         // Buscar departamentos dos subordinados para tickets não atribuídos
-        const allDepartments = new Set<string>();
+        const allDepartmentIds = new Set<number>();
         for (const subordinate of subordinates) {
-          const departments = await this.getOfficialDepartments(subordinate.id);
-          departments.forEach(dept => allDepartments.add(dept.department));
+          const depts = await this.getOfficialDepartments(subordinate.id);
+          depts.forEach(dept => allDepartmentIds.add(dept.department_id));
         }
         
         // Buscar seus próprios departamentos também
         const managerDepartments = await this.getOfficialDepartments(managerOfficial.id);
-        managerDepartments.forEach(dept => allDepartments.add(dept.department));
+        managerDepartments.forEach(dept => allDepartmentIds.add(dept.department_id));
         
-        const departmentNames = Array.from(allDepartments);
-        console.log(`Departamentos relevantes: ${JSON.stringify(departmentNames)}`);
-        
-        // Mapear nomes para IDs usando o mapa carregado
-        const departmentIds = departmentNames
-          .map(name => departmentIdMap[name.toLowerCase()])
-          .filter(id => id !== undefined);
-        
+        const departmentIds = Array.from(allDepartmentIds);
         console.log(`IDs dos departamentos: ${JSON.stringify(departmentIds)}`);
         
         const conditions = [];
@@ -552,10 +495,6 @@ export class DatabaseStorage implements IStorage {
       }
     } else if (userRole === 'supervisor') {
       console.log('Papel: supervisor - buscando tickets do supervisor e subordinados');
-      // Supervisor pode ver tickets de:
-      // 1. Seus próprios tickets
-      // 2. Tickets dos atendentes que têm ele como supervisor
-      // 3. Tickets não atribuídos dos departamentos dos subordinados
       
       const [supervisorOfficial] = await db.select().from(officials).where(eq(officials.user_id, userId));
       if (!supervisorOfficial) {
@@ -573,24 +512,17 @@ export class DatabaseStorage implements IStorage {
         console.log(`Subordinados do supervisor: ${JSON.stringify(subordinateIds)}`);
         
         // Buscar departamentos dos subordinados para tickets não atribuídos
-        const allDepartments = new Set<string>();
+        const allDepartmentIds = new Set<number>();
         for (const subordinate of subordinates) {
-          const departments = await this.getOfficialDepartments(subordinate.id);
-          departments.forEach(dept => allDepartments.add(dept.department));
+          const depts = await this.getOfficialDepartments(subordinate.id);
+          depts.forEach(dept => allDepartmentIds.add(dept.department_id));
         }
         
         // Buscar seus próprios departamentos também
         const supervisorDepartments = await this.getOfficialDepartments(supervisorOfficial.id);
-        supervisorDepartments.forEach(dept => allDepartments.add(dept.department));
+        supervisorDepartments.forEach(dept => allDepartmentIds.add(dept.department_id));
         
-        const departmentNames = Array.from(allDepartments);
-        console.log(`Departamentos relevantes: ${JSON.stringify(departmentNames)}`);
-        
-        // Mapear nomes para IDs usando o mapa carregado
-        const departmentIds = departmentNames
-          .map(name => departmentIdMap[name.toLowerCase()])
-          .filter(id => id !== undefined);
-        
+        const departmentIds = Array.from(allDepartmentIds);
         console.log(`IDs dos departamentos: ${JSON.stringify(departmentIds)}`);
         
         const conditions = [];
@@ -634,7 +566,7 @@ export class DatabaseStorage implements IStorage {
       }
     } else if (userRole === 'support') {
       console.log('Papel: support - buscando tickets do atendente');
-      // Atendentes veem tickets de seus departamentos
+      
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
       if (!official) {
         console.log(`Não foi encontrado nenhum atendente para o usuário ID ${userId}`);
@@ -642,88 +574,25 @@ export class DatabaseStorage implements IStorage {
       }
       
       console.log(`Atendente encontrado: ID ${official.id}`);
+      
       // Obter os departamentos do atendente
       const officialDepts = await this.getOfficialDepartments(official.id);
-      console.log(`Departamentos do atendente: ${JSON.stringify(officialDepts.map(d => d.department))}`);
+      console.log(`Departamentos do atendente: ${JSON.stringify(officialDepts.map(d => d.department_id))}`);
       
       if (officialDepts.length === 0) {
         console.log('Atendente sem departamentos, mostrando apenas tickets atribuídos diretamente');
-        // Se não estiver associado a nenhum departamento, mostrar apenas tickets atribuídos diretamente
         return this.getTicketsByOfficialId(official.id);
       }
       
-      // Obter os nomes dos departamentos
-      const departmentNames = officialDepts.map(dept => dept.department);
-      
-      // Mapear nomes para IDs usando o mapa carregado
-      const departmentIds = departmentNames
-        .map(name => departmentIdMap[name.toLowerCase()])
-        .filter(id => id !== undefined); // Filtrar departamentos não encontrados no mapa
-
+      // Obter os IDs dos departamentos diretamente
+      const departmentIds = officialDepts.map(dept => dept.department_id);
       console.log(`IDs dos departamentos do atendente: ${JSON.stringify(departmentIds)}`);
-
-      if (departmentIds.length === 0 && officialDepts.length > 0) {
-        console.warn(`Nenhum ID encontrado para os departamentos: ${departmentNames.join(', ')}. Tentando busca por similaridade...`);
-        
-        // Tentar busca por similaridade (case insensitive e sem acentos)
-        const normalizeString = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        
-        const fuzzyDepartmentIds = departmentNames
-          .map(name => {
-            const normalized = normalizeString(name);
-            // Buscar por nome exato normalizado
-            const exactMatch = Object.keys(departmentIdMap).find(key => 
-              normalizeString(key) === normalized
-            );
-            if (exactMatch) {
-              console.log(`Encontrou match exato: '${name}' -> '${exactMatch}' (ID: ${departmentIdMap[exactMatch]})`);
-              return departmentIdMap[exactMatch];
-            }
-            
-            // Buscar por inclusão parcial
-            const partialMatch = Object.keys(departmentIdMap).find(key => 
-              normalizeString(key).includes(normalized) || normalized.includes(normalizeString(key))
-            );
-            if (partialMatch) {
-              console.log(`Encontrou match parcial: '${name}' -> '${partialMatch}' (ID: ${departmentIdMap[partialMatch]})`);
-              return departmentIdMap[partialMatch];
-            }
-            
-            console.warn(`Nenhum match encontrado para departamento: '${name}'`);
-            return undefined;
-          })
-          .filter(id => id !== undefined);
-        
-                 if (fuzzyDepartmentIds.length > 0) {
-           console.log(`Encontrados ${fuzzyDepartmentIds.length} departamentos por similaridade: ${fuzzyDepartmentIds}`);
-           // Buscar tickets usando os IDs encontrados
-           const conditions = [];
-           conditions.push(inArray(tickets.department_id, fuzzyDepartmentIds));
-           conditions.push(eq(tickets.assigned_to_id, official.id));
-           
-           const ticketsData = await db
-             .select()
-             .from(tickets)
-             .where(or(...conditions));
-           
-           const enrichedTickets = await Promise.all(
-             ticketsData.map(ticket => this.getTicket(ticket.id))
-           );
-           
-           return enrichedTickets.filter(Boolean) as Ticket[];
-         }
-        
-        // Se ainda não encontrou nada, retornar apenas os atribuídos
-        console.log('Nenhum departamento encontrado, retornando apenas tickets atribuídos diretamente');
-        return this.getTicketsByOfficialId(official.id);
-      }
       
       // Buscar tickets relacionados aos IDs dos departamentos do atendente OU atribuídos diretamente
       try {
         const conditions = [];
         if (departmentIds.length > 0) {
-            // Condição para tickets pertencentes a qualquer um dos IDs de departamento
-            conditions.push(inArray(tickets.department_id, departmentIds));
+          conditions.push(inArray(tickets.department_id, departmentIds));
         }
         
         // Condição para tickets atribuídos diretamente ao oficial
@@ -780,8 +649,17 @@ export class DatabaseStorage implements IStorage {
               .from(officialDepartments)
               .where(eq(officialDepartments.official_id, officialData.id));
               
-            const departments = officialDepartmentsData.map((od) => od.department);
-            officialData = { ...officialData, departments };
+            // Buscar nomes dos departamentos pelos IDs
+            const departmentIds = officialDepartmentsData.map((od) => od.department_id);
+            const departmentNames = await Promise.all(
+              departmentIds.map(async (deptId) => {
+                const [dept] = await db.select({ name: departments.name })
+                  .from(departments)
+                  .where(eq(departments.id, deptId));
+                return dept?.name || `Dept-${deptId}`;
+              })
+            );
+            officialData = { ...officialData, departments: departmentNames };
           }
         }
         
@@ -842,8 +720,17 @@ export class DatabaseStorage implements IStorage {
           .from(officialDepartments)
           .where(eq(officialDepartments.official_id, officialData.id));
           
-        const departments = officialDepartmentsData.map((od) => od.department);
-        officialData = { ...officialData, departments };
+        // Buscar nomes dos departamentos pelos IDs
+        const departmentIds = officialDepartmentsData.map((od) => od.department_id);
+        const departmentNames = await Promise.all(
+          departmentIds.map(async (deptId) => {
+            const [dept] = await db.select({ name: departments.name })
+              .from(departments)
+              .where(eq(departments.id, deptId));
+            return dept?.name || `Dept-${deptId}`;
+          })
+        );
+        officialData = { ...officialData, departments: departmentNames };
       }
     }
     
@@ -901,8 +788,17 @@ export class DatabaseStorage implements IStorage {
           .from(officialDepartments)
           .where(eq(officialDepartments.official_id, officialData.id));
           
-        const departments = officialDepartmentsData.map((od) => od.department);
-        officialData = { ...officialData, departments };
+        // Buscar nomes dos departamentos pelos IDs
+        const departmentIds = officialDepartmentsData.map((od) => od.department_id);
+        const departmentNames = await Promise.all(
+          departmentIds.map(async (deptId) => {
+            const [dept] = await db.select({ name: departments.name })
+              .from(departments)
+              .where(eq(departments.id, deptId));
+            return dept?.name || `Dept-${deptId}`;
+          })
+        );
+        officialData = { ...officialData, departments: departmentNames };
       }
     }
 

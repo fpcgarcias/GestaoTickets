@@ -53,7 +53,6 @@ globs:
 - `fallback_priority` : `USER-DEFINED`
 - `is_active` : `boolean`
 - `is_default` : `boolean`
-- `company_id` : `integer`
 - `created_at` : `timestamp without time zone`
 - `updated_at` : `timestamp without time zone`
 - `created_by_id` : `integer`
@@ -69,6 +68,12 @@ globs:
 - `updated_at` : `timestamp without time zone`
 - `cnpj` : `text`
 - `phone` : `text`
+- `ai_permission` : `boolean`
+- `plan_contracted` : `text`
+- `employee_count` : `text`
+- `additional_agents` : `integer`
+- `ticket_package` : `text`
+- `uses_flexible_sla` : `boolean`
 
 ### Tabela `customers`
 - `id` : `integer`
@@ -81,6 +86,17 @@ globs:
 - `created_at` : `timestamp without time zone`
 - `updated_at` : `timestamp without time zone`
 - `company_id` : `integer`
+
+### Tabela `department_priorities`
+- `id` : `integer`
+- `company_id` : `integer`
+- `department_id` : `integer`
+- `name` : `text`
+- `weight` : `integer`
+- `color` : `text`
+- `is_active` : `boolean`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
 
 ### Tabela `departments`
 - `id` : `integer`
@@ -112,12 +128,12 @@ globs:
 - `id` : `integer`
 - `name` : `text`
 - `value` : `text`
-- `description` : `text`
 - `department_id` : `integer`
 - `created_at` : `timestamp without time zone`
 - `updated_at` : `timestamp without time zone`
 - `company_id` : `integer`
 - `is_active` : `boolean`
+- `description` : `text`
 
 ### Tabela `migrations`
 - `id` : `integer`
@@ -134,16 +150,27 @@ globs:
 - `id` : `integer`
 - `name` : `text`
 - `email` : `text`
-- `department` : `USER-DEFINED`
 - `user_id` : `integer`
 - `is_active` : `boolean`
 - `avatar_url` : `text`
 - `created_at` : `timestamp without time zone`
 - `updated_at` : `timestamp without time zone`
 - `company_id` : `integer`
-- `department_id` : `integer`
 - `supervisor_id` : `integer`
 - `manager_id` : `integer`
+- `department_id` : `integer`
+
+### Tabela `sla_configurations`
+- `id` : `integer`
+- `company_id` : `integer`
+- `department_id` : `integer`
+- `incident_type_id` : `integer`
+- `priority_id` : `integer`
+- `response_time_hours` : `integer`
+- `resolution_time_hours` : `integer`
+- `is_active` : `boolean`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
 
 ### Tabela `sla_definitions`
 - `id` : `integer`
@@ -192,6 +219,9 @@ globs:
 - `new_status` : `USER-DEFINED`
 - `changed_by_id` : `integer`
 - `created_at` : `timestamp without time zone`
+- `change_type` : `text`
+- `old_priority` : `USER-DEFINED`
+- `new_priority` : `USER-DEFINED`
 
 ### Tabela `ticket_types`
 - `id` : `integer`
@@ -224,6 +254,32 @@ globs:
 - `incident_type_id` : `integer`
 - `company_id` : `integer`
 
+### Tabela `user_notification_settings`
+- `id` : `integer`
+- `user_id` : `integer`
+- `new_ticket_assigned` : `boolean`
+- `ticket_status_changed` : `boolean`
+- `new_reply_received` : `boolean`
+- `ticket_escalated` : `boolean`
+- `ticket_due_soon` : `boolean`
+- `new_customer_registered` : `boolean`
+- `new_user_created` : `boolean`
+- `system_maintenance` : `boolean`
+- `email_notifications` : `boolean`
+- `browser_notifications` : `boolean`
+- `push_notifications` : `boolean`
+- `notification_hours_start` : `integer`
+- `notification_hours_end` : `integer`
+- `weekend_notifications` : `boolean`
+- `digest_frequency` : `text`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
+
+### Tabela `user_sessions`
+- `sid` : `character varying`
+- `sess` : `json`
+- `expire` : `timestamp without time zone`
+
 ### Tabela `users`
 - `id` : `integer`
 - `username` : `text`
@@ -237,25 +293,7 @@ globs:
 - `active` : `boolean`
 - `ad_user` : `boolean`
 - `company_id` : `integer`
-
-### Tabela `user_notification_settings`
-- `id` : `integer`
-- `user_id` : `integer`
-- `new_ticket_assigned` : `boolean`
-- `ticket_status_changed` : `boolean`
-- `new_reply_received` : `boolean`
-- `ticket_escalated` : `boolean`
-- `ticket_due_soon` : `boolean`
-- `new_customer_registered` : `boolean`
-- `new_user_created` : `boolean`
-- `system_maintenance` : `boolean`
-- `email_notifications` : `boolean`
-- `notification_hours_start` : `integer`
-- `notification_hours_end` : `integer`
-- `weekend_notifications` : `boolean`
-- `digest_frequency` : `text`
-- `created_at` : `timestamp without time zone`
-- `updated_at` : `timestamp without time zone`
+- `must_change_password` : `boolean`
 
 ## Enums Disponíveis
 
@@ -304,6 +342,14 @@ globs:
 ### `system_settings`
 - Constraint única composta: (`key`, `company_id`)
 - Permite configurações específicas por empresa
+
+### `department_priorities`
+- Nova tabela para prioridades personalizadas por departamento
+- Permite diferentes sistemas de priorização por empresa/departamento
+
+### `sla_configurations`
+- Sistema flexível de configuração de SLA
+- Permite SLA específico por combinação de empresa/departamento/tipo/prioridade
 
 ### Índices de Performance (Implementados em 2024-12-29)
 - `idx_tickets_status_priority` - Otimização para consultas por status e prioridade
@@ -357,6 +403,17 @@ globs:
 - **Assets Inline**: Otimização para arquivos pequenos
 - **Compressão**: Gzip e Brotli para produção
 
+### Sistema de Prioridades Flexível (2025-01-31)
+- **Prioridades Customizadas**: Sistema flexível de prioridades por departamento
+- **Fallback Inteligente**: Sistema de fallback para prioridades padrão quando customizadas não existem
+- **Cache de Prioridades**: Cache otimizado para consultas frequentes de prioridades
+- **Migração Segura**: Sistema de migração que preserva dados existentes
+
+### Melhorias de SLA (2025-01-31)
+- **SLA Flexível**: Configurações de SLA específicas por empresa/departamento/tipo/prioridade
+- **Cálculo Dinâmico**: Sistema de cálculo de SLA baseado em configurações flexíveis
+- **Histórico Expandido**: Tracking de mudanças de prioridade no histórico de tickets
+
 ### Dependências Adicionadas
 ```json
 {
@@ -371,6 +428,28 @@ globs:
 - **Bundle Size**: 2.5MB → 1MB (60% redução)
 - **Memory Usage**: 150MB → 80MB (47% redução)
 - **Cache Hit Rate**: 0% → 85%
+
+## Novas Funcionalidades (2025-06-01)
+
+### Sistema de Prioridades Customizadas
+- **Tabela `department_priorities`**: Permite definir prioridades específicas por departamento
+- **Peso Numérico**: Sistema de peso para ordenação e comparação de prioridades
+- **Cores Customizadas**: Interface visual personalizada por prioridade
+- **Ativação/Desativação**: Controle granular de prioridades ativas
+
+### Sessões de Usuário
+- **Tabela `user_sessions`**: Armazenamento seguro de sessões de usuário
+- **Formato JSON**: Dados de sessão estruturados
+- **Expiração Automática**: Controle de tempo de vida das sessões
+
+### Controle de Senhas
+- **Campo `must_change_password`**: Força alteração de senha no próximo login
+- **Migração de Senhas**: Sistema para migração segura de senhas existentes
+
+### Expansão do Histórico de Tickets
+- **Tracking de Prioridades**: Histórico completo de mudanças de prioridade
+- **Tipos de Mudança**: Categorização específica de tipos de alterações
+- **Auditoria Completa**: Rastreamento detalhado de todas as alterações
 
 
 

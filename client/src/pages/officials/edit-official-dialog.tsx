@@ -165,7 +165,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
       setFormData({
         name: official.name,
         email: official.email,
-        username: official.user?.username || '',
+        username: official.user?.username || official.email,
         isActive: official.is_active,
         departments: currentDepartments, // Usar o array de strings processado
         supervisor_id: (official as any).supervisor_id || null,
@@ -248,16 +248,6 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
       return;
     }
     
-    // Verificar se o nome de login foi fornecido
-    if (!formData.username.trim()) {
-      toast({
-        title: "Erro de validação",
-        description: "O nome de login é obrigatório.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     setSubmitting(true);
     
     // Usar diretamente formData, pois já contém o array de strings 'departments'
@@ -271,7 +261,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
       company_id: formData.company_id,
       user: {
         ...(official?.user || {}),
-        username: formData.username
+        username: formData.email // Sempre usar o email como username
       }
     };
     

@@ -30,6 +30,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { FileUpload } from './file-upload';
 import { CustomerSearch } from './customer-search';
+import { useDepartmentPriorities, findPriorityByLegacyValue, type NormalizedPriority } from '@/hooks/use-priorities';
 
 // Garante que PRIORITY_LEVELS.LOW etc. sejam tratados como literais específicos.
 // Zod z.enum requer um array não vazio de strings literais.
@@ -43,12 +44,29 @@ const ZOD_PRIORITY_ENUM_VALUES = [
 // Definir o schema estendido para o formulário
 const extendedInsertTicketSchema = insertTicketSchema.extend({
   customerId: z.number().optional(), // Para o select do formulário
-  // Sobrescreve/Define priority para garantir que seja o enum dos valores corretos e obrigatório
-  priority: z.enum(ZOD_PRIORITY_ENUM_VALUES), 
+  // Prioridade flexível - aceita tanto valores legados quanto IDs de prioridade
+  priority: z.string().min(1, "Prioridade é obrigatória"), 
 });
 
 // Inferir o tipo a partir do schema estendido
 type ExtendedInsertTicket = z.infer<typeof extendedInsertTicketSchema>;
+
+// Função helper para converter prioridade para submissão
+function convertPriorityForSubmission(priorityValue: string, priorities: NormalizedPriority[]): 'low' | 'medium' | 'high' | 'critical' {
+  // Se for um valor legado, retornar diretamente
+  if (['low', 'medium', 'high', 'critical'].includes(priorityValue)) {
+    return priorityValue as 'low' | 'medium' | 'high' | 'critical';
+  }
+  
+  // Se for um ID de prioridade customizada, encontrar o valor legado correspondente
+  const priority = priorities.find(p => p.value === priorityValue);
+  if (priority?.legacyValue) {
+    return priority.legacyValue as 'low' | 'medium' | 'high' | 'critical';
+  }
+  
+  // Fallback para medium
+  return 'medium';
+}
 
 // Definir tipos para os dados buscados
 interface Customer {
@@ -90,11 +108,15 @@ export const TicketForm = () => {
       customer_email: '',
       customerId: undefined,
       type: '',
-      priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
+      priority: 'medium', // Valor padrão como string
       department_id: undefined,
       incident_type_id: undefined,
     },
   });
+
+  // Buscar prioridades do departamento selecionado
+  const watchedDepartmentId = form.watch('department_id');
+  const { priorities, isLoading: prioritiesLoading } = useDepartmentPriorities(watchedDepartmentId);
 
   const createTicketMutation = useMutation({
     mutationFn: async (data: InsertTicket) => {
@@ -158,12 +180,15 @@ export const TicketForm = () => {
   });
 
   const onSubmit = (data: ExtendedInsertTicket) => {
+    // Converter prioridade para valor legado se necessário
+    const priorityToSend = convertPriorityForSubmission(data.priority, priorities);
+    
     let ticketDataToSend: InsertTicket = {
       title: data.title,
       description: data.description,
       customer_email: data.customer_email,
       type: data.type,
-      priority: data.priority,
+      priority: priorityToSend,
       department_id: data.department_id,
       incident_type_id: data.incident_type_id,
       // customer_id e company_id serão definidos abaixo ou já estão no data
@@ -379,17 +404,25 @@ export const TicketForm = () => {
                     <Select 
                       onValueChange={field.onChange} 
                       defaultValue={field.value}
+                      disabled={prioritiesLoading}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecione a prioridade" />
+                          <SelectValue placeholder={prioritiesLoading ? "Carregando..." : "Selecione a prioridade"} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value={PRIORITY_LEVELS.LOW}>Baixa</SelectItem>
-                        <SelectItem value={PRIORITY_LEVELS.MEDIUM}>Média</SelectItem>
-                        <SelectItem value={PRIORITY_LEVELS.HIGH}>Alta</SelectItem>
-                        <SelectItem value={PRIORITY_LEVELS.CRITICAL}>Crítica</SelectItem>
+                        {priorities.map((priority) => (
+                          <SelectItem key={priority.id} value={priority.value}>
+                            <div className="flex items-center space-x-2">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: priority.color }}
+                              />
+                              <span>{priority.name}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

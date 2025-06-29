@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { useDepartmentPriorities, convertLegacyToWeight } from '@/hooks/use-priorities';
 
 interface TicketCardProps {
   ticket: Ticket;
@@ -41,6 +42,9 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
     department_id: departmentId,
     company_id: companyId,
   } = ticket;
+  
+  // Buscar prioridades do departamento para obter informações adicionais
+  const { priorities } = useDepartmentPriorities(departmentId || undefined);
   
   // Determinar se o usuário é cliente
   const isCustomer = user?.role === 'customer';
@@ -97,7 +101,14 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
             <span className="font-medium text-neutral-800">Ticket# {ticketId}</span>
           </div>
           <div className="flex items-center">
-            {priority && <PriorityBadge priority={priority} />}
+            {priority && (
+              <PriorityBadge 
+                priority={priority}
+                weight={convertLegacyToWeight(priority)}
+                color={priorities.find(p => p.legacyValue === priority)?.color}
+                name={priorities.find(p => p.legacyValue === priority)?.name}
+              />
+            )}
             <div className="text-sm text-neutral-500">
               Criado em {createdAt ? formatDate(createdAt) : 'Data desconhecida'}
             </div>

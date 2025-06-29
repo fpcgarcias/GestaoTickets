@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate, translateTicketStatus, translateUserRole } from '@/lib/utils';
+import { getPriorityColorByWeight, convertLegacyToWeight } from '@/hooks/use-priorities';
 
 // Função para traduzir prioridades
 const translatePriority = (priority: string): string => {

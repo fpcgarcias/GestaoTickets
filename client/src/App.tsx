@@ -16,6 +16,7 @@ import CompaniesIndex from "@/pages/companies/index";
 import DepartmentManagement from "@/pages/DepartmentManagement";
 import TicketTypeManagement from "@/pages/TicketTypeManagement";
 import Settings from "@/pages/settings";
+import PrioritySettings from "@/pages/priority-settings";
 import AuthPage from "@/pages/auth-page";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -126,6 +127,12 @@ function AppContent() {
       <ProtectedRoute path="/settings" component={() => (
         <MainLayout>
           <Settings />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/priority-settings" component={() => (
+        <MainLayout>
+          <PrioritySettings />
         </MainLayout>
       )} />
       

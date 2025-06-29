@@ -248,14 +248,48 @@ async function departmentAccess(req: Request, res: Response, next: NextFnExpress
         return res.status(403).json({ message: "Acesso negado - Usuário não é um atendente" });
       }
       
+      // 🔧 CORREÇÃO: Buscar o nome do departamento pelo ID e depois comparar
+      const [departmentRecord] = await db
+        .select()
+        .from(schema.departments)
+        .where(eq(schema.departments.id, departmentId))
+        .limit(1);
+        
+      if (!departmentRecord) {
+        return res.status(404).json({ message: "Departamento não encontrado" });
+      }
+      
       const officialDepartments = await db
         .select()
         .from(schema.officialDepartments)
         .where(eq(schema.officialDepartments.official_id, official.id));
         
       const hasDepartmentAccess = officialDepartments.some(
-        dept => dept.department === departmentId.toString()
+        dept => dept.department_id === departmentId
       );
+      
+      // 🆕 Se for supervisor, também verificar departamentos dos subordinados
+      if (!hasDepartmentAccess && userRole === 'supervisor') {
+        const subordinates = await db
+          .select()
+          .from(schema.officials)
+          .where(eq(schema.officials.supervisor_id, official.id));
+
+        for (const subordinate of subordinates) {
+          const subordinateDepartments = await db
+            .select()
+            .from(schema.officialDepartments)
+            .where(eq(schema.officialDepartments.official_id, subordinate.id));
+          
+          const subordinateHasAccess = subordinateDepartments.some(
+            dept => dept.department_id === departmentId
+          );
+          
+          if (subordinateHasAccess) {
+            return next(); // Supervisor tem acesso através de subordinado
+          }
+        }
+      }
       
       if (!hasDepartmentAccess) {
         return res.status(403).json({ message: "Acesso negado - Sem permissão para este departamento" });
@@ -513,23 +547,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             const subordinateIds = subordinates.map(s => s.id);
             
             // Buscar departamentos dos subordinados para tickets não atribuídos
-            const allDepartments = new Set<string>();
+            const allDepartments = new Set<number>();
             for (const subordinate of subordinates) {
               const departments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, subordinate.id));
-              departments.forEach(dept => allDepartments.add(dept.department));
+              departments.forEach(dept => allDepartments.add(dept.department_id));
             }
             
             // Buscar seus próprios departamentos também
             const managerDepartments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, managerOfficial.id));
-            managerDepartments.forEach(dept => allDepartments.add(dept.department));
+            managerDepartments.forEach(dept => allDepartments.add(dept.department_id));
             
-            const departmentNames = Array.from(allDepartments);
-            
-            // Mapear nomes de departamentos para IDs
-            const departmentRecords = await db.select().from(schema.departments).where(
-              departmentNames.length > 0 ? inArray(schema.departments.name, departmentNames) : undefined
-            );
-            const departmentIds = departmentRecords.map(d => d.id);
+            const departmentIds = Array.from(allDepartments);
             
             const ticketConditions = [
               eq(schema.tickets.assigned_to_id, managerOfficial.id), // Seus próprios tickets
@@ -571,26 +599,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             const subordinateIds = subordinates.map(s => s.id);
             
             // Buscar departamentos dos subordinados para tickets não atribuídos
-            const allDepartments = new Set<string>();
+            const allDepartments = new Set<number>();
             for (const subordinate of subordinates) {
               const departments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, subordinate.id));
-              departments.forEach(dept => allDepartments.add(dept.department));
+              departments.forEach(dept => allDepartments.add(dept.department_id));
             }
             
             // Buscar seus próprios departamentos também
             const supervisorDepartments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, supervisorOfficial.id));
-            supervisorDepartments.forEach(dept => allDepartments.add(dept.department));
+            supervisorDepartments.forEach(dept => allDepartments.add(dept.department_id));
             
-            const departmentNames = Array.from(allDepartments);
-            
-            // Mapear nomes de departamentos para IDs
-            let departmentRecords = [];
-            if (departmentNames.length > 0) {
-              departmentRecords = await db.select().from(schema.departments).where(
-                inArray(schema.departments.name, departmentNames)
-              );
-            }
-            const departmentIds = departmentRecords.map(d => d.id);
+            const departmentIds = Array.from(allDepartments);
             
             const ticketConditions = [
               eq(schema.tickets.assigned_to_id, supervisorOfficial.id), // Seus próprios tickets
@@ -628,13 +647,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           if (official) {
             const departments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, official.id));
             if (departments.length > 0) {
-              const departmentNames = departments.map(d => d.department);
-              
-              // Mapear nomes de departamentos para IDs
-              const departmentRecords = await db.select().from(schema.departments).where(
-                inArray(schema.departments.name, departmentNames)
-              );
-              const departmentIds = departmentRecords.map(d => d.id);
+              const departmentIds = departments.map(d => d.department_id);
               
               if (departmentIds.length > 0) {
                 conditions.push(
@@ -1860,14 +1873,54 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         // Se filterCompanyId for null, mostra todos
         officials = includeInactive ? officials : officials.filter(official => official.is_active);
         
-      } else if (userRole === 'company_admin' || userRole === 'manager' || userRole === 'supervisor' || userRole === 'support') {
-        // COMPANY_ADMIN, MANAGER, SUPERVISOR e SUPPORT: VÊM TODOS OS ATENDENTES DA SUA EMPRESA (ignora filterCompanyId)
+      } else if (userRole === 'company_admin' || userRole === 'manager') {
+        // COMPANY_ADMIN e MANAGER: VÊM TODOS OS ATENDENTES DA SUA EMPRESA (ignora filterCompanyId)
         officials = allOfficials.filter(official => {
           const sameCompany = official.company_id === sessionCompanyId;
           const isActive = includeInactive || official.is_active;
           return sameCompany && isActive;
         });
-        
+      } else if (userRole === 'supervisor') {
+        // SUPERVISOR: se enxerga + subordinados (quando tiver)
+        if (!sessionCompanyId || !userId) {
+          officials = [];
+        } else {
+          const currentOfficial = allOfficials.find(o => o.user_id === userId);
+          
+          if (!currentOfficial) {
+            officials = [];
+          } else {
+            // Incluir o próprio supervisor
+            let allowedOfficialIds = [currentOfficial.id];
+            
+            // Incluir subordinados diretos
+            const subordinates = allOfficials.filter(o => o.supervisor_id === currentOfficial.id);
+            allowedOfficialIds.push(...subordinates.map(s => s.id));
+            
+            // Filtrar pelos IDs permitidos
+            officials = allOfficials.filter(official => {
+              const sameCompany = official.company_id === sessionCompanyId;
+              const isActive = includeInactive || official.is_active;
+              const isAllowed = allowedOfficialIds.includes(official.id);
+              
+              return sameCompany && isActive && isAllowed;
+            });
+          }
+        }
+      } else if (userRole === 'support') {
+        // SUPPORT: SÓ SE ENXERGA
+        if (!sessionCompanyId || !userId) {
+          officials = [];
+        } else {
+          const currentOfficial = allOfficials.find(o => o.user_id === userId);
+          
+          if (currentOfficial) {
+            const isActive = includeInactive || currentOfficial.is_active;
+            officials = isActive ? [currentOfficial] : [];
+          } else {
+            officials = [];
+          }
+        }
       } else {
         // TODAS AS OUTRAS ROLES: NÃO VEEM O DROPDOWN (ignora filterCompanyId)
         officials = [];
@@ -1967,14 +2020,35 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         // Adicionar departamentos
         for (const department of departments) {
           console.log(`Adicionando departamento ${department} ao atendente ${official.id}`);
-          await storage.addOfficialDepartment({
-            official_id: official.id, // Corrigido para official_id
-            department
-          });
+          
+          // Buscar o ID do departamento pelo nome
+          const [dept] = await db.select({ id: schema.departments.id })
+            .from(schema.departments)
+            .where(eq(schema.departments.name, department));
+            
+          if (dept) {
+            await storage.addOfficialDepartment({
+              official_id: official.id,
+              department_id: dept.id
+            });
+          } else {
+            console.warn(`Departamento não encontrado: ${department}`);
+          }
         }
         
-        // Anexar departamentos ao resultado
-        official.departments = departments;
+        // Buscar os departamentos reais do banco para retornar nomes corretos
+        const officialDepts = await storage.getOfficialDepartments(official.id);
+        const departmentNames = await Promise.all(
+          officialDepts.map(async (od) => {
+            const [dept] = await db.select({ name: schema.departments.name })
+              .from(schema.departments)
+              .where(eq(schema.departments.id, od.department_id));
+            return dept?.name || `Dept-${od.department_id}`;
+          })
+        );
+        
+        // Anexar nomes de departamentos ao resultado
+        official.departments = departmentNames;
       }
       
       console.log(`Retornando atendente criado: ID=${official.id}`);
@@ -2132,19 +2206,46 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         // Remover departamentos existentes
         const existingDepartments = await storage.getOfficialDepartments(id);
         for (const dept of existingDepartments) {
-          await storage.removeOfficialDepartment(id, dept.department);
+          // Buscar o nome do departamento pelo ID para remover
+          const [deptInfo] = await db.select({ name: schema.departments.name })
+            .from(schema.departments)
+            .where(eq(schema.departments.id, dept.department_id));
+            
+          if (deptInfo) {
+            await storage.removeOfficialDepartment(id, deptInfo.name);
+          }
         }
         
         // Adicionar novos departamentos
         for (const department of departments) {
-          await storage.addOfficialDepartment({
-            official_id: id,
-            department
-          });
+          // Buscar o ID do departamento pelo nome
+          const [dept] = await db.select({ id: schema.departments.id })
+            .from(schema.departments)
+            .where(eq(schema.departments.name, department));
+            
+          if (dept) {
+            await storage.addOfficialDepartment({
+              official_id: id,
+              department_id: dept.id
+            });
+          } else {
+            console.warn(`Departamento não encontrado: ${department}`);
+          }
         }
         
-        // Anexar departamentos atualizados ao resultado
-        updatedOfficial.departments = departments;
+        // Buscar os departamentos reais do banco para retornar nomes corretos
+        const officialDepts = await storage.getOfficialDepartments(id);
+        const departmentNames = await Promise.all(
+          officialDepts.map(async (od) => {
+            const [dept] = await db.select({ name: schema.departments.name })
+              .from(schema.departments)
+              .where(eq(schema.departments.id, od.department_id));
+            return dept?.name || `Dept-${od.department_id}`;
+          })
+        );
+        
+        // Anexar nomes de departamentos ao resultado
+        updatedOfficial.departments = departmentNames;
       }
 
       // Buscar o usuário atualizado para incluir na resposta
@@ -2790,8 +2891,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
 
-  // Endpoint para listar todos os usuários com paginação (admin e company_admin)
-  router.get("/users", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+  // Endpoint para listar todos os usuários com paginação (todos os atendentes)
+  router.get("/users", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
       // Parâmetros de paginação
       const page = parseInt(req.query.page as string) || 1;
@@ -3272,19 +3373,105 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const active_only = req.query.active_only === "true";
       const filterCompanyId = req.query.company_id ? parseInt(req.query.company_id as string) : null;
       const userRole = req.session?.userRole as string;
+      const userId = req.session?.userId;
       const sessionCompanyId = req.session.companyId;
 
       const conditions: SQLWrapper[] = [];
 
-      // Lógica de filtro por empresa
+      // Lógica de filtro por empresa E por departamentos específicos do usuário
       if (userRole === 'admin') {
         // Admin pode filtrar por empresa específica ou ver todas
         if (filterCompanyId) {
           conditions.push(eq(departmentsSchema.company_id, filterCompanyId));
         }
         // Se filterCompanyId for null, mostra todos
+      } else if (userRole === 'company_admin' || userRole === 'manager') {
+        // Company Admin e Manager veem todos os departamentos da sua empresa
+        if (sessionCompanyId) {
+          conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
+        } else {
+          return res.status(403).json({ message: "Acesso negado: ID da empresa não encontrado na sessão." });
+        }
+      } else if (userRole === 'supervisor' || userRole === 'support') {
+        // 🆕 NOVA LÓGICA: Support/Supervisor veem APENAS seus departamentos
+        if (!sessionCompanyId || !userId) {
+          return res.status(403).json({ message: "Acesso negado: ID da empresa ou usuário não encontrado na sessão." });
+        }
+
+        // Buscar o official do usuário
+        const [official] = await db
+          .select()
+          .from(schema.officials)
+          .where(eq(schema.officials.user_id, userId))
+          .limit(1);
+
+        if (!official) {
+          return res.status(403).json({ message: "Usuário não é um atendente." });
+        }
+
+        // Buscar departamentos do usuário
+        const userDepartments = await db
+          .select({ department_id: schema.officialDepartments.department_id })
+          .from(schema.officialDepartments)
+          .where(eq(schema.officialDepartments.official_id, official.id));
+
+        if (userDepartments.length === 0) {
+          // Se o usuário não tem departamentos, retornar lista vazia
+          return res.json({
+            departments: [],
+            pagination: {
+              current: page,
+              pages: 0,
+              total: 0,
+              limit: limit
+            }
+          });
+        }
+
+        let allowedDepartmentIds = userDepartments.map(d => d.department_id).filter(id => id !== null);
+
+        // Se for supervisor, também incluir departamentos dos subordinados
+        if (userRole === 'supervisor') {
+          const subordinates = await db
+            .select({ id: schema.officials.id })
+            .from(schema.officials)
+            .where(eq(schema.officials.supervisor_id, official.id));
+
+          for (const subordinate of subordinates) {
+            const subordinateDepartments = await db
+              .select({ department_id: schema.officialDepartments.department_id })
+              .from(schema.officialDepartments)
+              .where(eq(schema.officialDepartments.official_id, subordinate.id));
+            
+            // Adicionar departamentos dos subordinados que ainda não estão na lista
+            subordinateDepartments.forEach(dept => {
+              if (dept.department_id && !allowedDepartmentIds.includes(dept.department_id)) {
+                allowedDepartmentIds.push(dept.department_id);
+              }
+            });
+          }
+        }
+
+        if (allowedDepartmentIds.length === 0) {
+          // Se não tem IDs de departamentos, retornar lista vazia
+          return res.json({
+            departments: [],
+            pagination: {
+              current: page,
+              pages: 0,
+              total: 0,
+              limit: limit
+            }
+          });
+        }
+
+        // Filtrar apenas pelos departamentos do usuário + empresa
+        conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
+        if (allowedDepartmentIds.length > 0) {
+          conditions.push(inArray(departmentsSchema.id, allowedDepartmentIds));
+        }
       } else {
-        // Usuários não-admin sempre veem apenas sua empresa
+        // Usuários não-admin sempre veem apenas sua empresa (fallback)
         if (sessionCompanyId) {
           conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
         } else {
@@ -4623,6 +4810,123 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       });
     }
   });
+
+  // Endpoints para testar sistema de prioridades flexíveis (apenas em desenvolvimento)
+  if (process.env.NODE_ENV === 'development') {
+    router.get("/priority-test", async (req: Request, res: Response) => {
+      try {
+        const { testPriorities } = await import('./api/priority-test');
+        await testPriorities(req, res);
+      } catch (error) {
+        console.error('Erro ao executar teste de prioridades:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: "Erro interno ao executar teste" 
+        });
+      }
+    });
+
+    router.get("/priority-test/department/:companyId/:departmentId", async (req: Request, res: Response) => {
+      try {
+        const { testDepartmentPriorities } = await import('./api/priority-test');
+        await testDepartmentPriorities(req, res);
+      } catch (error) {
+        console.error('Erro ao testar prioridades do departamento:', error);
+        res.status(500).json({ 
+          success: false, 
+          error: "Erro interno ao testar prioridades" 
+        });
+      }
+    });
+  }
+
+  // --- ROTAS DE PRIORIDADES FLEXÍVEIS ---
+  
+  // Listar prioridades de um departamento
+  router.get("/departments/:departmentId/priorities", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support']), async (req: Request, res: Response) => {
+    try {
+      const { getDepartmentPriorities } = await import('./api/priorities');
+      await getDepartmentPriorities(req, res);
+    } catch (error) {
+      console.error('Erro ao buscar prioridades do departamento:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Erro interno ao buscar prioridades" 
+      });
+    }
+  });
+
+  // Criar nova prioridade para um departamento
+  router.post("/departments/:departmentId/priorities", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const { createDepartmentPriority } = await import('./api/department-priorities');
+      await createDepartmentPriority(req, res);
+    } catch (error) {
+      console.error('Erro ao criar prioridade:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Erro interno ao criar prioridade" 
+      });
+    }
+  });
+
+  // Editar prioridade
+  router.put("/departments/:departmentId/priorities/:id", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const { updatePriority } = await import('./api/department-priorities');
+      await updatePriority(req, res);
+    } catch (error) {
+      console.error('Erro ao editar prioridade:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Erro interno ao editar prioridade" 
+      });
+    }
+  });
+
+  // Excluir prioridade
+  router.delete("/departments/:departmentId/priorities/:id", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const { deletePriority } = await import('./api/department-priorities');
+      await deletePriority(req, res);
+    } catch (error) {
+      console.error('Erro ao excluir prioridade:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Erro interno ao excluir prioridade" 
+      });
+    }
+  });
+
+  // Reordenar prioridades
+  router.post("/departments/:departmentId/priorities/reorder", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const { reorderPriorities } = await import('./api/department-priorities');
+      await reorderPriorities(req, res);
+    } catch (error) {
+      console.error('Erro ao reordenar prioridades:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Erro interno ao reordenar prioridades" 
+      });
+    }
+  });
+
+  // Criar prioridades padrão para um departamento
+  router.post("/departments/:departmentId/priorities/create-defaults", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const { createDefaultPriorities } = await import('./api/priorities');
+      await createDefaultPriorities(req, res);
+    } catch (error) {
+      console.error('Erro ao criar prioridades padrão:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Erro interno ao criar prioridades padrão" 
+      });
+    }
+  });
+
+
 
   // Buscar configurações de email
   router.get("/email-config", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {

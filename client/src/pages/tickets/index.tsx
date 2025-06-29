@@ -30,6 +30,7 @@ import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
 import { Ticket, Official, Department } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { useDepartmentPriorities } from '@/hooks/use-priorities';
 
 export default function TicketsIndex() {
   const [, navigate] = useLocation();
@@ -50,7 +51,7 @@ export default function TicketsIndex() {
 
   // Pegar estado de autenticação
   const { user, isLoading: isAuthLoading } = useAuth();
-
+  
   // Reset page when search changes
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
@@ -78,10 +79,25 @@ export default function TicketsIndex() {
   const pagination = ticketsResponse?.pagination;
 
   // 🆕 Busca departamentos (filtrado por empresa automaticamente no backend)
-  const { data: departments, isLoading: isDepartmentsLoading } = useQuery<Department[]>({
+  const { data: departmentsResponse, isLoading: isDepartmentsLoading } = useQuery({
     queryKey: ['/api/departments'],
+    queryFn: async () => {
+      const res = await fetch('/api/departments');
+      if (!res.ok) throw new Error('Erro ao carregar departamentos');
+      return res.json();
+    },
     enabled: !!user,
   });
+
+  const departments = departmentsResponse?.departments || [];
+
+  // Buscar prioridades do departamento selecionado
+  // Se nenhum departamento selecionado, pega prioridades padrão (sem departmentId)
+  const selectedDeptId = departmentFilter !== 'all' ? parseInt(departmentFilter) : undefined;
+  const { priorities: departmentPriorities, isLoading: prioritiesLoading } = useDepartmentPriorities(selectedDeptId);
+  
+  // Para o filtro, sempre mostrar prioridades disponíveis (padrão quando nenhum departamento selecionado)
+  const availablePriorities = departmentPriorities || [];
 
   // 🆕 Busca atendentes (filtrado por empresa automaticamente no backend)  
   const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
@@ -125,7 +141,7 @@ export default function TicketsIndex() {
     assignTicketMutation.mutate({ ticketId, assignedToId });
   };
 
-  const filteredTickets = tickets?.filter(ticket => {
+  const filteredTickets = tickets?.filter((ticket: any) => {
     // Apply search filter
     if (searchQuery && !ticket.title.toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
@@ -352,28 +368,18 @@ export default function TicketsIndex() {
           )}
         </div>
 
-        {/* Segunda linha: Filtros de Prioridade, Departamento, Status e Atendente */}
+        {/* Segunda linha: Filtros de Departamento, Prioridade, Status e Atendente */}
         <div className="flex flex-wrap items-center gap-4">
-          <Select
-            value={priorityFilter}
-            onValueChange={setPriorityFilter}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Prioridade" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as Prioridades</SelectItem>
-              <SelectItem value={PRIORITY_LEVELS.LOW}>Baixa</SelectItem>
-              <SelectItem value={PRIORITY_LEVELS.MEDIUM}>Média</SelectItem>
-              <SelectItem value={PRIORITY_LEVELS.HIGH}>Alta</SelectItem>
-              <SelectItem value={PRIORITY_LEVELS.CRITICAL}>Crítica</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* 🆕 Filtro de Departamento */}
+          {/* 🏢 Filtro de Departamento - PRIMEIRO (prioridades dependem dele) */}
           <Select
             value={departmentFilter}
-            onValueChange={setDepartmentFilter}
+            onValueChange={(value) => {
+              setDepartmentFilter(value);
+              // Limpar filtro de prioridade quando departamento muda
+              if (value !== departmentFilter) {
+                setPriorityFilter('all');
+              }
+            }}
           >
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Departamento" />
@@ -381,12 +387,37 @@ export default function TicketsIndex() {
             <SelectContent>
               <SelectItem value="all">Todos os Departamentos</SelectItem>
               {departments && departments.length > 0 && (
-                departments.map((department) => (
+                departments.map((department: any) => (
                   <SelectItem key={department.id} value={department.id.toString()}>
                     {department.name}
                   </SelectItem>
                 ))
               )}
+            </SelectContent>
+          </Select>
+
+          {/* 🎯 Filtro de Prioridade - SEGUNDO (depende do departamento) */}
+          <Select
+            value={priorityFilter}
+            onValueChange={setPriorityFilter}
+            disabled={prioritiesLoading}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder={prioritiesLoading ? "Carregando..." : "Prioridade"} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as Prioridades</SelectItem>
+              {availablePriorities.map((priority) => (
+                <SelectItem key={priority.id} value={priority.value}>
+                  <div className="flex items-center space-x-2">
+                    <div 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: priority.color }}
+                    />
+                    <span>{priority.name}</span>
+                  </div>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -424,7 +455,7 @@ export default function TicketsIndex() {
               <SelectItem value="all">Todos os Atendentes</SelectItem>
               <SelectItem value="unassigned">Não Atribuídos</SelectItem>
               {officials && officials.length > 0 && (
-                officials.map((official) => (
+                officials.map((official: any) => (
                   <SelectItem key={official.id} value={official.id.toString()}>
                     {official.name}
                   </SelectItem>
@@ -485,7 +516,7 @@ export default function TicketsIndex() {
             </div>
           ))
         ) : filteredTickets?.length ? (
-          filteredTickets.map(ticket => (
+          filteredTickets.map((ticket: any) => (
             <TicketCard 
               key={ticket.id} 
               ticket={ticket} 
