@@ -344,6 +344,34 @@ function authorize(allowedRoles: string[]) {
   };
 }
 
+/**
+ * Verifica se o usuário pode alterar o role de outro usuário baseado na hierarquia
+ */
+function canManageUserRole(currentUserRole: string, targetRole: string): boolean {
+  // Admin pode tudo
+  if (currentUserRole === 'admin') {
+    return true;
+  }
+  
+  // Company_admin pode tudo exceto admin
+  if (currentUserRole === 'company_admin') {
+    return targetRole !== 'admin';
+  }
+  
+  // Manager pode: manager, supervisor, support, customer, viewer, quality, triage
+  if (currentUserRole === 'manager') {
+    return ['manager', 'supervisor', 'support', 'customer', 'viewer', 'quality', 'triage'].includes(targetRole);
+  }
+  
+  // Supervisor pode: supervisor, support, customer, viewer, quality
+  if (currentUserRole === 'supervisor') {
+    return ['supervisor', 'support', 'customer', 'viewer', 'quality'].includes(targetRole);
+  }
+  
+  // Support não pode alterar roles
+  return false;
+}
+
 export async function registerRoutes(app: Express): Promise<HttpServer> {
   const router = express.Router();
   
@@ -2772,7 +2800,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Endpoint para atualizar informações do usuário
-  router.patch("/users/:id", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+  router.patch("/users/:id", authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -2788,11 +2816,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(404).json({ message: "Usuário não encontrado" });
       }
       
-      // VALIDAÇÃO CRÍTICA DE SEGURANÇA: Apenas usuários admin podem alterar role para admin
-      if (role === 'admin' && userRole !== 'admin') {
-        console.log(`TENTATIVA DE ESCALAÇÃO DE PRIVILÉGIOS: Usuário com role '${userRole}' tentou alterar usuário ${id} para admin`);
+      // VALIDAÇÃO DE HIERARQUIA: Verificar se o usuário pode alterar o role
+      if (role && !canManageUserRole(userRole, role)) {
+        console.log(`TENTATIVA DE ESCALAÇÃO DE PRIVILÉGIOS: Usuário com role '${userRole}' tentou alterar usuário ${id} para '${role}'`);
         return res.status(403).json({ 
-          message: "Acesso negado: Apenas administradores globais podem definir role de administrador" 
+          message: `Acesso negado: Seu nível de permissão (${userRole}) não permite definir o role '${role}'` 
         });
       }
       
@@ -2845,7 +2873,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Endpoint para gerenciar status de ativação de usuários
-  router.patch("/users/:id/toggle-active", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+  router.patch("/users/:id/toggle-active", authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {

@@ -53,9 +53,9 @@ export class DatabaseStorage implements IStorage {
       // Garantir que isActive tem um valor padrão verdadeiro
       const dataWithDefaults = {
         ...userData,
-        is_active: userData.is_active !== false, // default para true
+        active: userData.active !== false, // default para true
         avatar_url: userData.avatar_url || null,
-        force_password_change: userData.force_password_change || false
+        must_change_password: userData.must_change_password || false
       };
       
       console.log('DatabaseStorage.createUser - Inserindo no banco com dados tratados:', JSON.stringify(dataWithDefaults, null, 2));
@@ -90,7 +90,7 @@ export class DatabaseStorage implements IStorage {
   async inactivateUser(id: number): Promise<User | undefined> {
     const [user] = await db
       .update(users)
-      .set({ is_active: false, updated_at: new Date() })
+      .set({ active: false, updated_at: new Date() })
       .where(eq(users.id, id))
       .returning();
     return user || undefined;
@@ -99,7 +99,7 @@ export class DatabaseStorage implements IStorage {
   async activateUser(id: number): Promise<User | undefined> {
     const [user] = await db
       .update(users)
-      .set({ is_active: true, updated_at: new Date() })
+      .set({ active: true, updated_at: new Date() })
       .where(eq(users.id, id))
       .returning();
     return user || undefined;
@@ -109,13 +109,15 @@ export class DatabaseStorage implements IStorage {
     return db
       .select()
       .from(users)
-      .where(eq(users.is_active, true));
+      .where(eq(users.active, true))
+      .orderBy(users.name);
   }
   
   async getAllUsers(): Promise<User[]> {
     return db
       .select()
-      .from(users);
+      .from(users)
+      .orderBy(users.name);
   }
 
   // Company operations
@@ -173,10 +175,6 @@ export class DatabaseStorage implements IStorage {
         ...official,
         // Garantir que os campos tenham valores padrão
         avatar_url: official.avatar_url || null,
-        phone: official.phone || null,
-        department: official.department || null,
-        hire_date: official.hire_date || null,
-        salary: official.salary || null,
         manager_id: official.manager_id || null,
         supervisor_id: official.supervisor_id || null,
         is_active: official.is_active !== false, // Garantir boolean
