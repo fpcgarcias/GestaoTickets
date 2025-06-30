@@ -38,6 +38,7 @@ const TicketTypeManagement: React.FC = () => {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [userDepartmentIds, setUserDepartmentIds] = useState<number[]>([]);
   
   // Estados para o formulário
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -78,6 +79,51 @@ const TicketTypeManagement: React.FC = () => {
 
   const departments = departmentsResponse?.departments || [];
 
+  // 🚀 Buscar departamentos do usuário se ele for manager/supervisor/support
+  const { data: userDepartmentsResponse } = useQuery({
+    queryKey: ['/api/officials/user', user?.id],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/officials?user_id=${user?.id}&limit=1`);
+      if (!response.ok) {
+        throw new Error('Erro ao buscar dados do usuário');
+      }
+      const data = await response.json();
+      // A API retorna um array, pegamos o primeiro
+      const officials = data.data || data;
+      return Array.isArray(officials) && officials.length > 0 ? officials[0] : null;
+    },
+    enabled: !!user && ['manager', 'supervisor', 'support'].includes(user.role),
+  });
+
+  // 🎯 Determinar departamentos permitidos baseado no papel do usuário
+  const allowedDepartments = React.useMemo(() => {
+    if (!user) return [];
+    
+    if (user.role === 'admin') {
+      // Admin vê todos os departamentos de todas as empresas
+      return departments;
+    } else if (user.role === 'company_admin') {
+      // Company_admin vê todos os departamentos da sua empresa
+      return departments; // Já filtrado pela API
+    } else if (['manager', 'supervisor', 'support'].includes(user.role)) {
+      // Manager/Supervisor/Support veem apenas seus departamentos
+      const userDeptNames = userDepartmentsResponse?.departments || [];
+      return departments.filter(dept => 
+        userDeptNames.some((userDept: any) => {
+          const deptName = typeof userDept === 'string' ? userDept : userDept.department;
+          return dept.name === deptName;
+        })
+      );
+    }
+    
+    return departments;
+  }, [user, departments, userDepartmentsResponse]);
+
+  // 🔒 IDs dos departamentos permitidos para filtrar tipos de chamado
+  const allowedDepartmentIds = React.useMemo(() => {
+    return allowedDepartments.map(dept => dept.id);
+  }, [allowedDepartments]);
+
   // Buscar a lista de empresas (apenas para admin)
   const { data: companies = [] } = useQuery<any[]>({
     queryKey: ['/companies'],
@@ -98,7 +144,7 @@ const TicketTypeManagement: React.FC = () => {
     isLoading: isLoadingTicketTypes,
     error: ticketTypesError,
   } = useQuery<{
-    incidentTypes: IncidentType[];
+    incidentTypes: any[];
     pagination: {
       current: number;
       pages: number;
@@ -111,7 +157,8 @@ const TicketTypeManagement: React.FC = () => {
       active_only: !includeInactive,
       search: searchTerm,
       page: currentPage,
-      company_id: selectedCompanyId
+      company_id: selectedCompanyId,
+      allowed_departments: allowedDepartmentIds
     }],
     queryFn: async ({ queryKey }) => {
       const [_, params] = queryKey as [string, { 
@@ -120,6 +167,7 @@ const TicketTypeManagement: React.FC = () => {
         search?: string;
         page: number;
         company_id: number | null;
+        allowed_departments: number[];
       }];
       let url = '/api/incident-types';
       
@@ -163,7 +211,31 @@ const TicketTypeManagement: React.FC = () => {
     },
   });
 
-  const ticketTypes = ticketTypesResponse?.incidentTypes || [];
+  // 🔍 Filtrar tipos de chamado pelos departamentos permitidos
+  let rawTicketTypes = ticketTypesResponse?.incidentTypes || [];
+  
+  const ticketTypes = React.useMemo(() => {
+    if (!user) return [];
+    
+    // Admin vê todos
+    if (user.role === 'admin') {
+      return rawTicketTypes;
+    }
+    
+    // Company_admin vê todos da sua empresa (já filtrado pela API)
+    if (user.role === 'company_admin') {
+      return rawTicketTypes;
+    }
+    
+    // Manager/Supervisor/Support veem apenas dos seus departamentos
+    if (['manager', 'supervisor', 'support'].includes(user.role)) {
+      return rawTicketTypes.filter((type: any) => 
+        allowedDepartmentIds.includes(type.department_id)
+      );
+    }
+    
+    return rawTicketTypes;
+  }, [rawTicketTypes, user, allowedDepartmentIds]);
   const pagination = ticketTypesResponse?.pagination;
 
   // Resetar página quando filtros mudarem
@@ -317,7 +389,7 @@ const TicketTypeManagement: React.FC = () => {
   };
 
   // Abrir formulário para edição
-  const handleEdit = (ticketType: IncidentType) => {
+  const handleEdit = (ticketType: any) => {
     setCurrentTicketType({
       id: ticketType.id,
       name: ticketType.name,
@@ -332,7 +404,7 @@ const TicketTypeManagement: React.FC = () => {
   };
 
   // Confirmar exclusão
-  const handleDelete = (ticketType: IncidentType) => {
+  const handleDelete = (ticketType: any) => {
     setCurrentTicketType({
       id: ticketType.id,
       name: ticketType.name,
@@ -483,8 +555,10 @@ const TicketTypeManagement: React.FC = () => {
                   <SelectValue placeholder="Todos os departamentos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os departamentos</SelectItem>
-                  {departments.map((dept) => (
+                  <SelectItem value="all">
+                    {user?.role === 'admin' ? 'Todos os departamentos' : 'Meus departamentos'}
+                  </SelectItem>
+                  {allowedDepartments.map((dept) => (
                     <SelectItem key={dept.id} value={dept.id.toString()}>
                       {dept.name}
                     </SelectItem>
@@ -530,11 +604,11 @@ const TicketTypeManagement: React.FC = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                ticketTypes.map((type) => (
+                ticketTypes.map((type: any) => (
                   <TableRow key={type.id} className={!type.is_active ? "opacity-60" : ""}>
                     <TableCell className="font-medium">{type.name}</TableCell>
                     <TableCell>
-                      {departments.find(d => d.id === type.department_id)?.name || "—"}
+                      {allowedDepartments.find(d => d.id === type.department_id)?.name || "—"}
                     </TableCell>
                     {user?.role === 'admin' && (
                       <TableCell>
@@ -669,7 +743,7 @@ const TicketTypeManagement: React.FC = () => {
                   <SelectValue placeholder="Selecione um departamento" />
                 </SelectTrigger>
                 <SelectContent>
-                  {departments.map((dept) => (
+                  {allowedDepartments.map((dept) => (
                     <SelectItem key={dept.id} value={dept.id.toString()}>
                       {dept.name}
                     </SelectItem>

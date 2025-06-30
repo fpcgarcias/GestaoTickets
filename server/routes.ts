@@ -4288,6 +4288,412 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   );
 
+  // === ROTAS DE TICKET TYPES ===
+  
+  // GET /api/ticket-types - Listar tipos de chamado
+  router.get("/ticket-types", authRequired, async (req: Request, res: Response) => {
+    try {
+      // Parâmetros de paginação
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const search = (req.query.search as string) || '';
+      const active_only = req.query.active_only === "true";
+      const filterCompanyId = req.query.company_id ? parseInt(req.query.company_id as string) : null;
+      const department_id = req.query.department_id ? parseInt(req.query.department_id as string) : null;
+      const userRole = req.session?.userRole as string;
+      const sessionCompanyId = req.session.companyId;
+      const sessionUserId = req.session.userId;
+
+      // Verificar se o usuário tem uma empresa associada (exceto admin)
+      if (!sessionCompanyId && userRole !== 'admin') {
+        return res.status(400).json({ message: "Usuário sem empresa associada" });
+      }
+
+      const conditions: SQLWrapper[] = [];
+
+      // Lógica de filtro por empresa
+      if (userRole === 'admin') {
+        // Admin pode filtrar por empresa específica ou ver todas
+        if (filterCompanyId) {
+          conditions.push(eq(schema.ticketTypes.company_id, filterCompanyId));
+        }
+      } else if (userRole === 'company_admin') {
+        // Company_admin vê todos os tipos da sua empresa
+        if (sessionCompanyId) {
+          conditions.push(eq(schema.ticketTypes.company_id, sessionCompanyId));
+        }
+             } else if (['manager', 'supervisor', 'support'].includes(userRole)) {
+         // Manager/Supervisor/Support veem apenas tipos dos seus departamentos
+         if (sessionCompanyId && sessionUserId) {
+           // Buscar o official do usuário
+           const [userOfficial] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, sessionUserId));
+           
+           if (userOfficial) {
+             // Buscar departamentos do oficial
+             const userDepartments = await db.select({ department_id: schema.officialDepartments.department_id })
+               .from(schema.officialDepartments)
+               .where(eq(schema.officialDepartments.official_id, userOfficial.id));
+             
+             if (userDepartments.length > 0) {
+               const departmentIds = userDepartments.map(dept => dept.department_id);
+               
+               conditions.push(
+                 and(
+                   eq(schema.ticketTypes.company_id, sessionCompanyId),
+                   inArray(schema.ticketTypes.department_id, departmentIds)
+                 )
+               );
+             } else {
+               // Se o usuário não tem departamentos, não deve ver nada
+               conditions.push(sql`1 = 0`);
+             }
+           } else {
+             // Se não há official, não deve ver nada
+             conditions.push(sql`1 = 0`);
+           }
+         }
+      } else {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      if (active_only) {
+        conditions.push(eq(schema.ticketTypes.is_active, true));
+      }
+
+      if (department_id) {
+        conditions.push(eq(schema.ticketTypes.department_id, department_id));
+      }
+
+      // Filtro por busca (nome ou descrição)
+      if (search) {
+        const searchCondition = or(
+          ilike(schema.ticketTypes.name, `%${search}%`),
+          ilike(schema.ticketTypes.description, `%${search}%`)
+        );
+        if (searchCondition) {
+          conditions.push(searchCondition);
+        }
+      }
+
+      // Contar total de registros com filtros aplicados
+      let countQuery = db
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(schema.ticketTypes);
+
+      if (conditions.length > 0) {
+        countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
+      }
+
+      const [{ count: totalCount }] = await countQuery;
+
+      // Calcular offset para paginação
+      const offset = (page - 1) * limit;
+
+      // Buscar tipos de chamado com informações do departamento
+      const ticketTypes = await db.query.ticketTypes.findMany({
+        where: conditions.length > 0 ? and(...conditions) : undefined,
+        orderBy: [asc(schema.ticketTypes.name)],
+        limit: limit,
+        offset: offset,
+        with: {
+          department: {
+            columns: {
+              id: true,
+              name: true,
+            }
+          },
+          company: userRole === 'admin' ? {
+            columns: {
+              id: true,
+              name: true,
+            }
+          } : undefined
+        }
+      });
+      
+      const totalPages = Math.ceil(totalCount / limit);
+      
+      return res.json({
+        ticketTypes: ticketTypes,
+        pagination: {
+          current: page,
+          pages: totalPages,
+          total: totalCount,
+          limit: limit
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao obter tipos de chamado:', error);
+      res.status(500).json({ message: "Falha ao buscar tipos de chamado", error: String(error) });
+    }
+  });
+
+  // POST /api/ticket-types - Criar um novo tipo de chamado
+  router.post(
+    "/ticket-types",
+    authRequired,
+    authorize(['admin', 'manager', 'company_admin', 'supervisor']),
+    async (req: Request, res: Response) => {
+      try {
+        const { name, value, description, department_id, company_id: company_id_from_body, is_active } = req.body;
+        const userRole = req.session.userRole as string;
+        const sessionCompanyId = req.session.companyId;
+
+        let effectiveCompanyId: number | null = null;
+
+        if (userRole === 'admin') {
+          if (company_id_from_body !== undefined) {
+            effectiveCompanyId = company_id_from_body;
+          }
+        } else if (['company_admin', 'manager', 'supervisor'].includes(userRole)) {
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: `${userRole} não possui uma empresa associada na sessão.` });
+          }
+          effectiveCompanyId = sessionCompanyId;
+          if (company_id_from_body !== undefined && company_id_from_body !== sessionCompanyId) {
+            console.warn(`${userRole} tentou especificar um company_id diferente do seu na criação do tipo de chamado.`);
+          }
+        } else {
+          return res.status(403).json({ message: "Acesso negado." });
+        }
+
+        if (!name || !value) {
+          return res.status(400).json({ message: "Nome e Valor do tipo de chamado são obrigatórios." });
+        }
+        if (department_id === undefined) {
+          return res.status(400).json({ message: "Department ID é obrigatório." });
+        }
+        
+        // Verificar se o department_id pertence à empresa
+        if (effectiveCompanyId !== null && department_id) {
+          const [department] = await db.select().from(schema.departments).where(and(eq(schema.departments.id, department_id), eq(schema.departments.company_id, effectiveCompanyId)));
+          if (!department) {
+            return res.status(400).json({ message: `Departamento ID ${department_id} não encontrado ou não pertence à empresa ID ${effectiveCompanyId}.` });
+          }
+        }
+
+        // Verificar duplicidade
+        const existingConditions: SQLWrapper[] = [eq(schema.ticketTypes.name, name)];
+        if (effectiveCompanyId !== null) {
+          existingConditions.push(eq(schema.ticketTypes.company_id, effectiveCompanyId));
+        } else {
+          existingConditions.push(isNull(schema.ticketTypes.company_id));
+        }
+
+        const [existing] = await db.select().from(schema.ticketTypes).where(and(...existingConditions));
+        if (existing) {
+          return res.status(400).json({ message: "Já existe um tipo de chamado com este nome para esta empresa." });
+        }
+
+        // Verificar duplicidade do valor
+        const existingValueConditions: SQLWrapper[] = [eq(schema.ticketTypes.value, value)];
+        if (effectiveCompanyId !== null) {
+          existingValueConditions.push(eq(schema.ticketTypes.company_id, effectiveCompanyId));
+        } else {
+          existingValueConditions.push(isNull(schema.ticketTypes.company_id));
+        }
+
+        const [existingValue] = await db.select().from(schema.ticketTypes).where(and(...existingValueConditions));
+        if (existingValue) {
+          return res.status(400).json({ message: "Já existe um tipo de chamado com este valor para esta empresa." });
+        }
+
+        // Criar tipo de chamado
+        const [newTicketType] = await db
+          .insert(schema.ticketTypes)
+          .values({
+            name,
+            value,
+            description: description || null,
+            department_id,
+            company_id: effectiveCompanyId,
+            is_active: is_active !== undefined ? is_active : true,
+            created_at: new Date(),
+            updated_at: new Date(),
+          })
+          .returning();
+
+        res.status(201).json(newTicketType);
+      } catch (error: any) {
+        console.error("Error creating ticket type:", error);
+        res.status(500).json({ message: "Failed to create ticket type" });
+      }
+    }
+  );
+
+  // PUT /api/ticket-types/:id - Atualizar um tipo de chamado
+  router.put(
+    "/ticket-types/:id",
+    authRequired,
+    authorize(['admin', 'manager', 'company_admin', 'supervisor']),
+    async (req: Request, res: Response) => {
+      try {
+        const ticketTypeId = parseInt(req.params.id);
+        if (isNaN(ticketTypeId)) {
+          return res.status(400).json({ message: "ID do tipo de chamado inválido." });
+        }
+
+        const { name, value, description, department_id, is_active } = req.body;
+        const userRole = req.session.userRole as string;
+        const sessionCompanyId = req.session.companyId;
+
+        // Verificar se o tipo de chamado existe
+        const [ticketTypeToUpdate] = await db
+          .select()
+          .from(schema.ticketTypes)
+          .where(eq(schema.ticketTypes.id, ticketTypeId));
+
+        if (!ticketTypeToUpdate) {
+          return res.status(404).json({ message: "Tipo de chamado não encontrado." });
+        }
+
+        // Verificar permissões
+        if (userRole !== 'admin') {
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: `${userRole} deve ter um ID de empresa na sessão.` });
+          }
+          if (ticketTypeToUpdate.company_id !== sessionCompanyId) {
+            return res.status(403).json({ message: "Não é possível editar tipo de chamado de outra empresa." });
+          }
+        }
+
+        // Validar departamento se fornecido
+        if (department_id && department_id !== ticketTypeToUpdate.department_id) {
+          const effectiveCompanyId = userRole === 'admin' ? ticketTypeToUpdate.company_id : sessionCompanyId;
+          
+          if (effectiveCompanyId !== null) {
+            const [department] = await db.select().from(schema.departments).where(and(eq(schema.departments.id, department_id), eq(schema.departments.company_id, effectiveCompanyId)));
+            if (!department) {
+              return res.status(400).json({ message: `Departamento ID ${department_id} não encontrado ou não pertence à empresa.` });
+            }
+          }
+        }
+
+        // Verificar duplicidade de nome se alterado
+        if (name && name !== ticketTypeToUpdate.name) {
+          const existingConditions: SQLWrapper[] = [
+            eq(schema.ticketTypes.name, name),
+            ne(schema.ticketTypes.id, ticketTypeId)
+          ];
+          
+          if (ticketTypeToUpdate.company_id !== null) {
+            existingConditions.push(eq(schema.ticketTypes.company_id, ticketTypeToUpdate.company_id));
+          } else {
+            existingConditions.push(isNull(schema.ticketTypes.company_id));
+          }
+
+          const [existing] = await db.select().from(schema.ticketTypes).where(and(...existingConditions));
+          if (existing) {
+            return res.status(400).json({ message: "Já existe um tipo de chamado com este nome para esta empresa." });
+          }
+        }
+
+        // Verificar duplicidade de valor se alterado
+        if (value && value !== ticketTypeToUpdate.value) {
+          const existingValueConditions: SQLWrapper[] = [
+            eq(schema.ticketTypes.value, value),
+            ne(schema.ticketTypes.id, ticketTypeId)
+          ];
+          
+          if (ticketTypeToUpdate.company_id !== null) {
+            existingValueConditions.push(eq(schema.ticketTypes.company_id, ticketTypeToUpdate.company_id));
+          } else {
+            existingValueConditions.push(isNull(schema.ticketTypes.company_id));
+          }
+
+          const [existingValue] = await db.select().from(schema.ticketTypes).where(and(...existingValueConditions));
+          if (existingValue) {
+            return res.status(400).json({ message: "Já existe um tipo de chamado com este valor para esta empresa." });
+          }
+        }
+
+        // Atualizar tipo de chamado
+        const updateData: any = { updated_at: new Date() };
+        if (name !== undefined) updateData.name = name;
+        if (value !== undefined) updateData.value = value;
+        if (description !== undefined) updateData.description = description;
+        if (department_id !== undefined) updateData.department_id = department_id;
+        if (is_active !== undefined) updateData.is_active = is_active;
+
+        const [updatedTicketType] = await db
+          .update(schema.ticketTypes)
+          .set(updateData)
+          .where(eq(schema.ticketTypes.id, ticketTypeId))
+          .returning();
+
+        res.json(updatedTicketType);
+      } catch (error: any) {
+        console.error("Error updating ticket type:", error);
+        res.status(500).json({ message: "Failed to update ticket type" });
+      }
+    }
+  );
+
+  // DELETE /api/ticket-types/:id - Desativar um tipo de chamado
+  router.delete(
+    "/ticket-types/:id",
+    authRequired,
+    authorize(['admin', 'manager', 'company_admin', 'supervisor']),
+    async (req: Request, res: Response) => {
+      try {
+        const ticketTypeId = parseInt(req.params.id);
+        if (isNaN(ticketTypeId)) {
+          return res.status(400).json({ message: "ID do tipo de chamado inválido." });
+        }
+
+        const userRole = req.session.userRole as string;
+        const sessionCompanyId = req.session.companyId;
+
+        // Verificar se o tipo de chamado existe
+        const [ticketTypeToDelete] = await db
+          .select()
+          .from(schema.ticketTypes)
+          .where(eq(schema.ticketTypes.id, ticketTypeId));
+
+        if (!ticketTypeToDelete) {
+          return res.status(404).json({ message: "Tipo de chamado não encontrado." });
+        }
+
+        // Verificar permissões
+        if (userRole !== 'admin') {
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: `${userRole} deve ter um ID de empresa na sessão.` });
+          }
+          if (ticketTypeToDelete.company_id !== sessionCompanyId) {
+            return res.status(403).json({ message: "Não é possível excluir tipo de chamado de outra empresa." });
+          }
+        }
+
+        // Verificar vínculos antes de deletar (tickets)
+        const [ticketLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
+          .from(schema.tickets)
+          .where(eq(schema.tickets.type, ticketTypeToDelete.value));
+          
+        if (ticketLink && ticketLink.count > 0) {
+          return res.status(400).json({ message: "Tipo de chamado não pode ser excluído pois está vinculado a chamados existentes." });
+        }
+
+        // Desativar em vez de excluir
+        const [updatedTicketType] = await db
+          .update(schema.ticketTypes)
+          .set({
+            is_active: false,
+            updated_at: new Date(),
+          })
+          .where(eq(schema.ticketTypes.id, ticketTypeId))
+          .returning();
+
+        res.status(200).json({ message: "Tipo de chamado desativado com sucesso.", ticketType: updatedTicketType });
+      } catch (error: any) {
+        console.error("Error deleting ticket type:", error);
+        if (error && typeof error === 'object' && 'code' in error && error.code === '23503') { 
+          return res.status(400).json({ message: "Tipo de chamado não pode ser excluído devido a vínculos existentes." });
+        }
+        res.status(500).json({ message: "Failed to delete ticket type" });
+      }
+    }
+  );
+
   // --- ROTAS DE SLA DEFINITIONS ---
   router.get("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support', 'customer']), async (req: Request, res: Response) => {
     let effectiveCompanyId: number | undefined = undefined; // Inicializada e tipo ajustado
