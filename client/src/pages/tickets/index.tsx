@@ -30,7 +30,7 @@ import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
 import { Ticket, Official, Department } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { useDepartmentPriorities } from '@/hooks/use-priorities';
+import { usePriorities } from '@/hooks/use-priorities';
 
 export default function TicketsIndex() {
   const [, navigate] = useLocation();
@@ -94,7 +94,7 @@ export default function TicketsIndex() {
   // Buscar prioridades do departamento selecionado
   // Se nenhum departamento selecionado, pega prioridades padrão (sem departmentId)
   const selectedDeptId = departmentFilter !== 'all' ? parseInt(departmentFilter) : undefined;
-  const { priorities: departmentPriorities, isLoading: prioritiesLoading } = useDepartmentPriorities(selectedDeptId);
+  const { data: departmentPriorities = [], isLoading: prioritiesLoading } = usePriorities(selectedDeptId);
   
   // Para o filtro, sempre mostrar prioridades disponíveis (padrão quando nenhum departamento selecionado)
   const availablePriorities = departmentPriorities || [];

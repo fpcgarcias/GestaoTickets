@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
-import { useDepartmentPriorities, convertLegacyToWeight } from '@/hooks/use-priorities';
+import { usePriorities, convertLegacyToWeight } from '@/hooks/use-priorities';
 
 interface TicketCardProps {
   ticket: Ticket;
@@ -44,7 +44,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
   } = ticket;
   
   // Buscar prioridades do departamento para obter informações adicionais
-  const { priorities } = useDepartmentPriorities(departmentId || undefined);
+  const { data: priorities = [] } = usePriorities(departmentId || undefined);
   
   // Determinar se o usuário é cliente
   const isCustomer = user?.role === 'customer';
@@ -207,7 +207,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
           </div>
         </div>
         
-        {status !== 'resolved' && createdAt && companyId && (
+        {createdAt && companyId && priority && (
           <div className="mt-3">
             <SLAIndicator 
               ticketCreatedAt={typeof createdAt === 'string' ? createdAt : new Date(createdAt).toISOString()} 
@@ -216,6 +216,9 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
               ticketCompanyId={companyId}
               ticketId={id}
               resolvedAt={ticket.resolved_at ? (typeof ticket.resolved_at === 'string' ? ticket.resolved_at : new Date(ticket.resolved_at).toISOString()) : undefined}
+              departmentId={departmentId || undefined}
+              incidentTypeId={ticket.incident_type_id || undefined}
+              firstResponseAt={ticket.first_response_at ? (typeof ticket.first_response_at === 'string' ? ticket.first_response_at : new Date(ticket.first_response_at).toISOString()) : undefined}
             />
           </div>
         )}

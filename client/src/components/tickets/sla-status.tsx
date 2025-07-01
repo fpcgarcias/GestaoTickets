@@ -1,311 +1,280 @@
-import React, { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Clock, AlertTriangle, CheckCircle, User, Mail } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
-import { calculateSLAStatus, formatTimeRemaining, getBusinessHoursConfig, convertStatusHistoryToPeriods } from '@shared/utils/sla-calculator';
+/**
+ * Componente SLA Status - Visão detalhada do status de SLA de um ticket
+ * Mostra informações completas sobre prazos de resposta e resolução
+ */
+
+import React from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
+import { Clock, Target, CheckCircle, AlertTriangle, Info, Pause } from 'lucide-react';
+import { useTicketWithSLA, slaUtils } from '@/hooks/use-sla';
+import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface SLAStatusProps {
-  ticketCreatedAt: string;
-  ticketPriority: string;
-  ticketStatus: string;
-  ticketCompanyId: number;
   ticketId: number;
+  companyId: number;
+  departmentId: number;
+  incidentTypeId: number;
+  priority: string;
+  status: TicketStatus;
+  createdAt: string;
+  firstResponseAt?: string;
   resolvedAt?: string;
+  className?: string;
 }
 
-export const SLAStatus: React.FC<SLAStatusProps> = ({ 
-  ticketCreatedAt, 
-  ticketPriority,
-  ticketStatus,
-  ticketCompanyId,
+export const SLAStatus: React.FC<SLAStatusProps> = ({
   ticketId,
-  resolvedAt
+  companyId,
+  departmentId,
+  incidentTypeId,
+  priority,
+  status,
+  createdAt,
+  firstResponseAt,
+  resolvedAt,
+  className
 }) => {
-  const [timeRemaining, setTimeRemaining] = useState<string>('');
-  const [percentConsumed, setPercentConsumed] = useState<number>(0);
-  const [slaStatus, setSlaStatus] = useState<'ok' | 'warning' | 'critical' | 'breached'>('ok');
-  const [dueDate, setDueDate] = useState<Date | null>(null);
-  
-  const { data: slaSettingsData, isLoading, error } = useQuery({
-    queryKey: ["/api/settings/sla", ticketCompanyId],
-    queryFn: async () => {
-      const url = `/api/settings/sla?company_id=${ticketCompanyId}`;
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Erro ao buscar SLA: ${response.statusText}`);
-      }
-      return response.json();
-    },
-    enabled: !!ticketCompanyId,
-  });
+  const ticketSLAInfo = useTicketWithSLA(
+    ticketId,
+    companyId,
+    departmentId,
+    incidentTypeId,
+    priority,
+    createdAt,
+    firstResponseAt,
+    resolvedAt
+  );
 
-  // Buscar histórico de status para cálculo preciso de SLA
-  const { data: statusHistory } = useQuery({
-    queryKey: [`/api/tickets/${ticketId}/status-history`],
-    queryFn: async () => {
-      const response = await fetch(`/api/tickets/${ticketId}/status-history`);
-      if (!response.ok) {
-        throw new Error('Erro ao buscar histórico de status');
-      }
-      return response.json();
-    },
-    enabled: !!ticketId,
-    staleTime: 30 * 1000, // 30 segundos
-  });
-  
-  useEffect(() => {
-    if (isLoading || error || !slaSettingsData || !ticketCreatedAt) return;
-    
-    try {
-      // Encontrar a configuração de SLA para a prioridade deste ticket
-      let resolutionTimeHours: number;
-      
-      if (slaSettingsData && typeof slaSettingsData === 'object' && 'settings' in slaSettingsData) {
-        // Formato novo da API
-        const slaSetting = (slaSettingsData as any).settings[ticketPriority];
-        if (!slaSetting || !slaSetting.resolution_time_hours) return;
-        resolutionTimeHours = slaSetting.resolution_time_hours;
-      } else {
-        // Formato antigo (array)
-        const slaSettings = Array.isArray(slaSettingsData) ? slaSettingsData : [];
-        const slaSetting = slaSettings.find((s: any) => s.priority === ticketPriority);
-        if (!slaSetting) return;
-        resolutionTimeHours = slaSetting.resolutionTimeHours || slaSetting.resolution_time_hours || 24;
-      }
-      
-      // Converter datas
-      const createdDate = new Date(ticketCreatedAt);
-      const resolvedDate = resolvedAt ? new Date(resolvedAt) : undefined;
-      
-      if (isNaN(createdDate.getTime())) {
-        console.error("Data de criação inválida:", ticketCreatedAt);
-        return;
-      }
-      
-      // Converter histórico de status para períodos (se disponível)
-      let statusPeriods: any[] = [];
-      if (statusHistory && Array.isArray(statusHistory)) {
-        try {
-          statusPeriods = convertStatusHistoryToPeriods(
-            createdDate,
-            ticketStatus as any,
-            statusHistory
-          );
-        } catch (historyError) {
-          console.warn('Erro ao processar histórico de status:', historyError);
-          statusPeriods = [];
-        }
-      }
-      
-      // Calcular SLA usando o novo sistema com histórico
-      const businessHours = getBusinessHoursConfig();
-      const slaResult = calculateSLAStatus(
-        createdDate,
-        resolutionTimeHours,
-        new Date(),
-        resolvedDate,
-        businessHours,
-        statusPeriods, // Usar histórico processado
-        ticketStatus as any
-      );
-      
-      setPercentConsumed(slaResult.percentConsumed);
-      setSlaStatus(slaResult.status);
-      setDueDate(slaResult.dueDate);
-      
-      // Formatar texto baseado no status
-      if (ticketStatus === 'resolved') {
-        if (slaResult.isBreached) {
-          const overdueTime = formatTimeRemaining(slaResult.timeElapsed - (resolutionTimeHours * 60 * 60 * 1000), true);
-          setTimeRemaining(`Resolvido com atraso de ${overdueTime}`);
-        } else {
-          const usedTime = formatTimeRemaining(slaResult.timeElapsed);
-          setTimeRemaining(`Resolvido em ${usedTime} (dentro do SLA)`);
-        }
-      } else {
-        if (slaResult.isBreached) {
-          const overdueTime = formatTimeRemaining(slaResult.timeElapsed - (resolutionTimeHours * 60 * 60 * 1000), true);
-          setTimeRemaining(`SLA excedido em ${overdueTime}`);
-        } else {
-          const remainingTime = formatTimeRemaining(slaResult.timeRemaining);
-          setTimeRemaining(remainingTime);
-        }
-      }
-      
-      // Atualizar a cada minuto se o ticket não estiver resolvido
-      if (ticketStatus !== 'resolved') {
-        const interval = setInterval(() => {
-          const updatedSlaResult = calculateSLAStatus(
-            createdDate,
-            resolutionTimeHours,
-            new Date(),
-            resolvedDate,
-            businessHours
-          );
-          
-          setPercentConsumed(updatedSlaResult.percentConsumed);
-          setSlaStatus(updatedSlaResult.status);
-          
-          if (updatedSlaResult.isBreached) {
-            const overdueTime = formatTimeRemaining(updatedSlaResult.timeElapsed - (resolutionTimeHours * 60 * 60 * 1000), true);
-            setTimeRemaining(`SLA excedido em ${overdueTime}`);
-          } else {
-            const remainingTime = formatTimeRemaining(updatedSlaResult.timeRemaining);
-            setTimeRemaining(remainingTime);
-          }
-        }, 60000);
-        
-        return () => clearInterval(interval);
-      }
-      
-    } catch (error) {
-      console.error("Erro no cálculo de SLA:", error);
-    }
-  }, [slaSettingsData, isLoading, error, ticketCreatedAt, ticketPriority, ticketStatus, ticketCompanyId, ticketId, resolvedAt, statusHistory]);
-  
-  if (isLoading) {
+  const isFinished = isSlaFinished(status);
+  const isPaused = isSlaPaused(status);
+
+  if (!ticketSLAInfo) {
     return (
-      <div className="rounded-lg p-4 bg-gray-50 border border-gray-200">
-        <div className="flex items-start gap-3">
-          <Clock className="h-5 w-5 mt-0.5 text-gray-400 animate-pulse" />
-          <div className="flex-1">
-            <h3 className="font-medium text-gray-600 mb-1">
-              Status do SLA
-            </h3>
-            <div className="text-sm text-gray-500">
-              Carregando configurações de SLA...
-            </div>
+      <Card className={className}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Status de SLA
+          </CardTitle>
+          <CardDescription>
+            Informações sobre os prazos de atendimento
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-4 text-muted-foreground">
+            <Info className="h-8 w-8 mx-auto mb-2" />
+            <p>Configuração de SLA não disponível</p>
+            <p className="text-sm">Verifique as configurações de SLA para este tipo de chamado</p>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
-  if (error || !slaSettingsData || !timeRemaining) {
-    return null;
-  }
-  
-  // Cores e estilos baseados no status
-  const getStatusConfig = () => {
-    if (ticketStatus === 'resolved') {
-      return slaStatus === 'breached' 
-        ? {
-            bgColor: 'bg-orange-50',
-            borderColor: 'border-orange-200',
-            iconColor: 'text-orange-600',
-            titleColor: 'text-orange-800',
-            descColor: 'text-orange-700',
-            progressColor: 'bg-orange-600',
-            progressBg: 'bg-orange-200',
-            icon: CheckCircle
-          }
-        : {
-            bgColor: 'bg-green-50',
-            borderColor: 'border-green-200',
-            iconColor: 'text-green-600',
-            titleColor: 'text-green-800',
-            descColor: 'text-green-700',
-            progressColor: 'bg-green-600',
-            progressBg: 'bg-green-200',
-            icon: CheckCircle
-          };
-    }
-    
-    switch (slaStatus) {
-      case 'breached':
-        return {
-          bgColor: 'bg-red-50',
-          borderColor: 'border-red-200',
-          iconColor: 'text-red-600',
-          titleColor: 'text-red-800',
-          descColor: 'text-red-700',
-          progressColor: 'bg-red-600',
-          progressBg: 'bg-red-200',
-          icon: AlertTriangle
-        };
-      case 'critical':
-        return {
-          bgColor: 'bg-red-50',
-          borderColor: 'border-red-200',
-          iconColor: 'text-red-500',
-          titleColor: 'text-red-800',
-          descColor: 'text-red-700',
-          progressColor: 'bg-red-500',
-          progressBg: 'bg-red-200',
-          icon: AlertTriangle
-        };
-      case 'warning':
-        return {
-          bgColor: 'bg-yellow-50',
-          borderColor: 'border-yellow-200',
-          iconColor: 'text-yellow-600',
-          titleColor: 'text-yellow-800',
-          descColor: 'text-yellow-700',
-          progressColor: 'bg-yellow-600',
-          progressBg: 'bg-yellow-200',
-          icon: Clock
-        };
-      default:
-        return {
-          bgColor: 'bg-blue-50',
-          borderColor: 'border-blue-200',
-          iconColor: 'text-blue-600',
-          titleColor: 'text-blue-800',
-          descColor: 'text-blue-700',
-          progressColor: 'bg-blue-600',
-          progressBg: 'bg-blue-200',
-          icon: Clock
-        };
-    }
+  const { sla, status: slaStatus } = ticketSLAInfo;
+
+  // Calcular progresso dos prazos
+  const responseProgress = firstResponseAt 
+    ? 100 
+    : Math.max(0, Math.min(100, 100 - (slaStatus.responseTimeRemaining / sla.responseTimeHours) * 100));
+
+  const resolutionProgress = resolvedAt 
+    ? 100 
+    : Math.max(0, Math.min(100, 100 - (slaStatus.resolutionTimeRemaining / sla.resolutionTimeHours) * 100));
+
+  const formatDateTime = (dateStr: string) => {
+    return format(new Date(dateStr), 'dd/MM/yyyy \'às\' HH:mm', { locale: ptBR });
   };
-  
-  const config = getStatusConfig();
-  const IconComponent = config.icon;
-  
-  const formatDueDate = (date: Date) => {
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+
+  const getStatusIcon = () => {
+    if (isFinished) return <CheckCircle className="h-5 w-5 text-green-600" />;
+    if (isPaused) return <Pause className="h-5 w-5 text-orange-600" />;
+    if (slaStatus.isResolutionOverdue) return <AlertTriangle className="h-5 w-5 text-red-600" />;
+    return <Clock className="h-5 w-5 text-blue-600" />;
   };
-  
+
+  const getStatusBadge = () => {
+    if (isFinished) return <Badge variant="default" className="bg-green-100 text-green-800">Resolvido</Badge>;
+    if (isPaused) return <Badge variant="secondary">SLA Pausado</Badge>;
+    if (slaStatus.isResolutionOverdue) return <Badge variant="destructive">SLA Excedido</Badge>;
+    if (slaStatus.resolutionTimeRemaining < 2) return <Badge variant="secondary">Crítico</Badge>;
+    if (slaStatus.resolutionTimeRemaining < 8) return <Badge variant="outline">Atenção</Badge>;
+    return <Badge variant="outline">No Prazo</Badge>;
+  };
+
   return (
-    <div className={`rounded-lg p-4 ${config.bgColor} ${config.borderColor} border`}>
-      <div className="flex items-start gap-3">
-        <IconComponent className={`h-5 w-5 mt-0.5 ${config.iconColor}`} />
-        <div className="flex-1">
-          <h3 className={`font-medium ${config.titleColor} mb-1`}>
-            Status do SLA
-          </h3>
-          <div className={`text-sm ${config.descColor} space-y-2`}>
-            <div className="flex justify-between items-center">
-              <span>{timeRemaining}</span>
-              <span className="font-medium">{percentConsumed}% consumido</span>
+    <Card className={className}>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {getStatusIcon()}
+            <CardTitle>Status de SLA</CardTitle>
+          </div>
+          {getStatusBadge()}
+        </div>
+        <CardDescription>
+          Informações sobre os prazos de atendimento - {slaUtils.getSLASourceDescription(sla.source)}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Prazo de Primeira Resposta */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-blue-600" />
+              <span className="font-medium">Primeira Resposta</span>
             </div>
-            <div className={`h-2 w-full rounded-full ${config.progressBg}`}>
-              <div 
-                className={`h-full rounded-full transition-all duration-300 ${config.progressColor}`}
-                style={{ width: `${Math.min(percentConsumed, 100)}%` }}
-              ></div>
-            </div>
-            {dueDate && (
-              <div className="text-xs opacity-75">
-                {ticketStatus === 'resolved' 
-                  ? `Prazo era: ${formatDueDate(dueDate)}`
-                  : `Prazo: ${formatDueDate(dueDate)}`
-                }
+            <div className="text-right">
+              <div className="text-sm font-medium">
+                {sla.responseTimeHours}h prazo
               </div>
-            )}
-            <div className="text-xs opacity-75">
-              Horário comercial: 8h às 18h (seg-sex)
+              {firstResponseAt ? (
+                <div className="text-xs text-green-600">
+                  Respondido em {formatDateTime(firstResponseAt)}
+                </div>
+              ) : (
+                <div className={`text-xs ${slaUtils.getSLAStatusColor(slaStatus.responseTimeRemaining, slaStatus.isResponseOverdue)}`}>
+                  {slaUtils.formatTimeRemaining(slaStatus.responseTimeRemaining)}
+                </div>
+              )}
             </div>
           </div>
+          
+          <Progress 
+            value={responseProgress} 
+            className="h-2" 
+            // @ts-ignore
+            style={{
+              '--progress-foreground': firstResponseAt 
+                ? 'hsl(142, 76%, 36%)' // Verde se respondido
+                : slaStatus.isResponseOverdue 
+                  ? 'hsl(0, 84%, 60%)' // Vermelho se atrasado
+                  : slaStatus.responseTimeRemaining < 2
+                    ? 'hsl(25, 95%, 53%)' // Laranja se crítico
+                    : 'hsl(221, 83%, 53%)' // Azul se normal
+            }}
+          />
+          
+          {firstResponseAt && (
+            <div className="flex items-center gap-1 text-xs text-green-600">
+              <CheckCircle className="h-3 w-3" />
+              <span>Primeira resposta realizada</span>
+            </div>
+          )}
         </div>
-      </div>
-    </div>
+
+        <Separator />
+
+        {/* Prazo de Resolução */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-green-600" />
+              <span className="font-medium">Resolução</span>
+            </div>
+            <div className="text-right">
+              <div className="text-sm font-medium">
+                {sla.resolutionTimeHours}h prazo
+              </div>
+              {resolvedAt ? (
+                <div className="text-xs text-green-600">
+                  Resolvido em {formatDateTime(resolvedAt)}
+                </div>
+              ) : isPaused ? (
+                <div className="text-xs text-orange-600">
+                  SLA pausado
+                </div>
+              ) : (
+                <div className={`text-xs ${slaUtils.getSLAStatusColor(slaStatus.resolutionTimeRemaining, slaStatus.isResolutionOverdue)}`}>
+                  {slaUtils.formatTimeRemaining(slaStatus.resolutionTimeRemaining)}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <Progress 
+            value={resolvedAt ? 100 : resolutionProgress} 
+            className="h-2" 
+            // @ts-ignore
+            style={{
+              '--progress-foreground': resolvedAt 
+                ? 'hsl(142, 76%, 36%)' // Verde se resolvido
+                : isPaused 
+                  ? 'hsl(25, 95%, 53%)' // Laranja se pausado
+                  : slaStatus.isResolutionOverdue 
+                    ? 'hsl(0, 84%, 60%)' // Vermelho se atrasado
+                    : slaStatus.resolutionTimeRemaining < 2
+                      ? 'hsl(25, 95%, 53%)' // Laranja se crítico
+                      : 'hsl(142, 76%, 36%)' // Verde se normal
+            }}
+          />
+          
+          {resolvedAt ? (
+            <div className="flex items-center gap-1 text-xs text-green-600">
+              <CheckCircle className="h-3 w-3" />
+              <span>Chamado resolvido</span>
+            </div>
+          ) : isPaused ? (
+            <div className="flex items-center gap-1 text-xs text-orange-600">
+              <Pause className="h-3 w-3" />
+              <span>SLA pausado pelo status atual</span>
+            </div>
+          ) : null}
+        </div>
+
+        {/* Informações Adicionais */}
+        <Separator />
+        
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <span className="text-muted-foreground">Criado em:</span>
+            <div className="font-medium">{formatDateTime(createdAt)}</div>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Prioridade:</span>
+            <div className="font-medium capitalize">{priority}</div>
+          </div>
+          {sla.source !== 'global_fallback' && (
+            <div className="col-span-2">
+              <span className="text-muted-foreground">Fonte da configuração:</span>
+              <div className="font-medium">{slaUtils.getSLASourceDescription(sla.source)}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Alerta se SLA excedido */}
+        {slaStatus.isResolutionOverdue && !resolvedAt && !isPaused && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-red-800">
+              <AlertTriangle className="h-4 w-4" />
+              <span className="font-medium">SLA de resolução excedido</span>
+            </div>
+            <p className="text-sm text-red-700 mt-1">
+              Este chamado está {slaUtils.formatTimeRemaining(slaStatus.resolutionTimeRemaining)} fora do prazo de resolução.
+            </p>
+          </div>
+        )}
+
+        {/* Informação sobre SLA pausado */}
+        {isPaused && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-orange-800">
+              <Pause className="h-4 w-4" />
+              <span className="font-medium">SLA pausado</span>
+            </div>
+            <p className="text-sm text-orange-700 mt-1">
+              O SLA está pausado devido ao status atual do chamado. O tempo será retomado quando o status permitir.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
+
+export default SLAStatus;

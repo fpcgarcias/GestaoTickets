@@ -96,14 +96,17 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
         ) : null}
         
         {/* Status do SLA */}
-        {ticket.created_at && ticket.company_id && (
+        {ticket.created_at && ticket.company_id && ticket.department_id && ticket.incident_type_id && (
           <div className="mb-4">
             <SLAStatus 
-              ticketCreatedAt={typeof ticket.created_at === 'string' ? ticket.created_at : new Date(ticket.created_at).toISOString()} 
-              ticketPriority={ticket.priority} 
-              ticketStatus={ticket.status}
-              ticketCompanyId={ticket.company_id}
               ticketId={ticket.id}
+              companyId={ticket.company_id}
+              departmentId={ticket.department_id}
+              incidentTypeId={ticket.incident_type_id}
+              priority={ticket.priority}
+              status={ticket.status}
+              createdAt={typeof ticket.created_at === 'string' ? ticket.created_at : new Date(ticket.created_at).toISOString()}
+              firstResponseAt={ticket.first_response_at ? (typeof ticket.first_response_at === 'string' ? ticket.first_response_at : new Date(ticket.first_response_at).toISOString()) : undefined}
               resolvedAt={ticket.resolved_at ? (typeof ticket.resolved_at === 'string' ? ticket.resolved_at : new Date(ticket.resolved_at).toISOString()) : undefined}
             />
           </div>

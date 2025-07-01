@@ -25,7 +25,7 @@ export const LEGACY_PRIORITY_MAP: Record<string, { name: string; weight: number;
 export interface PriorityResult {
   priorities: DepartmentPriority[];
   isDefault: boolean; // Se está usando prioridades padrão (fallback)
-  source: 'custom' | 'default'; // Fonte das prioridades
+  source: 'custom' | 'default' | 'none'; // Fonte das prioridades
 }
 
 // Interface para configuração de prioridade com informações extras

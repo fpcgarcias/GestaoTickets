@@ -534,7 +534,7 @@ export default function Settings() {
                           <SelectValue placeholder={isLoadingCompanies ? "Carregando..." : "Selecione uma empresa"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {!isLoadingCompanies && companies.length === 0 && <SelectItem value="" disabled>Nenhuma empresa</SelectItem>}
+                          {!isLoadingCompanies && companies.length === 0 && <SelectItem value="none" disabled>Nenhuma empresa</SelectItem>}
                           {companies.map((c) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
                         </SelectContent>
                       </Select>

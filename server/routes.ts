@@ -62,6 +62,27 @@ import {
   updateAiUsageSettings
 } from './api/company-permissions';
 
+// Importar funções do novo serviço de SLA
+import { resolveSLA, getCacheStats, preloadCache, cleanCache } from './api/sla-resolver';
+
+// Importar funções do serviço de configurações SLA
+import { 
+  getSLAConfigurations,
+  getSLAConfigurationById,
+  createSLAConfiguration,
+  updateSLAConfiguration,
+  deleteSLAConfiguration,
+  bulkCreateSLAConfigurations,
+  bulkUpdateSLAConfigurations,
+  bulkDeleteSLAConfigurations,
+  bulkToggleActiveSLAConfigurations,
+  copySLAConfigurations,
+  validateSLAConfiguration
+} from './api/sla-configurations';
+
+// Importar API do Dashboard SLA
+import { slaApi } from './api/sla-dashboard';
+
 // Schemas Zod para validação de Departamentos (definidos aqui temporariamente)
 const insertDepartmentSchemaInternal = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -5360,6 +5381,20 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
 
+  // Buscar todas as prioridades de uma empresa (para SLA Matrix)
+  router.get("/department-priorities", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const { getAllCompanyPriorities } = await import('./api/department-priorities');
+      await getAllCompanyPriorities(req, res);
+    } catch (error) {
+      console.error('Erro ao buscar prioridades da empresa:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Erro interno ao buscar prioridades da empresa" 
+      });
+    }
+  });
+
 
 
   // Buscar configurações de email
@@ -5720,6 +5755,94 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   router.put("/settings/ai-usage", authRequired, authorize(['company_admin', 'manager', 'supervisor']), updateAiUsageSettings);
 
   // --- FIM DAS ROTAS DE PERMISSÕES ---
+
+  // === ROTAS DE RESOLUÇÃO DE SLA ===
+  
+  // Resolver SLA para um ticket
+  router.post("/sla/resolve", authRequired, resolveSLA);
+  
+  // Estatísticas do cache de SLA (apenas admins)
+  router.get("/sla/cache/stats", authRequired, adminRequired, getCacheStats);
+  
+  // Pré-carregar cache de SLA
+  router.post("/sla/cache/preload", authRequired, adminRequired, preloadCache);
+  
+  // Limpar cache expirado
+  router.delete("/sla/cache", authRequired, adminRequired, cleanCache);
+
+  // --- FIM DAS ROTAS DE SLA ---
+
+  // === ROTAS DE CONFIGURAÇÕES SLA ===
+  
+  // CRUD básico de configurações SLA
+  router.get("/sla-configurations", authRequired, getSLAConfigurations);
+  router.get("/sla-configurations/:id", authRequired, getSLAConfigurationById);
+  router.post("/sla-configurations", authRequired, createSLAConfiguration);
+  router.put("/sla-configurations/:id", authRequired, updateSLAConfiguration);
+  router.delete("/sla-configurations/:id", authRequired, deleteSLAConfiguration);
+  
+  // Bulk operations
+  router.post("/sla-configurations/bulk", authRequired, bulkCreateSLAConfigurations);
+  router.put("/sla-configurations/bulk", authRequired, bulkUpdateSLAConfigurations);
+  router.delete("/sla-configurations/bulk", authRequired, bulkDeleteSLAConfigurations);
+  router.patch("/sla-configurations/bulk/toggle", authRequired, bulkToggleActiveSLAConfigurations);
+  
+  // Operações especiais
+  router.post("/sla-configurations/copy", authRequired, copySLAConfigurations);
+  router.post("/sla-configurations/validate", authRequired, validateSLAConfiguration);
+
+  // === ROTAS DO DASHBOARD SLA ===
+  
+  // Dashboard de estatísticas SLA
+  router.get("/sla-dashboard/stats", authRequired, async (req: Request, res: Response) => {
+    try {
+      const companyId = req.session.companyId;
+      if (!companyId) {
+        return res.status(400).json({ message: "Empresa não identificada" });
+      }
+
+      const departmentIds = req.query.departments ? 
+        (req.query.departments as string).split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : 
+        undefined;
+
+      const stats = await slaApi.getDashboardStats(companyId, departmentIds);
+      res.json(stats);
+    } catch (error) {
+      console.error('Erro ao obter estatísticas do dashboard SLA:', error);
+      res.status(500).json({ 
+        message: "Erro ao carregar estatísticas do dashboard SLA", 
+        error: String(error) 
+      });
+    }
+  });
+
+  // Visão geral de configurações por departamento
+  router.get("/sla-dashboard/department/:departmentId", authRequired, async (req: Request, res: Response) => {
+    try {
+      const companyId = req.session.companyId;
+      if (!companyId) {
+        return res.status(400).json({ message: "Empresa não identificada" });
+      }
+
+      const departmentId = parseInt(req.params.departmentId);
+      if (isNaN(departmentId)) {
+        return res.status(400).json({ message: "ID do departamento inválido" });
+      }
+
+      const overview = await slaApi.getDepartmentOverview(companyId, departmentId);
+      res.json(overview);
+    } catch (error) {
+      console.error('Erro ao obter visão geral do departamento:', error);
+      res.status(500).json({ 
+        message: "Erro ao carregar visão geral do departamento", 
+        error: String(error) 
+      });
+    }
+  });
+
+  // --- FIM DAS ROTAS DO DASHBOARD SLA ---
+
+  // --- FIM DAS ROTAS DE CONFIGURAÇÕES SLA ---
 
   // === NOVAS ROTAS PARA COMPANY_ADMIN ===
   

@@ -783,4 +783,64 @@ export async function enableFlexibleSLA(req: Request, res: Response) {
       message: 'Erro interno ao ativar sistema flexível' 
     });
   }
-} 
+}
+
+/**
+ * GET /api/department-priorities?company_id=X
+ * Busca todas as prioridades de uma empresa (para SLA Matrix)
+ */
+export async function getAllCompanyPriorities(req: Request, res: Response) {
+  try {
+    const userCompanyId = req.session.companyId;
+    const userRole = req.session.userRole;
+    
+    // Determinar qual empresa buscar
+    let targetCompanyId: number;
+    
+    if (userRole === 'admin') {
+      // Admin pode especificar qualquer empresa via query param
+      const companyIdParam = req.query.company_id as string | undefined;
+      targetCompanyId = companyIdParam 
+        ? parseInt(companyIdParam)
+        : userCompanyId || 1;
+    } else {
+      // Outros roles só podem acessar sua própria empresa
+      if (!userCompanyId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Usuário não possui empresa associada'
+        });
+      }
+      targetCompanyId = userCompanyId;
+    }
+    
+    if (isNaN(targetCompanyId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID da empresa inválido'
+      });
+    }
+    
+    // Buscar todas as prioridades da empresa
+    const priorities = await db
+      .select()
+      .from(departmentPriorities)
+      .where(and(
+        eq(departmentPriorities.company_id, targetCompanyId),
+        eq(departmentPriorities.is_active, true)
+      ))
+      .orderBy(departmentPriorities.department_id, departmentPriorities.weight);
+    
+    res.json({
+      success: true,
+      data: priorities
+    });
+    
+  } catch (error) {
+    console.error('Erro ao buscar prioridades da empresa:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro interno ao buscar prioridades da empresa'
+    });
+  }
+}

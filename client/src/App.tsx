@@ -17,6 +17,8 @@ import DepartmentManagement from "@/pages/DepartmentManagement";
 import TicketTypeManagement from "@/pages/TicketTypeManagement";
 import Settings from "@/pages/settings";
 import PrioritySettings from "@/pages/priority-settings";
+import SLAConfigurations from "@/pages/sla-configurations";
+import SLADashboardPage from "@/pages/sla-dashboard";
 import AuthPage from "@/pages/auth-page";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -133,6 +135,18 @@ function AppContent() {
       <ProtectedRoute path="/priority-settings" component={() => (
         <MainLayout>
           <PrioritySettings />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/sla-configurations" component={() => (
+        <MainLayout>
+          <SLAConfigurations />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/sla-dashboard" component={() => (
+        <MainLayout>
+          <SLADashboardPage />
         </MainLayout>
       )} />
       

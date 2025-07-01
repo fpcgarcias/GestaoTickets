@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from './use-auth';
 import { PRIORITY_LEVELS } from '@/lib/utils';
+import { queryConfigs } from '@/lib/query-client';
 import type { DepartmentPriority } from '@shared/schema';
 
 // Interface para prioridade normalizada (compatível com sistema legado e novo)
@@ -57,74 +58,29 @@ const DEFAULT_LEGACY_PRIORITIES: NormalizedPriority[] = [
 /**
  * Hook para buscar prioridades de um departamento específico
  */
-export function useDepartmentPriorities(departmentId?: number) {
+export function usePriorities(departmentId?: number) {
   const { user } = useAuth();
-
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['department-priorities', departmentId, user?.companyId],
+  
+  return useQuery({
+    queryKey: ['priorities', departmentId, user?.companyId],
     queryFn: async () => {
-      if (!departmentId) {
-        // Retorna prioridades padrão quando nenhum departamento selecionado
-        return {
-          success: true,
-          data: {
-            priorities: DEFAULT_LEGACY_PRIORITIES,
-            isDefault: true,
-            source: 'default'
-          }
-        };
-      }
-
-      const response = await fetch(`/api/departments/${departmentId}/priorities`);
+      if (!user?.companyId || !departmentId) return [];
+      
+      const response = await fetch(`/api/department-priorities?company_id=${user.companyId}&department_id=${departmentId}`);
       if (!response.ok) {
-        // Se erro ao buscar, usar prioridades padrão como fallback
-        return {
-          success: true,
-          data: {
-            priorities: DEFAULT_LEGACY_PRIORITIES,
-            isDefault: true,
-            source: 'fallback'
-          }
-        };
+        throw new Error('Erro ao carregar prioridades');
       }
-      return response.json();
+      
+      const priorities = await response.json();
+      
+      // Se não há prioridades customizadas, retorna lista vazia
+      // Isso fará com que o componente mostre apenas o botão "Criar Padrão"
+      return priorities || [];
     },
-    enabled: true, // Sempre habilitado
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    enabled: !!user?.companyId && !!departmentId,
+    staleTime: queryConfigs.static.staleTime,
+    gcTime: queryConfigs.static.gcTime,
   });
-
-  // Normalizar prioridades para formato consistente
-  const normalizedPriorities: NormalizedPriority[] = React.useMemo(() => {
-    if (!data?.success) {
-      return DEFAULT_LEGACY_PRIORITIES;
-    }
-
-    const priorities = data.data.priorities as DepartmentPriority[];
-    const isDefault = data.data.isDefault;
-
-    if (isDefault || priorities.length === 0) {
-      return DEFAULT_LEGACY_PRIORITIES;
-    }
-
-    // Converter prioridades customizadas
-    return priorities.map(priority => ({
-      id: priority.id,
-      name: priority.name,
-      value: priority.id.toString(), // Usar ID como valor para evitar conflitos
-      weight: priority.weight,
-      color: priority.color || getPriorityColorByWeight(priority.weight), // Fallback se color for null
-      legacyValue: convertWeightToLegacy(priority.weight),
-      isDefault: false
-    }));
-  }, [data]);
-
-  return {
-    priorities: normalizedPriorities,
-    isLoading,
-    error,
-    isDefault: data?.data?.isDefault ?? true,
-    source: data?.data?.source ?? 'default'
-  };
 }
 
 /**

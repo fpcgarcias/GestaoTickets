@@ -30,7 +30,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { FileUpload } from './file-upload';
 import { CustomerSearch } from './customer-search';
-import { useDepartmentPriorities, findPriorityByLegacyValue, type NormalizedPriority } from '@/hooks/use-priorities';
+import { usePriorities, findPriorityByLegacyValue, type NormalizedPriority } from '@/hooks/use-priorities';
 
 // Garante que PRIORITY_LEVELS.LOW etc. sejam tratados como literais específicos.
 // Zod z.enum requer um array não vazio de strings literais.
@@ -116,7 +116,7 @@ export const TicketForm = () => {
 
   // Buscar prioridades do departamento selecionado
   const watchedDepartmentId = form.watch('department_id');
-  const { priorities, isLoading: prioritiesLoading } = useDepartmentPriorities(watchedDepartmentId);
+  const { data: priorities = [], isLoading: prioritiesLoading } = usePriorities(watchedDepartmentId);
 
   const createTicketMutation = useMutation({
     mutationFn: async (data: InsertTicket) => {

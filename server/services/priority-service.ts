@@ -125,19 +125,13 @@ export class PriorityService {
       };
     }
 
-    // Se não existem, retornar prioridades virtuais
-    console.log(`Nenhuma prioridade real encontrada, usando prioridades virtuais para departamento ${departmentId}`);
-    const legacyPriorities: DepartmentPriority[] = [
-      convertLegacyPriority('low', companyId, departmentId),
-      convertLegacyPriority('medium', companyId, departmentId),
-      convertLegacyPriority('high', companyId, departmentId),
-      convertLegacyPriority('critical', companyId, departmentId),
-    ];
-
+    // Se não existem prioridades reais, retornar lista VAZIA
+    // Isso permite que o frontend mostre apenas o botão "Criar Padrão"
+    console.log(`Nenhuma prioridade real encontrada, retornando lista vazia para departamento ${departmentId}`);
     return {
-      priorities: legacyPriorities,
+      priorities: [],
       isDefault: true,
-      source: 'default'
+      source: 'none'
     };
   }
 

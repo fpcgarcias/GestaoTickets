@@ -53,7 +53,7 @@ interface PriorityResult {
   department: Department;
   priorities: DepartmentPriority[];
   isDefault: boolean;
-  source: 'custom' | 'default';
+  source: 'custom' | 'default' | 'none';
   count: number;
 }
 

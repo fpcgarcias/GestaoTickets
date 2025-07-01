@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, AlertTriangle, CheckCircle, Pause } from 'lucide-react';
+import { Clock, AlertTriangle, CheckCircle, Pause, Target } from 'lucide-react';
 import { calculateSLAStatus, formatTimeRemaining, getBusinessHoursConfig, convertStatusHistoryToPeriods } from '@shared/utils/sla-calculator';
 import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
+import { useTicketWithSLA, slaUtils } from '@/hooks/use-sla';
 
 interface SLAIndicatorProps {
   ticketCreatedAt: string;
@@ -11,6 +12,10 @@ interface SLAIndicatorProps {
   ticketCompanyId: number;
   ticketId: number;
   resolvedAt?: string;
+  // Novos campos para o sistema flexível de SLA
+  departmentId?: number;
+  incidentTypeId?: number;
+  firstResponseAt?: string;
 }
 
 export const SLAIndicator: React.FC<SLAIndicatorProps> = ({ 
@@ -19,14 +24,31 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   ticketStatus,
   ticketCompanyId,
   ticketId,
-  resolvedAt
+  resolvedAt,
+  departmentId,
+  incidentTypeId,
+  firstResponseAt
 }) => {
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [percentConsumed, setPercentConsumed] = useState<number>(0);
   const [slaStatus, setSlaStatus] = useState<'ok' | 'warning' | 'critical' | 'breached'>('ok');
   const [isPaused, setIsPaused] = useState<boolean>(false);
-  
-  const { data: slaSettingsData, isLoading, error } = useQuery({
+  const [useNewSLA, setUseNewSLA] = useState<boolean>(false);
+
+  // Tentar usar o novo sistema de SLA primeiro
+  const ticketSLAInfo = useTicketWithSLA(
+    ticketId,
+    ticketCompanyId,
+    departmentId,
+    incidentTypeId,
+    ticketPriority,
+    ticketCreatedAt,
+    firstResponseAt,
+    resolvedAt
+  );
+
+  // Fallback para o sistema antigo
+  const { data: slaSettingsData, isLoading: isOldSLALoading, error: oldSLAError } = useQuery({
     queryKey: ["/api/settings/sla", ticketCompanyId],
     queryFn: async () => {
       const url = `/api/settings/sla?company_id=${ticketCompanyId}`;
@@ -36,7 +58,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
       }
       return response.json();
     },
-    enabled: !!ticketCompanyId,
+    enabled: !!ticketCompanyId, // Sempre buscar configurações SLA antigas como fallback
   });
   
   const { data: statusHistory } = useQuery({
@@ -48,12 +70,58 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
       }
       return response.json();
     },
-    enabled: !!ticketId,
+    enabled: !!ticketId, // Sempre buscar histórico para cálculos precisos
     staleTime: 30 * 1000,
   });
   
   useEffect(() => {
-    if (isLoading || error || !slaSettingsData || !ticketCreatedAt) return;
+    // Debug para entender por que alguns tickets não mostram SLA
+    console.log(`[SLA Debug] Ticket ${ticketId}:`, {
+      priority: ticketPriority,
+      status: ticketStatus,
+      companyId: ticketCompanyId,
+      hasNewSLA: !!ticketSLAInfo,
+      hasOldSLA: !!slaSettingsData,
+      isLoading: isOldSLALoading,
+      error: oldSLAError
+    });
+
+    // Primeiro, tentar usar o novo sistema de SLA
+    if (ticketSLAInfo) {
+      setUseNewSLA(true);
+      const { status } = ticketSLAInfo;
+      
+      // Verificar se o SLA está pausado ou finalizado
+      const slaIsPaused = isSlaPaused(ticketStatus);
+      const slaIsFinished = isSlaFinished(ticketStatus);
+      setIsPaused(slaIsPaused);
+      
+      if (slaIsFinished) return;
+      
+      if (slaIsPaused) {
+        setTimeRemaining('SLA pausado');
+        setSlaStatus('warning');
+      } else if (status.isResolutionOverdue) {
+        setTimeRemaining(slaUtils.formatTimeRemaining(status.resolutionTimeRemaining));
+        setSlaStatus('breached');
+      } else {
+        setTimeRemaining(slaUtils.formatTimeRemaining(status.resolutionTimeRemaining));
+        
+        // Determinar status baseado no tempo restante
+        if (status.resolutionTimeRemaining < 2) {
+          setSlaStatus('critical');
+        } else if (status.resolutionTimeRemaining < 8) {
+          setSlaStatus('warning');
+        } else {
+          setSlaStatus('ok');
+        }
+      }
+      
+      return;
+    }
+
+    // Fallback para o sistema antigo
+    if (isOldSLALoading || oldSLAError || !slaSettingsData || !ticketCreatedAt) return;
     
     // Verificar se o SLA está pausado ou finalizado
     const slaIsPaused = isSlaPaused(ticketStatus);
@@ -69,14 +137,34 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
       if (slaSettingsData && typeof slaSettingsData === 'object' && 'settings' in slaSettingsData) {
         // Formato novo da API
         const slaSetting = (slaSettingsData as any).settings[ticketPriority];
-        if (!slaSetting || !slaSetting.resolution_time_hours) return;
-        resolutionTimeHours = slaSetting.resolution_time_hours;
+        if (!slaSetting || !slaSetting.resolution_time_hours) {
+          // Se não encontrar configuração específica, usar valores padrão baseados na prioridade
+          const defaultSLAs = {
+            'critical': 4,
+            'high': 8, 
+            'medium': 24,
+            'low': 48
+          };
+          resolutionTimeHours = defaultSLAs[ticketPriority as keyof typeof defaultSLAs] || 24;
+        } else {
+          resolutionTimeHours = slaSetting.resolution_time_hours;
+        }
       } else {
         // Formato antigo (array)
         const slaSettings = Array.isArray(slaSettingsData) ? slaSettingsData : [];
         const slaSetting = slaSettings.find((s: any) => s.priority === ticketPriority);
-        if (!slaSetting) return;
-        resolutionTimeHours = slaSetting.resolutionTimeHours || slaSetting.resolution_time_hours || 24;
+        if (!slaSetting) {
+          // Se não encontrar configuração específica, usar valores padrão baseados na prioridade
+          const defaultSLAs = {
+            'critical': 4,
+            'high': 8, 
+            'medium': 24,
+            'low': 48
+          };
+          resolutionTimeHours = defaultSLAs[ticketPriority as keyof typeof defaultSLAs] || 24;
+        } else {
+          resolutionTimeHours = slaSetting.resolutionTimeHours || slaSetting.resolution_time_hours || 24;
+        }
       }
       
       // Converter datas
@@ -129,10 +217,10 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
         setTimeRemaining(`${remainingTime} restantes`);
       }
       
-    } catch (error) {
-      console.error("Erro no cálculo de SLA:", error);
+    } catch (calcError) {
+      console.error("Erro no cálculo de SLA:", calcError);
     }
-  }, [slaSettingsData, isLoading, error, ticketCreatedAt, ticketPriority, ticketStatus, ticketCompanyId, ticketId, resolvedAt, statusHistory]);
+  }, [ticketSLAInfo, slaSettingsData, isOldSLALoading, oldSLAError, ticketCreatedAt, ticketPriority, ticketStatus, ticketCompanyId, ticketId, resolvedAt, statusHistory]);
   
   if (isSlaFinished(ticketStatus)) {
     return (
@@ -143,7 +231,8 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     );
   }
 
-  if (isLoading) {
+  // Loading state - mostrar apenas se estiver carregando e não tiver informação de SLA ainda
+  if ((isOldSLALoading && !ticketSLAInfo) || (!useNewSLA && !slaSettingsData && isOldSLALoading)) {
     return (
       <div className="flex items-center gap-1 text-xs text-gray-500">
         <Clock className="h-3 w-3 animate-pulse" />
@@ -152,8 +241,14 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     );
   }
 
-  if (error || !slaSettingsData || !timeRemaining) {
-    return null;
+  // Error state - mostrar informação útil mesmo se houver erro
+  if (!ticketSLAInfo && !useNewSLA && (oldSLAError || !slaSettingsData) && !timeRemaining) {
+    return (
+      <div className="flex items-center gap-1 text-xs text-amber-600">
+        <AlertTriangle className="h-3 w-3" />
+        <span>SLA não configurado</span>
+      </div>
+    );
   }
   
   // Se o SLA está pausado, mostrar indicador específico
@@ -189,10 +284,13 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   const IconComponent = getIcon();
   const statusColor = getStatusColor();
 
+  // Se não tiver timeRemaining ainda, mostrar algo útil
+  const displayText = timeRemaining || 'Calculando SLA...';
+
   return (
     <div className="flex items-center gap-1 text-xs">
       <IconComponent className={`h-3 w-3 ${statusColor}`} />
-      <span className={statusColor}>{timeRemaining}</span>
+      <span className={statusColor}>{displayText}</span>
     </div>
   );
 };
