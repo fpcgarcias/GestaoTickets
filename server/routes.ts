@@ -4827,7 +4827,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         .select({
           id: schema.categories.id,
           name: schema.categories.name,
-          value: schema.categories.value,
           description: schema.categories.description,
           incident_type_id: schema.categories.incident_type_id,
           company_id: schema.categories.company_id,
@@ -4879,13 +4878,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // POST /api/categories - Criar nova categoria
   router.post("/categories", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
-      const { name, value, description, incident_type_id, company_id } = req.body;
+      const { name, description, incident_type_id, company_id } = req.body;
       const userRole = req.session?.userRole as string;
       const sessionCompanyId = req.session.companyId;
 
       // Validações básicas
-      if (!name || !value || !incident_type_id) {
-        return res.status(400).json({ message: "Nome, valor e tipo de incidente são obrigatórios" });
+      if (!name || !incident_type_id) {
+        return res.status(400).json({ message: "Nome e tipo de incidente são obrigatórios" });
       }
 
       // Determinar company_id efetivo
@@ -4917,27 +4916,26 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         }
       }
 
-      // Verificar se já existe uma categoria com o mesmo valor para o tipo de incidente
+      // Verificar se já existe uma categoria com o mesmo nome para o tipo de incidente
       const [existingCategory] = await db
         .select()
         .from(schema.categories)
         .where(
           and(
-            eq(schema.categories.value, value),
+            eq(schema.categories.name, name),
             eq(schema.categories.incident_type_id, incident_type_id),
             eq(schema.categories.company_id, effectiveCompanyId)
           )
         );
 
       if (existingCategory) {
-        return res.status(409).json({ message: "Já existe uma categoria com este valor para este tipo de incidente" });
+        return res.status(409).json({ message: "Já existe uma categoria com este nome para este tipo de incidente" });
       }
 
       const [category] = await db
         .insert(schema.categories)
         .values({
           name,
-          value,
           description: description || null,
           incident_type_id,
           company_id: effectiveCompanyId,
@@ -4962,7 +4960,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(400).json({ message: "ID de categoria inválido" });
       }
 
-      const { name, value, description, incident_type_id, is_active } = req.body;
+      const { name, description, incident_type_id, is_active } = req.body;
       const userRole = req.session?.userRole as string;
       const sessionCompanyId = req.session.companyId;
 
@@ -4999,14 +4997,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         }
       }
 
-      // Se está alterando o valor, verificar se não há conflito
-      if (value && value !== existingCategory.value) {
+      // Se está alterando o nome, verificar se não há conflito
+      if (name && name !== existingCategory.name) {
         const [conflictCategory] = await db
           .select()
           .from(schema.categories)
           .where(
             and(
-              eq(schema.categories.value, value),
+              eq(schema.categories.name, name),
               eq(schema.categories.incident_type_id, incident_type_id || existingCategory.incident_type_id),
               eq(schema.categories.company_id, existingCategory.company_id),
               not(eq(schema.categories.id, categoryId))
@@ -5014,7 +5012,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           );
 
         if (conflictCategory) {
-          return res.status(409).json({ message: "Já existe uma categoria com este valor para este tipo de incidente" });
+          return res.status(409).json({ message: "Já existe uma categoria com este nome para este tipo de incidente" });
         }
       }
 
@@ -5022,7 +5020,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         .update(schema.categories)
         .set({
           name: name || existingCategory.name,
-          value: value || existingCategory.value,
           description: description !== undefined ? description : existingCategory.description,
           incident_type_id: incident_type_id || existingCategory.incident_type_id,
           is_active: is_active !== undefined ? is_active : existingCategory.is_active,

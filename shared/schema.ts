@@ -210,7 +210,6 @@ export const incidentTypes = pgTable("incident_types", {
 export const categories = pgTable("categories", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  value: text("value").notNull(),
   description: text("description"),
   incident_type_id: integer("incident_type_id").references(() => incidentTypes.id, { onDelete: 'cascade' }),
   company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }),

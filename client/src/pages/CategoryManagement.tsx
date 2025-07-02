@@ -20,7 +20,6 @@ import { useAuth } from '@/hooks/use-auth';
 interface CategoryFormData {
   id?: number;
   name: string;
-  value: string;
   description: string;
   incident_type_id: number | undefined;
   company_id?: number | null;
@@ -44,7 +43,6 @@ const CategoryManagement: React.FC = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<CategoryFormData>({
     name: '',
-    value: '',
     description: '',
     incident_type_id: undefined,
     company_id: user?.role === 'admin' ? null : user?.companyId,
@@ -191,7 +189,6 @@ const CategoryManagement: React.FC = () => {
     mutationFn: async (data: CategoryFormData) => {
       const response = await apiRequest('POST', '/api/categories', {
         name: data.name,
-        value: data.value,
         description: data.description,
         incident_type_id: data.incident_type_id,
         company_id: data.company_id,
@@ -232,7 +229,6 @@ const CategoryManagement: React.FC = () => {
       
       const response = await apiRequest('PUT', `/api/categories/${data.id}`, {
         name: data.name,
-        value: data.value,
         description: data.description,
         incident_type_id: data.incident_type_id,
         company_id: data.company_id,
@@ -298,7 +294,6 @@ const CategoryManagement: React.FC = () => {
   const resetForm = () => {
     setCurrentCategory({
       name: '',
-      value: '',
       description: '',
       incident_type_id: undefined,
       company_id: user?.role === 'admin' ? null : user?.companyId,
@@ -317,7 +312,6 @@ const CategoryManagement: React.FC = () => {
     setCurrentCategory({
       id: category.id,
       name: category.name,
-      value: category.value,
       description: category.description || '',
       incident_type_id: category.incident_type_id,
       company_id: category.company_id,
@@ -331,7 +325,6 @@ const CategoryManagement: React.FC = () => {
     setCurrentCategory({
       id: category.id,
       name: category.name,
-      value: category.value,
       description: category.description || '',
       incident_type_id: category.incident_type_id,
       company_id: category.company_id,
@@ -349,10 +342,10 @@ const CategoryManagement: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!currentCategory.name || !currentCategory.value || !currentCategory.incident_type_id) {
+    if (!currentCategory.name || !currentCategory.incident_type_id) {
       toast({
         title: 'Erro',
-        description: 'Nome, valor e tipo de incidente são obrigatórios',
+        description: 'Nome e tipo de incidente são obrigatórios',
         variant: 'destructive',
       });
       return;
@@ -474,8 +467,7 @@ const CategoryManagement: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Valor</TableHead>
+                            <TableHead>Nome</TableHead>
                 <TableHead>Descrição</TableHead>
                 <TableHead>Tipo de Incidente</TableHead>
                 <TableHead>Departamento</TableHead>
@@ -506,7 +498,7 @@ const CategoryManagement: React.FC = () => {
                 </TableRow>
               ) : categories.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={user?.role === 'admin' ? 8 : 7} className="text-center py-10 text-neutral-500">
+                  <TableCell colSpan={user?.role === 'admin' ? 7 : 6} className="text-center py-10 text-neutral-500">
                     Nenhuma categoria encontrada.
                   </TableCell>
                 </TableRow>
@@ -514,11 +506,6 @@ const CategoryManagement: React.FC = () => {
                 categories.map((category) => (
                   <TableRow key={category.id} className={!category.is_active ? "opacity-60" : ""}>
                     <TableCell className="font-medium">{category.name}</TableCell>
-                    <TableCell>
-                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                        {category.value}
-                      </code>
-                    </TableCell>
                     <TableCell className="max-w-xs truncate">{category.description || "—"}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -640,20 +627,7 @@ const CategoryManagement: React.FC = () => {
               />
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="value">Valor</Label>
-              <Input
-                id="value"
-                name="value"
-                value={currentCategory.value}
-                onChange={handleInputChange}
-                placeholder="Ex: hardware"
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Valor único usado internamente pelo sistema
-              </p>
-            </div>
+
             
             <div className="space-y-2">
               <Label htmlFor="description">Descrição</Label>

@@ -91,7 +91,6 @@ interface Department {
 interface Category {
   id: number;
   name: string;
-  value: string;
   incident_type_id: number;
 }
 
@@ -254,6 +253,20 @@ export const TicketForm = () => {
   const selectedIncidentTypeId = form.watch('incident_type_id');
   const { data: categoriesData } = useQuery<{categories: Category[], pagination: any}>({
     queryKey: ["/api/categories", { incident_type_id: selectedIncidentTypeId, active_only: true }],
+    queryFn: async () => {
+      if (!selectedIncidentTypeId) return { categories: [], pagination: null };
+      
+      const params = new URLSearchParams({
+        incident_type_id: selectedIncidentTypeId.toString(),
+        active_only: 'true'
+      });
+      
+      const response = await apiRequest('GET', `/api/categories?${params}`);
+      if (!response.ok) {
+        throw new Error('Erro ao carregar categorias');
+      }
+      return response.json();
+    },
     enabled: !!selectedIncidentTypeId,
   });
 
@@ -445,11 +458,17 @@ export const TicketForm = () => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {categories.map((category: Category) => (
-                          <SelectItem key={category.id} value={category.id.toString()}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
+                        {categories.length === 0 ? (
+                          <div className="p-2 text-neutral-500 text-sm text-center">
+                            Nenhuma categoria disponível para este tipo
+                          </div>
+                        ) : (
+                          categories.map((category: Category) => (
+                            <SelectItem key={category.id} value={category.id.toString()}>
+                              {category.name}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
