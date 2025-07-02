@@ -25,7 +25,8 @@ import {
   AlertTriangle,
   Loader2,
   Filter,
-  RefreshCw
+  RefreshCw,
+  FileText
 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
@@ -101,6 +102,15 @@ export default function SLAConfigurations() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingSLA, setEditingSLA] = useState<SLAConfiguration | null>(null);
+  
+  // Estado para importação
+  const [importResults, setImportResults] = useState<{
+    processed: number;
+    successful: number;
+    errors: number;
+    duplicates: number;
+    details?: any;
+  } | null>(null);
 
   // Estado do formulário
   const [formData, setFormData] = useState<SLAConfigurationForm>({
@@ -497,8 +507,6 @@ export default function SLAConfigurations() {
       return;
     }
 
-
-
     editSLAMutation.mutate({
       id: editingSLA.id,
       responseTimeHours: formData.responseTimeHours,
@@ -549,6 +557,143 @@ export default function SLAConfigurations() {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      // Criar CSV template com exemplos
+      const headers = [
+        'empresa_id',
+        'empresa_nome',
+        'departamento_id', 
+        'departamento_nome',
+        'tipo_incidente_id',
+        'tipo_incidente_nome',
+        'prioridade_id',
+        'prioridade_nome',
+        'tempo_resposta_horas',
+        'tempo_resolucao_horas',
+        'ativo'
+      ];
+
+      // Dados de exemplo
+      const exampleRows = [
+        [
+          '1',
+          'Minha Empresa',
+          '1',
+          'TI - Suporte',
+          '1', 
+          'Problema Técnico',
+          '1',
+          'Alta',
+          '2',
+          '24',
+          'true'
+        ],
+        [
+          '1',
+          'Minha Empresa', 
+          '1',
+          'TI - Suporte',
+          '2',
+          'Solicitação de Acesso',
+          '2', 
+          'Média',
+          '4',
+          '48',
+          'true'
+        ],
+        [
+          '1',
+          'Minha Empresa',
+          '2',
+          'RH',
+          '3',
+          'Questão Administrativa',
+          '3',
+          'Baixa',
+          '8',
+          '72',
+          'true'
+        ]
+      ];
+
+      // Montar CSV
+      const csvContent = [
+        headers.join(','),
+        ...exampleRows.map(row => row.join(','))
+      ].join('\n');
+
+      // Montar CSV com BOM para UTF-8
+      const BOM = '\uFEFF';
+      const csvWithBOM = BOM + csvContent;
+
+      // Criar e baixar arquivo
+      const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
+      const downloadUrl = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `sla-template-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+      
+      toast({ 
+        title: "Modelo baixado!", 
+        description: "Use este arquivo CSV como base para importar suas configurações SLA." 
+      });
+    } catch (error) {
+      toast({ title: "Erro", description: "Erro ao baixar modelo", variant: "destructive" });
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      toast({ title: "Erro", description: "Por favor, selecione um arquivo CSV", variant: "destructive" });
+      return;
+    }
+
+    try {
+      // Ler o arquivo
+      const fileContent = await file.text();
+      
+      // Enviar para a API
+      const response = await fetch('/api/sla-configurations/import-csv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ csvData: fileContent }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erro ao importar arquivo');
+      }
+
+      const result = await response.json();
+      setImportResults(result.data);
+      
+      // Mostrar toast de sucesso
+      toast({ 
+        title: "Importação concluída!", 
+        description: `${result.data.successful} configurações importadas com sucesso`
+      });
+
+    } catch (error) {
+      console.error('Erro ao importar CSV:', error);
+      toast({ 
+        title: "Erro na importação", 
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive" 
+      });
+    }
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-12">
@@ -562,6 +707,10 @@ export default function SLAConfigurations() {
           <Button variant="outline" onClick={handleExportConfigurations}>
             <Download className="mr-2 h-4 w-4" />
             Exportar
+          </Button>
+          <Button variant="outline" onClick={handleDownloadTemplate}>
+            <FileText className="mr-2 h-4 w-4" />
+            Modelo CSV
           </Button>
           <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
             <Upload className="mr-2 h-4 w-4" />
@@ -1303,18 +1452,107 @@ export default function SLAConfigurations() {
 
       {/* Dialog para Importação */}
       <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Importar Configurações SLA</DialogTitle>
             <DialogDescription>
-              Funcionalidade de importação em desenvolvimento
+              Faça upload de um arquivo CSV com as configurações SLA para importar em lote
             </DialogDescription>
           </DialogHeader>
-          <div className="text-center py-8">
-            <Upload className="mx-auto h-12 w-12 text-neutral-400" />
-            <p className="mt-2 text-sm text-neutral-500">
-              Em breve será possível importar configurações via arquivo JSON
-            </p>
+          
+          <div className="space-y-4">
+            {/* Instruções */}
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <h4 className="font-medium text-blue-900 mb-2">📋 Como usar:</h4>
+              <ol className="text-sm text-blue-800 space-y-1">
+                <li>1. Baixe o <strong>Modelo CSV</strong> para ver a estrutura necessária</li>
+                <li>2. Preencha seus dados seguindo o modelo</li>
+                <li>3. Faça upload do arquivo CSV preenchido</li>
+              </ol>
+            </div>
+
+            {/* Input de arquivo */}
+            <div className="space-y-2">
+              <Label htmlFor="csv-file">Arquivo CSV</Label>
+              <Input
+                id="csv-file"
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="cursor-pointer"
+              />
+              <p className="text-xs text-muted-foreground">
+                Apenas arquivos .csv são aceitos
+              </p>
+            </div>
+
+            {/* Preview dos resultados */}
+            {importResults && (
+              <div className="space-y-3">
+                <h4 className="font-medium">Resultados da Importação:</h4>
+                
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-center">
+                    <div className="text-lg font-bold text-green-700">
+                      {importResults.successful}
+                    </div>
+                    <div className="text-xs text-green-600">Sucesso</div>
+                  </div>
+                  
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg text-center">
+                    <div className="text-lg font-bold text-orange-700">
+                      {importResults.duplicates}
+                    </div>
+                    <div className="text-xs text-orange-600">Duplicados</div>
+                  </div>
+                  
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-center">
+                    <div className="text-lg font-bold text-red-700">
+                      {importResults.errors}
+                    </div>
+                    <div className="text-xs text-red-600">Erros</div>
+                  </div>
+                </div>
+
+                {/* Detalhes dos erros */}
+                {importResults.details?.errors?.length > 0 && (
+                  <div className="space-y-2">
+                    <h5 className="font-medium text-red-700">Erros encontrados:</h5>
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {importResults.details.errors.map((error: any, index: number) => (
+                        <div key={index} className="text-xs bg-red-50 p-2 rounded border border-red-200">
+                          <strong>Linha {error.line}:</strong> {error.error}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsImportDialogOpen(false);
+                setImportResults(null);
+              }}
+            >
+              Fechar
+            </Button>
+            {importResults && importResults.successful > 0 && (
+              <Button 
+                onClick={async () => {
+                  await invalidateSLACache();
+                  setIsImportDialogOpen(false);
+                  setImportResults(null);
+                  toast({ title: "Sucesso", description: "Configurações importadas e atualizadas!" });
+                }}
+              >
+                Concluir
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>

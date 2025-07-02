@@ -77,7 +77,8 @@ import {
   bulkDeleteSLAConfigurations,
   bulkToggleActiveSLAConfigurations,
   copySLAConfigurations,
-  validateSLAConfiguration
+  validateSLAConfiguration,
+  importSLAConfigurationsCSV
 } from './api/sla-configurations';
 
 // Importar API do Dashboard SLA
@@ -5790,6 +5791,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Operações especiais
   router.post("/sla-configurations/copy", authRequired, copySLAConfigurations);
   router.post("/sla-configurations/validate", authRequired, validateSLAConfiguration);
+  router.post("/sla-configurations/import-csv", authRequired, importSLAConfigurationsCSV);
 
   // === ROTAS DO DASHBOARD SLA ===
   

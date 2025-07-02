@@ -457,4 +457,183 @@ export async function validateSLAConfiguration(req: Request, res: Response) {
       message: error instanceof Error ? error.message : 'Erro desconhecido'
     });
   }
+}
+
+/**
+ * POST /api/sla-configurations/import-csv
+ * Importar configurações SLA via arquivo CSV
+ */
+export async function importSLAConfigurationsCSV(req: Request, res: Response) {
+  try {
+    const { csvData } = req.body;
+
+    if (!csvData || typeof csvData !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Dados CSV são obrigatórios'
+      });
+    }
+
+    // Parse CSV
+    const lines = csvData.split('\n').filter(line => line.trim());
+    
+    if (lines.length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Arquivo CSV deve conter pelo menos cabeçalho e uma linha de dados'
+      });
+    }
+
+    const headers = lines[0].split(',').map(h => h.trim());
+    const expectedHeaders = [
+      'empresa_id',
+      'empresa_nome', 
+      'departamento_id',
+      'departamento_nome',
+      'tipo_incidente_id',
+      'tipo_incidente_nome',
+      'prioridade_id',
+      'prioridade_nome',
+      'tempo_resposta_horas',
+      'tempo_resolucao_horas',
+      'ativo'
+    ];
+
+    // Validar cabeçalhos
+    const missingHeaders = expectedHeaders.filter(h => !headers.includes(h));
+    if (missingHeaders.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Cabeçalhos obrigatórios ausentes: ${missingHeaders.join(', ')}`
+      });
+    }
+
+    const results: {
+      success: { line: number; id: number; message: string }[];
+      errors: { line: number; error: string }[];
+      duplicates: { line: number; message: string }[];
+    } = {
+      success: [],
+      errors: [],
+      duplicates: []
+    };
+
+    // Processar cada linha
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      
+      if (values.length !== headers.length) {
+        results.errors.push({
+          line: i + 1,
+          error: 'Número de colunas não confere com o cabeçalho'
+        });
+        continue;
+      }
+
+      try {
+        const rowData: any = {};
+        headers.forEach((header, index) => {
+          rowData[header] = values[index];
+        });
+
+        // Validar dados obrigatórios
+        const requiredFields = ['empresa_id', 'departamento_id', 'tipo_incidente_id', 'tempo_resposta_horas', 'tempo_resolucao_horas'];
+        const missingFields = requiredFields.filter(field => !rowData[field] || rowData[field] === '');
+        
+        if (missingFields.length > 0) {
+          results.errors.push({
+            line: i + 1,
+            error: `Campos obrigatórios ausentes: ${missingFields.join(', ')}`
+          });
+          continue;
+        }
+
+        // Converter tipos
+        const companyId = parseInt(rowData.empresa_id);
+        const departmentId = parseInt(rowData.departamento_id);
+        const incidentTypeId = parseInt(rowData.tipo_incidente_id);
+        const priorityId = rowData.prioridade_id && rowData.prioridade_id !== '' ? parseInt(rowData.prioridade_id) : undefined;
+        const responseTimeHours = parseInt(rowData.tempo_resposta_horas);
+        const resolutionTimeHours = parseInt(rowData.tempo_resolucao_horas);
+        const isActive = rowData.ativo === 'true' || rowData.ativo === '1';
+
+        // Validar tipos numéricos
+        if (isNaN(companyId) || isNaN(departmentId) || isNaN(incidentTypeId) || 
+            isNaN(responseTimeHours) || isNaN(resolutionTimeHours)) {
+          results.errors.push({
+            line: i + 1,
+            error: 'IDs e tempos devem ser números válidos'
+          });
+          continue;
+        }
+
+        // Validar lógica de negócio
+        if (responseTimeHours >= resolutionTimeHours) {
+          results.errors.push({
+            line: i + 1,
+            error: 'Tempo de resposta deve ser menor que tempo de resolução'
+          });
+          continue;
+        }
+
+        // Verificar se já existe configuração similar
+        const existingConfig = await slaConfigurationService.getSLAConfigurations({
+          companyId,
+          departmentId,
+          incidentTypeId,
+          priorityId
+        });
+
+        if (existingConfig.length > 0) {
+          results.duplicates.push({
+            line: i + 1,
+            message: `Configuração similar já existe (ID: ${existingConfig[0].id})`
+          });
+          continue;
+        }
+
+        // Criar configuração
+        const newConfig = await slaConfigurationService.createSLAConfiguration({
+          companyId,
+          departmentId,
+          incidentTypeId,
+          priorityId,
+          responseTimeHours,
+          resolutionTimeHours,
+          isActive
+        });
+
+        results.success.push({
+          line: i + 1,
+          id: newConfig.id,
+          message: 'Configuração criada com sucesso'
+        });
+
+      } catch (error) {
+        results.errors.push({
+          line: i + 1,
+          error: error instanceof Error ? error.message : 'Erro desconhecido'
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        processed: lines.length - 1,
+        successful: results.success.length,
+        errors: results.errors.length,
+        duplicates: results.duplicates.length,
+        details: results
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao importar CSV:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor',
+      message: error instanceof Error ? error.message : 'Erro desconhecido'
+    });
+  }
 } 
