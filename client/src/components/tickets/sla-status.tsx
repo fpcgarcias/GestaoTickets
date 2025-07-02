@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Clock, Target, CheckCircle, AlertTriangle, Info, Pause } from 'lucide-react';
 import { useTicketWithSLA, slaUtils } from '@/hooks/use-sla';
+import { usePriorities } from '@/hooks/use-priorities';
 import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -49,6 +50,19 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
     firstResponseAt,
     resolvedAt
   );
+
+  // Buscar prioridades do departamento para obter o nome correto
+  const { data: priorities = [] } = usePriorities(departmentId);
+  
+  // Encontrar a prioridade atual pelo legacyValue, value ou name (case-insensitive)
+  const currentPriority = priorities.find((p: any) => 
+    p.legacyValue?.toLowerCase() === priority.toLowerCase() || 
+    p.value?.toLowerCase() === priority.toLowerCase() ||
+    p.name?.toLowerCase() === priority.toLowerCase()
+  );
+  
+  // Nome da prioridade (do banco) ou fallback para o valor original
+  const priorityName = currentPriority?.name || priority;
 
   const isFinished = isSlaFinished(status);
   const isPaused = isSlaPaused(status);
@@ -118,7 +132,7 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
           {getStatusBadge()}
         </div>
         <CardDescription>
-          Informações sobre os prazos de atendimento - {slaUtils.getSLASourceDescription(sla.source)}
+          Informações sobre os prazos de atendimento
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -237,14 +251,8 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
           </div>
           <div>
             <span className="text-muted-foreground">Prioridade:</span>
-            <div className="font-medium capitalize">{priority}</div>
+            <div className="font-medium">{priorityName}</div>
           </div>
-          {sla.source !== 'global_fallback' && (
-            <div className="col-span-2">
-              <span className="text-muted-foreground">Fonte da configuração:</span>
-              <div className="font-medium">{slaUtils.getSLASourceDescription(sla.source)}</div>
-            </div>
-          )}
         </div>
 
         {/* Alerta se SLA excedido */}

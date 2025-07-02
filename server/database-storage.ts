@@ -8,9 +8,10 @@ import {
   type TicketStatusHistory,
   type SLADefinition,
   officialDepartments, type OfficialDepartment, type InsertOfficialDepartment,
-  ticketStatusEnum, ticketPriorityEnum, userRoleEnum,
+  ticketStatusEnum, userRoleEnum,
   systemSettings, type SystemSetting,
   incidentTypes, type IncidentType,
+  categories, type Category,
   companies, departments } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "./db";
@@ -857,7 +858,7 @@ export class DatabaseStorage implements IStorage {
         ...ticketData,
         ticket_id: ticketId,
         status: ticketStatusEnum.enumValues[0], // Definir status inicial explicitamente se necessário
-        priority: ticketData.priority || ticketPriorityEnum.enumValues[1], // Definir prioridade padrão
+        priority: ticketData.priority || 'MÉDIA', // Definir prioridade padrão em português
         // Garantir que department_id, incident_type_id, customer_id e company_id são números ou null
         department_id: ticketData.department_id ? Number(ticketData.department_id) : null,
         incident_type_id: ticketData.incident_type_id ? Number(ticketData.incident_type_id) : null,
@@ -1350,6 +1351,220 @@ export class DatabaseStorage implements IStorage {
     }
     
     return totalEffectiveTime;
+  }
+
+  // Categories operations
+  async getCategories(filters: any = {}, page: number = 1, limit: number = 50): Promise<{ categories: Category[], total: number }> {
+    try {
+      let query = db.select().from(categories);
+      let whereConditions: any[] = [];
+
+      // Filtros
+      if (filters.incident_type_id) {
+        whereConditions.push(eq(categories.incident_type_id, filters.incident_type_id));
+      }
+
+      if (filters.company_id) {
+        whereConditions.push(eq(categories.company_id, filters.company_id));
+      }
+
+      if (filters.is_active !== undefined) {
+        whereConditions.push(eq(categories.is_active, filters.is_active));
+      }
+
+      if (filters.search) {
+        whereConditions.push(
+          or(
+            ilike(categories.name, `%${filters.search}%`),
+            ilike(categories.description, `%${filters.search}%`)
+          )
+        );
+      }
+
+      // Aplicar condições WHERE
+      if (whereConditions.length > 0) {
+        query = query.where(and(...whereConditions));
+      }
+
+      // Contar total de registros
+      const countQuery = db
+        .select({ count: sql<number>`count(*)` })
+        .from(categories);
+      
+      if (whereConditions.length > 0) {
+        countQuery.where(and(...whereConditions));
+      }
+
+      const [{ count: total }] = await countQuery;
+
+      // Aplicar paginação e ordenação
+      const categoriesData = await query
+        .orderBy(categories.name)
+        .limit(limit)
+        .offset((page - 1) * limit);
+
+      // Enriquecer com dados relacionados
+      const enrichedCategories = await Promise.all(
+        categoriesData.map(async (category) => {
+          let incidentType = null;
+          let company = null;
+
+          if (category.incident_type_id) {
+            const [incident] = await db
+              .select()
+              .from(incidentTypes)
+              .where(eq(incidentTypes.id, category.incident_type_id));
+            incidentType = incident || null;
+          }
+
+          if (category.company_id) {
+            const [comp] = await db
+              .select()
+              .from(companies)
+              .where(eq(companies.id, category.company_id));
+            company = comp || null;
+          }
+
+          return {
+            ...category,
+            incident_type: incidentType,
+            company: company
+          };
+        })
+      );
+
+      return {
+        categories: enrichedCategories,
+        total: Number(total)
+      };
+    } catch (error) {
+      console.error('Erro ao buscar categorias:', error);
+      throw error;
+    }
+  }
+
+  async getCategoryById(id: number): Promise<Category | undefined> {
+    try {
+      const [category] = await db
+        .select()
+        .from(categories)
+        .where(eq(categories.id, id));
+
+      if (!category) {
+        return undefined;
+      }
+
+      // Enriquecer com dados relacionados
+      let incidentType = null;
+      let company = null;
+
+      if (category.incident_type_id) {
+        const [incident] = await db
+          .select()
+          .from(incidentTypes)
+          .where(eq(incidentTypes.id, category.incident_type_id));
+        incidentType = incident || null;
+      }
+
+      if (category.company_id) {
+        const [comp] = await db
+          .select()
+          .from(companies)
+          .where(eq(companies.id, category.company_id));
+        company = comp || null;
+      }
+
+      return {
+        ...category,
+        incident_type: incidentType,
+        company: company
+      };
+    } catch (error) {
+      console.error('Erro ao buscar categoria por ID:', error);
+      throw error;
+    }
+  }
+
+  async getCategoryByValue(value: string, incidentTypeId: number, companyId: number): Promise<Category | undefined> {
+    try {
+      const [category] = await db
+        .select()
+        .from(categories)
+        .where(
+          and(
+            eq(categories.value, value),
+            eq(categories.incident_type_id, incidentTypeId),
+            eq(categories.company_id, companyId)
+          )
+        );
+
+      return category || undefined;
+    } catch (error) {
+      console.error('Erro ao buscar categoria por value:', error);
+      throw error;
+    }
+  }
+
+  async createCategory(categoryData: any): Promise<Category> {
+    try {
+      const [category] = await db
+        .insert(categories)
+        .values({
+          name: categoryData.name,
+          value: categoryData.value,
+          description: categoryData.description || null,
+          incident_type_id: categoryData.incident_type_id,
+          company_id: categoryData.company_id,
+          is_active: categoryData.is_active !== false,
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+        .returning();
+
+      return category;
+    } catch (error) {
+      console.error('Erro ao criar categoria:', error);
+      throw error;
+    }
+  }
+
+  async updateCategory(id: number, categoryData: any): Promise<Category | undefined> {
+    try {
+      const updateData: any = {
+        updated_at: new Date()
+      };
+
+      if (categoryData.name !== undefined) updateData.name = categoryData.name;
+      if (categoryData.value !== undefined) updateData.value = categoryData.value;
+      if (categoryData.description !== undefined) updateData.description = categoryData.description;
+      if (categoryData.is_active !== undefined) updateData.is_active = categoryData.is_active;
+
+      const [category] = await db
+        .update(categories)
+        .set(updateData)
+        .where(eq(categories.id, id))
+        .returning();
+
+      return category || undefined;
+    } catch (error) {
+      console.error('Erro ao atualizar categoria:', error);
+      throw error;
+    }
+  }
+
+  async getTicketsByCategory(categoryId: number): Promise<Ticket[]> {
+    try {
+      // Buscar tickets que usam esta categoria
+      const ticketsData = await db
+        .select()
+        .from(tickets)
+        .where(eq(tickets.category_id, categoryId));
+
+      return ticketsData;
+    } catch (error) {
+      console.error('Erro ao buscar tickets por categoria:', error);
+      return [];
+    }
   }
 
 

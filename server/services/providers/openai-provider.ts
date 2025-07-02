@@ -70,15 +70,15 @@ export class OpenAiProvider implements AiProviderInterface {
         };
       }
 
-      // Tentar extrair a prioridade usando regex
-      const priorityMatch = aiResponse.match(/prioridade:\s*(critical|high|medium|low)/i) ||
-                           aiResponse.match(/(critical|high|medium|low)/i);
+      // Extrair prioridade da resposta (suporta português e inglês)
+      const extractedPriority = this.extractPriority(aiResponse);
       
-      if (!priorityMatch) {
+      if (!extractedPriority) {
+        console.log(`[AI DEBUG] Resposta da IA não reconhecida: "${aiResponse}"`);
         return {
-          priority: config.fallback_priority || 'medium',
+          priority: config.fallback_priority || 'MÉDIA',
           confidence: 0.2,
-          justification: 'Não foi possível extrair prioridade da resposta da IA',
+          justification: `Não foi possível extrair prioridade da resposta: "${aiResponse}"`,
           usedFallback: true,
           processingTimeMs: Date.now() - startTime,
           tokensUsed: {
@@ -87,8 +87,6 @@ export class OpenAiProvider implements AiProviderInterface {
           }
         };
       }
-
-      const extractedPriority = priorityMatch[1].toLowerCase() as 'critical' | 'high' | 'medium' | 'low';
       
       // Extrair justificativa (texto após "justificativa:" ou similar)
       const justificationMatch = aiResponse.match(/justificativa[:\s]+(.*?)(?:\n|$)/i) ||
@@ -103,6 +101,8 @@ export class OpenAiProvider implements AiProviderInterface {
         confidence = 0.6;
       }
 
+      console.log(`[AI DEBUG] Prioridade extraída: "${extractedPriority}"`);
+      
       return {
         priority: extractedPriority,
         confidence,
@@ -128,45 +128,89 @@ export class OpenAiProvider implements AiProviderInterface {
   }
 
   /**
-   * Extrai a prioridade da resposta da IA
+   * Extrai a prioridade da resposta da IA (suporta português e inglês)
    */
-  private extractPriority(response: string): 'low' | 'medium' | 'high' | 'critical' {
+  private extractPriority(response: string): string | null {
     const normalizedResponse = response.toLowerCase().trim();
     
-    // Priorizar palavras exatas primeiro
-    if (normalizedResponse.includes('critica') || normalizedResponse.includes('critical')) {
-      return 'critical';
+    console.log(`[AI DEBUG] Tentando extrair prioridade de: "${response}"`);
+    
+    // Priorizar palavras exatas em português (MAIÚSCULAS) - formato preferido
+    if (response.includes('CRÍTICA') || response.includes('CRITICA')) {
+      console.log('[AI DEBUG] Encontrou: CRÍTICA');
+      return 'CRÍTICA';
     }
-    if (normalizedResponse.includes('alta') || normalizedResponse.includes('high')) {
-      return 'high';
+    if (response.includes('ALTA')) {
+      console.log('[AI DEBUG] Encontrou: ALTA');
+      return 'ALTA';
     }
-    if (normalizedResponse.includes('media') || normalizedResponse.includes('medium') || normalizedResponse.includes('média')) {
-      return 'medium';
+    if (response.includes('MÉDIA') || response.includes('MEDIA')) {
+      console.log('[AI DEBUG] Encontrou: MÉDIA');
+      return 'MÉDIA';
     }
-    if (normalizedResponse.includes('baixa') || normalizedResponse.includes('low')) {
-      return 'low';
+    if (response.includes('BAIXA')) {
+      console.log('[AI DEBUG] Encontrou: BAIXA');
+      return 'BAIXA';
+    }
+
+    // Fallback: procurar em minúsculas (português)
+    if (normalizedResponse.includes('crítica') || normalizedResponse.includes('critica')) {
+      console.log('[AI DEBUG] Encontrou: crítica (convertendo para CRÍTICA)');
+      return 'CRÍTICA';
+    }
+    if (normalizedResponse.includes('alta')) {
+      console.log('[AI DEBUG] Encontrou: alta (convertendo para ALTA)');
+      return 'ALTA';
+    }
+    if (normalizedResponse.includes('média') || normalizedResponse.includes('media')) {
+      console.log('[AI DEBUG] Encontrou: média (convertendo para MÉDIA)');
+      return 'MÉDIA';
+    }
+    if (normalizedResponse.includes('baixa')) {
+      console.log('[AI DEBUG] Encontrou: baixa (convertendo para BAIXA)');
+      return 'BAIXA';
+    }
+
+    // Fallback: inglês (para compatibilidade)
+    if (normalizedResponse.includes('critical')) {
+      console.log('[AI DEBUG] Encontrou: critical (convertendo para CRÍTICA)');
+      return 'CRÍTICA';
+    }
+    if (normalizedResponse.includes('high')) {
+      console.log('[AI DEBUG] Encontrou: high (convertendo para ALTA)');
+      return 'ALTA';
+    }
+    if (normalizedResponse.includes('medium')) {
+      console.log('[AI DEBUG] Encontrou: medium (convertendo para MÉDIA)');
+      return 'MÉDIA';
+    }
+    if (normalizedResponse.includes('low')) {
+      console.log('[AI DEBUG] Encontrou: low (convertendo para BAIXA)');
+      return 'BAIXA';
     }
 
     // Se não encontrou nada específico, tentar extrair apenas a primeira palavra
     const firstWord = normalizedResponse.split(/\s+/)[0];
+    console.log(`[AI DEBUG] Primeira palavra: "${firstWord}"`);
     
     switch (firstWord) {
+      case 'crítica':
       case 'critica':
       case 'critical':
-        return 'critical';
+        return 'CRÍTICA';
       case 'alta':
       case 'high':
-        return 'high';
+        return 'ALTA';
+      case 'média':
       case 'media':
       case 'medium':
-      case 'média':
-        return 'medium';
+        return 'MÉDIA';
       case 'baixa':
       case 'low':
-        return 'low';
+        return 'BAIXA';
       default:
-        // Fallback para medium se não conseguir identificar
-        return 'medium';
+        console.log(`[AI DEBUG] Não conseguiu extrair prioridade de: "${response}"`);
+        return null;
     }
   }
 

@@ -15,6 +15,7 @@ import ClientsIndex from "@/pages/clients/index";
 import CompaniesIndex from "@/pages/companies/index";
 import DepartmentManagement from "@/pages/DepartmentManagement";
 import TicketTypeManagement from "@/pages/TicketTypeManagement";
+import CategoryManagement from "@/pages/CategoryManagement";
 import Settings from "@/pages/settings";
 import PrioritySettings from "@/pages/priority-settings";
 import SLAConfigurations from "@/pages/sla-configurations";
@@ -123,6 +124,12 @@ function AppContent() {
       <ProtectedRoute path="/ticket-types" component={() => (
         <MainLayout>
           <TicketTypeManagement />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/categories" component={() => (
+        <MainLayout>
+          <CategoryManagement />
         </MainLayout>
       )} />
       

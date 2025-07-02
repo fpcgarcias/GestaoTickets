@@ -21,7 +21,10 @@ import {
   Trash2, 
   Pencil,
   Eye,
-  EyeOff 
+  EyeOff,
+  Bot,
+  Settings,
+  Lightbulb
 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -34,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -56,6 +60,7 @@ interface AiConfiguration {
   api_endpoint?: string;
   system_prompt: string;
   user_prompt_template: string;
+  department_id?: number | null;
   temperature: string;
   max_tokens: number;
   timeout_seconds: number;
@@ -66,6 +71,7 @@ interface AiConfiguration {
   created_at: string;
   updated_at: string;
   created_by_name?: string;
+  department_name?: string;
 }
 
 interface TestResult {
@@ -84,6 +90,7 @@ interface FormData {
   api_endpoint: string;
   system_prompt: string;
   user_prompt_template: string;
+  department_id: number | null;
   temperature: string;
   max_tokens: number;
   timeout_seconds: number;
@@ -102,6 +109,13 @@ interface TestData {
 interface AiUsageSettings {
   ai_permission_granted: boolean;
   ai_usage_enabled: boolean;
+}
+
+// Interface para departamentos
+interface Department {
+  id: number;
+  name: string;
+  description?: string;
 }
 
 const AI_PROVIDERS = [
@@ -347,11 +361,11 @@ export default function AiSettings() {
     },
   });
 
-  // Admin vê configuração completa, company_admin, manager e supervisor veem apenas toggle de uso
+  // Admin vê configuração completa global, company_admin, manager e supervisor veem toggle + configuração por departamento
   if (user?.role === 'admin') {
     return <AdminAiConfiguration />;
   } else if (user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') {
-    return <AiUsageToggle />;
+    return <CompanyAiConfiguration />;
   } else {
     return (
       <Card>
@@ -363,49 +377,613 @@ export default function AiSettings() {
   }
 }
 
-// Componente para administradores - configuração global
-function AdminAiConfiguration() {
+// Componente para company_admin, manager, supervisor - toggle + configuração por departamento
+function CompanyAiConfiguration() {
+  return (
+    <div className="space-y-6">
+      {/* Toggle de uso da IA */}
+      <AiUsageToggle />
+      
+      {/* Configurações de IA por departamento */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bot className="h-5 w-5" />
+            Configurações de IA por Departamento
+          </CardTitle>
+          <CardDescription>
+            Configure prompts específicos para análise de IA por departamento
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DepartmentAiConfiguration />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Componente para configuração de IA específica por departamento
+function DepartmentAiConfiguration() {
   const { toast } = useToast();
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingConfig, setEditingConfig] = useState<AiConfiguration | null>(null);
+  const { user } = useAuth();
+
+  // Estados
+  const [configurations, setConfigurations] = useState<AiConfiguration[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [testResult, setTestResult] = useState<TestResult | null>(null);
-  const [isTestLoading, setIsTestLoading] = useState(false);
-  
-  const [formData, setFormData] = useState<FormData>({
+  const [editingConfig, setEditingConfig] = useState<AiConfiguration | null>(null);
+  const [formData, setFormData] = useState({
     name: '',
-    provider: 'openai',
+    provider: 'openai' as 'openai' | 'google' | 'anthropic',
     model: 'gpt-4o',
     api_key: '',
     api_endpoint: '',
     system_prompt: '',
     user_prompt_template: '',
+    department_id: null as number | null,
     temperature: '0.1',
     max_tokens: 100,
     timeout_seconds: 30,
     max_retries: 3,
-    fallback_priority: 'medium',
+    fallback_priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
     is_active: true,
-    is_default: false,
+    is_default: false
   });
 
-  const [testData, setTestData] = useState<TestData>({
-    test_title: '',
-    test_description: '',
-  });
+  // Buscar configurações de IA (filtrar por company)
+  const fetchConfigurations = async () => {
+    setIsLoading(true);
+    try {
+      const response = await apiRequest('GET', '/api/ai-configurations');
+      if (response.ok) {
+        const data = await response.json();
+        // Filtrar apenas configurações da empresa e por departamento
+        const filteredConfigs = data.filter((config: AiConfiguration) => 
+          config.department_id !== null
+        );
+        setConfigurations(filteredConfigs);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar configurações:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  // Buscar configurações globais
-  const { data: configurations, isLoading, refetch } = useQuery({
-    queryKey: ['ai-configurations'],
+  // Buscar departamentos
+  const { data: departmentsData } = useQuery<{departments: Department[]}>({
+    queryKey: ["/api/departments"],
     queryFn: async () => {
-      const response = await fetch('/api/ai-configurations');
+      const response = await apiRequest('GET', '/api/departments');
+      if (!response.ok) throw new Error('Erro ao buscar departamentos');
+      return response.json();
+    }
+  });
+
+  const departments = departmentsData?.departments || [];
+
+  useEffect(() => {
+    fetchConfigurations();
+  }, []);
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      provider: 'openai',
+      model: 'gpt-4o',
+      api_key: '',
+      api_endpoint: '',
+      system_prompt: '',
+      user_prompt_template: '',
+      department_id: null,
+      temperature: '0.1',
+      max_tokens: 100,
+      timeout_seconds: 30,
+      max_retries: 3,
+      fallback_priority: 'medium',
+      is_active: true,
+      is_default: false,
+    });
+  };
+
+  const createMutation = useMutation({
+    mutationFn: async (data: Omit<typeof formData, 'id'>) => {
+      const response = await fetch('/api/ai-configurations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
       if (!response.ok) {
-        throw new Error('Falha ao buscar configurações de IA');
+        const error = await response.json();
+        throw new Error(error.message || 'Falha ao criar configuração');
       }
       return response.json();
     },
+    onSuccess: () => {
+      setShowForm(false);
+      resetForm();
+      fetchConfigurations();
+      toast({
+        title: "Sucesso",
+        description: "Configuração criada com sucesso!",
+        variant: "default"
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      });
+    },
   });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<typeof formData> }) => {
+      const response = await fetch(`/api/ai-configurations/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Falha ao atualizar configuração');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      setEditingConfig(null);
+      resetForm();
+      fetchConfigurations();
+      toast({
+        title: "Sucesso",
+        description: "Configuração atualizada com sucesso!",
+        variant: "default"
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!formData.name || !formData.api_key || !formData.department_id) {
+      toast({
+        title: "Erro",
+        description: "Nome, API Key e Departamento são obrigatórios",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (editingConfig) {
+      updateMutation.mutate({ id: editingConfig.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  const openEditDialog = (config: AiConfiguration) => {
+    setEditingConfig(config);
+    setFormData({
+      name: config.name || '',
+      provider: config.provider,
+      model: config.model || 'gpt-4o',
+      api_key: config.api_key || '',
+      api_endpoint: config.api_endpoint || '',
+      system_prompt: config.system_prompt || '',
+      user_prompt_template: config.user_prompt_template || '',
+      department_id: config.department_id || null,
+      temperature: config.temperature || '0.1',
+      max_tokens: config.max_tokens || 100,
+      timeout_seconds: config.timeout_seconds || 30,
+      max_retries: config.max_retries || 3,
+      fallback_priority: config.fallback_priority || 'medium',
+      is_active: config.is_active !== undefined ? config.is_active : true,
+      is_default: config.is_default !== undefined ? config.is_default : false,
+    });
+  };
+
+  if (isLoading) {
+    return <div>Carregando configurações...</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Botão para adicionar nova configuração */}
+      <Button 
+        onClick={() => setShowForm(true)}
+        className="w-full"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        Nova Configuração por Departamento
+      </Button>
+
+      {/* Lista de configurações existentes */}
+      {configurations.length > 0 ? (
+        <div className="space-y-3">
+          {configurations.map((config) => (
+            <Card key={config.id} className="p-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="font-medium">{config.name}</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {config.department_name} • {config.provider} - {config.model}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openEditDialog(config)}
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-8 text-muted-foreground">
+          <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p>Nenhuma configuração de IA por departamento encontrada.</p>
+          <p className="text-sm mt-2">Clique no botão acima para criar sua primeira configuração.</p>
+        </div>
+      )}
+
+      {/* Modal para criar/editar configuração */}
+      <Dialog open={showForm || !!editingConfig} onOpenChange={(open) => {
+        if (!open) {
+          setShowForm(false);
+          setEditingConfig(null);
+          resetForm();
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle>
+              {editingConfig ? 'Editar' : 'Nova'} Configuração de IA
+            </DialogTitle>
+            <DialogDescription>
+              Configure os prompts específicos para análise de IA deste departamento
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto px-1">
+            <div className="space-y-4 pb-6">
+            {/* Nome e Departamento */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Nome da Configuração</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Ex: Análise TI, Análise RH..."
+                />
+              </div>
+              <div>
+                <Label htmlFor="department">Departamento *</Label>
+                <Select 
+                  value={formData.department_id?.toString() || ''} 
+                  onValueChange={(v) => setFormData(prev => ({ 
+                    ...prev, 
+                    department_id: v ? parseInt(v) : null 
+                  }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um departamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept: Department) => (
+                      <SelectItem key={dept.id} value={dept.id.toString()}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Provedor e Modelo */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="provider">Provedor</Label>
+                <Select 
+                  value={formData.provider} 
+                  onValueChange={(v) => setFormData(prev => ({ 
+                    ...prev, 
+                    provider: v as any,
+                    model: modelOptions[v]?.[0] || 'gpt-4o' // Reset model when provider changes
+                  }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                    <SelectItem value="google">Google (Gemini)</SelectItem>
+                    <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="model">Modelo</Label>
+                <Select 
+                  value={formData.model} 
+                  onValueChange={(v) => setFormData(prev => ({ ...prev, model: v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(modelOptions[formData.provider] || []).map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* API Key e Endpoint */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="api_key">API Key *</Label>
+                <Input
+                  id="api_key"
+                  type="password"
+                  value={formData.api_key}
+                  onChange={(e) => setFormData(prev => ({ ...prev, api_key: e.target.value }))}
+                  placeholder="Sua chave da API..."
+                />
+              </div>
+              <div>
+                <Label htmlFor="api_endpoint">API Endpoint (opcional)</Label>
+                <Input
+                  id="api_endpoint"
+                  value={formData.api_endpoint}
+                  onChange={(e) => setFormData(prev => ({ ...prev, api_endpoint: e.target.value }))}
+                  placeholder="https://api.openai.com/v1 (padrão)"
+                />
+              </div>
+            </div>
+
+            {/* Prompts */}
+            <div className="grid grid-cols-1 gap-4">
+              {/* System Prompt */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="system_prompt">Prompt do Sistema</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormData(prev => ({ ...prev, system_prompt: DEFAULT_PROMPTS.system }))}
+                  >
+                    <Lightbulb className="h-4 w-4 mr-1" />
+                    Usar Padrão
+                  </Button>
+                </div>
+                <Textarea
+                  id="system_prompt"
+                  value={formData.system_prompt}
+                  onChange={(e) => setFormData(prev => ({ ...prev, system_prompt: e.target.value }))}
+                  placeholder="Instruções específicas para o departamento..."
+                  rows={4}
+                />
+              </div>
+
+              {/* User Prompt Template */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="user_prompt_template">Template do Prompt do Usuário</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormData(prev => ({ ...prev, user_prompt_template: DEFAULT_PROMPTS.user }))}
+                  >
+                    <Lightbulb className="h-4 w-4 mr-1" />
+                    Usar Padrão
+                  </Button>
+                </div>
+                <Textarea
+                  id="user_prompt_template"
+                  value={formData.user_prompt_template}
+                  onChange={(e) => setFormData(prev => ({ ...prev, user_prompt_template: e.target.value }))}
+                  placeholder="Template para análise. Use {titulo} e {descricao} como variáveis..."
+                  rows={3}
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Use <code>{"{titulo}"}</code> e <code>{"{descricao}"}</code> como variáveis que serão substituídas.
+                </p>
+              </div>
+            </div>
+
+            {/* Configurações Técnicas */}
+            <div className="grid grid-cols-4 gap-4">
+              <div>
+                <Label htmlFor="temperature">Temperatura</Label>
+                <Input
+                  id="temperature"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="2"
+                  value={formData.temperature}
+                  onChange={(e) => setFormData(prev => ({ ...prev, temperature: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="max_tokens">Max Tokens</Label>
+                <Input
+                  id="max_tokens"
+                  type="number"
+                  min="1"
+                  max="4000"
+                  value={formData.max_tokens}
+                  onChange={(e) => setFormData(prev => ({ ...prev, max_tokens: parseInt(e.target.value) || 100 }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="timeout_seconds">Timeout (seg)</Label>
+                <Input
+                  id="timeout_seconds"
+                  type="number"
+                  min="1"
+                  max="300"
+                  value={formData.timeout_seconds}
+                  onChange={(e) => setFormData(prev => ({ ...prev, timeout_seconds: parseInt(e.target.value) || 30 }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="max_retries">Tentativas</Label>
+                <Input
+                  id="max_retries"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={formData.max_retries}
+                  onChange={(e) => setFormData(prev => ({ ...prev, max_retries: parseInt(e.target.value) || 3 }))}
+                />
+              </div>
+            </div>
+
+            {/* Prioridade de Fallback e Status */}
+            <div className="grid grid-cols-3 gap-4 items-end">
+              <div>
+                <Label htmlFor="fallback_priority">Prioridade de Fallback</Label>
+                <Select 
+                  value={formData.fallback_priority} 
+                  onValueChange={(v) => setFormData(prev => ({ ...prev, fallback_priority: v as any }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixa</SelectItem>
+                    <SelectItem value="medium">Média</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                    <SelectItem value="critical">Crítica</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="is_active"
+                  checked={formData.is_active}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
+                />
+                <Label htmlFor="is_active">Ativa</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="is_default"
+                  checked={formData.is_default}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_default: checked }))}
+                />
+                <Label htmlFor="is_default">Padrão p/ Departamento</Label>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          <DialogFooter className="flex-shrink-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowForm(false);
+                setEditingConfig(null);
+                resetForm();
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSubmit}
+              disabled={createMutation.isPending || updateMutation.isPending}
+            >
+              {editingConfig ? 'Salvar' : 'Criar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Componente para administradores - configuração global
+function AdminAiConfiguration() {
+  const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Estados
+  const [configurations, setConfigurations] = useState<AiConfiguration[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTestLoading, setIsTestLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingConfig, setEditingConfig] = useState<AiConfiguration | null>(null);
+  const [deleteConfig, setDeleteConfig] = useState<AiConfiguration | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [testResult, setTestResult] = useState<any>(null);
+  const [testData, setTestData] = useState({
+    test_title: "Sistema de email não está funcionando",
+    test_description: "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
+  });
+
+  // Estado do formulário
+  const [formData, setFormData] = useState({
+    name: '',
+    provider: 'openai' as 'openai' | 'google' | 'anthropic',
+    model: 'gpt-4o',
+    api_key: '',
+    api_endpoint: '',
+    system_prompt: '',
+    user_prompt_template: '',
+    department_id: null as number | null,
+    temperature: '0.1',
+    max_tokens: 100,
+    timeout_seconds: 30,
+    max_retries: 3,
+    fallback_priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
+    is_active: true,
+    is_default: false
+  });
+
+  // Buscar configurações de IA
+  const fetchConfigurations = async () => {
+    setIsLoading(true);
+    try {
+      const response = await apiRequest('GET', '/api/ai-configurations');
+      if (response.ok) {
+        const data = await response.json();
+        setConfigurations(data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar configurações:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Buscar departamentos
+  const { data: departmentsData } = useQuery<{departments: Department[]}>({
+    queryKey: ["/api/departments"],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/departments');
+      if (!response.ok) throw new Error('Erro ao buscar departamentos');
+      return response.json();
+    }
+  });
+
+  const departments = departmentsData?.departments || [];
 
   const createMutation = useMutation({
     mutationFn: async (data: Omit<FormData, 'id'>) => {
@@ -423,11 +1001,19 @@ function AdminAiConfiguration() {
     onSuccess: () => {
       setShowForm(false);
       resetForm();
-      refetch();
-      toast.success('Configuração criada com sucesso!');
+      fetchConfigurations();
+      toast({
+        title: "Sucesso",
+        description: "Configuração criada com sucesso!",
+        variant: "default"
+      });
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      });
     },
   });
 
@@ -445,14 +1031,21 @@ function AdminAiConfiguration() {
       return response.json();
     },
     onSuccess: () => {
-      setIsEditing(false);
       setEditingConfig(null);
       resetForm();
-      refetch();
-      toast.success('Configuração atualizada com sucesso!');
+      fetchConfigurations();
+      toast({
+        title: "Sucesso",
+        description: "Configuração atualizada com sucesso!",
+        variant: "default"
+      });
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      });
     },
   });
 
@@ -468,11 +1061,19 @@ function AdminAiConfiguration() {
       return response.json();
     },
     onSuccess: () => {
-      refetch();
-      toast.success('Configuração deletada com sucesso!');
+      fetchConfigurations();
+      toast({
+        title: "Sucesso",
+        description: "Configuração deletada com sucesso!",
+        variant: "default"
+      });
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      });
     },
   });
 
@@ -487,6 +1088,7 @@ function AdminAiConfiguration() {
       api_endpoint: '',
       system_prompt: '',
       user_prompt_template: '',
+      department_id: null,
       temperature: '0.1',
       max_tokens: 100,
       timeout_seconds: 30,
@@ -508,6 +1110,7 @@ function AdminAiConfiguration() {
       api_endpoint: config.api_endpoint || '',
       system_prompt: config.system_prompt || '',
       user_prompt_template: config.user_prompt_template || '',
+      department_id: config.department_id || null,
       temperature: config.temperature || '0.1',
       max_tokens: config.max_tokens || 100,
       timeout_seconds: config.timeout_seconds || 30,
@@ -516,7 +1119,7 @@ function AdminAiConfiguration() {
       is_active: config.is_active !== undefined ? config.is_active : true,
       is_default: config.is_default !== undefined ? config.is_default : false,
     });
-    setIsEditing(true);
+    setShowApiKey(false);
   };
 
   const handleSubmit = () => {
@@ -525,8 +1128,8 @@ function AdminAiConfiguration() {
       return;
     }
     
-    if (isEditing) {
-      updateMutation.mutate({ id: editingConfig!.id, data: formData });
+    if (editingConfig) {
+      updateMutation.mutate({ id: editingConfig.id, data: formData });
     } else {
       createMutation.mutate(formData);
     }
@@ -688,7 +1291,7 @@ function AdminAiConfiguration() {
       </Card>
 
       {/* Dialog de edição */}
-      <Dialog open={isEditing} onOpenChange={setIsEditing}>
+      <Dialog open={editingConfig !== null} onOpenChange={setEditingConfig}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Configuração de IA</DialogTitle>
@@ -921,6 +1524,33 @@ function ConfigurationForm({
         </div>
       </div>
 
+      {/* Seleção de Departamento */}
+      <div>
+        <Label htmlFor="department">Departamento</Label>
+        <Select 
+          value={formData.department_id?.toString() || 'global'} 
+          onValueChange={(v) => setFormData(prev => ({ 
+            ...prev, 
+            department_id: v === 'global' ? null : parseInt(v) 
+          }))}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="global">🌐 Configuração Global (Todos os Departamentos)</SelectItem>
+            {departments.map((dept) => (
+              <SelectItem key={dept.id} value={dept.id.toString()}>
+                🏢 {dept.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-gray-500 mt-1">
+          Configurações específicas de departamento têm prioridade sobre configurações globais
+        </p>
+      </div>
+
       {/* Prioridade de fallback */}
       <div>
         <Label htmlFor="fallback">Prioridade de Fallback</Label>
@@ -1072,6 +1702,12 @@ function ConfigurationCard({
               <CardTitle className="text-lg">{config.name}</CardTitle>
               <CardDescription>
                 {AI_PROVIDERS.find(p => p.value === config.provider)?.label} - {config.model}
+                {config.department_name && (
+                  <span className="ml-2 text-blue-600">• {config.department_name}</span>
+                )}
+                {!config.department_name && (
+                  <span className="ml-2 text-gray-600">• Global</span>
+                )}
               </CardDescription>
             </div>
           </div>

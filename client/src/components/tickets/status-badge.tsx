@@ -87,7 +87,7 @@ export const PriorityBadge: React.FC<PriorityBadgeProps> = ({
 
   // Se é uma prioridade customizada (tem weight ou name)
   if (weight !== undefined || name) {
-    displayName = name || 'Customizada';
+    displayName = name || priority; // Usar priority como fallback ao invés de 'Customizada'
     indicatorColor = color || getPriorityColorByWeight(weight || 2);
     colorClasses = 'bg-gray-50 text-gray-700 border border-gray-200';
   } else {

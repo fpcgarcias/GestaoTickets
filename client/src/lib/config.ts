@@ -16,25 +16,37 @@ const isProduction = !isDevelopment;
 
 // Configurar URLs baseado no ambiente
 function getConfig(): AppConfig {
+  const currentUrl = new URL(window.location.href);
+  const currentHost = currentUrl.host;
+  const currentHostname = currentUrl.hostname;
+  
   if (isDevelopment) {
-    // Em desenvolvimento, sempre usar localhost:5000 onde o servidor está rodando
-    return {
-      apiBaseUrl: 'http://localhost:5173',
-      wsBaseUrl: 'ws://localhost:5173',
-      isDevelopment: true,
-      isProduction: false
-    };
+    // Em desenvolvimento local (localhost/127.0.0.1), usar localhost
+    if (currentHostname === 'localhost' || currentHostname === '127.0.0.1') {
+      return {
+        apiBaseUrl: 'http://localhost:5173',
+        wsBaseUrl: 'ws://localhost:5173',
+        isDevelopment: true,
+        isProduction: false
+      };
+    } else {
+      // Em desenvolvimento mas acessado de máquina externa, usar o host atual
+      return {
+        apiBaseUrl: `http://${currentHost}`,
+        wsBaseUrl: `ws://${currentHost}`,
+        isDevelopment: true,
+        isProduction: false
+      };
+    }
   } else {
     // Em produção, usar o mesmo host da página atual
-    const currentUrl = new URL(window.location.href);
     const isHTTPS = currentUrl.protocol === 'https:';
     const protocol = isHTTPS ? 'https:' : 'http:';
     const wsProtocol = isHTTPS ? 'wss:' : 'ws:';
-    const host = currentUrl.host;
     
     return {
-      apiBaseUrl: `${protocol}//${host}`,
-      wsBaseUrl: `${wsProtocol}//${host}`,
+      apiBaseUrl: `${protocol}//${currentHost}`,
+      wsBaseUrl: `${wsProtocol}//${currentHost}`,
       isDevelopment: false,
       isProduction: true
     };
@@ -43,6 +55,14 @@ function getConfig(): AppConfig {
 
 export const config = getConfig();
 
-// Log da configuração removido para reduzir ruído no console
+// Debug info para desenvolvimento
+if (isDevelopment) {
+  console.log('🔧 App Config:', {
+    apiBaseUrl: config.apiBaseUrl,
+    wsBaseUrl: config.wsBaseUrl,
+    currentHost: window.location.host,
+    isDevelopment: config.isDevelopment
+  });
+}
 
 export default config; 

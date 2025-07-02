@@ -18,7 +18,8 @@ import {
   Shield,
   Palette,
   Clock,
-  BarChart3
+  BarChart3,
+  Grid3X3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -68,6 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     { href: "/permissions", icon: <Shield size={20} />, label: "Permissões", roles: ['admin'] },
     { href: "/departments", icon: <FolderIcon size={20} />, label: "Departamentos", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/ticket-types", icon: <TagIcon size={20} />, label: "Tipos de Chamado", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/categories", icon: <Grid3X3 size={20} />, label: "Categorias", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/priority-settings", icon: <Palette size={20} />, label: "Prioridades", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/sla-configurations", icon: <Clock size={20} />, label: "Configurações SLA", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/sla-dashboard", icon: <BarChart3 size={20} />, label: "Dashboard SLA", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },

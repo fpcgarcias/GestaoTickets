@@ -45,7 +45,8 @@ const ZOD_PRIORITY_ENUM_VALUES = [
 const extendedInsertTicketSchema = insertTicketSchema.extend({
   customerId: z.number().optional(), // Para o select do formulário
   // Prioridade flexível - aceita tanto valores legados quanto IDs de prioridade
-  priority: z.string().min(1, "Prioridade é obrigatória"), 
+  priority: z.string().min(1, "Prioridade é obrigatória"),
+  category_id: z.number().optional(), // Para o select de categoria
 });
 
 // Inferir o tipo a partir do schema estendido
@@ -87,6 +88,13 @@ interface Department {
   name: string;
 }
 
+interface Category {
+  id: number;
+  name: string;
+  value: string;
+  incident_type_id: number;
+}
+
 export const TicketForm = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -111,6 +119,7 @@ export const TicketForm = () => {
       priority: 'medium', // Valor padrão como string
       department_id: undefined,
       incident_type_id: undefined,
+      category_id: undefined,
     },
   });
 
@@ -183,7 +192,7 @@ export const TicketForm = () => {
     // Converter prioridade para valor legado se necessário
     const priorityToSend = convertPriorityForSubmission(data.priority, priorities);
     
-    let ticketDataToSend: InsertTicket = {
+    let ticketDataToSend: any = {
       title: data.title,
       description: data.description,
       customer_email: data.customer_email,
@@ -191,6 +200,7 @@ export const TicketForm = () => {
       priority: priorityToSend,
       department_id: data.department_id,
       incident_type_id: data.incident_type_id,
+      category_id: data.category_id,
       // customer_id e company_id serão definidos abaixo ou já estão no data
     };
 
@@ -239,6 +249,16 @@ export const TicketForm = () => {
   const filteredIncidentTypes = selectedDepartmentId 
     ? incidentTypes.filter((type: IncidentType) => type.department_id === selectedDepartmentId)
     : incidentTypes;
+
+  // Buscar categorias baseadas no tipo de incidente selecionado
+  const selectedIncidentTypeId = form.watch('incident_type_id');
+  const { data: categoriesData } = useQuery<{categories: Category[], pagination: any}>({
+    queryKey: ["/api/categories", { incident_type_id: selectedIncidentTypeId, active_only: true }],
+    enabled: !!selectedIncidentTypeId,
+  });
+
+  // Garantir que categories é um array
+  const categories = Array.isArray(categoriesData?.categories) ? categoriesData.categories : [];
 
   // Efeito para pré-selecionar o cliente quando o usuário for customer
   useEffect(() => {
@@ -326,9 +346,10 @@ export const TicketForm = () => {
                         const departmentId = parseInt(value);
                         field.onChange(departmentId);
                         
-                        // Limpar o tipo de incidente quando o departamento muda
+                        // Limpar o tipo de incidente e categoria quando o departamento muda
                         form.setValue('type', '');
                         form.setValue('incident_type_id', undefined);
+                        form.setValue('category_id', undefined);
                       }} 
                       defaultValue={field.value?.toString()}
                     >
@@ -350,6 +371,9 @@ export const TicketForm = () => {
                 )}
               />
               
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <FormField
                 control={form.control}
                 name="type"
@@ -366,6 +390,9 @@ export const TicketForm = () => {
                         if (selectedType) {
                           // Atualizar o ID do tipo de incidente
                           form.setValue('incident_type_id', selectedType.id);
+                          
+                          // Limpar categoria quando o tipo de incidente muda
+                          form.setValue('category_id', undefined);
                           
                           // Se o departamento não estiver selecionado, selecionar automaticamente
                           // baseado no tipo de incidente
@@ -397,6 +424,41 @@ export const TicketForm = () => {
               
               <FormField
                 control={form.control}
+                name="category_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Categoria</FormLabel>
+                    <Select 
+                      onValueChange={(value) => field.onChange(parseInt(value))} 
+                      value={field.value?.toString()}
+                      disabled={!selectedIncidentTypeId || categories.length === 0}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={
+                            !selectedIncidentTypeId 
+                              ? "Selecione um tipo primeiro" 
+                              : categories.length === 0 
+                                ? "Nenhuma categoria disponível"
+                                : "Selecione uma categoria"
+                          } />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {categories.map((category: Category) => (
+                          <SelectItem key={category.id} value={category.id.toString()}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
                 name="priority"
                 render={({ field }) => (
                   <FormItem>
@@ -412,7 +474,7 @@ export const TicketForm = () => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {priorities.map((priority) => (
+                        {priorities.map((priority: any) => (
                           <SelectItem key={priority.id} value={priority.value}>
                             <div className="flex items-center space-x-2">
                               <div 

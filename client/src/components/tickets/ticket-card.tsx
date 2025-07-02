@@ -105,8 +105,14 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
               <PriorityBadge 
                 priority={priority}
                 weight={convertLegacyToWeight(priority)}
-                color={priorities.find(p => p.legacyValue === priority)?.color}
-                name={priorities.find(p => p.legacyValue === priority)?.name}
+                color={priorities.find((p: any) => 
+                  p.name?.toLowerCase() === priority.toLowerCase() || 
+                  p.legacyValue?.toLowerCase() === priority.toLowerCase()
+                )?.color}
+                name={priorities.find((p: any) => 
+                  p.name?.toLowerCase() === priority.toLowerCase() || 
+                  p.legacyValue?.toLowerCase() === priority.toLowerCase()
+                )?.name || priority}
               />
             )}
             <div className="text-sm text-neutral-500">

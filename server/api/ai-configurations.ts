@@ -1,13 +1,15 @@
 import { Request, Response } from "express";
-import { eq, desc, and, ne, sql, count } from "drizzle-orm";
+import { eq, desc, and, ne, sql, count, isNull, or } from "drizzle-orm";
 import * as schema from "../../shared/schema";
 import { db } from "../db";
 import { AiService } from "../services/ai-service";
 
-// GET /api/ai-configurations - Listar todas as configurações de IA (globais)
+// GET /api/ai-configurations - Listar todas as configurações de IA (globais e por departamento)
 export async function getAiConfigurations(req: Request, res: Response) {
   try {
-    const configurations = await db
+    const { department_id } = req.query;
+
+    let baseQuery = db
       .select({
         id: schema.aiConfigurations.id,
         name: schema.aiConfigurations.name,
@@ -17,6 +19,7 @@ export async function getAiConfigurations(req: Request, res: Response) {
         api_endpoint: schema.aiConfigurations.api_endpoint,
         system_prompt: schema.aiConfigurations.system_prompt,
         user_prompt_template: schema.aiConfigurations.user_prompt_template,
+        department_id: schema.aiConfigurations.department_id,
         is_active: schema.aiConfigurations.is_active,
         is_default: schema.aiConfigurations.is_default,
         temperature: schema.aiConfigurations.temperature,
@@ -27,10 +30,25 @@ export async function getAiConfigurations(req: Request, res: Response) {
         created_at: schema.aiConfigurations.created_at,
         updated_at: schema.aiConfigurations.updated_at,
         created_by_name: schema.users.name,
+        department_name: schema.departments.name,
       })
       .from(schema.aiConfigurations)
       .leftJoin(schema.users, eq(schema.aiConfigurations.created_by_id, schema.users.id))
-      .orderBy(desc(schema.aiConfigurations.created_at));
+      .leftJoin(schema.departments, eq(schema.aiConfigurations.department_id, schema.departments.id));
+
+    // Aplicar filtros se especificados
+    let configurations;
+    if (department_id) {
+      if (department_id === 'global') {
+        configurations = await baseQuery.where(isNull(schema.aiConfigurations.department_id))
+          .orderBy(desc(schema.aiConfigurations.created_at));
+      } else {
+        configurations = await baseQuery.where(eq(schema.aiConfigurations.department_id, parseInt(department_id as string)))
+          .orderBy(desc(schema.aiConfigurations.created_at));
+      }
+    } else {
+      configurations = await baseQuery.orderBy(desc(schema.aiConfigurations.created_at));
+    }
 
     res.json(configurations);
   } catch (error) {
@@ -39,7 +57,7 @@ export async function getAiConfigurations(req: Request, res: Response) {
   }
 }
 
-// POST /api/ai-configurations - Criar nova configuração de IA (global)
+// POST /api/ai-configurations - Criar nova configuração de IA
 export async function createAiConfiguration(req: Request, res: Response) {
   try {
     const userId = req.session.userId;
@@ -52,6 +70,7 @@ export async function createAiConfiguration(req: Request, res: Response) {
       api_endpoint,
       system_prompt,
       user_prompt_template,
+      department_id,
       temperature,
       max_tokens,
       timeout_seconds,
@@ -67,12 +86,31 @@ export async function createAiConfiguration(req: Request, res: Response) {
       });
     }
 
-    // Se for definida como padrão, desativar outras configurações padrão globalmente
+    // Se for definida como padrão, desativar outras configurações padrão do mesmo escopo (departamento/global)
     if (is_default) {
-      await db
-        .update(schema.aiConfigurations)
-        .set({ is_default: false, updated_at: new Date() })
-        .where(eq(schema.aiConfigurations.is_default, true));
+      if (department_id) {
+        // Desativar outras configurações padrão do mesmo departamento
+        await db
+          .update(schema.aiConfigurations)
+          .set({ is_default: false, updated_at: new Date() })
+          .where(
+            and(
+              eq(schema.aiConfigurations.department_id, department_id),
+              eq(schema.aiConfigurations.is_default, true)
+            )
+          );
+      } else {
+        // Desativar outras configurações padrão globais
+        await db
+          .update(schema.aiConfigurations)
+          .set({ is_default: false, updated_at: new Date() })
+          .where(
+            and(
+              isNull(schema.aiConfigurations.department_id),
+              eq(schema.aiConfigurations.is_default, true)
+            )
+          );
+      }
     }
 
     // Criar nova configuração
@@ -86,6 +124,7 @@ export async function createAiConfiguration(req: Request, res: Response) {
         api_endpoint,
         system_prompt,
         user_prompt_template,
+        department_id: department_id || null,
         temperature: temperature || '0.1',
         max_tokens: max_tokens || 100,
         timeout_seconds: timeout_seconds || 30,
@@ -134,6 +173,7 @@ export async function testAiConfiguration(req: Request, res: Response) {
       api_endpoint: null,
       system_prompt,
       user_prompt_template,
+      department_id: null,
       temperature: '0.1',
       max_tokens: 100,
       timeout_seconds: 30,
@@ -195,6 +235,7 @@ export async function updateAiConfiguration(req: Request, res: Response) {
       api_endpoint,
       system_prompt,
       user_prompt_template,
+      department_id,
       temperature,
       max_tokens,
       timeout_seconds,
@@ -204,12 +245,35 @@ export async function updateAiConfiguration(req: Request, res: Response) {
       is_default,
     } = req.body;
 
-    // Se for definida como padrão, desativar outras configurações padrão
+    // Se for definida como padrão, desativar outras configurações padrão do mesmo escopo
     if (is_default && !existingConfig.is_default) {
-      await db
-        .update(schema.aiConfigurations)
-        .set({ is_default: false, updated_at: new Date() })
-        .where(eq(schema.aiConfigurations.is_default, true));
+      const targetDepartmentId = department_id !== undefined ? department_id : existingConfig.department_id;
+      
+      if (targetDepartmentId) {
+        // Desativar outras configurações padrão do mesmo departamento
+        await db
+          .update(schema.aiConfigurations)
+          .set({ is_default: false, updated_at: new Date() })
+          .where(
+            and(
+              eq(schema.aiConfigurations.department_id, targetDepartmentId),
+              eq(schema.aiConfigurations.is_default, true),
+              ne(schema.aiConfigurations.id, configurationId)
+            )
+          );
+      } else {
+        // Desativar outras configurações padrão globais
+        await db
+          .update(schema.aiConfigurations)
+          .set({ is_default: false, updated_at: new Date() })
+          .where(
+            and(
+              isNull(schema.aiConfigurations.department_id),
+              eq(schema.aiConfigurations.is_default, true),
+              ne(schema.aiConfigurations.id, configurationId)
+            )
+          );
+      }
     }
 
     // Atualizar configuração
@@ -223,6 +287,7 @@ export async function updateAiConfiguration(req: Request, res: Response) {
         api_endpoint,
         system_prompt,
         user_prompt_template,
+        department_id: department_id !== undefined ? department_id : existingConfig.department_id,
         temperature,
         max_tokens,
         timeout_seconds,

@@ -1148,36 +1148,95 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       }
       
       // 🤖 ANÁLISE DE PRIORIDADE COM IA ANTES DE SALVAR O TICKET
-      let finalPriority = ticketData.priority || 'medium';
-      let originalPriority = ticketData.priority || 'medium'; // Guardar prioridade original
-      let aiAnalyzed = false;
+      let finalPriority = ticketData.priority || 'MÉDIA';
+      let originalPriority = ticketData.priority || 'MÉDIA'; // Guardar prioridade original
       
+      // ✅ CRIAR O TICKET PRIMEIRO (com prioridade padrão)
+      const ticket = await storage.createTicket({
+        ...ticketData,
+        priority: finalPriority, // Prioridade inicial (será atualizada pela IA se necessário)
+        customer_id: customerId || undefined,
+        company_id: companyId || undefined // ✅ USAR O COMPANY_ID DO CLIENTE
+      });
+
+      // 🤖 ANÁLISE DE PRIORIDADE COM IA APÓS CRIAR O TICKET (salva histórico automaticamente)
+      let aiAnalyzed = false;
       if (companyId && ticketData.title && ticketData.description) {
         try {
           const aiService = new AiService();
-          const aiResult = await aiService.analyzePriority(
-            ticketData.title, 
-            ticketData.description, 
-            companyId
+          const aiResult = await aiService.analyzeTicketPriority(
+            {
+              title: ticketData.title, 
+              description: ticketData.description, 
+              companyId: companyId,
+              ticketId: ticket.id
+            },
+            db
           );
           
           if (aiResult && !aiResult.usedFallback) {
             finalPriority = aiResult.priority;
             aiAnalyzed = true;
+            
+            // 🔄 ATUALIZAR PRIORIDADE DO TICKET SE A IA SUGERIU DIFERENTE
+            if (finalPriority !== originalPriority) {
+              console.log(`[AI] IA sugeriu prioridade: ${finalPriority} (original: ${originalPriority})`);
+              
+              await db
+                .update(schema.tickets)
+                .set({ priority: finalPriority as any })
+                .where(eq(schema.tickets.id, ticket.id));
+                
+              // 🤖 REGISTRAR MUDANÇA NO HISTÓRICO DE STATUS
+              // Buscar ou criar usuário bot para IA
+              let botUser = await db
+                .select()
+                .from(schema.users)
+                .where(eq(schema.users.role, 'integration_bot'))
+                .limit(1);
+
+              let botUserId: number;
+              
+              if (botUser.length === 0) {
+                // Criar usuário bot se não existir
+                const [createdBot] = await db
+                  .insert(schema.users)
+                  .values({
+                    username: 'ai_robot',
+                    email: 'ai@system.internal',
+                    name: 'Robo IA',
+                    role: 'integration_bot',
+                    password: 'AiBot123!@#', // Senha que atende aos critérios de segurança
+                    active: true,
+                    company_id: null, // Bot global
+                    created_at: new Date(),
+                    updated_at: new Date()
+                  })
+                  .returning();
+                
+                botUserId = createdBot.id;
+              } else {
+                botUserId = botUser[0].id;
+              }
+
+              // Registrar mudança de prioridade no histórico
+              await db
+                .insert(schema.ticketStatusHistory)
+                .values({
+                  ticket_id: ticket.id,
+                  change_type: 'priority',
+                  old_priority: originalPriority as any,
+                  new_priority: finalPriority as any,
+                  changed_by_id: botUserId,
+                  created_at: new Date()
+                });
+            }
           }
         } catch (aiError) {
           console.error('[AI] Erro na análise de prioridade:', aiError);
           // Falha na IA não impede a criação do ticket
         }
       }
-      
-      // ✅ CRIAR O TICKET COM PRIORIDADE JÁ DEFINIDA PELA IA
-      const ticket = await storage.createTicket({
-        ...ticketData,
-        priority: finalPriority, // ✅ Prioridade já analisada pela IA
-        customer_id: customerId || undefined,
-        company_id: companyId || undefined // ✅ USAR O COMPANY_ID DO CLIENTE
-      });
 
       logger.info('Ticket criado com sucesso', {
         ticketId: ticket.id,
@@ -1188,75 +1247,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         aiAnalyzed,
         operation: 'create_ticket'
       });
-
-      // 📝 SALVAR HISTÓRICO DA ANÁLISE DE IA (se foi analisada)
-      if (aiAnalyzed && companyId) {
-        try {
-          const aiService = new AiService();
-          await aiService.analyzeTicketPriority(
-            {
-              title: ticketData.title, 
-              description: ticketData.description, 
-              companyId: companyId,
-              ticketId: ticket.id
-            },
-            db
-          );
-
-          // 🤖 REGISTRAR NO HISTÓRICO SE A IA ALTEROU A PRIORIDADE
-          if (finalPriority !== originalPriority) {
-            console.log(`[AI] IA alterou prioridade de ${originalPriority} para ${finalPriority} - registrando no histórico`);
-            
-            // Buscar ou criar usuário bot para IA
-            let botUser = await db
-              .select()
-              .from(schema.users)
-              .where(eq(schema.users.role, 'integration_bot'))
-              .limit(1);
-
-            let botUserId: number;
-            
-            if (botUser.length === 0) {
-              // Criar usuário bot se não existir
-              const [createdBot] = await db
-                .insert(schema.users)
-                .values({
-                  username: 'ai_robot',
-                  email: 'ai@system.internal',
-                  name: 'Robo IA',
-                  role: 'integration_bot',
-                  password: 'AiBot123!@#', // Senha que atende aos critérios de segurança
-                  active: true,
-                  company_id: null, // Bot global
-                  created_at: new Date(),
-                  updated_at: new Date()
-                })
-                .returning();
-              
-              botUserId = createdBot.id;
-
-            } else {
-              botUserId = botUser[0].id;
-            }
-
-            // Registrar mudança de prioridade no histórico expandido
-            await db
-              .insert(schema.ticketStatusHistory)
-              .values({
-                ticket_id: ticket.id,
-                change_type: 'priority',
-                old_priority: originalPriority as any,
-                new_priority: finalPriority as any,
-                changed_by_id: botUserId,
-                created_at: new Date()
-              });
-
-
-          }
-        } catch (historyError) {
-          console.error('[AI] Erro ao salvar histórico da análise:', historyError);
-        }
-      }
 
       // Responder com o ticket criado
       res.status(201).json(ticket);
@@ -4716,6 +4706,387 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   );
 
+  // === ROTAS DE CATEGORIAS ===
+  
+  // GET /api/categories - Listar categorias
+  router.get("/categories", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support', 'viewer', 'customer']), async (req: Request, res: Response) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const search = (req.query.search as string) || '';
+      const active_only = req.query.active_only === "true";
+      const filterCompanyId = req.query.company_id ? parseInt(req.query.company_id as string) : null;
+      const incident_type_id = req.query.incident_type_id ? parseInt(req.query.incident_type_id as string) : null;
+      const userRole = req.session?.userRole as string;
+      const sessionCompanyId = req.session.companyId;
+      const sessionUserId = req.session.userId;
+
+      // Verificar se o usuário tem uma empresa associada (exceto admin)
+      if (!sessionCompanyId && userRole !== 'admin') {
+        return res.status(400).json({ message: "Usuário sem empresa associada" });
+      }
+
+      const conditions: SQLWrapper[] = [];
+
+      // Lógica de filtro por empresa
+      if (userRole === 'admin') {
+        // Admin pode filtrar por empresa específica ou ver todas
+        if (filterCompanyId) {
+          conditions.push(eq(schema.categories.company_id, filterCompanyId));
+        }
+      } else if (userRole === 'company_admin') {
+        // Company_admin vê todas as categorias da sua empresa
+        if (sessionCompanyId) {
+          conditions.push(eq(schema.categories.company_id, sessionCompanyId));
+        }
+      } else if (['manager', 'supervisor', 'support', 'viewer'].includes(userRole)) {
+        // Manager/Supervisor/Support/Viewer veem apenas categorias dos seus departamentos
+        if (sessionCompanyId && sessionUserId) {
+          // Buscar o official do usuário
+          const [userOfficial] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, sessionUserId));
+          
+          if (userOfficial) {
+            // Buscar departamentos do oficial
+            const userDepartments = await db.select({ department_id: schema.officialDepartments.department_id })
+              .from(schema.officialDepartments)
+              .where(eq(schema.officialDepartments.official_id, userOfficial.id));
+            
+            if (userDepartments.length > 0) {
+              const departmentIds = userDepartments.map(dept => dept.department_id);
+              
+              // Buscar tipos de incidente dos departamentos do usuário
+              const incidentTypes = await db.select({ id: schema.incidentTypes.id })
+                .from(schema.incidentTypes)
+                .where(
+                  and(
+                    eq(schema.incidentTypes.company_id, sessionCompanyId),
+                    inArray(schema.incidentTypes.department_id, departmentIds)
+                  )
+                );
+              
+              if (incidentTypes.length > 0) {
+                const incidentTypeIds = incidentTypes.map(it => it.id);
+                conditions.push(
+                  and(
+                    eq(schema.categories.company_id, sessionCompanyId),
+                    inArray(schema.categories.incident_type_id, incidentTypeIds)
+                  )
+                );
+              } else {
+                // Se não há tipos de incidente, não deve ver nada
+                conditions.push(sql`1 = 0`);
+              }
+            } else {
+              // Se o usuário não tem departamentos, não deve ver nada
+              conditions.push(sql`1 = 0`);
+            }
+          } else {
+            // Se não há official, não deve ver nada
+            conditions.push(sql`1 = 0`);
+          }
+        }
+      } else if (userRole === 'customer') {
+        // Customer vê apenas categorias ativas da sua empresa
+        if (sessionCompanyId) {
+          conditions.push(
+            and(
+              eq(schema.categories.company_id, sessionCompanyId),
+              eq(schema.categories.is_active, true)
+            )
+          );
+        } else {
+          // Se customer não tem empresa, não vê nada
+          conditions.push(sql`1 = 0`);
+        }
+      } else {
+        return res.status(403).json({ message: "Acesso negado" });
+      }
+
+      if (active_only) {
+        conditions.push(eq(schema.categories.is_active, true));
+      }
+
+      if (incident_type_id) {
+        conditions.push(eq(schema.categories.incident_type_id, incident_type_id));
+      }
+
+      // Filtro por busca (nome ou descrição)
+      if (search) {
+        const searchCondition = or(
+          ilike(schema.categories.name, `%${search}%`),
+          ilike(schema.categories.description, `%${search}%`)
+        );
+        if (searchCondition) {
+          conditions.push(searchCondition);
+        }
+      }
+
+      // Query principal com JOIN para trazer dados do tipo de incidente
+      const offset = (page - 1) * limit;
+      const categoriesQuery = db
+        .select({
+          id: schema.categories.id,
+          name: schema.categories.name,
+          value: schema.categories.value,
+          description: schema.categories.description,
+          incident_type_id: schema.categories.incident_type_id,
+          company_id: schema.categories.company_id,
+          is_active: schema.categories.is_active,
+          created_at: schema.categories.created_at,
+          updated_at: schema.categories.updated_at,
+          incident_type_name: schema.incidentTypes.name,
+          department_id: schema.incidentTypes.department_id,
+          department_name: schema.departments.name,
+        })
+        .from(schema.categories)
+        .leftJoin(schema.incidentTypes, eq(schema.categories.incident_type_id, schema.incidentTypes.id))
+        .leftJoin(schema.departments, eq(schema.incidentTypes.department_id, schema.departments.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(schema.categories.created_at))
+        .limit(limit)
+        .offset(offset);
+
+      // Query para contar total
+      const countQuery = db
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(schema.categories)
+        .leftJoin(schema.incidentTypes, eq(schema.categories.incident_type_id, schema.incidentTypes.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+      const [categories, countResult] = await Promise.all([
+        categoriesQuery,
+        countQuery
+      ]);
+
+      const total = countResult[0]?.count || 0;
+      const totalPages = Math.ceil(total / limit);
+
+      res.json({
+        categories,
+        pagination: {
+          current: page,
+          pages: totalPages,
+          total,
+          limit,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      res.status(500).json({ message: "Falha ao buscar categorias" });
+    }
+  });
+
+  // POST /api/categories - Criar nova categoria
+  router.post("/categories", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const { name, value, description, incident_type_id, company_id } = req.body;
+      const userRole = req.session?.userRole as string;
+      const sessionCompanyId = req.session.companyId;
+
+      // Validações básicas
+      if (!name || !value || !incident_type_id) {
+        return res.status(400).json({ message: "Nome, valor e tipo de incidente são obrigatórios" });
+      }
+
+      // Determinar company_id efetivo
+      let effectiveCompanyId: number | null = null;
+      
+      if (userRole === 'admin') {
+        effectiveCompanyId = company_id || null;
+      } else {
+        effectiveCompanyId = sessionCompanyId || null;
+        if (company_id && company_id !== sessionCompanyId) {
+          console.warn(`Usuário ${userRole} tentou especificar company_id ${company_id}, mas será usado o da sessão: ${sessionCompanyId}`);
+        }
+      }
+
+      // Verificar se o tipo de incidente existe e se o usuário tem acesso
+      const [incidentType] = await db
+        .select()
+        .from(schema.incidentTypes)
+        .where(eq(schema.incidentTypes.id, incident_type_id));
+
+      if (!incidentType) {
+        return res.status(404).json({ message: "Tipo de incidente não encontrado" });
+      }
+
+      // Verificar se o usuário tem acesso ao tipo de incidente
+      if (userRole !== 'admin') {
+        if (incidentType.company_id !== effectiveCompanyId) {
+          return res.status(403).json({ message: "Acesso negado ao tipo de incidente" });
+        }
+      }
+
+      // Verificar se já existe uma categoria com o mesmo valor para o tipo de incidente
+      const [existingCategory] = await db
+        .select()
+        .from(schema.categories)
+        .where(
+          and(
+            eq(schema.categories.value, value),
+            eq(schema.categories.incident_type_id, incident_type_id),
+            eq(schema.categories.company_id, effectiveCompanyId)
+          )
+        );
+
+      if (existingCategory) {
+        return res.status(409).json({ message: "Já existe uma categoria com este valor para este tipo de incidente" });
+      }
+
+      const [category] = await db
+        .insert(schema.categories)
+        .values({
+          name,
+          value,
+          description: description || null,
+          incident_type_id,
+          company_id: effectiveCompanyId,
+          is_active: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        })
+        .returning();
+
+      res.status(201).json(category);
+    } catch (error) {
+      console.error("Error creating category:", error);
+      res.status(500).json({ message: "Falha ao criar categoria" });
+    }
+  });
+
+  // PUT /api/categories/:id - Atualizar categoria
+  router.put("/categories/:id", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const categoryId = parseInt(req.params.id);
+      if (isNaN(categoryId)) {
+        return res.status(400).json({ message: "ID de categoria inválido" });
+      }
+
+      const { name, value, description, incident_type_id, is_active } = req.body;
+      const userRole = req.session?.userRole as string;
+      const sessionCompanyId = req.session.companyId;
+
+      // Buscar categoria existente
+      const [existingCategory] = await db
+        .select()
+        .from(schema.categories)
+        .where(eq(schema.categories.id, categoryId));
+
+      if (!existingCategory) {
+        return res.status(404).json({ message: "Categoria não encontrada" });
+      }
+
+      // Verificar permissões
+      if (userRole !== 'admin') {
+        if (existingCategory.company_id !== sessionCompanyId) {
+          return res.status(403).json({ message: "Acesso negado" });
+        }
+      }
+
+      // Se está alterando o tipo de incidente, verificar se existe e se tem acesso
+      if (incident_type_id && incident_type_id !== existingCategory.incident_type_id) {
+        const [incidentType] = await db
+          .select()
+          .from(schema.incidentTypes)
+          .where(eq(schema.incidentTypes.id, incident_type_id));
+
+        if (!incidentType) {
+          return res.status(404).json({ message: "Tipo de incidente não encontrado" });
+        }
+
+        if (userRole !== 'admin' && incidentType.company_id !== sessionCompanyId) {
+          return res.status(403).json({ message: "Acesso negado ao tipo de incidente" });
+        }
+      }
+
+      // Se está alterando o valor, verificar se não há conflito
+      if (value && value !== existingCategory.value) {
+        const [conflictCategory] = await db
+          .select()
+          .from(schema.categories)
+          .where(
+            and(
+              eq(schema.categories.value, value),
+              eq(schema.categories.incident_type_id, incident_type_id || existingCategory.incident_type_id),
+              eq(schema.categories.company_id, existingCategory.company_id),
+              not(eq(schema.categories.id, categoryId))
+            )
+          );
+
+        if (conflictCategory) {
+          return res.status(409).json({ message: "Já existe uma categoria com este valor para este tipo de incidente" });
+        }
+      }
+
+      const [updatedCategory] = await db
+        .update(schema.categories)
+        .set({
+          name: name || existingCategory.name,
+          value: value || existingCategory.value,
+          description: description !== undefined ? description : existingCategory.description,
+          incident_type_id: incident_type_id || existingCategory.incident_type_id,
+          is_active: is_active !== undefined ? is_active : existingCategory.is_active,
+          updated_at: new Date(),
+        })
+        .where(eq(schema.categories.id, categoryId))
+        .returning();
+
+      res.json(updatedCategory);
+    } catch (error) {
+      console.error("Error updating category:", error);
+      res.status(500).json({ message: "Falha ao atualizar categoria" });
+    }
+  });
+
+  // DELETE /api/categories/:id - Excluir categoria
+  router.delete("/categories/:id", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const categoryId = parseInt(req.params.id);
+      if (isNaN(categoryId)) {
+        return res.status(400).json({ message: "ID de categoria inválido" });
+      }
+
+      const userRole = req.session?.userRole as string;
+      const sessionCompanyId = req.session.companyId;
+
+      // Buscar categoria existente
+      const [existingCategory] = await db
+        .select()
+        .from(schema.categories)
+        .where(eq(schema.categories.id, categoryId));
+
+      if (!existingCategory) {
+        return res.status(404).json({ message: "Categoria não encontrada" });
+      }
+
+      // Verificar permissões
+      if (userRole !== 'admin') {
+        if (existingCategory.company_id !== sessionCompanyId) {
+          return res.status(403).json({ message: "Acesso negado" });
+        }
+      }
+
+      // Verificar se há tickets vinculados à categoria
+      const [ticketLink] = await db
+        .select({ count: sql<number>`count(*)`.mapWith(Number) })
+        .from(schema.tickets)
+        .where(eq(schema.tickets.category_id, categoryId));
+
+      if (ticketLink && ticketLink.count > 0) {
+        return res.status(400).json({ message: "Categoria não pode ser excluída pois está vinculada a chamados existentes" });
+      }
+
+      await db
+        .delete(schema.categories)
+        .where(eq(schema.categories.id, categoryId));
+
+      res.json({ message: "Categoria excluída com sucesso" });
+    } catch (error) {
+      console.error("Error deleting category:", error);
+      res.status(500).json({ message: "Falha ao excluir categoria" });
+    }
+  });
+
   // --- ROTAS DE SLA DEFINITIONS ---
   router.get("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support', 'customer']), async (req: Request, res: Response) => {
     let effectiveCompanyId: number | undefined = undefined; // Inicializada e tipo ajustado
@@ -4775,7 +5146,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Estruturar a resposta para ser facilmente consumida pelo frontend
       // (ex: um objeto com prioridades como chaves)
       const slaSettings: Record<string, { response_time_hours?: number, resolution_time_hours?: number }> = {};
-      const priorities = schema.ticketPriorityEnum.enumValues; // ['low', 'medium', 'high', 'critical']
+      
+      // Usar prioridades dinâmicas ao invés de enum fixo
+      const allPriorities = [...new Set(slaRules.map(r => r.priority))];
+      // Fallback para prioridades padrão se não houver regras
+      const priorities = allPriorities.length > 0 ? allPriorities : ['BAIXA', 'MÉDIA', 'ALTA', 'CRÍTICA'];
 
       priorities.forEach(prio => {
         const rule = slaRules.find(r => r.priority === prio);
@@ -4858,7 +5233,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(400).json({ message: "Formato inválido. 'settings' deve ser um objeto com as prioridades." });
       }
 
-      const priorities = schema.ticketPriorityEnum.enumValues;
+      // Usar prioridades dinâmicas ao invés de enum fixo
+      const priorities = Object.keys(settings);
       const results: Array<any> = []; // Tipagem mais explícita para results
 
       await db.transaction(async (tx) => {
@@ -4868,7 +5244,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           const existingRule = await tx.query.slaDefinitions.findFirst({
             where: and(
               eq(schema.slaDefinitions.company_id, effectiveCompanyId as number), // Cast para number aqui, pois já validamos
-              eq(schema.slaDefinitions.priority, priority as typeof schema.ticketPriorityEnum.enumValues[number])
+              eq(schema.slaDefinitions.priority, priority)
             )
           });
 
@@ -4902,7 +5278,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
               opResult = await tx.insert(schema.slaDefinitions)
                 .values({
                   company_id: effectiveCompanyId as number, // Cast para number
-                  priority: priority as typeof schema.ticketPriorityEnum.enumValues[number],
+                  priority: priority, // Agora TEXT aceita qualquer string
                   response_time_hours: response_time_hours,
                   resolution_time_hours: resolution_time_hours,
                   created_at: new Date(),
@@ -5299,7 +5675,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // --- ROTAS DE PRIORIDADES FLEXÍVEIS ---
   
   // Listar prioridades de um departamento
-  router.get("/departments/:departmentId/priorities", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support']), async (req: Request, res: Response) => {
+  router.get("/departments/:departmentId/priorities", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support', 'customer']), async (req: Request, res: Response) => {
     try {
       const { getDepartmentPriorities } = await import('./api/priorities');
       await getDepartmentPriorities(req, res);
@@ -5761,6 +6137,20 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   
   // Resolver SLA para um ticket
   router.post("/sla/resolve", authRequired, resolveSLA);
+router.get("/sla/resolve", authRequired, async (req, res) => {
+  // Suporte para GET com query parameters (compatibilidade)
+  const { companyId, departmentId, incidentTypeId, priority } = req.query;
+  
+  // Converter para body format e chamar a função original
+  req.body = {
+    companyId: parseInt(companyId as string),
+    departmentId: parseInt(departmentId as string),
+    incidentTypeId: parseInt(incidentTypeId as string),
+    priority: priority as string
+  };
+  
+  return resolveSLA(req, res);
+});
   
   // Estatísticas do cache de SLA (apenas admins)
   router.get("/sla/cache/stats", authRequired, adminRequired, getCacheStats);

@@ -15,6 +15,20 @@ export interface NormalizedPriority {
   isDefault?: boolean;
 }
 
+/**
+ * Converte peso de prioridade para valor legado
+ */
+function convertWeightToLegacy(weight: number): string {
+  const mapping: Record<number, string> = {
+    1: 'low',
+    2: 'medium', 
+    3: 'high',
+    4: 'critical'
+  };
+  
+  return mapping[weight] || 'medium';
+}
+
 // Prioridades padrão do sistema legado
 const DEFAULT_LEGACY_PRIORITIES: NormalizedPriority[] = [
   {
@@ -64,20 +78,36 @@ export function usePriorities(departmentId?: number) {
   return useQuery({
     queryKey: ['priorities', departmentId, user?.companyId],
     queryFn: async () => {
-      if (!user?.companyId || !departmentId) return [];
+      if (!departmentId) return [];
       
-      const response = await fetch(`/api/department-priorities?company_id=${user.companyId}&department_id=${departmentId}`);
+      const response = await fetch(`/api/departments/${departmentId}/priorities`);
       if (!response.ok) {
+        // Se não conseguir carregar prioridades customizadas, retorna prioridades padrão para customers
+        if (user?.role === 'customer') {
+          return DEFAULT_LEGACY_PRIORITIES;
+        }
         throw new Error('Erro ao carregar prioridades');
       }
       
-      const priorities = await response.json();
+      const result = await response.json();
       
-      // Se não há prioridades customizadas, retorna lista vazia
-      // Isso fará com que o componente mostre apenas o botão "Criar Padrão"
-      return priorities || [];
+      // Se usar prioridades padrão do sistema, mapear para formato normalizado
+      if (result.data?.isDefault || !result.data?.priorities?.length) {
+        return DEFAULT_LEGACY_PRIORITIES;
+      }
+      
+      // Converter prioridades customizadas para formato normalizado
+      return result.data.priorities.map((p: DepartmentPriority) => ({
+        id: p.id,
+        name: p.name,
+        value: p.name.toLowerCase(),
+        weight: p.weight,
+        color: p.color,
+        legacyValue: convertWeightToLegacy(p.weight),
+        isDefault: false
+      }));
     },
-    enabled: !!user?.companyId && !!departmentId,
+    enabled: !!departmentId,
     staleTime: queryConfigs.static.staleTime,
     gcTime: queryConfigs.static.gcTime,
   });
@@ -98,20 +128,6 @@ export function useAllPriorities() {
     },
     staleTime: 5 * 60 * 1000,
   });
-}
-
-/**
- * Converte peso de prioridade para valor legado
- */
-function convertWeightToLegacy(weight: number): string {
-  const mapping: Record<number, string> = {
-    1: 'low',
-    2: 'medium', 
-    3: 'high',
-    4: 'critical'
-  };
-  
-  return mapping[weight] || 'medium';
 }
 
 /**

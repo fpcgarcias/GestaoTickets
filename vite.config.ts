@@ -119,14 +119,18 @@ export default defineConfig({
       overlay: false,
       port: 24678,
       host: '0.0.0.0',
-      clientPort: process.env.NODE_ENV === 'development' ? 24678 : undefined
     },
     fs: {
       strict: false
     },
     host: '0.0.0.0',
     port: 5173,
-    cors: true
+    cors: {
+      origin: true,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    }
   },
   optimizeDeps: {
     include: [

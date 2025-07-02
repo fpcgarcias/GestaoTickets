@@ -18,6 +18,8 @@ interface SLAIndicatorProps {
   firstResponseAt?: string;
 }
 
+
+
 export const SLAIndicator: React.FC<SLAIndicatorProps> = ({ 
   ticketCreatedAt, 
   ticketPriority,
@@ -135,33 +137,48 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
       let resolutionTimeHours: number;
       
       if (slaSettingsData && typeof slaSettingsData === 'object' && 'settings' in slaSettingsData) {
-        // Formato novo da API
-        const slaSetting = (slaSettingsData as any).settings[ticketPriority];
+        // Formato novo da API - procurar por match case-insensitive
+        const settings = (slaSettingsData as any).settings;
+        const slaSetting = Object.keys(settings).reduce((found: any, key) => {
+          if (found) return found;
+          return key.toLowerCase() === ticketPriority.toLowerCase() ? settings[key] : null;
+        }, null as any);
+        
         if (!slaSetting || !slaSetting.resolution_time_hours) {
           // Se não encontrar configuração específica, usar valores padrão baseados na prioridade
           const defaultSLAs = {
             'critical': 4,
             'high': 8, 
             'medium': 24,
-            'low': 48
+            'low': 48,
+            'crítica': 4,
+            'alta': 8,
+            'média': 24,
+            'baixa': 48
           };
-          resolutionTimeHours = defaultSLAs[ticketPriority as keyof typeof defaultSLAs] || 24;
+          const priorityKey = ticketPriority.toLowerCase();
+          resolutionTimeHours = defaultSLAs[priorityKey as keyof typeof defaultSLAs] || 24;
         } else {
           resolutionTimeHours = slaSetting.resolution_time_hours;
         }
       } else {
         // Formato antigo (array)
         const slaSettings = Array.isArray(slaSettingsData) ? slaSettingsData : [];
-        const slaSetting = slaSettings.find((s: any) => s.priority === ticketPriority);
+        const slaSetting = slaSettings.find((s: any) => s.priority?.toLowerCase() === ticketPriority.toLowerCase());
         if (!slaSetting) {
           // Se não encontrar configuração específica, usar valores padrão baseados na prioridade
           const defaultSLAs = {
             'critical': 4,
             'high': 8, 
             'medium': 24,
-            'low': 48
+            'low': 48,
+            'crítica': 4,
+            'alta': 8,
+            'média': 24,
+            'baixa': 48
           };
-          resolutionTimeHours = defaultSLAs[ticketPriority as keyof typeof defaultSLAs] || 24;
+          const priorityKey = ticketPriority.toLowerCase();
+          resolutionTimeHours = defaultSLAs[priorityKey as keyof typeof defaultSLAs] || 24;
         } else {
           resolutionTimeHours = slaSetting.resolutionTimeHours || slaSetting.resolution_time_hours || 24;
         }

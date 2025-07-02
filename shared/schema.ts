@@ -15,7 +15,8 @@ export const ticketStatusEnum = pgEnum('ticket_status', [
   'reopened',
   'resolved'
 ]);
-export const ticketPriorityEnum = pgEnum('ticket_priority', ['low', 'medium', 'high', 'critical']);
+// ticketPriorityEnum removido - agora usando TEXT para prioridades dinâmicas
+// export const ticketPriorityEnum = pgEnum('ticket_priority', ['low', 'medium', 'high', 'critical']);
 export const userRoleEnum = pgEnum('user_role', [
   'admin',          // Acesso total ao sistema, multiempresa
   'customer',       // Cliente da empresa
@@ -121,7 +122,7 @@ export const officialDepartments = pgTable("official_departments", {
 // SLA definitions (ajustado para snake_case)
 export const slaDefinitions = pgTable("sla_definitions", {
   id: serial("id").primaryKey(),
-  priority: ticketPriorityEnum("priority").notNull(),
+  priority: text("priority").notNull(), // TEXT para prioridades dinâmicas
   response_time_hours: integer("response_time_hours").notNull(),
   resolution_time_hours: integer("resolution_time_hours").notNull(),
   company_id: integer("company_id").references(() => companies.id),
@@ -136,10 +137,11 @@ export const tickets = pgTable("tickets", {
   title: text("title").notNull(),
   description: text("description").notNull(),
   status: ticketStatusEnum("status").notNull().default('new'),
-  priority: ticketPriorityEnum("priority").notNull().default('medium'),
+  priority: text("priority").notNull().default('MÉDIA'), // TEXT para prioridades dinâmicas
   type: text("type").notNull(),
   incident_type_id: integer("incident_type_id"),
   department_id: integer("department_id"),
+  category_id: integer("category_id"),
   customer_id: integer("customer_id").references(() => customers.id),
   customer_email: text("customer_email").notNull(),
   assigned_to_id: integer("assigned_to_id").references(() => officials.id),
@@ -171,8 +173,8 @@ export const ticketStatusHistory = pgTable("ticket_status_history", {
   new_status: ticketStatusEnum("new_status"),
   
   // Campos para mudanças de prioridade (opcionais - usados quando change_type = 'priority')
-  old_priority: ticketPriorityEnum("old_priority"),
-  new_priority: ticketPriorityEnum("new_priority"),
+  old_priority: text("old_priority"), // TEXT para prioridades dinâmicas
+  new_priority: text("new_priority"), // TEXT para prioridades dinâmicas
   
   // Tipo de mudança: 'status' ou 'priority'
   change_type: text("change_type").notNull().default('status'),
@@ -202,6 +204,19 @@ export const incidentTypes = pgTable("incident_types", {
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
   is_active: boolean("is_active").default(true).notNull(),
+});
+
+// Nova tabela para categorias (terceiro nível da hierarquia)
+export const categories = pgTable("categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  value: text("value").notNull(),
+  description: text("description"),
+  incident_type_id: integer("incident_type_id").references(() => incidentTypes.id, { onDelete: 'cascade' }),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }),
+  is_active: boolean("is_active").default(true).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // Tipos de chamado por departamento
@@ -335,7 +350,10 @@ export const aiConfigurations = pgTable("ai_configurations", {
   max_retries: integer("max_retries").default(3),
   
   // Configurações de fallback
-  fallback_priority: ticketPriorityEnum("fallback_priority").default("medium"),
+  fallback_priority: text("fallback_priority").default("MÉDIA"), // TEXT para prioridades dinâmicas
+  
+  // Departamento específico (NULL = configuração global)
+  department_id: integer("department_id").references(() => departments.id, { onDelete: "cascade" }),
   
   // Status
   is_active: boolean("is_active").default(true).notNull(),
@@ -359,7 +377,7 @@ export const aiAnalysisHistory = pgTable("ai_analysis_history", {
   input_description: text("input_description").notNull(),
   
   // Output da IA
-  suggested_priority: ticketPriorityEnum("suggested_priority").notNull(),
+  suggested_priority: text("suggested_priority").notNull(), // Aceita prioridades dinâmicas em português
   ai_response_raw: text("ai_response_raw"), // Resposta completa da IA
   ai_justification: text("ai_justification"), // Justificativa extraída
   
@@ -609,6 +627,11 @@ export type IncidentType = typeof incidentTypes.$inferSelect & {
   company?: Partial<Company>;
 };
 
+export type Category = typeof categories.$inferSelect & {
+  company?: Partial<Company>;
+  incident_type?: Partial<IncidentType>;
+};
+
 export type Department = typeof departments.$inferSelect & {
   company?: Partial<Company>;
 };
@@ -773,6 +796,10 @@ export const aiConfigurationsRelations = relations(aiConfigurations, ({ one, man
   updated_by: one(users, {
     fields: [aiConfigurations.updated_by_id],
     references: [users.id],
+  }),
+  department: one(departments, {
+    fields: [aiConfigurations.department_id],
+    references: [departments.id],
   }),
   analysisHistory: many(aiAnalysisHistory),
 }));

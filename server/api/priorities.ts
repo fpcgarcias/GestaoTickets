@@ -44,18 +44,36 @@ export async function getDepartmentPriorities(req: Request, res: Response) {
     let accessCompanyId = department.company_id;
     const userId = req.session.userId;
     
-    if (!userRole || !userCompanyId || !userId) {
+    if (!userRole || !userId) {
       return res.status(401).json({ 
         success: false, 
         message: 'Usuário não autenticado' 
       });
     }
 
-    if (userRole !== 'admin' && department.company_id !== userCompanyId) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Sem permissão para acessar este departamento' 
-      });
+    // Para customers, permitir acesso se for da mesma empresa
+    if (userRole === 'customer') {
+      // Customers podem acessar qualquer departamento da empresa (para criar tickets)
+      accessCompanyId = department.company_id;
+    } else {
+      // Para outros roles, verificar se tem companyId e se é da mesma empresa
+      if (!userCompanyId) {
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Usuário não tem empresa associada' 
+        });
+      }
+
+      if (userRole !== 'admin' && department.company_id !== userCompanyId) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Sem permissão para acessar este departamento' 
+        });
+      }
+      
+      if (userRole !== 'admin') {
+        accessCompanyId = userCompanyId;
+      }
     }
 
     // 🆕 Para support/supervisor: verificar se tem acesso ao departamento específico
@@ -128,7 +146,7 @@ export async function getDepartmentPriorities(req: Request, res: Response) {
 
     // Buscar prioridades com fallback
     const result = await priorityService.getDepartmentPriorities(
-      accessCompanyId, 
+      accessCompanyId || department.company_id, 
       departmentId
     );
 
@@ -231,7 +249,7 @@ export async function createDefaultPriorities(req: Request, res: Response) {
           .from(officialDepartments)
           .where(eq(officialDepartments.official_id, official.id));
 
-        let allowedDepartments = userDepartments.map(d => d.department);
+        let allowedDepartmentIds = userDepartments.map(d => d.department_id).filter(id => id !== null);
 
         // Incluir departamentos dos subordinados
         const subordinates = await db
@@ -241,19 +259,19 @@ export async function createDefaultPriorities(req: Request, res: Response) {
 
         for (const subordinate of subordinates) {
           const subordinateDepartments = await db
-            .select()
+            .select({ department_id: officialDepartments.department_id })
             .from(officialDepartments)
             .where(eq(officialDepartments.official_id, subordinate.id));
           
           subordinateDepartments.forEach(dept => {
-            if (!allowedDepartments.includes(dept.department)) {
-              allowedDepartments.push(dept.department);
+            if (dept.department_id && !allowedDepartmentIds.includes(dept.department_id)) {
+              allowedDepartmentIds.push(dept.department_id);
             }
           });
         }
 
         // Verificar se o departamento está na lista permitida
-        const hasAccess = allowedDepartments.includes(department.name);
+        const hasAccess = allowedDepartmentIds.includes(departmentId);
         if (!hasAccess) {
           return res.status(403).json({ 
             success: false, 
