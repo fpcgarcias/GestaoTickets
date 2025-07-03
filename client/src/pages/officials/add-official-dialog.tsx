@@ -147,32 +147,27 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     mutationFn: async (userData: any) => {
       console.log('Enviando dados para criar usuário de suporte:', JSON.stringify(userData, null, 2));
       
-      // Fazer a requisição manualmente para ter controle total da resposta
-      const fullUrl = `/api/support-users`.startsWith('http') ? `/api/support-users` : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5173'}/api/support-users`;
-      
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(userData)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.log('Resposta de erro completa do servidor:', JSON.stringify(errorData, null, 2));
-        console.log('Status da resposta:', response.status);
+      try {
+        const response = await apiRequest('POST', '/api/support-users', userData);
         
-        // Criar erro personalizado que preserva as propriedades extras
-        const error = new Error(errorData.message || errorData.error || 'Erro ao criar usuário e atendente') as any;
-        error.suggestion = errorData.suggestion;
-        error.existingUser = errorData.existingUser;
-        error.status = response.status;
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.log('Resposta de erro completa do servidor:', JSON.stringify(errorData, null, 2));
+          console.log('Status da resposta:', response.status);
+          
+          // Criar erro personalizado que preserva as propriedades extras
+          const error = new Error(errorData.message || errorData.error || 'Erro ao criar usuário e atendente') as any;
+          error.suggestion = errorData.suggestion;
+          error.existingUser = errorData.existingUser;
+          error.status = response.status;
+          throw error;
+        }
+        
+        return response.json();
+      } catch (error: any) {
+        console.log('Erro na requisição:', error);
         throw error;
       }
-      
-      return response.json();
     },
     onSuccess: (data) => {
       setSubmitting(false);
