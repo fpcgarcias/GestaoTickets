@@ -2800,7 +2800,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
 
   // Endpoint para criar usuários
-  router.post("/users", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+  router.post("/users", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       const { username, email, password, name, role, avatarUrl, company_id } = req.body;
       const userRole = req.session?.userRole as string;
@@ -2870,7 +2870,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Endpoint para criar usuário de suporte e atendente em uma única transação atômica
-  router.post("/support-users", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+  router.post("/support-users", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     // Importar e chamar o endpoint de criação integrada
     const { hashPassword } = await import('./utils/password');
     const { createSupportUserEndpoint } = await import('./endpoints/create-support-user');
@@ -3192,7 +3192,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
-  router.post("/settings/departments", authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+  router.post("/settings/departments", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       const departments = req.body;
       
