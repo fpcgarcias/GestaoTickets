@@ -781,7 +781,7 @@ const TicketTypeManagement: React.FC = () => {
               </div>
             )}
             
-            <div className="space-y-2">
+            <div className="flex items-center space-x-2">
               <Label htmlFor="is_active">Ativo</Label>
               <Switch
                 id="is_active"

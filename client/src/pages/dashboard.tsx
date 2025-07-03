@@ -259,17 +259,21 @@ export default function Dashboard() {
   // Processar dados de prioridade para incluir todas as prioridades (customizadas e padrão)
   const priorityData = Object.entries(ticketStats.byPriority)
     .map(([priority, count]) => {
-      // Mapear nomes de prioridade para exibição
+      // Mapear nomes de prioridade para exibição (considerando que vêm em lowercase do backend)
       const priorityNames: Record<string, string> = {
         low: 'Baixa',
         medium: 'Média',
         high: 'Alta',
         critical: 'Crítica',
+        baixa: 'Baixa',
+        média: 'Média',
+        alta: 'Alta',
+        crítica: 'Crítica',
         // Adicionar mapeamentos para prioridades customizadas se necessário
       };
       
       return {
-        name: priorityNames[priority] || priority.charAt(0).toUpperCase() + priority.slice(1),
+        name: priorityNames[priority.toLowerCase()] || priority.charAt(0).toUpperCase() + priority.slice(1),
         Qtde: count
       };
     })

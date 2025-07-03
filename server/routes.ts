@@ -5,7 +5,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertTicketSchema, insertTicketReplySchema, slaDefinitions, departments as departmentsSchema, userRoleEnum } from "@shared/schema";
-import { eq, desc, asc, isNull, sql, and, ne, or, inArray, ilike, type SQLWrapper } from "drizzle-orm";
+import { eq, desc, asc, isNull, sql, and, ne, or, inArray, ilike, not, type SQLWrapper } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import { db } from "./db";
 import { notificationService } from "./services/notification-service";

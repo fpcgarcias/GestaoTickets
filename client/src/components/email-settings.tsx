@@ -1450,11 +1450,12 @@ export default function EmailSettings() {
             </div>
 
             <div className="flex items-center space-x-2">
+              <Label htmlFor="template-active">Template Ativo</Label>
               <Switch
+                id="template-active"
                 checked={templateForm.is_active === true}
                 onCheckedChange={(checked) => setTemplateForm(prev => ({ ...prev, is_active: checked }))}
               />
-              <Label>Template Ativo</Label>
             </div>
           </div>
           <DialogFooter>

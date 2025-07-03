@@ -332,18 +332,20 @@ export default function CompaniesPage() {
                       <Label htmlFor="phone" className="text-right">Telefone</Label>
                       <Input id="phone" name="phone" value={formData.phone} onChange={handleInputChange} className="col-span-3" placeholder="(XX) XXXXX-XXXX"/>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="active">Ativo</Label>
-                      <Switch
-                        id="active"
-                        checked={formData.active}
-                        onCheckedChange={(checked) => 
-                          setFormData((prev) => ({
-                            ...prev,
-                            active: checked,
-                          }))
-                        }
-                      />
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="active" className="text-right">Ativo</Label>
+                      <div className="col-span-3">
+                        <Switch
+                          id="active"
+                          checked={formData.active}
+                          onCheckedChange={(checked) => 
+                            setFormData((prev) => ({
+                              ...prev,
+                              active: checked,
+                            }))
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
                   <DialogFooter>

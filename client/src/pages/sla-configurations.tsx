@@ -1406,12 +1406,12 @@ export default function SLAConfigurations() {
 
             {/* Status Ativo */}
             <div className="flex items-center space-x-2">
+              <Label htmlFor="is-active">Configuração ativa</Label>
               <Switch
                 id="is-active"
                 checked={formData.isActive}
                 onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isActive: checked }))}
               />
-              <Label htmlFor="is-active">Configuração ativa</Label>
             </div>
 
             {/* Validação visual */}

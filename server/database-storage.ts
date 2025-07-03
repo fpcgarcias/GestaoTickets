@@ -1073,9 +1073,10 @@ export class DatabaseStorage implements IStorage {
         const status = ticket.status || 'new';
         byStatus[status] = (byStatus[status] || 0) + 1;
         
-        // Processar prioridade - aceitar qualquer valor de prioridade
+        // Processar prioridade - normalizar para case-insensitive
         const priority = ticket.priority || 'medium';
-        byPriority[priority] = (byPriority[priority] || 0) + 1;
+        const normalizedPriority = priority.toLowerCase();
+        byPriority[normalizedPriority] = (byPriority[normalizedPriority] || 0) + 1;
       });
       
       return {
@@ -1120,9 +1121,10 @@ export class DatabaseStorage implements IStorage {
         const status = ticket.status || 'new';
         byStatus[status] = (byStatus[status] || 0) + 1;
         
-        // Processar prioridade - aceitar qualquer valor de prioridade
+        // Processar prioridade - normalizar para case-insensitive
         const priority = ticket.priority || 'medium';
-        byPriority[priority] = (byPriority[priority] || 0) + 1;
+        const normalizedPriority = priority.toLowerCase();
+        byPriority[normalizedPriority] = (byPriority[normalizedPriority] || 0) + 1;
       });
       
       return {

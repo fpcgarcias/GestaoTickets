@@ -80,16 +80,16 @@ export default function TicketsIndex() {
 
   // 🆕 Busca departamentos (filtrado por empresa automaticamente no backend)
   const { data: departmentsResponse, isLoading: isDepartmentsLoading } = useQuery({
-    queryKey: ['/api/departments'],
+    queryKey: ['/api/departments', { active_only: true }],
     queryFn: async () => {
-      const res = await fetch('/api/departments');
+      const res = await fetch('/api/departments?active_only=true');
       if (!res.ok) throw new Error('Erro ao carregar departamentos');
       return res.json();
     },
     enabled: !!user,
   });
 
-  const departments = departmentsResponse?.departments || [];
+  const departments = departmentsResponse?.departments || departmentsResponse || [];
 
   // Buscar prioridades do departamento selecionado
   // Se nenhum departamento selecionado, pega prioridades padrão (sem departmentId)
@@ -407,7 +407,7 @@ export default function TicketsIndex() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as Prioridades</SelectItem>
-              {availablePriorities.map((priority) => (
+              {availablePriorities.map((priority: any) => (
                 <SelectItem key={priority.id} value={priority.value}>
                   <div className="flex items-center space-x-2">
                     <div 

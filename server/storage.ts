@@ -741,7 +741,24 @@ export class MemStorage implements IStorage {
     
     tickets.forEach(ticket => {
       byStatus[ticket.status as keyof typeof byStatus]++;
-      byPriority[ticket.priority as keyof typeof byPriority]++;
+      
+      // Normalizar prioridade para case-insensitive
+      const normalizedPriority = ticket.priority.toLowerCase();
+      
+      // Mapear prioridades normalizadas para as chaves do objeto
+      const priorityMapping: Record<string, keyof typeof byPriority> = {
+        'baixa': 'low',
+        'low': 'low',
+        'média': 'medium',
+        'medium': 'medium',
+        'alta': 'high',
+        'high': 'high',
+        'crítica': 'critical',
+        'critical': 'critical'
+      };
+      
+      const mappedPriority = priorityMapping[normalizedPriority] || 'medium';
+      byPriority[mappedPriority]++;
     });
     
     return {
@@ -851,7 +868,10 @@ export class MemStorage implements IStorage {
     const stats = { total: userTickets.length, byStatus: {}, byPriority: {} };
     userTickets.forEach(ticket => {
       stats.byStatus[ticket.status] = (stats.byStatus[ticket.status] || 0) + 1;
-      stats.byPriority[ticket.priority] = (stats.byPriority[ticket.priority] || 0) + 1;
+      
+      // Normalizar prioridade para case-insensitive
+      const normalizedPriority = ticket.priority.toLowerCase();
+      stats.byPriority[normalizedPriority] = (stats.byPriority[normalizedPriority] || 0) + 1;
     });
     return stats;
   }

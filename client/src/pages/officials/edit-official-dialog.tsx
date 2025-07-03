@@ -522,18 +522,22 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="isActive">Ativo</Label>
-              <Switch
-                id="isActive"
-                checked={formData.isActive}
-                onCheckedChange={(checked: boolean) => 
-                  setFormData((prev) => ({
-                    ...prev,
-                    isActive: checked,
-                  }))
-                }
-              />
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="isActive" className="text-right">
+                Ativo
+              </Label>
+              <div className="col-span-3">
+                <Switch
+                  id="isActive"
+                  checked={formData.isActive}
+                  onCheckedChange={(checked: boolean) => 
+                    setFormData((prev) => ({
+                      ...prev,
+                      isActive: checked,
+                    }))
+                  }
+                />
+              </div>
             </div>
 
             {/* Botão para mostrar/ocultar formulário de alteração de senha */}

@@ -229,19 +229,29 @@ export const TicketForm = () => {
 
   // Buscar dados de departamentos
   const { data: departmentsData } = useQuery<{departments: Department[], pagination: any}>({
-    queryKey: ["/api/departments"],
+    queryKey: ["/api/departments", { active_only: true }],
+    queryFn: async () => {
+      const res = await fetch('/api/departments?active_only=true');
+      if (!res.ok) throw new Error('Erro ao carregar departamentos');
+      return res.json();
+    },
   });
 
   // Garantir que departments é um array
-  const departments = Array.isArray(departmentsData?.departments) ? departmentsData.departments : [];
+  const departments = Array.isArray(departmentsData?.departments) ? departmentsData.departments : Array.isArray(departmentsData) ? departmentsData : [];
 
   // Buscar dados de tipos de incidentes
   const { data: incidentTypesData } = useQuery<{incidentTypes: IncidentType[], pagination: any}>({
-    queryKey: ["/api/incident-types"],
+    queryKey: ["/api/incident-types", { active_only: true }],
+    queryFn: async () => {
+      const res = await fetch('/api/incident-types?active_only=true');
+      if (!res.ok) throw new Error('Erro ao carregar tipos de incidente');
+      return res.json();
+    },
   });
 
   // Garantir que incidentTypes é um array
-  const incidentTypes = Array.isArray(incidentTypesData?.incidentTypes) ? incidentTypesData.incidentTypes : [];
+  const incidentTypes = Array.isArray(incidentTypesData?.incidentTypes) ? incidentTypesData.incidentTypes : Array.isArray(incidentTypesData) ? incidentTypesData : [];
 
   // Filtrar tipos de incidentes pelo departamento selecionado
   const selectedDepartmentId = form.watch('department_id');
