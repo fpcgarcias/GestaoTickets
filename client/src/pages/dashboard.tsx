@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusDot } from '@/components/tickets/status-badge';
 import { TimeMetricCard } from '@/components/ui/time-metric-card';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
-import { Clock, CheckCircle2, Users, Calendar } from 'lucide-react';
+import { Clock, CheckCircle2, Users, Calendar, MoreHorizontal } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -33,12 +33,14 @@ interface TicketStats {
     new: number;
     ongoing: number;
     resolved: number;
+    [key: string]: number; // Para outros status que possam existir
   };
   byPriority: {
     low: number;
     medium: number;
     high: number;
     critical: number;
+    [key: string]: number; // Para prioridades customizadas
   };
 }
 
@@ -239,6 +241,11 @@ export default function Dashboard() {
   };
   const recentTickets = Array.isArray(recentTicketsData) ? recentTicketsData : [];
 
+  // Calcular chamados com outros status (qualquer status que não seja new, ongoing ou resolved)
+  const otherStatusCount = Object.entries(ticketStats.byStatus)
+    .filter(([status]) => !['new', 'ongoing', 'resolved'].includes(status))
+    .reduce((sum, [_, count]) => sum + count, 0);
+
   // Dados de status transformados para português
   const statusData = [
     { name: 'Novos', value: ticketStats.byStatus.new, color: '#F59E0B' },
@@ -249,12 +256,25 @@ export default function Dashboard() {
   // Filtrar dados para o gráfico (apenas status com valor > 0)
   const statusDataForChart = statusData.filter(item => item.value > 0);
 
-  const priorityData = [
-    { name: 'Baixa', Qtde: ticketStats.byPriority.low }, // Acesso direto agora é seguro
-    { name: 'Média', Qtde: ticketStats.byPriority.medium }, // Acesso direto agora é seguro
-    { name: 'Alta', Qtde: ticketStats.byPriority.high }, // Acesso direto agora é seguro
-    { name: 'Crítica', Qtde: ticketStats.byPriority.critical }, // Acesso direto agora é seguro
-  ];
+  // Processar dados de prioridade para incluir todas as prioridades (customizadas e padrão)
+  const priorityData = Object.entries(ticketStats.byPriority)
+    .map(([priority, count]) => {
+      // Mapear nomes de prioridade para exibição
+      const priorityNames: Record<string, string> = {
+        low: 'Baixa',
+        medium: 'Média',
+        high: 'Alta',
+        critical: 'Crítica',
+        // Adicionar mapeamentos para prioridades customizadas se necessário
+      };
+      
+      return {
+        name: priorityNames[priority] || priority.charAt(0).toUpperCase() + priority.slice(1),
+        Qtde: count
+      };
+    })
+    .filter(item => item.Qtde > 0) // Filtrar apenas prioridades com tickets
+    .sort((a, b) => b.Qtde - a.Qtde); // Ordenar por quantidade decrescente
 
   return (
     <div>
@@ -353,7 +373,7 @@ export default function Dashboard() {
       
 
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
         <StatCard 
           title="Total de Chamados" 
           value={ticketStats.total} // Acesso direto agora é seguro
@@ -377,13 +397,19 @@ export default function Dashboard() {
           isLoading={isStatsLoading}
           status={TICKET_STATUS.RESOLVED as 'resolved'} // Cast para o tipo literal
         />
+        <StatCard 
+          title="Outros Status" 
+          value={otherStatusCount}
+          isLoading={isStatsLoading}
+          icon="other" // Ícone especial para outros status
+        />
       </div>
       
       {/* Nova seção para métricas de tempo */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <TimeMetricCard
-          title="Tempo Médio de Primeira Resposta"
-          description="Tempo médio entre a criação e primeira resposta dos chamados"
+          title="Tempo Médio de Início de Atendimento"
+          description="Tempo médio entre a criação e início de atendimento dos chamados"
           value={avgFirstResponseData?.averageTime || 0}
           isLoading={isFirstResponseLoading}
           icon={<Clock className="h-4 w-4 text-blue-500" />}
@@ -483,7 +509,7 @@ export default function Dashboard() {
           <CardContent>
             {isStatsLoading ? (
               <Skeleton className="w-full h-72" />
-            ) : (
+            ) : priorityData.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart
                   data={priorityData}
@@ -501,6 +527,13 @@ export default function Dashboard() {
                   <Bar dataKey="Qtde" fill="#8884d8" />
                 </BarChart>
               </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-72">
+                <div className="text-center">
+                  <p className="text-gray-500 mb-2">Nenhum chamado cadastrado</p>
+                  <p className="text-sm text-gray-400">Os dados aparecerão aqui quando houver chamados no sistema</p>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -553,14 +586,16 @@ interface StatCardProps {
   value: number;
   isLoading: boolean;
   status?: 'new' | 'ongoing' | 'resolved'; // Tipo mais específico para status
+  icon?: string; // Adicionar suporte para ícone customizado
 }
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, isLoading, status }) => {
+const StatCard: React.FC<StatCardProps> = ({ title, value, isLoading, status, icon }) => {
   return (
     <Card>
       <CardContent className="p-6">
         <div className="flex items-center mb-2">
           {status && <StatusDot status={status} className="mr-2" />}
+          {icon === 'other' && <MoreHorizontal className="h-4 w-4 mr-2 text-gray-500" />}
           <h3 className="font-medium">{title}</h3>
         </div>
         {isLoading ? (

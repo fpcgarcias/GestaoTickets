@@ -1063,24 +1063,19 @@ export class DatabaseStorage implements IStorage {
   // Stats and dashboard operations
   async getTicketStats(): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
     try {
-      const allTickets = await db.select().from(tickets);
+      const allTickets = await this.getTickets();
       
-      const byStatus = {
-        new: 0,
-        ongoing: 0,
-        resolved: 0,
-      };
-      
-      const byPriority = {
-        low: 0,
-        medium: 0,
-        high: 0,
-        critical: 0,
-      };
+      const byStatus: Record<string, number> = {};
+      const byPriority: Record<string, number> = {};
       
       allTickets.forEach(ticket => {
-        byStatus[ticket.status as keyof typeof byStatus] += 1;
-        byPriority[ticket.priority as keyof typeof byPriority] += 1;
+        // Processar status
+        const status = ticket.status || 'new';
+        byStatus[status] = (byStatus[status] || 0) + 1;
+        
+        // Processar prioridade - aceitar qualquer valor de prioridade
+        const priority = ticket.priority || 'medium';
+        byPriority[priority] = (byPriority[priority] || 0) + 1;
       });
       
       return {
@@ -1092,8 +1087,8 @@ export class DatabaseStorage implements IStorage {
       console.error('Erro ao obter estatísticas de tickets:', error);
       return {
         total: 0,
-        byStatus: { new: 0, ongoing: 0, resolved: 0 },
-        byPriority: { low: 0, medium: 0, high: 0, critical: 0 }
+        byStatus: {},
+        byPriority: {}
       };
     }
   }
@@ -1117,22 +1112,17 @@ export class DatabaseStorage implements IStorage {
         });
       }
       
-      const byStatus = {
-        new: 0,
-        ongoing: 0,
-        resolved: 0,
-      };
-      
-      const byPriority = {
-        low: 0,
-        medium: 0,
-        high: 0,
-        critical: 0,
-      };
+      const byStatus: Record<string, number> = {};
+      const byPriority: Record<string, number> = {};
       
       userTickets.forEach(ticket => {
-        byStatus[ticket.status as keyof typeof byStatus] += 1;
-        byPriority[ticket.priority as keyof typeof byPriority] += 1;
+        // Processar status
+        const status = ticket.status || 'new';
+        byStatus[status] = (byStatus[status] || 0) + 1;
+        
+        // Processar prioridade - aceitar qualquer valor de prioridade
+        const priority = ticket.priority || 'medium';
+        byPriority[priority] = (byPriority[priority] || 0) + 1;
       });
       
       return {
@@ -1144,8 +1134,8 @@ export class DatabaseStorage implements IStorage {
       console.error('Erro ao obter estatísticas de tickets por papel do usuário:', error);
       return {
         total: 0,
-        byStatus: { new: 0, ongoing: 0, resolved: 0 },
-        byPriority: { low: 0, medium: 0, high: 0, critical: 0 }
+        byStatus: {},
+        byPriority: {}
       };
     }
   }

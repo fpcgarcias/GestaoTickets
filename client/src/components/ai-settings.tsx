@@ -552,10 +552,10 @@ function DepartmentAiConfiguration() {
   });
 
   const handleSubmit = () => {
-    if (!formData.name || !formData.api_key || !formData.department_id) {
+    if (!formData.name || !formData.api_key) {
       toast({
         title: "Erro",
-        description: "Nome, API Key e Departamento são obrigatórios",
+        description: "Nome e API Key são obrigatórios",
         variant: "destructive"
       });
       return;
@@ -1124,7 +1124,11 @@ function AdminAiConfiguration() {
 
   const handleSubmit = () => {
     if (!formData.name || !formData.api_key) {
-      toast.error("Nome e API Key são obrigatórios");
+      toast({
+        title: "Erro",
+        description: "Nome e API Key são obrigatórios",
+        variant: "destructive"
+      });
       return;
     }
     
@@ -1253,6 +1257,7 @@ function AdminAiConfiguration() {
                   isTestLoading={isTestLoading}
                   showApiKey={showApiKey}
                   setShowApiKey={setShowApiKey}
+                  departments={departments}
                 />
               </DialogContent>
             </Dialog>
@@ -1291,7 +1296,12 @@ function AdminAiConfiguration() {
       </Card>
 
       {/* Dialog de edição */}
-      <Dialog open={editingConfig !== null} onOpenChange={setEditingConfig}>
+      <Dialog open={editingConfig !== null} onOpenChange={(open) => {
+        if (!open) {
+          setEditingConfig(null);
+          resetForm();
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Configuração de IA</DialogTitle>
@@ -1312,6 +1322,7 @@ function AdminAiConfiguration() {
             showApiKey={showApiKey}
             setShowApiKey={setShowApiKey}
             isEditing={true}
+            departments={departments}
           />
         </DialogContent>
       </Dialog>
@@ -1333,6 +1344,7 @@ interface ConfigurationFormProps {
   showApiKey: boolean;
   setShowApiKey: React.Dispatch<React.SetStateAction<boolean>>;
   isEditing?: boolean;
+  departments?: Department[];
 }
 
 function ConfigurationForm({ 
@@ -1347,7 +1359,8 @@ function ConfigurationForm({
   isTestLoading,
   showApiKey,
   setShowApiKey,
-  isEditing = false 
+  isEditing = false,
+  departments = []
 }: ConfigurationFormProps) {
   return (
     <div className="space-y-4">
