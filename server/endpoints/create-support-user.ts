@@ -98,16 +98,18 @@ export async function createSupportUserEndpoint(
     }
     
     if (existingUser && shouldLinkUser) {
-      // Verificar se o usuário existente pode ser vinculado como atendente
-      const allowedRoles = ['support', 'admin', 'company_admin', 'manager', 'supervisor'];
-      if (!allowedRoles.includes(existingUser.role)) {
-        // Permitir vincular usuários com roles administrativos/de suporte
-        return res.status(400).json({ 
-          message: `Este usuário não pode ser vinculado como atendente. Apenas usuários com role ${allowedRoles.join(', ')} podem ser atendentes.` 
-        });
-      }
-      
+      // Remover verificação de role - permitir vincular qualquer usuário como atendente
       console.log(`Vinculando usuário existente (ID: ${existingUser.id}, role: ${existingUser.role}) como atendente`);
+      
+      // Atualizar o role do usuário para 'support' ao vincular como atendente
+      const updatedUser = await storage.updateUser(existingUser.id, { 
+        role: 'support',
+        company_id: effectiveCompanyId 
+      });
+      if (updatedUser) {
+        existingUser.role = 'support';
+        console.log(`Role do usuário atualizado para 'support'`);
+      }
     } else if (!existingUser && shouldLinkUser) {
       // Se solicitou vincular mas o usuário não existe, retornar erro
       return res.status(404).json({ message: "Usuário não encontrado para vinculação" });
@@ -281,11 +283,21 @@ export async function createSupportUserEndpoint(
             continue; // Pular este departamento
           }
           
-          await storage.addOfficialDepartment({
-            official_id: official.id,
-            department: departmentValue,
-          });
-          console.log(`Departamento '${departmentValue}' adicionado ao atendente ID: ${official.id}`);
+          // Buscar o ID do departamento pelo nome
+          const [deptRecord] = await db
+            .select({ id: departmentsSchema.id })
+            .from(departmentsSchema)
+            .where(eq(departmentsSchema.name, departmentValue));
+            
+          if (deptRecord) {
+            await storage.addOfficialDepartment({
+              official_id: official.id,
+              department_id: deptRecord.id
+            });
+            console.log(`Departamento '${departmentValue}' (ID: ${deptRecord.id}) adicionado ao atendente ID: ${official.id}`);
+          } else {
+            console.warn(`Departamento '${departmentValue}' não encontrado no banco de dados`);
+          }
         }
       }
       
