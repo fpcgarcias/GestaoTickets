@@ -145,29 +145,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
 
   const createSupportUserMutation = useMutation({
     mutationFn: async (userData: any) => {
-      console.log('Enviando dados para criar usuário de suporte:', JSON.stringify(userData, null, 2));
-      
-      try {
-        const response = await apiRequest('POST', '/api/support-users', userData);
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.log('Resposta de erro completa do servidor:', JSON.stringify(errorData, null, 2));
-          console.log('Status da resposta:', response.status);
-          
-          // Criar erro personalizado que preserva as propriedades extras
-          const error = new Error(errorData.message || errorData.error || 'Erro ao criar usuário e atendente') as any;
-          error.suggestion = errorData.suggestion;
-          error.existingUser = errorData.existingUser;
-          error.status = response.status;
-          throw error;
-        }
-        
-        return response.json();
-      } catch (error: any) {
-        console.log('Erro na requisição:', error);
-        throw error;
-      }
+      const response = await apiRequest('POST', '/api/support-users', userData);
+      return response.json();
     },
     onSuccess: (data) => {
       setSubmitting(false);
@@ -220,17 +199,10 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     onError: (error: any) => {
       setSubmitting(false);
       
-      console.log('Erro capturado:', error);
-      console.log('Error message:', error.message);
-      console.log('Error suggestion:', error.suggestion);
-      console.log('Error existingUser:', error.existingUser);
-      console.log('Error status:', error.status);
-      
       // Verificar se é um erro de usuário existente
       if ((error.message === "Usuário já existe" && error.suggestion === "link_existing") || 
           (error.status === 409 && error.existingUser) ||
           (error.message && error.message.includes("já existe") && error.existingUser)) {
-        console.log('Detectado usuário existente, mostrando opção de vinculação');
         setExistingUser(error.existingUser);
         setShowLinkOption(true);
         

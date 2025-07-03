@@ -21,28 +21,50 @@ export async function apiRequest(
     requestConfig.body = JSON.stringify(data);
   }
 
-  console.log(`🌐 [API] ${method} ${fullUrl}`);
+  // Logs apenas em desenvolvimento
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`🌐 [API] ${method} ${fullUrl}`);
+  }
   
   const res = await fetch(fullUrl, requestConfig);
   
   if (!res.ok) {
     const errorText = await res.text();
-    let errorMessage = `${res.status}: ${res.statusText}`;
+    let errorData: any = null;
     
     try {
-      const errorData = JSON.parse(errorText);
-      if (errorData.message) {
-        errorMessage = errorData.message;
-      }
+      errorData = JSON.parse(errorText);
     } catch (parseError) {
-      // Se não conseguir fazer parse, usar a mensagem padrão
+      // Se não conseguir fazer parse, usar mensagem padrão
+      errorData = { message: `${res.status}: ${res.statusText}` };
     }
     
-    console.error(`❌ [API] Erro ${method} ${fullUrl}:`, errorMessage);
-    throw new Error(errorMessage);
+    // Logs apenas em desenvolvimento
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`❌ [API] Erro ${method} ${fullUrl}:`, errorData.message || errorData);
+    }
+    
+    // Criar erro personalizado que preserva todas as propriedades
+    const error = new Error(errorData.message || `${res.status}: ${res.statusText}`) as any;
+    
+    // Preservar todas as propriedades extras do erro
+    if (errorData) {
+      Object.keys(errorData).forEach(key => {
+        error[key] = errorData[key];
+      });
+    }
+    
+    // Adicionar status HTTP
+    error.status = res.status;
+    
+    throw error;
   }
 
-  console.log(`✅ [API] Sucesso ${method} ${fullUrl}`);
+  // Logs apenas em desenvolvimento
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`✅ [API] Sucesso ${method} ${fullUrl}`);
+  }
+  
   return res;
 }
 
