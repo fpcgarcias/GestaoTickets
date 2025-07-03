@@ -636,8 +636,16 @@ export class MemStorage implements IStorage {
       updatedAt: now,
     };
     
+    // 🔥 CRÍTICO: Qualquer mudança de status DEVE PARAR o timer de primeira resposta
+    // Se o status está mudando de "new" para qualquer outro E ainda não há firstResponseAt
+    if (ticketData.status && ticket.status === 'new' && ticket.status !== ticketData.status && !ticket.firstResponseAt) {
+      console.log(`[SLA] ⏰ STATUS ALTERADO: Definindo firstResponseAt para ticket ${id} (${ticket.status} → ${ticketData.status})`);
+      updatedTicket.firstResponseAt = now;
+    }
+    
     // If status changed to resolved, set resolvedAt
     if (ticketData.status === 'resolved' && ticket.status !== 'resolved') {
+      console.log(`[SLA] ✅ TICKET RESOLVIDO: Definindo resolvedAt para ticket ${id}`);
       updatedTicket.resolvedAt = now;
     }
     

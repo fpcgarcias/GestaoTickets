@@ -22,9 +22,9 @@ import {
   uploadLimiter, 
   validateSchema, 
   loginSchema, 
-  ticketSchema,
-  sanitizeHtml,
-  securityLogger,
+  ticketSchema, 
+  sanitizeHtml, 
+  securityLogger, 
   validateFileUpload
 } from './middleware/security';
 
@@ -1145,23 +1145,25 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           customerId = existingCustomer.id;
           companyId = existingCustomer.company_id; // ✅ USAR O COMPANY_ID DO CLIENTE
         }
-      }
-      
-      // 🤖 ANÁLISE DE PRIORIDADE COM IA ANTES DE SALVAR O TICKET
-      let finalPriority = ticketData.priority || 'MÉDIA';
-      let originalPriority = ticketData.priority || 'MÉDIA'; // Guardar prioridade original
-      
-      // ✅ CRIAR O TICKET PRIMEIRO (com prioridade padrão)
-      const ticket = await storage.createTicket({
-        ...ticketData,
-        priority: finalPriority, // Prioridade inicial (será atualizada pela IA se necessário)
-        customer_id: customerId || undefined,
-        company_id: companyId || undefined // ✅ USAR O COMPANY_ID DO CLIENTE
-      });
+              }
+        
+        // 🤖 ANÁLISE DE PRIORIDADE COM IA ANTES DE SALVAR O TICKET
+        let finalPriority = ticketData.priority || 'Média';
+        let originalPriority = ticketData.priority || 'Média'; // Guardar prioridade original
+        
+        // ✅ CRIAR O TICKET PRIMEIRO (com prioridade padrão)
+        const ticket = await storage.createTicket({
+          ...ticketData,
+          priority: finalPriority, // Prioridade inicial (será atualizada pela IA se necessário)
+          customer_id: customerId || undefined,
+          company_id: companyId || undefined // ✅ USAR O COMPANY_ID DO CLIENTE
+        });
 
-      // 🤖 ANÁLISE DE PRIORIDADE COM IA APÓS CRIAR O TICKET (salva histórico automaticamente)
-      let aiAnalyzed = false;
-      if (companyId && ticketData.title && ticketData.description) {
+        // 🤖 ANÁLISE DE PRIORIDADE COM IA APÓS CRIAR O TICKET (salva histórico automaticamente)
+        let aiAnalyzed = false;
+        let finalPriorityId: number | null = null;
+      
+      if (companyId && ticketData.title && ticketData.description && ticket.department_id) {
         try {
           const aiService = new AiService();
           const aiResult = await aiService.analyzeTicketPriority(
@@ -1178,13 +1180,72 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             finalPriority = aiResult.priority;
             aiAnalyzed = true;
             
+            console.log(`[AI] IA retornou prioridade: ${finalPriority}`);
+            
+            // 🔍 BUSCAR ID CORRETO DA PRIORIDADE NO BANCO
+            const [priorityData] = await db
+              .select({ id: schema.departmentPriorities.id, name: schema.departmentPriorities.name })
+              .from(schema.departmentPriorities)
+              .where(
+                and(
+                  eq(schema.departmentPriorities.company_id, companyId),
+                  eq(schema.departmentPriorities.department_id, ticket.department_id),
+                  eq(schema.departmentPriorities.name, finalPriority),
+                  eq(schema.departmentPriorities.is_active, true)
+                )
+              )
+              .limit(1);
+
+            if (priorityData) {
+              finalPriorityId = priorityData.id;
+              finalPriority = priorityData.name; // Usar o nome exato do banco
+              console.log(`[AI] Prioridade vinculada: ${finalPriority} (ID: ${finalPriorityId})`);
+            } else {
+              // Tentar busca case-insensitive
+              const allPriorities = await db
+                .select({ id: schema.departmentPriorities.id, name: schema.departmentPriorities.name })
+                .from(schema.departmentPriorities)
+                .where(
+                  and(
+                    eq(schema.departmentPriorities.company_id, companyId),
+                    eq(schema.departmentPriorities.department_id, ticket.department_id),
+                    eq(schema.departmentPriorities.is_active, true)
+                  )
+                );
+
+              const foundPriority = allPriorities.find(p => 
+                p.name.toLowerCase() === finalPriority.toLowerCase()
+              );
+
+              if (foundPriority) {
+                finalPriorityId = foundPriority.id;
+                finalPriority = foundPriority.name;
+                console.log(`[AI] Prioridade vinculada (case-insensitive): ${finalPriority} (ID: ${finalPriorityId})`);
+              } else {
+                console.warn(`[AI] ATENÇÃO: Prioridade "${finalPriority}" não encontrada no banco! Ticket ficará sem prioridade específica.`);
+                finalPriority = 'Prioridade não encontrada';
+                finalPriorityId = null;
+              }
+            }
+            
             // 🔄 ATUALIZAR PRIORIDADE DO TICKET SE A IA SUGERIU DIFERENTE
-            if (finalPriority !== originalPriority) {
-              console.log(`[AI] IA sugeriu prioridade: ${finalPriority} (original: ${originalPriority})`);
+            // Normalizar ambas as prioridades para comparação
+            const normalizeForComparison = (priority: string) => {
+              return priority.charAt(0).toUpperCase() + priority.slice(1).toLowerCase();
+            };
+            
+            const normalizedOriginal = normalizeForComparison(originalPriority);
+            const normalizedFinal = normalizeForComparison(finalPriority);
+            
+            if (normalizedFinal !== normalizedOriginal && finalPriorityId) {
+              console.log(`[AI] Atualizando ticket: ${normalizedOriginal} → ${normalizedFinal} (ID: ${finalPriorityId})`);
               
               await db
                 .update(schema.tickets)
-                .set({ priority: finalPriority as any })
+                .set({ 
+                  priority: normalizedFinal as any,
+                  priority_id: finalPriorityId // VINCULAR ID CORRETO
+                })
                 .where(eq(schema.tickets.id, ticket.id));
                 
               // 🤖 REGISTRAR MUDANÇA NO HISTÓRICO DE STATUS
@@ -1225,11 +1286,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
                 .values({
                   ticket_id: ticket.id,
                   change_type: 'priority',
-                  old_priority: originalPriority as any,
-                  new_priority: finalPriority as any,
+                  old_priority: normalizedOriginal as any,
+                  new_priority: normalizedFinal as any,
                   changed_by_id: botUserId,
                   created_at: new Date()
                 });
+                
+              // Atualizar prioridade final para resposta
+              finalPriority = normalizedFinal;
+            } else if (!finalPriorityId) {
+              console.warn(`[AI] Ticket ${ticket.id} não terá prioridade vinculada pois '${finalPriority}' não existe no banco`);
             }
           }
         } catch (aiError) {

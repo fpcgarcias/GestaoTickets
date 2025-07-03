@@ -11,10 +11,19 @@ export type TicketStatus =
   | 'reopened'
   | 'resolved';
 
+/**
+ * ⏰ IMPORTANTE: Qualquer mudança de status de "new" para qualquer outro 
+ * DEVE AUTOMATICAMENTE definir o first_response_at do ticket!
+ * 
+ * Isso garante que o timer de primeira resposta pare imediatamente
+ * quando há qualquer movimentação no ticket.
+ */
+
 // Status que PAUSAM o SLA (tempo não conta)
 export const SLA_PAUSED_STATUSES: TicketStatus[] = [
   'suspended',       // Aguardando terceiros
   'waiting_customer', // Aguardando cliente
+  'escalated',       // Escalado - pausar SLA
   'pending_deployment' // Aguardando janela de deploy
 ];
 
@@ -22,7 +31,6 @@ export const SLA_PAUSED_STATUSES: TicketStatus[] = [
 export const SLA_ACTIVE_STATUSES: TicketStatus[] = [
   'new',         // Novo
   'ongoing',     // Em andamento
-  'escalated',   // Escalado
   'in_analysis', // Em análise
   'reopened'     // Reaberto
 ];
@@ -36,6 +44,16 @@ export const SLA_FINISHED_STATUSES: TicketStatus[] = [
 export const SLA_RESTART_STATUSES: TicketStatus[] = [
   'reopened'     // Reaberto
 ];
+
+/**
+ * 🔥 REGRA CRÍTICA DE PRIMEIRA RESPOSTA:
+ * 
+ * A primeira resposta é considerada QUALQUER mudança de status de "new" para outro.
+ * Não importa se é para "ongoing", "resolved", "escalated", etc.
+ * 
+ * A partir do momento que o ticket não está mais "new", significa que foi tocado
+ * por alguém e o timer de primeira resposta deve parar.
+ */
 
 // Configuração visual dos status
 export const STATUS_CONFIG = {

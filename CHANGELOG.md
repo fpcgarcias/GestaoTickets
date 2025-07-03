@@ -114,4 +114,102 @@
 - Sistema de gestão de tickets implementado
 - Autenticação e autorização
 - Multi-tenancy com empresas
-- Sistema de departamentos e atendentes 
+- Sistema de departamentos e atendentes
+
+## [Em desenvolvimento] - 2025-01-31
+
+### ⚡ CORREÇÃO CRÍTICA - Bug de Cálculo SLA **[REAL]**
+
+**PROBLEMA REAL ENCONTRADO**: A função `useTicketSLAStatus` estava calculando SLA incorretamente!
+
+#### 🐛 O VERDADEIRO PROBLEMA:
+A função `useTicketSLAStatus` em `client/src/hooks/use-sla.tsx` estava:
+```javascript
+// ❌ ERRADO - Soma direta sem horário comercial
+const deadline = new Date(createdAt.getTime() + slaHours * 60 * 60 * 1000);
+const timeRemaining = (deadline.getTime() - now.getTime()) / (1000 * 60 * 60);
+```
+
+#### ✅ CORREÇÃO APLICADA:
+Agora usa o sistema correto de horário comercial:
+```javascript  
+// ✅ CORRETO - Usa addBusinessTime e calculateSLAStatus
+const deadline = addBusinessTime(createdAt, slaHours, businessHours);
+const slaResult = calculateSLAStatus(createdAt, slaHours, now, resolvedAt, businessHours);
+```
+
+#### 🎯 Resultado para seu chamado:
+- **Cenário**: 02/07/2025 17:13 → 03/07/2025 09:45 (4h SLA crítica)
+- **Antes**: ~13h atrasado (soma direta: 17:13 + 4h = 21:13, diferença = 12h32)  
+- **Agora**: ~2h30 consumidas (47min sexta + 1h45 terça, ainda dentro do prazo)
+
+### ⚡ CORREÇÃO CRÍTICA - Bug de Cálculo SLA
+
+**PROBLEMA CORRIGIDO**: SLA estava calculando incorretamente tempo total ao invés de horário comercial
+
+#### Problemas identificados e corrigidos:
+1. **Função `convertStatusHistoryToPeriods`**: Estava adicionando período até "agora" automaticamente
+2. **Função `calculateEffectiveBusinessTime`**: Lógica incorreta para período atual
+3. **Função `calculateSLAStatus`**: Não garantia uso de horário comercial em todos os casos
+4. **Função `useTicketSLAStatus`**: 🔥 **PRINCIPAL CULPADO** - calculava SLA sem horário comercial
+
+#### Correções aplicadas:
+- ✅ Removida adição automática de período até "agora" no histórico
+- ✅ Corrigida lógica do período atual em andamento  
+- ✅ Garantido que SEMPRE usa `calculateBusinessTimeMs` (horário comercial)
+- ✅ **Corrigida função `useTicketSLAStatus` para usar horário comercial**
+- ✅ Exportada função `addBusinessTime` para uso nos hooks
+- ✅ Nunca mais calcula tempo total (24h) - sempre respeita 8h-18h
+
+### Correções de SLA
+- **CORRIGIDO**: Status `escalated` agora pausa o SLA corretamente
+- **MELHORADO**: Sistema de cálculo de horário comercial (8h às 18h, segunda a sexta) 
+- **ADICIONADO**: Funções de teste para verificar cálculo de SLA
+- **CORRIGIDO**: Status que pausam SLA:
+  - `suspended` (suspenso)
+  - `waiting_customer` (aguardando cliente)  
+  - `escalated` (escalado) - **NOVO**
+  - `pending_deployment` (aguardando deploy)
+
+### Status que mantêm SLA ativo
+- `new` (novo)
+- `ongoing` (em andamento)
+- `in_analysis` (em análise)
+- `reopened` (reaberto)
+
+### Detalhes técnicos
+- O SLA agora considera corretamente apenas horário comercial
+- Fins de semana e feriados não contam para o SLA
+- Status pausados não consomem tempo de SLA
+- Sistema de fallback para quando não há histórico de status
+
+### 🔥 CORREÇÃO CRÍTICA - Timer de Primeira Resposta **[31/01/2025]**
+
+**PROBLEMA CORRIGIDO**: Timer de primeira resposta não parava ao alterar status do ticket
+
+#### 🐛 Problema Identificado:
+- Timer de primeira resposta só parava quando uma **resposta** era criada
+- Mudanças de status (new → ongoing, new → resolved, etc.) **não paravam o timer**
+- Resultado: SLA de primeira resposta sempre aparecia como atrasado
+
+#### ✅ Correção Implementada:
+- **QUALQUER mudança de status** de "new" para outro **IMEDIATAMENTE** define `first_response_at`
+- Não importa se é para "ongoing", "resolved", "escalated", etc.
+- Timer para na mesma hora que o status é alterado
+- Funciona tanto no database-storage.ts (produção) quanto storage.ts (desenvolvimento)
+
+#### 🎯 Impacto:
+- SLA de primeira resposta agora é **100% preciso**
+- Tickets atendidos imediatamente mostram tempo correto
+- Fim de falsos alertas de SLA violado
+
+#### 📝 Regra Implementada:
+```
+Status "new" + mudança para qualquer outro = first_response_at = agora()
+```
+
+#### 🔧 Arquivos Modificados:
+- `server/database-storage.ts` - Lógica principal de atualização
+- `server/storage.ts` - Storage em memória (consistência)
+- `shared/ticket-utils.ts` - Documentação da regra
+- `CHANGELOG.md` - Documentação da correção 

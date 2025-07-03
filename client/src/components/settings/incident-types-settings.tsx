@@ -249,7 +249,7 @@ export function IncidentTypesSettings() {
                     <Label htmlFor={`edit-department-${type.id}`}>Departamento</Label>
                     <Select
                       onValueChange={(value: string) => setEditDepartmentId(parseInt(value))}
-                      defaultValue={type.departmentId?.toString()}
+                      value={type.departmentId?.toString() || ""}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione um departamento" />
@@ -346,7 +346,7 @@ export function IncidentTypesSettings() {
               <Label htmlFor="new-department">Departamento</Label>
               <Select
                 onValueChange={(value: string) => setNewDepartmentId(parseInt(value))}
-                defaultValue={newDepartmentId?.toString()}
+                value={newDepartmentId?.toString() || ""}
               >
                 <SelectTrigger id="new-department">
                   <SelectValue placeholder="Selecione um departamento" />

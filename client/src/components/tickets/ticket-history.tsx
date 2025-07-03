@@ -5,44 +5,68 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate, translateTicketStatus, translateUserRole } from '@/lib/utils';
 import { getPriorityColorByWeight, convertLegacyToWeight } from '@/hooks/use-priorities';
 
-// Função para traduzir prioridades
+// Função para traduzir e normalizar prioridades
 const translatePriority = (priority: string): string => {
-  const priorityMap: Record<string, string> = {
+  if (!priority) return 'Não definido';
+  
+  // Normalizar para primeira letra maiúscula
+  const normalized = priority.charAt(0).toUpperCase() + priority.slice(1).toLowerCase();
+  
+  // Mapeamento de prioridades legadas para português
+  const legacyMap: Record<string, string> = {
     'low': 'Baixa',
     'medium': 'Média', 
     'high': 'Alta',
     'critical': 'Crítica'
   };
-  return priorityMap[priority] || priority;
+  
+  // Se é uma prioridade legada em inglês, traduzir
+  if (legacyMap[priority.toLowerCase()]) {
+    return legacyMap[priority.toLowerCase()];
+  }
+  
+  // Senão, retornar a prioridade normalizada (primeira letra maiúscula)
+  return normalized;
 };
 
-// Função para cores das prioridades
+// Função para cores das prioridades (melhorada para lidar com customizadas)
 const getPriorityColors = (priority: string, type: 'old' | 'new'): string => {
+  const normalizedPriority = priority.toLowerCase();
+  
   const colorMap: Record<string, string> = {
-    'low': 'bg-green-50 text-green-700 border-green-200',      // Baixa = Verde
-    'medium': 'bg-blue-50 text-blue-700 border-blue-200',      // Média = Azul  
-    'high': 'bg-yellow-50 text-yellow-700 border-yellow-200',  // Alta = Amarelo
-    'critical': 'bg-red-50 text-red-700 border-red-200'        // Crítica = Vermelho
+    'baixa': 'bg-green-50 text-green-700 border-green-200',      // Baixa = Verde
+    'low': 'bg-green-50 text-green-700 border-green-200',        // Low = Verde
+    'média': 'bg-blue-50 text-blue-700 border-blue-200',        // Média = Azul  
+    'medium': 'bg-blue-50 text-blue-700 border-blue-200',       // Medium = Azul
+    'alta': 'bg-yellow-50 text-yellow-700 border-yellow-200',   // Alta = Amarelo
+    'high': 'bg-yellow-50 text-yellow-700 border-yellow-200',   // High = Amarelo
+    'crítica': 'bg-red-50 text-red-700 border-red-200',         // Crítica = Vermelho
+    'critical': 'bg-red-50 text-red-700 border-red-200'         // Critical = Vermelho
   };
   
-  return colorMap[priority] || 'bg-gray-50 text-gray-700 border-gray-200';
+  return colorMap[normalizedPriority] || 'bg-gray-50 text-gray-700 border-gray-200';
 };
 
-// Função para ícones das prioridades
+// Função para ícones das prioridades (melhorada)
 const getPriorityIcon = (priority: string, type: 'old' | 'new'): string => {
   if (type === 'old') {
     // Prioridade anterior - sempre com seta para baixo (saindo)
     return '⬇️';
   } else {
     // Prioridade nova - ícone baseado no nível de urgência
+    const normalizedPriority = priority.toLowerCase();
     const iconMap: Record<string, string> = {
-      'low': '🟢',      // Baixa = Verde (tranquilo)
-      'medium': '🔵',   // Média = Azul (neutro)  
-      'high': '🟡',     // Alta = Amarelo (atenção)
-      'critical': '🔴'  // Crítica = Vermelho (urgente)
+      'baixa': '🟢',      // Baixa = Verde (tranquilo)
+      'low': '🟢',        // Low = Verde (tranquilo)
+      'média': '🔵',      // Média = Azul (neutro)  
+      'medium': '🔵',     // Medium = Azul (neutro)
+      'alta': '🟡',       // Alta = Amarelo (atenção)
+      'high': '🟡',       // High = Amarelo (atenção)
+      'crítica': '🔴',    // Crítica = Vermelho (urgente)
+      'critical': '🔴'    // Critical = Vermelho (urgente)
     };
     
-    return iconMap[priority] || '⚪';
+    return iconMap[normalizedPriority] || '⚪';
   }
 };
 import { TicketReply, TicketStatusHistory } from '@shared/schema';

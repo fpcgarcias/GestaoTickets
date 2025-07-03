@@ -364,7 +364,7 @@ export const TicketForm = () => {
                         form.setValue('incident_type_id', undefined);
                         form.setValue('category_id', undefined);
                       }} 
-                      defaultValue={field.value?.toString()}
+                      value={field.value?.toString() || ""}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -414,7 +414,7 @@ export const TicketForm = () => {
                           }
                         }
                       }} 
-                      defaultValue={field.value}
+                      value={field.value || ""}
                       disabled={!selectedDepartmentId}
                     >
                       <FormControl>
@@ -484,7 +484,7 @@ export const TicketForm = () => {
                     <FormLabel>Prioridade</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
-                      defaultValue={field.value}
+                      value={field.value || ""}
                       disabled={prioritiesLoading}
                     >
                       <FormControl>

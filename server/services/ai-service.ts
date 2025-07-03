@@ -2,7 +2,6 @@ import {
   AiConfiguration, 
   AiAnalysisHistory, 
   InsertAiAnalysisHistory,
-  ticketPriorityEnum,
   departmentPriorities,
   type DepartmentPriority
 } from "../../shared/schema";
@@ -59,7 +58,44 @@ export class AiService {
   }
 
   /**
+   * Normaliza prioridade da IA para o formato do sistema
+   */
+  private normalizePriority(aiPriority: string, departmentPriorities: DepartmentPriority[]): string {
+    // Lista das prioridades disponíveis no departamento
+    const availablePriorities = departmentPriorities.map(p => p.name);
+    
+    // Tentativas de normalização em ordem de preferência
+    const normalizations = [
+      aiPriority, // Tentar primeiro como veio da IA
+      aiPriority.charAt(0).toUpperCase() + aiPriority.slice(1).toLowerCase(), // Primeira maiúscula
+      aiPriority.toLowerCase(), // Tudo minúsculo
+      aiPriority.toUpperCase(), // Tudo maiúsculo
+    ];
+    
+    // Buscar por match exato primeiro
+    for (const normalized of normalizations) {
+      if (availablePriorities.includes(normalized)) {
+        return normalized;
+      }
+    }
+    
+    // Se não encontrou match exato, buscar por match case-insensitive
+    const lowercaseAI = aiPriority.toLowerCase();
+    for (const priority of availablePriorities) {
+      if (priority.toLowerCase() === lowercaseAI) {
+        return priority;
+      }
+    }
+    
+    // Fallback: usar a prioridade de menor peso (mais baixa)
+    const fallbackPriority = departmentPriorities.sort((a, b) => a.weight - b.weight)[0];
+    console.warn(`[AI] Prioridade "${aiPriority}" não encontrada. Usando fallback: ${fallbackPriority.name}`);
+    return fallbackPriority.name;
+  }
+
+  /**
    * Busca as prioridades ativas do departamento para usar na análise de IA
+   * NUNCA retorna prioridades hardcoded - sempre busca do banco
    */
   private async getDepartmentPriorities(
     companyId: number, 
@@ -82,27 +118,75 @@ export class AiService {
         )
         .orderBy(departmentPriorities.weight);
 
-      if (priorities.length > 0) {
-        return priorities;
-      }
+      console.log(`[AI] Encontradas ${priorities.length} prioridades reais para dept ${departmentId}:`, 
+        priorities.map((p: DepartmentPriority) => `${p.name}(ID:${p.id})`));
 
-      // Fallback: usar prioridades padrão virtuais
-      return [
-        { id: -1, company_id: companyId, department_id: departmentId, name: 'BAIXA', weight: 1, color: '#6B7280', is_active: true, created_at: new Date(), updated_at: new Date() },
-        { id: -2, company_id: companyId, department_id: departmentId, name: 'MÉDIA', weight: 2, color: '#3B82F6', is_active: true, created_at: new Date(), updated_at: new Date() },
-        { id: -3, company_id: companyId, department_id: departmentId, name: 'ALTA', weight: 3, color: '#F59E0B', is_active: true, created_at: new Date(), updated_at: new Date() },
-        { id: -4, company_id: companyId, department_id: departmentId, name: 'CRÍTICA', weight: 4, color: '#EF4444', is_active: true, created_at: new Date(), updated_at: new Date() }
-      ];
+      // NUNCA retornar prioridades hardcoded - sempre do banco
+      return priorities;
 
     } catch (error) {
       console.error('Erro ao buscar prioridades do departamento:', error);
-      // Fallback em caso de erro
-      return [
-        { id: -1, company_id: companyId, department_id: departmentId, name: 'BAIXA', weight: 1, color: '#6B7280', is_active: true, created_at: new Date(), updated_at: new Date() },
-        { id: -2, company_id: companyId, department_id: departmentId, name: 'MÉDIA', weight: 2, color: '#3B82F6', is_active: true, created_at: new Date(), updated_at: new Date() },
-        { id: -3, company_id: companyId, department_id: departmentId, name: 'ALTA', weight: 3, color: '#F59E0B', is_active: true, created_at: new Date(), updated_at: new Date() },
-        { id: -4, company_id: companyId, department_id: departmentId, name: 'CRÍTICA', weight: 4, color: '#EF4444', is_active: true, created_at: new Date(), updated_at: new Date() }
-      ];
+      // Em caso de erro, retornar lista vazia
+      return [];
+    }
+  }
+
+  /**
+   * Busca prioridade no banco pelo nome e retorna o ID correto
+   */
+  private async findPriorityIdByName(
+    priorityName: string,
+    companyId: number,
+    departmentId: number,
+    dbInstance: any = null
+  ): Promise<{ id: number; name: string } | null> {
+    try {
+      const database = dbInstance || db;
+      
+      // Buscar prioridade exata primeiro
+      let [priority] = await database
+        .select({ id: departmentPriorities.id, name: departmentPriorities.name })
+        .from(departmentPriorities)
+        .where(
+          and(
+            eq(departmentPriorities.company_id, companyId),
+            eq(departmentPriorities.department_id, departmentId),
+            eq(departmentPriorities.name, priorityName),
+            eq(departmentPriorities.is_active, true)
+          )
+        )
+        .limit(1);
+
+      if (priority) {
+        console.log(`[AI] Prioridade encontrada: ${priority.name} (ID: ${priority.id})`);
+        return priority;
+      }
+
+      // Buscar case-insensitive
+      const allPriorities = await database
+        .select({ id: departmentPriorities.id, name: departmentPriorities.name })
+        .from(departmentPriorities)
+        .where(
+          and(
+            eq(departmentPriorities.company_id, companyId),
+            eq(departmentPriorities.department_id, departmentId),
+            eq(departmentPriorities.is_active, true)
+          )
+        );
+
+      for (const p of allPriorities) {
+        if (p.name.toLowerCase() === priorityName.toLowerCase()) {
+          console.log(`[AI] Prioridade encontrada (case-insensitive): ${p.name} (ID: ${p.id})`);
+          return { id: p.id, name: p.name };
+        }
+      }
+
+      console.warn(`[AI] Prioridade "${priorityName}" não encontrada no departamento ${departmentId}`);
+      return null;
+
+    } catch (error) {
+      console.error('Erro ao buscar ID da prioridade:', error);
+      return null;
     }
   }
 
@@ -205,9 +289,11 @@ Prioridade:`;
 
       // Buscar prioridades específicas do departamento (se tiver departmentId)
       let adjustedConfig = config;
+      let departmentPrioritiesList: DepartmentPriority[] = [];
+      
       if (departmentId) {
-        const departmentPriorities = await this.getDepartmentPriorities(request.companyId, departmentId, db);
-        adjustedConfig = this.adjustPromptsForDepartment(config, departmentPriorities);
+        departmentPrioritiesList = await this.getDepartmentPriorities(request.companyId, departmentId, db);
+        adjustedConfig = this.adjustPromptsForDepartment(config, departmentPrioritiesList);
         
         // DEBUG: Log do prompt ajustado
         console.log('[AI DEBUG] System Prompt:', adjustedConfig.system_prompt);
@@ -226,6 +312,12 @@ Prioridade:`;
         () => provider.analyze(request.title, request.description, adjustedConfig),
         config.max_retries || 3
       );
+
+      // 🔧 NORMALIZAR PRIORIDADE RETORNADA PELA IA
+      if (departmentId && departmentPrioritiesList.length > 0) {
+        result.priority = this.normalizePriority(result.priority, departmentPrioritiesList);
+        console.log(`[AI] Prioridade normalizada: ${result.priority}`);
+      }
 
       // Salvar histórico da análise
       if (request.ticketId) {
@@ -441,7 +533,7 @@ Prioridade:`;
     reason: string
   ): AiAnalysisResult {
     return {
-      priority: 'MÉDIA', // Prioridade padrão em português
+      priority: 'Média', // Prioridade padrão normalizada
       justification: `Prioridade definida automaticamente (fallback): ${reason}`,
       confidence: 0,
       usedFallback: true,
@@ -482,7 +574,7 @@ Prioridade:`;
           .where(eq(schema.departments.id, deptId))
           .limit(1);
 
-        if (department) {
+        if (department && department.company_id) {
           const departmentPriorities = await this.getDepartmentPriorities(department.company_id, deptId, db);
           adjustedConfig = this.adjustPromptsForDepartment(config, departmentPriorities);
         }
@@ -526,10 +618,12 @@ Prioridade:`;
 
       // Buscar prioridades específicas do departamento (se tiver departmentId)
       let adjustedConfig = config;
+      let departmentPrioritiesList: DepartmentPriority[] = [];
+      
       if (departmentId) {
-        const departmentPriorities = await this.getDepartmentPriorities(companyId, departmentId, db);
-        adjustedConfig = this.adjustPromptsForDepartment(config, departmentPriorities);
-        console.log(`[AI] Usando prioridades específicas do departamento ${departmentId}: ${departmentPriorities.map(p => p.name.toUpperCase()).join(', ')}`);
+        departmentPrioritiesList = await this.getDepartmentPriorities(companyId, departmentId, db);
+        adjustedConfig = this.adjustPromptsForDepartment(config, departmentPrioritiesList);
+        console.log(`[AI] Usando prioridades específicas do departamento ${departmentId}: ${departmentPrioritiesList.map(p => p.name.toUpperCase()).join(', ')}`);
         
         // DEBUG: Log do prompt ajustado
         console.log('[AI DEBUG] System Prompt usado:', adjustedConfig.system_prompt);

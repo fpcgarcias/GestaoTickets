@@ -5,6 +5,8 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './use-auth';
+import { calculateSLAStatus, addBusinessTime, getBusinessHoursConfig } from '@shared/utils/sla-calculator';
+import { type TicketStatus } from '@shared/ticket-utils';
 
 // Interfaces para SLA
 export interface ResolvedSLA {
@@ -31,6 +33,17 @@ export interface TicketSLAInfo {
   createdAt: Date;
   firstResponseAt?: Date;
   resolvedAt?: Date;
+}
+
+export interface SLAInfo {
+  responseTimeHours: number;
+  resolutionTimeHours: number;
+  source: string;
+  fallbackReason?: string;
+  responseTime?: string;
+  resolutionTime?: string;
+  isOverdue?: boolean;
+  timeRemaining?: string;
 }
 
 /**
@@ -65,31 +78,83 @@ export function useTicketSLA(
 
 /**
  * Hook para calcular status de SLA de um ticket
+ * CORRIGIDO: Agora usa sistema de horário comercial e distingue primeira resposta de resolução
  */
 export function useTicketSLAStatus(
   ticketId: number,
   createdAt: Date,
   firstResponseAt?: Date,
   resolvedAt?: Date,
-  sla?: ResolvedSLA
+  sla?: ResolvedSLA,
+  currentStatus: TicketStatus = 'new'
 ): SLAStatus | null {
   if (!sla) return null;
 
   const now = new Date();
-  const responseDeadline = new Date(createdAt.getTime() + sla.responseTimeHours * 60 * 60 * 1000);
-  const resolutionDeadline = new Date(createdAt.getTime() + sla.resolutionTimeHours * 60 * 60 * 1000);
+  const businessHours = getBusinessHoursConfig();
+  
+  // CORREÇÃO: Usar addBusinessTime para calcular deadline considerando horário comercial
+  const responseDeadline = addBusinessTime(createdAt, sla.responseTimeHours, businessHours);
+  const resolutionDeadline = addBusinessTime(createdAt, sla.resolutionTimeHours, businessHours);
+  
+  // 🔥 CRÍTICO: SLA de primeira resposta
+  let responseSLAResult;
+  if (firstResponseAt || currentStatus !== 'new') {
+    // PRIMEIRA RESPOSTA JÁ FOI DADA - NÃO CALCULAR NADA!
+    responseSLAResult = {
+      timeElapsed: 0,
+      timeRemaining: 0,
+      percentConsumed: 0,
+      isBreached: false,
+      dueDate: responseDeadline,
+      status: 'ok' as const,
+      isPaused: false
+    };
+  } else {
+    // Ainda aguardando primeira resposta
+    responseSLAResult = calculateSLAStatus(
+      createdAt,
+      sla.responseTimeHours,
+      now,
+      undefined, // Não resolvido ainda
+      businessHours,
+      [],
+      currentStatus
+    );
+  }
+  
+  // SLA de resolução (só calcular se não foi resolvido ainda)
+  const resolutionSLAResult = calculateSLAStatus(
+    createdAt,
+    sla.resolutionTimeHours,
+    now,
+    resolvedAt,
+    businessHours,
+    [],
+    currentStatus
+  );
+  
+  // Converter milissegundos para horas
+  const responseTimeRemaining = responseSLAResult.timeRemaining / (1000 * 60 * 60);
+  const resolutionTimeRemaining = resolutionSLAResult.timeRemaining / (1000 * 60 * 60);
+  
+  // Se está atrasado, tornar negativo
+  const responseTimeRemainingFinal = responseSLAResult.isBreached ? 
+    -(responseSLAResult.timeElapsed - (sla.responseTimeHours * 60 * 60 * 1000)) / (1000 * 60 * 60) :
+    responseTimeRemaining;
+    
+  const resolutionTimeRemainingFinal = resolutionSLAResult.isBreached ? 
+    -(resolutionSLAResult.timeElapsed - (sla.resolutionTimeHours * 60 * 60 * 1000)) / (1000 * 60 * 60) :
+    resolutionTimeRemaining;
 
-  const responseTimeRemaining = (responseDeadline.getTime() - now.getTime()) / (1000 * 60 * 60); // horas
-  const resolutionTimeRemaining = (resolutionDeadline.getTime() - now.getTime()) / (1000 * 60 * 60); // horas
-
-  const isResponseOverdue = !firstResponseAt && responseTimeRemaining < 0;
-  const isResolutionOverdue = !resolvedAt && resolutionTimeRemaining < 0;
+  const isResponseOverdue = !firstResponseAt && currentStatus === 'new' && responseSLAResult.isBreached;
+  const isResolutionOverdue = !resolvedAt && resolutionSLAResult.isBreached;
 
   return {
     isResponseOverdue,
     isResolutionOverdue,
-    responseTimeRemaining,
-    resolutionTimeRemaining,
+    responseTimeRemaining: responseTimeRemainingFinal,
+    resolutionTimeRemaining: resolutionTimeRemainingFinal,
     responseDeadline,
     resolutionDeadline
   };
@@ -106,7 +171,8 @@ export function useTicketWithSLA(
   priority?: string,
   createdAt?: string,
   firstResponseAt?: string,
-  resolvedAt?: string
+  resolvedAt?: string,
+  currentStatus: TicketStatus = 'new'
 ): TicketSLAInfo | null {
   const { data: sla } = useTicketSLA(
     companyId || 0,
@@ -122,7 +188,7 @@ export function useTicketWithSLA(
   const firstResponseDate = firstResponseAt ? new Date(firstResponseAt) : undefined;
   const resolvedDate = resolvedAt ? new Date(resolvedAt) : undefined;
 
-  const status = useTicketSLAStatus(ticketId, createdDate, firstResponseDate, resolvedDate, sla);
+  const status = useTicketSLAStatus(ticketId, createdDate, firstResponseDate, resolvedDate, sla, currentStatus);
 
   if (!status) return null;
 
@@ -202,6 +268,55 @@ export const slaUtils = {
     }
   }
 };
+
+export function useSLA(
+  companyId: number | undefined,
+  departmentId: number | undefined,
+  incidentTypeId: number | undefined,
+  priorityId: number | undefined,
+  priorityName?: string
+) {
+  return useQuery({
+    queryKey: ['sla', companyId, departmentId, incidentTypeId, priorityId, priorityName],
+    queryFn: async (): Promise<SLAInfo | null> => {
+      if (!companyId) {
+        return null;
+      }
+
+      const params = new URLSearchParams();
+      params.append('companyId', companyId.toString());
+      
+      if (departmentId) params.append('departmentId', departmentId.toString());
+      if (incidentTypeId) params.append('incidentTypeId', incidentTypeId.toString());
+      if (priorityId) params.append('priorityId', priorityId.toString());
+      if (priorityName) params.append('priorityName', priorityName);
+
+      const response = await fetch(`/api/sla-resolver?${params}`);
+      if (!response.ok) {
+        console.error('Erro ao buscar SLA:', response.status, response.statusText);
+        return null;
+      }
+
+      const data = await response.json();
+      
+      // Se não há configuração de SLA, retornar null ao invés de criar valores fake
+      if (!data || data.responseTimeHours === undefined) {
+        console.log('[SLA] Nenhuma configuração de SLA encontrada');
+        return null;
+      }
+
+      return {
+        ...data,
+        responseTime: `${data.responseTimeHours}h`,
+        resolutionTime: `${data.resolutionTimeHours}h`
+      };
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000, // 5 minutos
+    gcTime: 10 * 60 * 1000, // 10 minutos
+    retry: 1, // Tentar apenas uma vez - se falhar, assumir que não há SLA configurado
+  });
+}
 
 export default {
   useTicketSLA,

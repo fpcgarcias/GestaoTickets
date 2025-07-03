@@ -62,21 +62,32 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const officials = officialsResponse?.data || [];
 
   // Buscar dados de tipos de incidentes usando a API correta
-  const { data: incidentTypesData, isLoading: isLoadingIncidentTypes } = useQuery<IncidentType[]>({
+  const { data: incidentTypesData, isLoading: isLoadingIncidentTypes } = useQuery<{incidentTypes: IncidentType[], pagination?: any}>({
     queryKey: ["/api/incident-types", { active_only: true }],
     queryFn: async () => {
+      console.log("🔍 [DEBUG] Buscando tipos de incidentes...");
       const response = await apiRequest('GET', '/api/incident-types?active_only=true');
-      return response.json();
+      const data = await response.json();
+      console.log("📊 [DEBUG] Tipos de incidentes recebidos:", data);
+      return data;
     },
   });
 
   // Garantir que incidentTypes é um array
-  const incidentTypes = Array.isArray(incidentTypesData) ? incidentTypesData : [];
+  const incidentTypes = Array.isArray(incidentTypesData?.incidentTypes) ? incidentTypesData.incidentTypes : [];
+  console.log("🎯 [DEBUG] Ticket department_id:", ticket.department_id);
+  console.log("📋 [DEBUG] incidentTypes processados:", incidentTypes);
 
   // Filtrar tipos de incidentes pelo departamento do ticket
   const filteredIncidentTypes = ticket.department_id && Array.isArray(incidentTypes)
     ? incidentTypes.filter((type: IncidentType) => type.department_id === ticket.department_id)
     : (incidentTypes || []);
+    
+  console.log("🔍 [DEBUG] Tipos filtrados por departamento:", filteredIncidentTypes);
+  console.log("🔍 [DEBUG] Comparando:", {
+    ticketDeptId: ticket.department_id,
+    availableTypes: incidentTypes.map((t: IncidentType) => ({ id: t.id, name: t.name, dept_id: t.department_id }))
+  });
 
   // Estender o tipo do formulário para incluir incidentTypeId
   const formSchema = insertTicketReplySchema.extend({
@@ -158,7 +169,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   // Função para encontrar o nome do atendente atual
   const getCurrentOfficialName = () => {
     if (!ticket.assigned_to_id || !officials) return 'Não atribuído';
-    const official = officials.find(o => o.id === ticket.assigned_to_id);
+    const official = officials.find((o: Official) => o.id === ticket.assigned_to_id);
     return official?.name || 'Atendente não encontrado';
   };
 
@@ -254,7 +265,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                       // Para atendentes: campo editável
                       <Select 
                         onValueChange={field.onChange} 
-                        defaultValue={field.value}
+                        value={field.value || ""}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -316,7 +327,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                       // Para atendentes: campo editável
                       <Select
                         onValueChange={(value) => field.onChange(parseInt(value))}
-                        defaultValue={field.value ? String(field.value) : undefined}
+                        value={field.value ? String(field.value) : ""}
                       >
                         <FormControl>
                           <SelectTrigger>

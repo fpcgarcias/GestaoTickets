@@ -4,6 +4,7 @@ import { Clock, AlertTriangle, CheckCircle, Pause, Target } from 'lucide-react';
 import { calculateSLAStatus, formatTimeRemaining, getBusinessHoursConfig, convertStatusHistoryToPeriods } from '@shared/utils/sla-calculator';
 import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
 import { useTicketWithSLA, slaUtils } from '@/hooks/use-sla';
+import { Badge } from '../ui/badge';
 
 interface SLAIndicatorProps {
   ticketCreatedAt: string;
@@ -16,9 +17,8 @@ interface SLAIndicatorProps {
   departmentId?: number;
   incidentTypeId?: number;
   firstResponseAt?: string;
+  className?: string;
 }
-
-
 
 export const SLAIndicator: React.FC<SLAIndicatorProps> = ({ 
   ticketCreatedAt, 
@@ -29,7 +29,8 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   resolvedAt,
   departmentId,
   incidentTypeId,
-  firstResponseAt
+  firstResponseAt,
+  className = ""
 }) => {
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [percentConsumed, setPercentConsumed] = useState<number>(0);
@@ -46,7 +47,8 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     ticketPriority,
     ticketCreatedAt,
     firstResponseAt,
-    resolvedAt
+    resolvedAt,
+    ticketStatus
   );
 
   // Fallback para o sistema antigo
@@ -77,6 +79,18 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   });
   
   useEffect(() => {
+    // 🔥 CRÍTICO: Se o ticket está resolvido, NÃO fazer nenhum cálculo de SLA
+    if (isSlaFinished(ticketStatus)) {
+      console.log(`[SLA Debug] Ticket ${ticketId} resolvido - parando todos os cálculos de SLA`);
+      return;
+    }
+
+    // 🔥 CRÍTICO: Se o ticket NÃO está mais "new", significa que já foi respondido
+    // Só deve calcular SLA de resolução, NÃO de primeira resposta
+    if (ticketStatus !== 'new' && !firstResponseAt) {
+      console.log(`[SLA Debug] Ticket ${ticketId} com status '${ticketStatus}' - primeira resposta já foi dada, só calculando resolução`);
+    }
+
     // Debug para entender por que alguns tickets não mostram SLA
     console.log(`[SLA Debug] Ticket ${ticketId}:`, {
       priority: ticketPriority,
@@ -85,7 +99,8 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
       hasNewSLA: !!ticketSLAInfo,
       hasOldSLA: !!slaSettingsData,
       isLoading: isOldSLALoading,
-      error: oldSLAError
+      error: oldSLAError,
+      firstResponseAt: firstResponseAt
     });
 
     // Primeiro, tentar usar o novo sistema de SLA
@@ -251,9 +266,9 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   // Loading state - mostrar apenas se estiver carregando e não tiver informação de SLA ainda
   if ((isOldSLALoading && !ticketSLAInfo) || (!useNewSLA && !slaSettingsData && isOldSLALoading)) {
     return (
-      <div className="flex items-center gap-1 text-xs text-gray-500">
-        <Clock className="h-3 w-3 animate-pulse" />
-        <span>Carregando SLA...</span>
+      <div className={`flex items-center gap-2 ${className}`}>
+        <Clock className="w-4 h-4" />
+        <span className="text-sm">Carregando SLA...</span>
       </div>
     );
   }
@@ -261,9 +276,9 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   // Error state - mostrar informação útil mesmo se houver erro
   if (!ticketSLAInfo && !useNewSLA && (oldSLAError || !slaSettingsData) && !timeRemaining) {
     return (
-      <div className="flex items-center gap-1 text-xs text-amber-600">
-        <AlertTriangle className="h-3 w-3" />
-        <span>SLA não configurado</span>
+      <div className={`flex items-center gap-2 ${className}`}>
+        <AlertTriangle className="w-4 h-4 text-gray-400" />
+        <span className="text-sm text-gray-500">Sem SLA configurado</span>
       </div>
     );
   }
@@ -278,36 +293,33 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     );
   }
   
-  // Cores baseadas no status
-  const getStatusColor = () => {
-    switch (slaStatus) {
-      case 'breached': return 'text-red-600';
-      case 'critical': return 'text-red-500';
-      case 'warning': return 'text-yellow-600';
-      default: return 'text-blue-600';
-    }
-  };
-  
-  const getIcon = () => {
-    switch (slaStatus) {
-      case 'breached':
-      case 'critical':
-        return AlertTriangle;
-      default:
-        return Clock;
-    }
-  };
-
-  const IconComponent = getIcon();
-  const statusColor = getStatusColor();
-
   // Se não tiver timeRemaining ainda, mostrar algo útil
   const displayText = timeRemaining || 'Calculando SLA...';
 
+  // 🔥 NOVA LÓGICA: Mostrar primeira resposta se status='new', senão mostrar resolução
+  if (ticketStatus === 'new' && ticketSLAInfo) {
+    const { status } = ticketSLAInfo;
+    const responseTimeText = status.isResponseOverdue 
+      ? `${Math.abs(Math.round(status.responseTimeRemaining))}h atrasado`
+      : slaUtils.formatTimeRemaining(status.responseTimeRemaining);
+    
+    return (
+      <div className={`flex items-center gap-1 ${className}`}>
+        <Badge variant="outline" className="flex items-center gap-1 w-fit border-gray-700 text-gray-700">
+          <Clock className="w-3 h-3" />
+          <span className="text-xs">Resposta: {responseTimeText}</span>
+        </Badge>
+      </div>
+    );
+  }
+
+  // Para outros status, mostrar tempo de resolução
   return (
-    <div className="flex items-center gap-1 text-xs">
-      <IconComponent className={`h-3 w-3 ${statusColor}`} />
-      <span className={statusColor}>{displayText}</span>
+    <div className={`flex items-center gap-1 ${className}`}>
+      <Badge variant="outline" className="flex items-center gap-1 w-fit border-gray-700 text-gray-700">
+        <Target className="w-3 h-3" />
+        <span className="text-xs">Resolução: {displayText}</span>
+      </Badge>
     </div>
   );
 };

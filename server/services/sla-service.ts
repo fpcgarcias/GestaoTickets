@@ -66,7 +66,7 @@ export class SLAService {
    * Resolve SLA para um ticket seguindo hierarquia de fallback
    * Hierarquia: Específico > Departamento Padrão > Empresa Padrão > Global Fallback
    */
-  async resolveSLA(params: SLAResolutionParams): Promise<ResolvedSLA> {
+  async resolveSLA(params: SLAResolutionParams): Promise<ResolvedSLA | null> {
     const cacheKey = this.generateCacheKey(params);
     
     // Verificar cache primeiro
@@ -101,49 +101,168 @@ export class SLAService {
         return resolved;
       }
 
-      // Nível 4: Fallback global (valores hardcoded por prioridade)
-      resolved = this.getGlobalFallback(params);
-      this.setCache(cacheKey, resolved);
+      // Nível 4: Sem configuração - NUNCA usar fallback hardcoded
+      resolved = this.getNoSLAResult();
+      if (resolved) {
+        this.setCache(cacheKey, resolved);
+      }
       return resolved;
 
     } catch (error) {
       console.error('Erro ao resolver SLA:', error);
       // Em caso de erro, retornar fallback global
-      resolved = this.getGlobalFallback(params);
+      resolved = this.getNoSLAResult();
       resolved.fallbackReason = 'error_fallback';
       return resolved;
     }
   }
 
   /**
-   * Nível 1: Tentar configuração específica
+   * Normaliza uma prioridade para encontrar correspondência nas configurações
    */
-  private async trySpecificConfiguration(params: SLAResolutionParams): Promise<ResolvedSLA> {
-    const whereConditions = [
-      eq(slaConfigurations.company_id, params.companyId),
-      eq(slaConfigurations.department_id, params.departmentId),
-      eq(slaConfigurations.incident_type_id, params.incidentTypeId),
-      eq(slaConfigurations.is_active, true)
-    ];
-
-    // Adicionar condição de prioridade apenas se fornecida
-    if (params.priorityId !== undefined) {
-      whereConditions.push(eq(slaConfigurations.priority_id, params.priorityId));
+  private normalizePriorityForSLA(priority: string | number, departmentPriorities?: DepartmentPriority[]): string {
+    // Se é um número, tentar converter para nome
+    if (typeof priority === 'number') {
+      if (departmentPriorities) {
+        const foundPriority = departmentPriorities.find(p => p.id === priority);
+        if (foundPriority) return foundPriority.name;
+      }
+      
+      // Fallback para números: assumir peso e mapear
+      const weightMap: Record<number, string> = {
+        1: 'Baixa',
+        2: 'Média', 
+        3: 'Alta',
+        4: 'Crítica'
+      };
+      return weightMap[priority] || 'Média';
     }
 
-    const config = await db
-      .select()
-      .from(slaConfigurations)
-      .where(and(...whereConditions))
-      .limit(1);
+    // Se é string, normalizar
+    const normalized = priority.charAt(0).toUpperCase() + priority.slice(1).toLowerCase();
+    
+    // Mapeamento de prioridades legadas
+    const legacyMap: Record<string, string> = {
+      'low': 'Baixa',
+      'medium': 'Média',
+      'high': 'Alta', 
+      'critical': 'Crítica'
+    };
 
-    if (config.length > 0) {
-      const slaConfig = config[0];
+    // Se é prioridade legada, traduzir
+    if (legacyMap[priority.toLowerCase()]) {
+      return legacyMap[priority.toLowerCase()];
+    }
+
+    // Retornar normalizada
+    return normalized;
+  }
+
+  /**
+   * Busca configuração de SLA com fallback inteligente de prioridade
+   */
+  private async findSLAConfigWithPriorityFallback(
+    companyId: number,
+    departmentId: number,
+    incidentTypeId: number,
+    originalPriority: string,
+    dbInstance: any = null
+  ): Promise<{ config: any; priorityUsed: string } | null> {
+    const database = dbInstance || db;
+    
+    // Lista de prioridades para tentar em ordem de preferência
+    const prioritiesToTry = [
+      originalPriority,
+      originalPriority.charAt(0).toUpperCase() + originalPriority.slice(1).toLowerCase(),
+      originalPriority.toLowerCase(),
+      originalPriority.toUpperCase()
+    ];
+
+    // Adicionar mapeamentos legados se aplicável
+    const legacyMap: Record<string, string> = {
+      'baixa': 'low',
+      'média': 'medium',
+      'alta': 'high',
+      'crítica': 'critical',
+      'low': 'Baixa',
+      'medium': 'Média',
+      'high': 'Alta',
+      'critical': 'Crítica'
+    };
+
+    if (legacyMap[originalPriority.toLowerCase()]) {
+      prioritiesToTry.push(legacyMap[originalPriority.toLowerCase()]);
+    }
+
+    // Tentar encontrar configuração para cada variação da prioridade
+    for (const priorityVariant of prioritiesToTry) {
+      // Primeiro, buscar por ID se a prioridade é um nome conhecido
+      let priorityId: number | null = null;
+      
+      try {
+        const [priority] = await database
+          .select({ id: departmentPriorities.id })
+          .from(departmentPriorities)
+          .where(and(
+            eq(departmentPriorities.company_id, companyId),
+            eq(departmentPriorities.department_id, departmentId),
+            eq(departmentPriorities.name, priorityVariant),
+            eq(departmentPriorities.is_active, true)
+          ))
+          .limit(1);
+
+        if (priority) {
+          priorityId = priority.id;
+        }
+      } catch (error) {
+        console.warn(`Erro ao buscar prioridade ${priorityVariant}:`, error);
+      }
+
+      // Tentar com priority_id se encontrou
+      if (priorityId) {
+        const config = await database
+          .select()
+          .from(slaConfigurations)
+          .where(and(
+            eq(slaConfigurations.company_id, companyId),
+            eq(slaConfigurations.department_id, departmentId),
+            eq(slaConfigurations.incident_type_id, incidentTypeId),
+            eq(slaConfigurations.priority_id, priorityId),
+            eq(slaConfigurations.is_active, true)
+          ))
+          .limit(1);
+
+        if (config.length > 0) {
+          console.log(`[SLA] Encontrou configuração para prioridade ID ${priorityId} (${priorityVariant})`);
+          return { config: config[0], priorityUsed: priorityVariant };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Nível 1: Tentar configuração específica com fallback de prioridade
+   */
+  private async trySpecificConfiguration(params: SLAResolutionParams): Promise<ResolvedSLA> {
+    let priorityForQuery = this.normalizePriorityForSLA(params.priorityName || params.priorityId || 'Média');
+    
+    // Tentar encontrar configuração com fallback de prioridade
+    const result = await this.findSLAConfigWithPriorityFallback(
+      params.companyId,
+      params.departmentId,
+      params.incidentTypeId,
+      priorityForQuery
+    );
+
+    if (result) {
+      console.log(`[SLA] Configuração específica encontrada com prioridade: ${result.priorityUsed}`);
       return {
-        responseTimeHours: slaConfig.response_time_hours,
-        resolutionTimeHours: slaConfig.resolution_time_hours,
+        responseTimeHours: result.config.response_time_hours,
+        resolutionTimeHours: result.config.resolution_time_hours,
         source: 'specific',
-        configId: slaConfig.id
+        configId: result.config.id
       };
     }
 
@@ -222,26 +341,13 @@ export class SLAService {
   }
 
   /**
-   * Nível 4: Fallback global baseado em prioridade
+   * Nível 4: Sem configuração - NUNCA usar fallback hardcoded
    */
-  private getGlobalFallback(params: SLAResolutionParams): ResolvedSLA {
-    const priority = params.priorityName || 'medium';
+  private getNoSLAResult(): ResolvedSLA | null {
+    console.log(`[SLA] NENHUMA configuração de SLA encontrada - Sem SLA configurado`);
     
-    const fallbackSLAs: Record<string, { response: number; resolution: number }> = {
-      'low': { response: 24, resolution: 72 },
-      'medium': { response: 8, resolution: 24 },
-      'high': { response: 4, resolution: 12 },
-      'critical': { response: 1, resolution: 4 }
-    };
-
-    const sla = fallbackSLAs[priority.toLowerCase()] || fallbackSLAs['medium'];
-    
-    return {
-      responseTimeHours: sla.response,
-      resolutionTimeHours: sla.resolution,
-      source: 'global_fallback',
-      fallbackReason: 'no_configuration_found'
-    };
+    // NUNCA retornar valores hardcoded - sempre null se não encontrar configuração real
+    return null;
   }
 
   /**

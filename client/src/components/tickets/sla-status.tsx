@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Clock, Target, CheckCircle, AlertTriangle, Info, Pause } from 'lucide-react';
+import { Clock, Target, CheckCircle, AlertTriangle, Info, Pause, XCircle } from 'lucide-react';
 import { useTicketWithSLA, slaUtils } from '@/hooks/use-sla';
 import { usePriorities } from '@/hooks/use-priorities';
 import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
@@ -26,6 +26,7 @@ interface SLAStatusProps {
   firstResponseAt?: string;
   resolvedAt?: string;
   className?: string;
+  variant?: 'full' | 'compact';
 }
 
 export const SLAStatus: React.FC<SLAStatusProps> = ({
@@ -38,7 +39,8 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
   createdAt,
   firstResponseAt,
   resolvedAt,
-  className
+  className,
+  variant = 'full'
 }) => {
   const ticketSLAInfo = useTicketWithSLA(
     ticketId,
@@ -48,7 +50,8 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
     priority,
     createdAt,
     firstResponseAt,
-    resolvedAt
+    resolvedAt,
+    status
   );
 
   // Buscar prioridades do departamento para obter o nome correto
@@ -93,7 +96,7 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
   const { sla, status: slaStatus } = ticketSLAInfo;
 
   // Calcular progresso dos prazos
-  const responseProgress = firstResponseAt 
+  const responseProgress = (firstResponseAt || status !== 'new')
     ? 100 
     : Math.max(0, Math.min(100, 100 - (slaStatus.responseTimeRemaining / sla.responseTimeHours) * 100));
 
@@ -121,6 +124,30 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
     return <Badge variant="outline">No Prazo</Badge>;
   };
 
+  if (variant === 'compact') {
+    const overallStatus = slaStatus.isResolutionOverdue || responseProgress < 100 ? 'breached' :
+                         responseProgress < 100 ? 'pending' : 'met';
+
+    const badgeVariant = overallStatus === 'met' ? 'default' :
+                        overallStatus === 'pending' ? 'secondary' : 'destructive';
+
+    const icon = overallStatus === 'met' ? CheckCircle :
+                overallStatus === 'pending' ? Clock : XCircle;
+
+    const IconComponent = icon;
+
+    return (
+      <Badge variant={badgeVariant} className="flex items-center gap-1">
+        <IconComponent className="w-3 h-3" />
+        <span className="text-xs">
+          {overallStatus === 'met' ? 'SLA OK' :
+           overallStatus === 'pending' ? 'No prazo' : 'SLA violado'}
+        </span>
+      </Badge>
+    );
+  }
+
+  // Versão completa
   return (
     <Card className={className}>
       <CardHeader>
@@ -141,7 +168,7 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-blue-600" />
-              <span className="font-medium">Primeira Resposta</span>
+              <span className="font-medium">Inicio Atendimento</span>
             </div>
             <div className="text-right">
               <div className="text-sm font-medium">
@@ -150,6 +177,10 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
               {firstResponseAt ? (
                 <div className="text-xs text-green-600">
                   Respondido em {formatDateTime(firstResponseAt)}
+                </div>
+              ) : status !== 'new' ? (
+                <div className="text-xs text-green-600">
+                  Início de atendimento realizado
                 </div>
               ) : (
                 <div className={`text-xs ${slaUtils.getSLAStatusColor(slaStatus.responseTimeRemaining, slaStatus.isResponseOverdue)}`}>
@@ -177,7 +208,7 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
           {firstResponseAt && (
             <div className="flex items-center gap-1 text-xs text-green-600">
               <CheckCircle className="h-3 w-3" />
-              <span>Primeira resposta realizada</span>
+              <span>Início de atendimento realizado</span>
             </div>
           )}
         </div>

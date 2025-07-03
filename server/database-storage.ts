@@ -893,6 +893,18 @@ export class DatabaseStorage implements IStorage {
           changedById
         );
         
+        // 🔥 CRÍTICO: Qualquer mudança de status DEVE PARAR o timer de primeira resposta
+        // Se o status está mudando de "new" para qualquer outro E ainda não há first_response_at
+        if (currentTicket.status === 'new' && !currentTicket.first_response_at) {
+          console.log(`[SLA] ⏰ STATUS ALTERADO: Definindo first_response_at para ticket ${id} (${currentTicket.status} → ${ticketData.status})`);
+          ticketData.first_response_at = new Date();
+        }
+        
+        // Se o status está sendo alterado para 'resolved', marcamos a data de resolução
+        if (ticketData.status === 'resolved' && currentTicket.status !== 'resolved') {
+          console.log(`[SLA] ✅ TICKET RESOLVIDO: Definindo resolved_at para ticket ${id}`);
+          ticketData.resolved_at = new Date();
+        }
       }
     }
     

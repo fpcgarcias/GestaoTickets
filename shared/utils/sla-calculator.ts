@@ -34,6 +34,33 @@ const DEFAULT_BUSINESS_HOURS: BusinessHours = {
 };
 
 /**
+ * Função para debug - testa se o cálculo de horário comercial está funcionando
+ */
+export function testBusinessHoursCalculation(): void {
+  console.log('=== TESTE DE HORÁRIO COMERCIAL ===');
+  
+  // Teste 1: Sexta 17h00 até Segunda 9h00 (deve contar apenas 1h da sexta)
+  const friday17 = new Date(2024, 0, 5, 17, 0, 0); // 5 de janeiro 2024, sexta-feira 17h
+  const monday9 = new Date(2024, 0, 8, 9, 0, 0);   // 8 de janeiro 2024, segunda-feira 9h
+  const businessTime1 = calculateBusinessTimeMs(friday17, monday9);
+  console.log(`Sexta 17h até Segunda 9h: ${businessTime1 / (1000 * 60 * 60)}h (deve ser 2h - 1h da sexta + 1h da segunda)`);
+  
+  // Teste 2: Dentro do horário comercial
+  const monday8 = new Date(2024, 0, 8, 8, 0, 0);   // Segunda 8h
+  const monday10 = new Date(2024, 0, 8, 10, 0, 0); // Segunda 10h
+  const businessTime2 = calculateBusinessTimeMs(monday8, monday10);
+  console.log(`Segunda 8h até Segunda 10h: ${businessTime2 / (1000 * 60 * 60)}h (deve ser 2h)`);
+  
+  // Teste 3: Fora do horário comercial
+  const saturday = new Date(2024, 0, 6, 10, 0, 0); // Sábado 10h
+  const sunday = new Date(2024, 0, 7, 15, 0, 0);   // Domingo 15h
+  const businessTime3 = calculateBusinessTimeMs(saturday, sunday);
+  console.log(`Sábado 10h até Domingo 15h: ${businessTime3 / (1000 * 60 * 60)}h (deve ser 0h)`);
+  
+  console.log('=== FIM DO TESTE ===');
+}
+
+/**
  * Verifica se uma data/hora está dentro do horário comercial
  */
 function isBusinessHour(date: Date, businessHours: BusinessHours = DEFAULT_BUSINESS_HOURS): boolean {
@@ -89,13 +116,34 @@ function getNextBusinessHour(date: Date, businessHours: BusinessHours = DEFAULT_
 function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: BusinessHours = DEFAULT_BUSINESS_HOURS): number {
   if (startDate >= endDate) return 0;
   
+  // Debug temporário para encontrar o bug
+  const isDebugMode = endDate.getFullYear() === 2025 && endDate.getMonth() === 6; // Julho 2025
+  
+  if (isDebugMode) {
+    console.log(`[DEBUG] calculateBusinessTimeMs:`, {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      businessHours
+    });
+  }
+  
   let totalBusinessTime = 0;
   const current = new Date(startDate);
   const dailyBusinessHours = businessHours.endHour - businessHours.startHour;
   const dailyBusinessMs = dailyBusinessHours * 60 * 60 * 1000;
   
-  while (current < endDate) {
+  let dayCount = 0;
+  
+  while (current < endDate && dayCount < 10) { // Proteção contra loop infinito
     const currentDay = current.getDay();
+    
+    if (isDebugMode) {
+      console.log(`[DEBUG] Processando dia ${dayCount}:`, {
+        currentDate: current.toISOString(),
+        dayOfWeek: currentDay,
+        isWorkDay: businessHours.workDays.includes(currentDay)
+      });
+    }
     
     // Se é um dia útil
     if (businessHours.workDays.includes(currentDay)) {
@@ -111,15 +159,44 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
       // Determinar o fim efetivo (menor entre endDate e fim do dia)
       const effectiveEnd = endDate < dayEnd ? endDate : dayEnd;
       
+      if (isDebugMode) {
+        console.log(`[DEBUG] Período efetivo dia ${dayCount}:`, {
+          dayStart: dayStart.toISOString(),
+          dayEnd: dayEnd.toISOString(),
+          effectiveStart: effectiveStart.toISOString(),
+          effectiveEnd: effectiveEnd.toISOString()
+        });
+      }
+      
       // Se há sobreposição no dia atual
       if (effectiveStart < effectiveEnd) {
-        totalBusinessTime += effectiveEnd.getTime() - effectiveStart.getTime();
+        const dayTime = effectiveEnd.getTime() - effectiveStart.getTime();
+        totalBusinessTime += dayTime;
+        
+        if (isDebugMode) {
+          console.log(`[DEBUG] Tempo adicionado dia ${dayCount}:`, {
+            dayTimeMs: dayTime,
+            dayTimeHours: dayTime / (1000 * 60 * 60),
+            totalSoFarHours: totalBusinessTime / (1000 * 60 * 60)
+          });
+        }
       }
+    } else if (isDebugMode) {
+      console.log(`[DEBUG] Dia ${dayCount} é fim de semana/feriado - ignorado`);
     }
     
     // Ir para o próximo dia
     current.setDate(current.getDate() + 1);
     current.setHours(businessHours.startHour, 0, 0, 0);
+    dayCount++;
+  }
+  
+  if (isDebugMode) {
+    console.log(`[DEBUG] Resultado final:`, {
+      totalBusinessTimeMs: totalBusinessTime,
+      totalBusinessTimeHours: totalBusinessTime / (1000 * 60 * 60),
+      daysProcessed: dayCount
+    });
   }
   
   return totalBusinessTime;
@@ -128,7 +205,7 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
 /**
  * Adiciona tempo de horário comercial a uma data
  */
-function addBusinessTime(startDate: Date, businessHoursToAdd: number, businessHours: BusinessHours = DEFAULT_BUSINESS_HOURS): Date {
+export function addBusinessTime(startDate: Date, businessHoursToAdd: number, businessHours: BusinessHours = DEFAULT_BUSINESS_HOURS): Date {
   const msToAdd = businessHoursToAdd * 60 * 60 * 1000;
   let remainingMs = msToAdd;
   let current = getNextBusinessHour(startDate, businessHours);
@@ -190,6 +267,7 @@ function calculateEffectiveBusinessTime(
     return simpleTime;
   }
   
+  // Processar períodos históricos
   for (const period of statusPeriods) {
     const periodStart = new Date(period.startTime);
     const periodEnd = new Date(period.endTime);
@@ -207,14 +285,26 @@ function calculateEffectiveBusinessTime(
     }
   }
   
-  // Se o período atual (do último status até agora) está ativo, adicionar
+  // CORREÇÃO: Calcular período atual (do último período até agora) apenas se necessário
+  // Se temos histórico, o último período pode não cobrir até o tempo atual
   const lastPeriod = statusPeriods[statusPeriods.length - 1];
-  if (lastPeriod && !isSlaPaused(lastPeriod.status)) {
+  
+  if (lastPeriod) {
     const lastPeriodEnd = new Date(lastPeriod.endTime);
+    
+    // Se há um gap entre o último período e o tempo atual, 
+    // assumir que continua com o último status
     if (lastPeriodEnd < currentTime) {
-      const finalPeriodTime = calculateBusinessTimeMs(lastPeriodEnd, currentTime, businessHours);
-      totalEffectiveTime += finalPeriodTime;
+      // Se o último status não pausa o SLA, adicionar o tempo restante
+      if (!isSlaPaused(lastPeriod.status)) {
+        const finalPeriodTime = calculateBusinessTimeMs(lastPeriodEnd, currentTime, businessHours);
+        totalEffectiveTime += finalPeriodTime;
+      }
     }
+  } else {
+    // Se não há períodos mas chegamos aqui, algo está errado
+    // Usar cálculo simples como fallback
+    return calculateBusinessTimeMs(ticketCreatedAt, currentTime, businessHours);
   }
   
   return totalEffectiveTime;
@@ -251,12 +341,15 @@ export function calculateSLAStatus(
   // Calcular a data de vencimento do SLA
   const dueDate = addBusinessTime(ticketCreatedAt, slaHours, businessHours);
   
-  // Calcular tempo decorrido considerando pausas
+  // CORREÇÃO: Sempre usar cálculo de horário comercial
   let timeElapsed: number;
+  
   if (statusPeriods.length > 0) {
+    // Se há histórico de status, usar cálculo com períodos
     timeElapsed = calculateEffectiveBusinessTime(ticketCreatedAt, effectiveEndTime, statusPeriods, businessHours);
   } else {
-    // Fallback: calcular tempo simples se não há histórico
+    // Se não há histórico, usar cálculo simples MAS sempre respeitando horário comercial
+    // NUNCA usar tempo total - sempre usar calculateBusinessTimeMs
     timeElapsed = calculateBusinessTimeMs(ticketCreatedAt, effectiveEndTime, businessHours);
   }
   
@@ -361,25 +454,196 @@ export function convertStatusHistoryToPeriods(
     currentPeriodStatus = (change.new_status || currentPeriodStatus) as TicketStatus;
   }
   
-  // Para o período final, se o ticket está resolvido, usar a data de resolução
-  // Se não, usar agora
-  let finalEndTime = new Date();
+  // CORREÇÃO: Para o período final, NÃO adicionar automaticamente até "agora"
+  // Isso será feito na função principal calculateSLAStatus com o parâmetro currentTime correto
   
-  // Se o ticket está resolvido/fechado, precisamos usar a data da última mudança de status
-  if (isSlaFinished(currentStatus) && statusChanges.length > 0) {
+  // Só adicionar período final se há mudanças de status E o ticket está resolvido
+  if (statusChanges.length > 0 && isSlaFinished(currentStatus)) {
     const lastStatusChange = statusChanges[statusChanges.length - 1];
-    finalEndTime = new Date(lastStatusChange.created_at);
-  }
-  
-  // Adicionar período final (do último status até a data final apropriada)
-  if (currentPeriodStart < finalEndTime) {
-    const finalPeriod = {
-      status: currentPeriodStatus,
-      startTime: currentPeriodStart,
-      endTime: finalEndTime
-    };
-    periods.push(finalPeriod);
+    const finalEndTime = new Date(lastStatusChange.created_at);
+    
+    if (currentPeriodStart < finalEndTime) {
+      const finalPeriod = {
+        status: currentPeriodStatus,
+        startTime: currentPeriodStart,
+        endTime: finalEndTime
+      };
+      periods.push(finalPeriod);
+    }
   }
   
   return periods;
+}
+
+/**
+ * Função de teste completo do sistema de SLA
+ */
+export function testSLASystem(): void {
+  console.log('=== TESTE COMPLETO DO SISTEMA SLA ===');
+  
+  // Cenário 1: Ticket criado na sexta às 16h, deve pausar no fim de semana
+  console.log('\n--- Cenário 1: Ticket criado sexta 16h ---');
+  const friday16 = new Date(2024, 0, 5, 16, 0, 0); // 5 de janeiro 2024, sexta-feira 16h
+  const monday10 = new Date(2024, 0, 8, 10, 0, 0); // 8 de janeiro 2024, segunda-feira 10h
+  
+  const slaResult1 = calculateSLAStatus(
+    friday16, 
+    4, // 4 horas de SLA
+    monday10,
+    undefined, // não resolvido
+    DEFAULT_BUSINESS_HOURS,
+    [], // sem histórico
+    'new'
+  );
+  
+  console.log('Resultado esperado: 4h consumidas (2h sexta + 2h segunda), SLA no limite');
+  
+  // Cenário 2: Ticket com status pausado (escalated)
+  console.log('\n--- Cenário 2: Ticket escalado (SLA pausado) ---');
+  const monday8 = new Date(2024, 0, 8, 8, 0, 0);   // Segunda 8h
+  const monday12 = new Date(2024, 0, 8, 12, 0, 0); // Segunda 12h
+  
+  const statusPeriods: StatusPeriod[] = [
+    {
+      status: 'new',
+      startTime: monday8,
+      endTime: new Date(2024, 0, 8, 9, 0, 0) // 1h ativo
+    },
+    {
+      status: 'escalated', // pausado
+      startTime: new Date(2024, 0, 8, 9, 0, 0),
+      endTime: new Date(2024, 0, 8, 11, 0, 0) // 2h pausado
+    },
+    {
+      status: 'ongoing',
+      startTime: new Date(2024, 0, 8, 11, 0, 0),
+      endTime: monday12 // 1h ativo
+    }
+  ];
+  
+  const slaResult2 = calculateSLAStatus(
+    monday8,
+    4, // 4 horas de SLA
+    monday12,
+    undefined,
+    DEFAULT_BUSINESS_HOURS,
+    statusPeriods,
+    'ongoing'
+  );
+  
+  console.log('Resultado esperado: 2h consumidas (escalated pausou por 2h), SLA ok');
+  
+  // Cenário 3: Ticket resolvido fora do horário comercial
+  console.log('\n--- Cenário 3: Ticket resolvido às 20h ---');
+  const tuesday8 = new Date(2024, 0, 9, 8, 0, 0);  // Terça 8h
+  const tuesday20 = new Date(2024, 0, 9, 20, 0, 0); // Terça 20h (fora do horário)
+  
+  const slaResult3 = calculateSLAStatus(
+    tuesday8,
+    8, // 8 horas de SLA
+    tuesday20,
+    new Date(2024, 0, 9, 19, 0, 0), // resolvido às 19h
+    DEFAULT_BUSINESS_HOURS,
+    [],
+    'resolved'
+  );
+  
+  console.log('Resultado esperado: 10h consumidas (8h-18h), SLA ok');
+  
+  console.log('\n=== FIM DO TESTE COMPLETO ===');
+}
+
+/**
+ * Função para teste rápido - pode ser executada no console
+ * Para testar: import { quickSLATest } from '@shared/utils/sla-calculator'; quickSLATest();
+ */
+export function quickSLATest(): boolean {
+  console.log('🔍 Testando sistema de SLA...');
+  
+  try {
+    // Teste 1: Horário comercial
+    const monday8 = new Date(2024, 0, 8, 8, 0, 0);   // Segunda 8h
+    const monday10 = new Date(2024, 0, 8, 10, 0, 0); // Segunda 10h
+    const businessTime = calculateBusinessTimeMs(monday8, monday10);
+    const expectedTime = 2 * 60 * 60 * 1000; // 2 horas em ms
+    
+    if (Math.abs(businessTime - expectedTime) > 1000) {
+      console.error('❌ Falha no teste de horário comercial');
+      return false;
+    }
+    
+    // Teste 2: Status pausado
+    const statusPeriods: StatusPeriod[] = [
+      { status: 'new', startTime: monday8, endTime: new Date(2024, 0, 8, 9, 0, 0) },
+      { status: 'escalated', startTime: new Date(2024, 0, 8, 9, 0, 0), endTime: monday10 }
+    ];
+    
+    const slaResult = calculateSLAStatus(monday8, 4, monday10, undefined, DEFAULT_BUSINESS_HOURS, statusPeriods, 'escalated');
+    
+    if (!slaResult.isPaused) {
+      console.error('❌ Falha no teste de status pausado');
+      return false;
+    }
+    
+    console.log('✅ Todos os testes passaram!');
+    console.log('📊 Resultados:');
+    console.log(`   - Horário comercial: ${businessTime / (1000 * 60 * 60)}h calculadas`);
+    console.log(`   - Status escalated pausa SLA: ${slaResult.isPaused ? 'SIM' : 'NÃO'}`);
+    console.log(`   - Configuração: 8h às 18h, segunda a sexta`);
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Erro durante o teste:', error);
+    return false;
+  }
+}
+
+/**
+ * Teste específico para o bug reportado
+ */
+export function testBugScenario(): void {
+  console.log('🐛 Testando cenário com bug reportado...');
+  
+  // Dados do chamado com problema:
+  // Criado: 02/07/2025 às 17:13
+  // Atual: provavelmente 03/07/2025 às 09:45
+  
+  const ticketCreated = new Date(2025, 6, 2, 17, 13, 0); // 02/07/2025 17:13
+  const currentTime = new Date(2025, 6, 3, 9, 45, 0);   // 03/07/2025 09:45
+  
+  console.log('📅 Dados do teste:');
+  console.log(`   Criado: ${ticketCreated.toISOString()} (${ticketCreated.toLocaleDateString('pt-BR')} ${ticketCreated.toLocaleTimeString('pt-BR')})`);
+  console.log(`   Atual:  ${currentTime.toISOString()} (${currentTime.toLocaleDateString('pt-BR')} ${currentTime.toLocaleTimeString('pt-BR')})`);
+  console.log(`   Dia da semana criação: ${ticketCreated.getDay()} (0=dom, 1=seg, 2=ter, 3=qua, 4=qui, 5=sex, 6=sab)`);
+  console.log(`   Dia da semana atual: ${currentTime.getDay()}`);
+  
+  // Calcular tempo de negócio manualmente
+  const businessTime = calculateBusinessTimeMs(ticketCreated, currentTime);
+  console.log(`⏱️  Tempo comercial calculado: ${businessTime / (1000 * 60 * 60)} horas`);
+  
+  // Calcular SLA (assumindo 4h para crítico)
+  const slaResult = calculateSLAStatus(
+    ticketCreated,
+    4, // 4 horas de SLA para crítico
+    currentTime,
+    undefined, // não resolvido
+    DEFAULT_BUSINESS_HOURS,
+    [], // sem histórico de status por enquanto
+    'new'
+  );
+  
+  console.log('📊 Resultado SLA:');
+  console.log(`   Tempo consumido: ${slaResult.timeElapsed / (1000 * 60 * 60)} horas`);
+  console.log(`   Tempo restante: ${slaResult.timeRemaining / (1000 * 60 * 60)} horas`);
+  console.log(`   Porcentagem: ${slaResult.percentConsumed}%`);
+  console.log(`   Status: ${slaResult.status}`);
+  console.log(`   Excedido: ${slaResult.isBreached}`);
+  console.log(`   Data vencimento: ${slaResult.dueDate.toISOString()}`);
+  
+  // Cálculo esperado:
+  // 02/07 17:13 até 18:00 = 47 minutos
+  // 03/07 08:00 até 09:45 = 1h45
+  // Total esperado: 2h32 aproximadamente
+  
+  console.log('🎯 Resultado esperado: ~2.5 horas consumidas, SLA ok');
 } 
