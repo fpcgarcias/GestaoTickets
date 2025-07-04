@@ -25,6 +25,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { AuthProvider } from "./hooks/use-auth";
 import { ThemeProvider } from "./contexts/theme-context";
+import { WebSocketProvider } from "./contexts/websocket-context";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/hooks/use-auth";
 import { useSystemSettings } from "@/hooks/use-system-settings";
@@ -180,10 +181,12 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <ThemeProvider>
-            <Toaster />
-            <AppContent />
-          </ThemeProvider>
+          <WebSocketProvider>
+            <ThemeProvider>
+              <Toaster />
+              <AppContent />
+            </ThemeProvider>
+          </WebSocketProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

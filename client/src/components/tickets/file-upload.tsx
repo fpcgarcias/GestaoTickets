@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Upload, File, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -30,6 +30,9 @@ export function FileUpload({
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const { toast } = useToast();
+
+  // Ref para o input file
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = useCallback((file: File): string | null => {
     // Verificar tamanho
@@ -185,10 +188,17 @@ export function FileUpload({
     setUploadingFiles(prev => prev.filter(uf => uf.file !== file));
   }, []);
 
+  // Permitir clique em toda a área do Card
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Evitar conflito com drag-and-drop
+    if (disabled || (e.target as HTMLElement).tagName === 'INPUT') return;
+    inputRef.current?.click();
+  };
+
   return (
     <div className="space-y-4">
       {/* Área de Upload */}
-      <Card 
+      <Card
         className={`
           relative border-2 border-dashed transition-colors cursor-pointer
           ${isDragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}
@@ -197,24 +207,27 @@ export function FileUpload({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onClick={handleCardClick}
+        tabIndex={disabled ? -1 : 0}
+        role="button"
+        aria-disabled={disabled}
       >
         <div className="p-8 text-center">
           <Upload className={`mx-auto h-12 w-12 ${isDragOver ? 'text-blue-500' : 'text-gray-400'}`} />
           <div className="mt-4">
-            <label htmlFor="file-upload" className={`cursor-pointer ${disabled ? 'cursor-not-allowed' : ''}`}>
-              <span className="text-lg font-medium text-gray-900">
-                Arraste arquivos aqui ou <span className="text-blue-600">clique para selecionar</span>
-              </span>
-              <input
-                id="file-upload"
-                type="file"
-                multiple
-                disabled={disabled}
-                onChange={handleFileSelect}
-                className="hidden"
-                accept={allowedTypes.map(type => `.${type}`).join(',')}
-              />
-            </label>
+            <span className="text-lg font-medium text-gray-900">
+              Arraste arquivos aqui ou <span className="text-blue-600">clique para selecionar</span>
+            </span>
+            <input
+              ref={inputRef}
+              id="file-upload"
+              type="file"
+              multiple
+              disabled={disabled}
+              onChange={handleFileSelect}
+              className="hidden"
+              accept={allowedTypes.map(type => `.${type}`).join(',')}
+            />
           </div>
           <p className="mt-2 text-sm text-gray-500">
             Máximo {Math.round(maxFileSize / 1024 / 1024)}MB por arquivo. 

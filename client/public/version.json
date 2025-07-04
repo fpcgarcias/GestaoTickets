@@ -26,7 +26,9 @@
           "Corrigido filtro de atendentes na vinculação dos tickets para puxar apenas atendentes do departamento vinculado ao ticket.",
           "Corrigido erro nas variáveis de e-mail para envio de e-mails de notificação de chamados.",
           "Ajustado a ordem dos tickets na tela de tickets, puxando os mais recentes primeiro.",
-          "Ajuste nos dropdowns de atendentes para exibir em ordem alfabética."
+          "Ajuste nos dropdowns de atendentes para exibir em ordem alfabética.",
+          "Ajuste na conexão do websocket.",
+          "Acerto do cálculo do SLA no início do atendimento."
         ]
       }
     },

@@ -390,8 +390,12 @@ export default function EmailSettings() {
   // Mutation para salvar configurações SMTP
   const saveConfigMutation = useMutation({
     mutationFn: async (config: SMTPConfig) => {
-      console.log('[DEBUG Frontend] Entrando no mutationFn com config:', config);
-      console.log('[DEBUG Frontend] Stringifying config:', JSON.stringify(config));
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[DEBUG Frontend] Entrando no mutationFn com config:', config);
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[DEBUG Frontend] Stringifying config:', JSON.stringify(config));
+      }
       
       let requestConfig: any = config;
       
@@ -402,12 +406,18 @@ export default function EmailSettings() {
       
       const response = await apiRequest("POST", "/api/email-config", requestConfig);
       
-      console.log('[DEBUG Frontend] Response status:', response.status);
-      console.log('[DEBUG Frontend] Response ok:', response.ok);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[DEBUG Frontend] Response status:', response.status);
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[DEBUG Frontend] Response ok:', response.ok);
+      }
       
       if (!response.ok) {
         const error = await response.json();
-        console.log('[DEBUG Frontend] Erro na resposta:', error);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[DEBUG Frontend] Erro na resposta:', error);
+        }
         throw new Error(error.message || 'Falha ao salvar configurações');
       }
       return response.json();
@@ -421,7 +431,9 @@ export default function EmailSettings() {
       refetchConfig();
     },
     onError: (error: Error) => {
-      console.log('[DEBUG Frontend] onError chamado:', error);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[DEBUG Frontend] onError chamado:', error);
+      }
       toast({
         title: "Erro",
         description: error.message,
@@ -584,7 +596,9 @@ export default function EmailSettings() {
   useEffect(() => {
     // Só atualizar se o usuário não fez alterações manuais
     if (emailConfig && !userMadeChanges) {
-      console.log('[DEBUG Frontend] Dados carregados do backend:', emailConfig);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[DEBUG Frontend] Dados carregados do backend:', emailConfig);
+      }
       
       const newConfig = {
         provider: emailConfig.provider || 'smtp',
@@ -598,10 +612,14 @@ export default function EmailSettings() {
         use_tls: emailConfig.use_tls !== false // Garantir que seja boolean
       };
       
-      console.log('[DEBUG Frontend] Novo estado que será setado (sem sobrescrever alterações do usuário):', newConfig);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[DEBUG Frontend] Novo estado que será setado (sem sobrescrever alterações do usuário):', newConfig);
+      }
       setSmtpConfig(newConfig);
     } else if (emailConfig && userMadeChanges) {
-      console.log('[DEBUG Frontend] Dados carregados do backend, mas usuário fez alterações - não sobrescrevendo:', emailConfig);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[DEBUG Frontend] Dados carregados do backend, mas usuário fez alterações - não sobrescrevendo:', emailConfig);
+      }
     }
   }, [emailConfig, userMadeChanges]);
 
@@ -680,10 +698,18 @@ export default function EmailSettings() {
     };
 
     // Debug: Logar o que está sendo enviado
-    console.log('[DEBUG Frontend] Estado atual smtpConfig:', smtpConfig);
-    console.log('[DEBUG Frontend] Dados que serão enviados:', configToSave);
-    console.log('[DEBUG Frontend] Provider:', configToSave.provider);
-    console.log('[DEBUG Frontend] From email:', configToSave.from_email);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEBUG Frontend] Estado atual smtpConfig:', smtpConfig);
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEBUG Frontend] Dados que serão enviados:', configToSave);
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEBUG Frontend] Provider:', configToSave.provider);
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[DEBUG Frontend] From email:', configToSave.from_email);
+    }
 
     saveConfigMutation.mutate(configToSave);
   };
@@ -886,8 +912,12 @@ export default function EmailSettings() {
         <Select 
           value={smtpConfig.provider} 
           onValueChange={(value: any) => {
-            console.log('[DEBUG Frontend] Select onValueChange chamado com valor:', value);
-            console.log('[DEBUG Frontend] Estado atual antes da mudança:', smtpConfig);
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('[DEBUG Frontend] Select onValueChange chamado com valor:', value);
+            }
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('[DEBUG Frontend] Estado atual antes da mudança:', smtpConfig);
+            }
             
             const newConfig = { 
               ...smtpConfig, 
@@ -899,7 +929,9 @@ export default function EmailSettings() {
               api_key: value !== 'smtp' ? smtpConfig.api_key : ''
             };
             
-            console.log('[DEBUG Frontend] Novo estado que será setado:', newConfig);
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('[DEBUG Frontend] Novo estado que será setado:', newConfig);
+            }
             setSmtpConfig(newConfig);
             setUserMadeChanges(true); // Marcar que usuário fez alterações
           }}
