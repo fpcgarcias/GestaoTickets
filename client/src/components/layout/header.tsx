@@ -70,19 +70,6 @@ export const Header: React.FC = () => {
     }
   };
 
-  // Função para navegar para perfil
-  const goToProfile = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Redirecionar para perfil (ou settings por enquanto)
-    setLocation('/settings');
-    // Fechar dropdown após clicar
-    const closeDropdown = document.querySelector('[data-radix-dropdown-menu-content-close]');
-    if (closeDropdown) {
-      (closeDropdown as HTMLElement).click();
-    }
-  };
-
   return (
     <header className="h-16 bg-white border-b border-neutral-200 flex items-center justify-between px-6">
       <div className="flex items-center">
@@ -131,10 +118,12 @@ export const Header: React.FC = () => {
                  <span className="mr-3 text-lg"><TagIcon size={20} /></span>
                  <span className={location.startsWith("/ticket-types") ? "font-medium" : ""}>Tipos de Chamado</span>
                </Link>
-                             <Link href="/settings" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer ${location.startsWith("/settings") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
-                 <span className="mr-3 text-lg"><Settings size={20} /></span>
-                 <span className={location.startsWith("/settings") ? "font-medium" : ""}>Configurações</span>
-               </Link>
+               {currentUser.role !== 'customer' && (
+                 <Link href="/settings" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer ${location.startsWith("/settings") ? "active" : "text-neutral-700 hover:bg-neutral-100"}`}>
+                   <span className="mr-3 text-lg"><Settings size={20} /></span>
+                   <span className={location.startsWith("/settings") ? "font-medium" : ""}>Configurações</span>
+                 </Link>
+               )}
              </nav>
            </div>
            </SheetContent>
@@ -159,15 +148,13 @@ export const Header: React.FC = () => {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={goToProfile} className="cursor-pointer">
-              <User className="mr-2 h-4 w-4" />
-              <span>Perfil</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={goToSettings} className="cursor-pointer">
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Configurações</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            {currentUser.role !== 'customer' && (
+              <DropdownMenuItem onClick={goToSettings} className="cursor-pointer">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Configurações</span>
+              </DropdownMenuItem>
+            )}
+            {currentUser.role !== 'customer' && <DropdownMenuSeparator />}
             <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Sair</span>

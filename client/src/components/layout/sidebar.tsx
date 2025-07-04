@@ -73,7 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     { href: "/priority-settings", icon: <Palette size={20} />, label: "Prioridades", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/sla-configurations", icon: <Clock size={20} />, label: "Configurações SLA", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/sla-dashboard", icon: <BarChart3 size={20} />, label: "Dashboard SLA", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'customer', 'viewer'] },
+    { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'viewer'] },
   ];
   
   // Filtrar itens de navegação com base no papel do usuário atual

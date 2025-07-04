@@ -1369,6 +1369,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         console.error('[Email] Erro ao enviar confirmação para o cliente:', emailError);
       }
       
+      // 📧 ENVIAR EMAIL PARA ADMINS E SUPPORT
+      try {
+        await emailNotificationService.notifyNewTicket(ticket.id);
+      } catch (emailError) {
+        console.error('[Email] Erro ao notificar admins/support sobre novo ticket:', emailError);
+      }
+      
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ 
@@ -1429,7 +1436,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Se for uma atualização de status ou atribuição, notificar
       if (req.body.status !== ticket.status || req.body.assigned_to_id !== ticket.assigned_to_id) {
         notificationService.sendNotificationToAll({
-          type: 'ticket_updated',
+          type: 'status_changed',
           ticketId: ticket.id,
           title: `Ticket Atualizado: ${ticket.title}`,
           message: `O status ou atribuição do ticket ${ticket.ticket_id} foi atualizado.`,
@@ -1961,6 +1968,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const search = (req.query.search as string) || '';
       const includeInactive = req.query.includeInactive === 'true';
       const filterCompanyId = req.query.company_id ? parseInt(req.query.company_id as string) : null;
+      const filterDepartmentId = req.query.department_id ? parseInt(req.query.department_id as string) : null;
       
       const userRole = req.session?.userRole as string;
       const userId = req.session?.userId;
@@ -2030,6 +2038,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       } else {
         // TODAS AS OUTRAS ROLES: NÃO VEEM O DROPDOWN (ignora filterCompanyId)
         officials = [];
+      }
+      
+      // APLICAR FILTRO DE DEPARTAMENTO SE FORNECIDO
+      if (filterDepartmentId) {
+        // Buscar todos os atendentes que pertencem ao departamento especificado
+        const officialIds = await db.select({ official_id: schema.officialDepartments.official_id })
+          .from(schema.officialDepartments)
+          .where(eq(schema.officialDepartments.department_id, filterDepartmentId));
+        
+        const allowedOfficialIds = officialIds.map(o => o.official_id);
+        
+        // Filtrar apenas os atendentes que pertencem ao departamento
+        officials = officials.filter(official => allowedOfficialIds.includes(official.id));
       }
       
       // Aplicar filtro de busca se fornecido

@@ -50,9 +50,14 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   
   // Buscar a lista de atendentes disponíveis (apenas para não-clientes)
   const { data: officialsResponse, isLoading: isLoadingOfficials } = useQuery({
-    queryKey: ["/api/officials"],
+    queryKey: ["/api/officials", ticket.department_id],
     queryFn: async () => {
-      const res = await fetch('/api/officials?limit=1000'); // Buscar todos para o dropdown
+      const params = new URLSearchParams();
+      params.append('limit', '1000');
+      if (ticket.department_id) {
+        params.append('department_id', ticket.department_id.toString());
+      }
+      const res = await fetch(`/api/officials?${params.toString()}`);
       if (!res.ok) throw new Error('Erro ao carregar atendentes');
       return res.json();
     },

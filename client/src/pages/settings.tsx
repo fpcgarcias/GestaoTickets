@@ -58,6 +58,18 @@ export default function Settings() {
   console.log("[Settings] Company from global useAuth:", userCompany);
   console.log("[Settings] isLoadingAuth from global useAuth:", isLoadingAuth);
 
+  // Redirecionar customers que tentarem acessar esta página
+  useEffect(() => {
+    if (!isLoadingAuth && user?.role === 'customer') {
+      toast({
+        title: "Acesso Negado",
+        description: "Você não tem permissão para acessar as configurações.",
+        variant: "destructive",
+      });
+      navigate('/');
+    }
+  }, [isLoadingAuth, user?.role, navigate, toast]);
+
   const [companies, setCompanies] = useState<ApiCompany[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>(
     (user?.role === 'manager' || user?.role === 'company_admin') && userCompany?.id ? userCompany.id : undefined
@@ -373,6 +385,11 @@ export default function Settings() {
     { key: 'high', label: 'Alta' },
     { key: 'critical', label: 'Crítica' },
   ];
+
+  // Impedir renderização para customers
+  if (!isLoadingAuth && user?.role === 'customer') {
+    return null;
+  }
 
   return (
     <div>

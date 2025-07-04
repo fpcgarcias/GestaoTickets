@@ -50,9 +50,14 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
   const isCustomer = user?.role === 'customer';
   
   const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
-    queryKey: ['/api/officials'],
+    queryKey: ['/api/officials', departmentId],
     queryFn: async () => {
-      const res = await fetch('/api/officials?limit=1000'); // Buscar todos para o dropdown
+      const params = new URLSearchParams();
+      params.append('limit', '1000');
+      if (departmentId) {
+        params.append('department_id', departmentId.toString());
+      }
+      const res = await fetch(`/api/officials?${params.toString()}`);
       if (!res.ok) throw new Error('Erro ao carregar atendentes');
       return res.json();
     },
@@ -61,8 +66,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
 
   const allOfficialsData = officialsResponse?.data || [];
 
-  // Simplificando completamente a lógica - mostrar TODOS os atendentes
-  // Não filtrar por departamento para garantir que SEMPRE apareça atendentes
+  // Filtrar atendentes por departamento do ticket
   const officials = React.useMemo(() => {
     return Array.isArray(allOfficialsData) ? allOfficialsData : [];
   }, [allOfficialsData]);
