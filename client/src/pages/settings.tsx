@@ -54,9 +54,11 @@ export default function Settings() {
   const [, navigate] = useLocation();
   const { user, company: userCompany, isLoading: isLoadingAuth } = useAuth(); // Usar o hook de autenticação global
 
-  console.log("[Settings] User from global useAuth:", user);
-  console.log("[Settings] Company from global useAuth:", userCompany);
-  console.log("[Settings] isLoadingAuth from global useAuth:", isLoadingAuth);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log("[Settings] User from global useAuth:", user);
+    console.log("[Settings] Company from global useAuth:", userCompany);
+    console.log("[Settings] isLoadingAuth from global useAuth:", isLoadingAuth);
+  }
 
   // Redirecionar customers que tentarem acessar esta página
   useEffect(() => {
@@ -74,9 +76,9 @@ export default function Settings() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>(
     (user?.role === 'manager' || user?.role === 'company_admin') && userCompany?.id ? userCompany.id : undefined
   );
-  console.log("[Settings] Initial selectedCompanyId:", selectedCompanyId);
-  const [slaResponseTimes, setSlaResponseTimes] = useState<Record<string, string>>({});
-  const [slaResolutionTimes, setSlaResolutionTimes] = useState<Record<string, string>>({});
+  if (process.env.NODE_ENV !== 'production') {
+    console.log("[Settings] Initial selectedCompanyId:", selectedCompanyId);
+  }
 
   // useEffect(() => {
   //   if (hash === 'departments') {
@@ -107,26 +109,38 @@ export default function Settings() {
 
   useEffect(() => {
     if (user?.role === 'admin' && companiesData) {
-      console.log("[Settings] Admin role and companiesData received. companiesData:", companiesData);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("[Settings] Admin role and companiesData received. companiesData:", companiesData);
+      }
       setCompanies(companiesData);
       if (!selectedCompanyId) { 
         if (userCompany?.id && companiesData.some(c => c.id === userCompany.id)) {
           setSelectedCompanyId(userCompany.id);
-          console.log("[Settings] setSelectedCompanyId (admin, from userCompany.id):", userCompany.id);
+          if (process.env.NODE_ENV !== 'production') {
+            console.log("[Settings] setSelectedCompanyId (admin, from userCompany.id):", userCompany.id);
+          }
         } else if (companiesData.length > 0) {
           setSelectedCompanyId(companiesData[0].id);
-          console.log("[Settings] setSelectedCompanyId (admin, from companiesData[0].id):", companiesData[0].id);
+          if (process.env.NODE_ENV !== 'production') {
+            console.log("[Settings] setSelectedCompanyId (admin, from companiesData[0].id):", companiesData[0].id);
+          }
         }
       }
     } else if (user?.role === 'manager' && userCompany?.id && !selectedCompanyId) {
       setSelectedCompanyId(userCompany.id);
-      console.log("[Settings] setSelectedCompanyId (manager, from userCompany.id):", userCompany.id);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("[Settings] setSelectedCompanyId (manager, from userCompany.id):", userCompany.id);
+      }
     } else if (user?.role === 'company_admin' && userCompany?.id && !selectedCompanyId) {
       setSelectedCompanyId(userCompany.id);
-      console.log("[Settings] setSelectedCompanyId (company_admin, from userCompany.id):", userCompany.id);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("[Settings] setSelectedCompanyId (company_admin, from userCompany.id):", userCompany.id);
+      }
     } else if (user?.role === 'support' && userCompany?.id && !selectedCompanyId) {
       setSelectedCompanyId(userCompany.id);
-      console.log("[Settings] setSelectedCompanyId (support, from userCompany.id):", userCompany.id);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("[Settings] setSelectedCompanyId (support, from userCompany.id):", userCompany.id);
+      }
     }
   }, [companiesData, user?.role, userCompany, selectedCompanyId]);
 
@@ -145,13 +159,15 @@ export default function Settings() {
                         (!isLoadingAuth && user?.role === 'supervisor' && !!userCompany?.id) ||
                         (!isLoadingAuth && user?.role === 'company_admin' && !!userCompany?.id) ||
                         (!isLoadingAuth && user?.role === 'support' && !!userCompany?.id);
-  console.log(
-    "[Settings] slaQueryEnabled:", slaQueryEnabled, 
-    "isLoadingAuth:", isLoadingAuth,
-    "user.role:", user?.role, 
-    "selectedCompanyId:", selectedCompanyId, 
-    "userCompany.id:", userCompany?.id
-  );
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(
+      "[Settings] slaQueryEnabled:", slaQueryEnabled, 
+      "isLoadingAuth:", isLoadingAuth,
+      "user.role:", user?.role, 
+      "selectedCompanyId:", selectedCompanyId, 
+      "userCompany.id:", userCompany?.id
+    );
+  }
   const { 
     data: slaSettingsData, 
     isLoading: isLoadingSla, 
@@ -173,10 +189,14 @@ export default function Settings() {
       } else if (user?.role === 'support' && userCompany?.id) {
         endpoint = '/api/settings/sla';
       } else {
-        console.log("[Settings SLA Query] No valid conditions to fetch, returning empty. User Role:", user?.role, "SelectedCompanyId:", selectedCompanyId, "UserCompanyId:", userCompany?.id);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log("[Settings SLA Query] No valid conditions to fetch, returning empty. User Role:", user?.role, "SelectedCompanyId:", selectedCompanyId, "UserCompanyId:", userCompany?.id);
+        }
         return Promise.resolve({ company_id: selectedCompanyId || userCompany?.id || 0, settings: {} }); 
       }
-      console.log("[Settings SLA Query] Fetching SLA with endpoint:", endpoint);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log("[Settings SLA Query] Fetching SLA with endpoint:", endpoint);
+      }
       const response = await apiRequest("GET", endpoint);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Falha ao buscar config. SLA' }));
@@ -186,33 +206,6 @@ export default function Settings() {
     },
     enabled: slaQueryEnabled,
   });
-
-  useEffect(() => {
-    if (slaSettingsData) {
-      console.log("[Settings] Received slaSettingsData:", slaSettingsData);
-      if (slaSettingsData.settings) {
-        const newResponseTimes: Record<string, string> = {};
-        const newResolutionTimes: Record<string, string> = {};
-        Object.keys(slaSettingsData.settings).forEach(priority => {
-          newResponseTimes[priority] = slaSettingsData.settings[priority]?.response_time_hours?.toString() || "";
-          newResolutionTimes[priority] = slaSettingsData.settings[priority]?.resolution_time_hours?.toString() || "";
-        });
-        setSlaResponseTimes(newResponseTimes);
-        setSlaResolutionTimes(newResolutionTimes);
-      } else { 
-        setSlaResponseTimes({});
-        setSlaResolutionTimes({});
-      }
-    }
-  }, [slaSettingsData]);
-
-  useEffect(() => {
-    if (isErrorSla && errorSla) {
-      toast({ title: "Erro SLA", description: errorSla.message, variant: "destructive" });
-      setSlaResponseTimes({}); 
-      setSlaResolutionTimes({});
-    }
-  }, [isErrorSla, errorSla, toast]);
 
   // Carregar configurações gerais
   const { 
@@ -305,80 +298,6 @@ export default function Settings() {
     },
   });
 
-  const handleSlaInputChange = (priority: string, type: 'response' | 'resolution', value: string) => {
-    if (type === 'response') {
-      setSlaResponseTimes(prev => ({ ...prev, [priority]: value }));
-    } else {
-      setSlaResolutionTimes(prev => ({ ...prev, [priority]: value }));
-    }
-  };
-  
-  const handleSaveSlaSettings = () => {
-    if ((user?.role === 'admin' && !selectedCompanyId) || 
-        ((user?.role === 'manager' || user?.role === 'supervisor' || user?.role === 'support') && !userCompany?.id)) {
-      toast({ 
-        title: "Seleção Necessária", 
-        description: user?.role === 'admin' 
-          ? "Selecione uma empresa." 
-          : (user?.role === 'manager' ? "Manager sem empresa associada." : 
-             user?.role === 'supervisor' ? "Supervisor sem empresa associada." : "Support sem empresa associada."), 
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    const settingsPayload: Record<string, SlaRule> = {};
-    const priorities = ['low', 'medium', 'high', 'critical'];
-    let validationError = false;
-
-    for (const priority of priorities) {
-      const responseTimeStr = slaResponseTimes[priority];
-      const resolutionTimeStr = slaResolutionTimes[priority];
-      const rule: SlaRule = {};
-      let hasResponseData = false, hasResolutionData = false;
-
-      if (responseTimeStr !== undefined && responseTimeStr.trim() !== '') {
-        const parsedResponse = parseInt(responseTimeStr, 10);
-        if (!isNaN(parsedResponse) && parsedResponse >= 0) {
-          rule.response_time_hours = parsedResponse; hasResponseData = true;
-        } else { validationError = true; toast({ title: "Valor Inválido", description: `Tempo de resposta para ${priority} é inválido.`, variant: "destructive"}); break; }
-      }
-
-      if (resolutionTimeStr !== undefined && resolutionTimeStr.trim() !== '') {
-         const parsedResolution = parseInt(resolutionTimeStr, 10);
-        if (!isNaN(parsedResolution) && parsedResolution >= 0) {
-          rule.resolution_time_hours = parsedResolution; hasResolutionData = true;
-        } else { validationError = true; toast({ title: "Valor Inválido", description: `Tempo de resolução para ${priority} é inválido.`, variant: "destructive"}); break; }
-      }
-      
-      if (hasResponseData && hasResolutionData) settingsPayload[priority] = rule;
-      else if (!hasResponseData && !hasResolutionData) settingsPayload[priority] = { response_time_hours: undefined, resolution_time_hours: undefined }; 
-      else { validationError = true; toast({ title: "Campos Incompletos", description: `Para ${priority}, preencha ambos os tempos ou deixe ambos vazios.`, variant: "destructive"}); break; }
-    }
-
-    if (validationError) return;
-
-    const finalPayload: { company_id?: number; settings: Record<string, SlaRule>; } = { settings: settingsPayload };
-    if (user?.role === 'admin' && selectedCompanyId) {
-      finalPayload.company_id = selectedCompanyId;
-    } else if ((user?.role === 'manager' || user?.role === 'supervisor' || user?.role === 'support') && userCompany?.id) {
-      // Para manager, supervisor e support, o company_id é implicitamente o da sua sessão, 
-      // o backend deve tratar isso. Se o backend precisar explicitamente:
-      // finalPayload.company_id = userCompany.id;
-    }
-    
-    saveSlaSettingsMutation.mutate(finalPayload);
-  };
-
-  // Handler para salvar configurações gerais (mantido como estava)
-  const handleSaveGeneralSettings = () => {
-    saveGeneralSettingsMutation.mutate({
-      companyName,
-      supportEmail,
-      allowCustomerRegistration,
-    });
-  };
-  
   const slaPriorities = [
     { key: 'low', label: 'Baixa' },
     { key: 'medium', label: 'Média' },
@@ -408,13 +327,6 @@ export default function Settings() {
           {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') && (
             <TabsTrigger value="general" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
               Geral
-            </TabsTrigger>
-          )}
-          
-          {/* Aba SLA - para admin, manager, company_admin, supervisor e support */}
-          {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'company_admin' || user?.role === 'supervisor' || user?.role === 'support') && (
-            <TabsTrigger value="sla" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
-              Configurações de SLA
             </TabsTrigger>
           )}
           
@@ -522,92 +434,6 @@ export default function Settings() {
                     )}
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
-        
-        {/* Conteúdo da aba SLA - para admin, manager, company_admin, supervisor e support */}
-        {(user?.role === 'admin' || user?.role === 'manager' || user?.role === 'company_admin' || user?.role === 'supervisor' || user?.role === 'support') && (
-          <TabsContent value="sla">
-            <Card>
-              <CardHeader>
-                <CardTitle>Configuração de SLA</CardTitle>
-                <CardDescription>Configure requisitos de tempo de resposta e resolução por prioridade</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {isLoadingAuth && <div className="flex items-center justify-center p-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><span className="ml-2">Carregando usuário...</span></div>}
-
-                {!isLoadingAuth && user?.role === 'admin' && (
-                  <>
-                    {((): null => { 
-                      console.log("[Settings] Rendering company select check: isLoadingAuth:", isLoadingAuth, "user.role:", user?.role, "isLoadingCompanies:", isLoadingCompanies, "companies state:", companies, "companiesData:", companiesData);
-                      return null; 
-                    })()}
-                    <div className="mb-6">
-                      <Label htmlFor="company-select-sla" className="mb-1 block text-sm font-medium">Empresa</Label>
-                      <Select value={selectedCompanyId?.toString() ?? ''} onValueChange={(v) => setSelectedCompanyId(v ? parseInt(v) : undefined)} disabled={isLoadingCompanies}>
-                        <SelectTrigger id="company-select-sla" className="w-full md:w-1/2">
-                          <SelectValue placeholder={isLoadingCompanies ? "Carregando..." : "Selecione uma empresa"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {!isLoadingCompanies && companies.length === 0 && <SelectItem value="none" disabled>Nenhuma empresa</SelectItem>}
-                          {companies.map((c) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
-                )}
-
-                {isLoadingSla && !isLoadingAuth && <div className="flex items-center justify-center p-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /><span className="ml-2">Carregando SLA...</span></div>}
-                
-                {!isLoadingAuth && !isLoadingSla && !slaQueryEnabled && user?.role === 'admin' && (
-                   <div className="text-center text-neutral-500 p-6 rounded-md border border-dashed">
-                     Selecione uma empresa para configurar os SLAs.
-                   </div>
-                )}
-                {!isLoadingAuth && !isLoadingSla && !slaQueryEnabled && user?.role === 'manager' && !userCompany?.id && (
-                   <div className="text-center text-red-600 p-6 rounded-md border border-red-200 bg-red-50">
-                     Usuário manager sem empresa associada. Não é possível configurar SLAs.
-                   </div>
-                )}
-                {!isLoadingAuth && !isLoadingSla && !slaQueryEnabled && user?.role === 'supervisor' && !userCompany?.id && (
-                   <div className="text-center text-red-600 p-6 rounded-md border border-red-200 bg-red-50">
-                     Usuário supervisor sem empresa associada. Não é possível configurar SLAs.
-                   </div>
-                )}
-                {!isLoadingAuth && !isLoadingSla && !slaQueryEnabled && user?.role === 'support' && !userCompany?.id && (
-                   <div className="text-center text-red-600 p-6 rounded-md border border-red-200 bg-red-50">
-                     Usuário support sem empresa associada. Não é possível configurar SLAs.
-                   </div>
-                )}
-
-                {!isLoadingAuth && !isLoadingSla && slaQueryEnabled && (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {slaPriorities.map(p => (
-                        <div key={p.key} className="p-4 border rounded-lg shadow-sm">
-                          <h3 className="font-semibold text-md mb-2">Prioridade {p.label}</h3>
-                          <div className="space-y-3">
-                            <div>
-                              <Label htmlFor={`sla-response-${p.key}`} className="text-xs">Tempo de 1ª Resposta (h)</Label>
-                              <Input id={`sla-response-${p.key}`} type="number" value={slaResponseTimes[p.key] || ''} onChange={(e) => handleSlaInputChange(p.key, 'response', e.target.value)} placeholder="Ex: 4" min="0" className="mt-1" disabled={saveSlaSettingsMutation.isPending}/>
-                            </div>
-                            <div>
-                              <Label htmlFor={`sla-resolution-${p.key}`} className="text-xs">Tempo de Resolução (h)</Label>
-                              <Input id={`sla-resolution-${p.key}`} type="number" value={slaResolutionTimes[p.key] || ''} onChange={(e) => handleSlaInputChange(p.key, 'resolution', e.target.value)} placeholder="Ex: 24" min="0" className="mt-1" disabled={saveSlaSettingsMutation.isPending}/>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex justify-end mt-6">
-                      <Button onClick={handleSaveSlaSettings} disabled={saveSlaSettingsMutation.isPending || isLoadingSla} size="lg">
-                        {saveSlaSettingsMutation.isPending ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Salvando...</> : 'Salvar SLAs'}
-                      </Button>
-                    </div>
-                  </>
-                )}
               </CardContent>
             </Card>
           </TabsContent>

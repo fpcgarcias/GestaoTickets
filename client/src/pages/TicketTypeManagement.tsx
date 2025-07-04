@@ -194,12 +194,18 @@ const TicketTypeManagement: React.FC = () => {
       const response = await apiRequest('GET', url);
       
       if (!response.ok) {
-        console.error('[ERRO] Falha ao buscar tipos de chamado:', response.status);
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('[ERRO] Falha ao buscar tipos de chamado:', response.status);
+        }
         try {
           const text = await response.clone().text();
-          console.error('[ERRO] Resposta:', text.substring(0, 500));
+          if (process.env.NODE_ENV !== 'production') {
+            console.error('[ERRO] Resposta:', text.substring(0, 500));
+          }
         } catch (err) {
-          console.error('[ERRO] Não foi possível ler o corpo da resposta');
+          if (process.env.NODE_ENV !== 'production') {
+            console.error('[ERRO] Não foi possível ler o corpo da resposta');
+          }
         }
         
         const errorData = await response.json().catch(() => ({ error: 'Erro ao processar resposta' }));

@@ -14,7 +14,9 @@ export class CacheManager {
         const registrations = await navigator.serviceWorker.getRegistrations();
         for (const registration of registrations) {
           await registration.unregister();
-          console.log('🧹 Service Worker removido:', registration.scope);
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('🧹 Service Worker removido:', registration.scope);
+          }
         }
       }
 
@@ -23,7 +25,9 @@ export class CacheManager {
         const cacheNames = await caches.keys();
         for (const cacheName of cacheNames) {
           await caches.delete(cacheName);
-          console.log('🧹 Cache removido:', cacheName);
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('🧹 Cache removido:', cacheName);
+          }
         }
       }
 
@@ -33,18 +37,26 @@ export class CacheManager {
         localStorageKeys.forEach(key => {
           localStorage.removeItem(key);
         });
-        console.log('🧹 localStorage limpo');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('🧹 localStorage limpo');
+        }
       }
 
       // 4. Limpar sessionStorage
       if (typeof Storage !== 'undefined') {
         sessionStorage.clear();
-        console.log('🧹 sessionStorage limpo');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('🧹 sessionStorage limpo');
+        }
       }
 
-      console.log('✅ Todos os caches foram limpos com sucesso!');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('✅ Todos os caches foram limpos com sucesso!');
+      }
     } catch (error) {
-      console.error('❌ Erro ao limpar caches:', error);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('❌ Erro ao limpar caches:', error);
+      }
     }
   }
 
@@ -60,31 +72,45 @@ export class CacheManager {
    * Verifica se há problemas de cache
    */
   static async checkCacheHealth(): Promise<void> {
-    console.log('🔍 Verificando saúde do cache...');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔍 Verificando saúde do cache...');
+    }
     
     // Verificar Service Workers ativos
     if ('serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
-      console.log(`📊 Service Workers ativos: ${registrations.length}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`📊 Service Workers ativos: ${registrations.length}`);
+      }
       registrations.forEach(reg => {
-        console.log(`  - Escopo: ${reg.scope}`);
-        console.log(`  - Estado: ${reg.active?.state || 'inativo'}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`  - Escopo: ${reg.scope}`);
+        }
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`  - Estado: ${reg.active?.state || 'inativo'}`);
+        }
       });
     }
 
     // Verificar Cache API
     if ('caches' in window) {
       const cacheNames = await caches.keys();
-      console.log(`📊 Caches ativos: ${cacheNames.length}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`📊 Caches ativos: ${cacheNames.length}`);
+      }
       cacheNames.forEach(name => {
-        console.log(`  - Cache: ${name}`);
+        if (process.env.NODE_ENV !== 'production') {
+          console.log(`  - Cache: ${name}`);
+        }
       });
     }
 
     // Verificar tamanho do localStorage
     if (typeof Storage !== 'undefined') {
       const localStorageSize = new Blob(Object.values(localStorage)).size;
-      console.log(`📊 localStorage: ${(localStorageSize / 1024).toFixed(2)} KB`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`📊 localStorage: ${(localStorageSize / 1024).toFixed(2)} KB`);
+      }
     }
   }
 
@@ -95,16 +121,24 @@ export class CacheManager {
     // Monitor para erros de carregamento
     window.addEventListener('error', (event) => {
       if (event.filename && (event.filename.includes('.js') || event.filename.includes('.css'))) {
-        console.error('❌ Erro de carregamento de recurso (possível problema de cache):', event.filename);
-        console.log('💡 Tente limpar o cache: CacheManager.clearAllCaches()');
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('❌ Erro de carregamento de recurso (possível problema de cache):', event.filename);
+        }
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('💡 Tente limpar o cache: CacheManager.clearAllCaches()');
+        }
       }
     });
 
     // Monitor para rejections não capturadas
     window.addEventListener('unhandledrejection', (event) => {
       if (event.reason?.message?.includes('Loading chunk')) {
-        console.error('❌ Erro de carregamento de chunk (possível problema de cache)');
-        console.log('💡 Tente limpar o cache: CacheManager.clearAllCaches()');
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('❌ Erro de carregamento de chunk (possível problema de cache)');
+        }
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('💡 Tente limpar o cache: CacheManager.clearAllCaches()');
+        }
       }
     });
   }

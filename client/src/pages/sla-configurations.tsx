@@ -307,7 +307,9 @@ export default function SLAConfigurations() {
       
       if (!res.ok) {
         const error = await res.json();
-        console.error('❌ [FRONTEND] Erro da API:', error);
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('❌ [FRONTEND] Erro da API:', error);
+        }
         throw new Error(error.error || error.message || 'Erro ao criar configuração SLA');
       }
       return res.json();
@@ -376,7 +378,9 @@ export default function SLAConfigurations() {
     onSuccess: async (data, variables) => {
       toast({ title: "Sucesso", description: "Configuração SLA removida com sucesso!" });
       
-      console.log('🗑️ [DELETE SUCCESS] Configuração deletada:', variables);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🗑️ [DELETE SUCCESS] Configuração deletada:', variables);
+      }
       
       // Usar função auxiliar para invalidar cache
       await invalidateSLACache();
@@ -672,6 +676,9 @@ export default function SLAConfigurations() {
 
       if (!response.ok) {
         const error = await response.json();
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('Erro ao importar CSV:', error);
+        }
         throw new Error(error.error || 'Erro ao importar arquivo');
       }
 
@@ -685,7 +692,9 @@ export default function SLAConfigurations() {
       });
 
     } catch (error) {
-      console.error('Erro ao importar CSV:', error);
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Erro ao importar CSV:', error);
+      }
       toast({ 
         title: "Erro na importação", 
         description: error instanceof Error ? error.message : "Erro desconhecido",
