@@ -363,7 +363,7 @@ export default function Dashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Atendentes</SelectItem>
-                  {filteredOfficials.map((official: Official) => (
+                  {[...filteredOfficials].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map((official: Official) => (
                     <SelectItem key={official.id} value={official.id.toString()}>
                       {official.name}
                     </SelectItem>

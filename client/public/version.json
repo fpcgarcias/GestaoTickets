@@ -1,7 +1,35 @@
 {
-  "current": "1.0.17",
-  "releaseDate": "2025-06-23",
+  "current": "1.0.18",
+  "releaseDate": "2025-07-04",
   "versions": [
+    {
+      "version": "1.0.18",
+      "date": "2025-07-04",
+      "title": "Implementação de novas funcionalidades",
+      "type": "feature",
+      "changes": {
+        "new": [
+          "Implementação da tela de prioridades, adicionando prioridades personalizadas por departamento",
+          "Implementação de tela de categorias, adicionando categorias personalizadas por tipo de chamado",
+          "Implementação de novo sistema de SLA, adicionando SLA personalizado por departamento",
+          "Implementação de tela com dashboard de SLA, mostrando o SLA de cada departamento",
+          "Implementação de análise de prioridade pela IA por departamento, usando prompts personalizados para cada departamento",
+          "Adicionado novo widget com a quantidade de chamados outros status, ajustando a conta de total de chamados"
+        ],
+        "fixed": [
+          "Ajuste do dashboard corrigindo o widget de chamados por prioridade, puxando o novo padrão implementado.",
+          "Melhorias de layout nos badges de edição/atualização.",
+          "Ajustes na tela de cadastro de IA.",
+          "Ajuste no badge de atendentes, vinculando o cadastro do usuário que já existe ao atendente que está sendo cadastrado.",
+          "Ajuste na tela de tickets para não puxar departamentos, tipos de chamados e categorias inativas.",
+          "Corrigido erro no badge de editar/atualizar categorias.",
+          "Corrigido filtro de atendentes na vinculação dos tickets para puxar apenas atendentes do departamento vinculado ao ticket.",
+          "Corrigido erro nas variáveis de e-mail para envio de e-mails de notificação de chamados.",
+          "Ajustado a ordem dos tickets na tela de tickets, puxando os mais recentes primeiro.",
+          "Ajuste nos dropdowns de atendentes para exibir em ordem alfabética."
+        ]
+      }
+    },
     {
       "version": "1.0.17",
       "date": "2025-06-23",

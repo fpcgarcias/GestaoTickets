@@ -50,7 +50,7 @@ class NotificationService {
     // Enviar uma notificação de boas-vindas
     this.sendNotificationToUser(userId, {
       type: 'welcome',
-      title: 'Bem-vindo ao TICKET LEAD',
+      title: 'Bem-vindo ao Sistema de Chamados',
       message: 'Você está agora conectado ao sistema de notificações.',
       timestamp: new Date()
     });
@@ -221,6 +221,12 @@ class NotificationService {
   // Enviar notificação por email (usando o serviço real de email)
   private async sendEmailNotification(userId: number, payload: NotificationPayload): Promise<void> {
     try {
+      // DESABILITADO: E-mails são enviados diretamente pelos endpoints em routes.ts
+      // para evitar duplicação. Este método agora é um no-op.
+      return;
+      
+      // Código original comentado para referência:
+      /*
       // Tipos de notificação que não devem gerar email
       const skipEmailTypes = ['welcome', 'ticket_updated'];
       if (skipEmailTypes.includes(payload.type)) {
@@ -290,6 +296,7 @@ class NotificationService {
           user.company_id || undefined
         );
       }
+      */
       
     } catch (error) {
       console.error('Erro ao enviar notificação por email:', error);

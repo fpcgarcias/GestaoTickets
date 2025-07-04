@@ -455,7 +455,7 @@ export default function TicketsIndex() {
               <SelectItem value="all">Todos os Atendentes</SelectItem>
               <SelectItem value="unassigned">Não Atribuídos</SelectItem>
               {officials && officials.length > 0 && (
-                officials.map((official: any) => (
+                [...officials].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map((official: any) => (
                   <SelectItem key={official.id} value={official.id.toString()}>
                     {official.name}
                   </SelectItem>
@@ -516,14 +516,16 @@ export default function TicketsIndex() {
             </div>
           ))
         ) : filteredTickets?.length ? (
-          filteredTickets.map((ticket: any) => (
-            <TicketCard 
-              key={ticket.id} 
-              ticket={ticket} 
-              onAssignTicket={handleAssignTicket}
-              isAssigning={assignTicketMutation.isPending && assignTicketMutation.variables?.ticketId === ticket.id}
-            />
-          ))
+          [...filteredTickets]
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .map((ticket: any) => (
+              <TicketCard 
+                key={ticket.id} 
+                ticket={ticket} 
+                onAssignTicket={handleAssignTicket}
+                isAssigning={assignTicketMutation.isPending && assignTicketMutation.variables?.ticketId === ticket.id}
+              />
+            ))
         ) : (
           <div className="bg-white rounded-md border border-neutral-200 p-8 text-center">
             <h3 className="text-lg font-medium text-neutral-700 mb-2">Nenhum chamado encontrado</h3>

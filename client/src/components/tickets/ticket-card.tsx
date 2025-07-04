@@ -191,7 +191,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                         <SelectItem value="unassigned" className="text-gray-500 font-medium">
                           Não atribuído
                         </SelectItem>
-                        {officials.map((official) => (
+                        {[...officials].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map((official) => (
                           <SelectItem 
                             key={official.id} 
                             value={official.id.toString()} 

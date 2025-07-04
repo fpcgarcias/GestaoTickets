@@ -120,11 +120,18 @@ const AVAILABLE_VARIABLES = {
       { key: 'ticket.title', description: 'Título do ticket' },
       { key: 'ticket.description', description: 'Descrição completa do ticket' },
       { key: 'ticket.status', description: 'Status atual (new, ongoing, resolved)' },
+      { key: 'ticket.status_text', description: 'Status traduzido (Novo, Em Andamento, Resolvido)' },
       { key: 'ticket.priority', description: 'Prioridade (low, medium, high, critical)' },
+      { key: 'ticket.priority_text', description: 'Prioridade traduzida (Baixa, Média, Alta, Crítica)' },
       { key: 'ticket.type', description: 'Tipo do ticket' },
-      { key: 'ticket.created_at', description: 'Data e hora de criação' },
-      { key: 'ticket.updated_at', description: 'Data e hora da última atualização' },
-      { key: 'ticket.resolved_at', description: 'Data e hora de resolução' }
+      { key: 'ticket.created_at', description: 'Data e hora de criação (formato ISO)' },
+      { key: 'ticket.created_at_formatted', description: 'Data e hora de criação formatada (dd/mm/aaaa hh:mm)' },
+      { key: 'ticket.updated_at', description: 'Data e hora da última atualização (formato ISO)' },
+      { key: 'ticket.updated_at_formatted', description: 'Data e hora da última atualização formatada' },
+      { key: 'ticket.first_response_at_formatted', description: 'Data da primeira resposta formatada' },
+      { key: 'ticket.resolved_at', description: 'Data e hora de resolução (formato ISO)' },
+      { key: 'ticket.resolved_at_formatted', description: 'Data e hora de resolução formatada' },
+      { key: 'ticket.link', description: 'Link direto para o ticket no sistema' }
     ]
   },
   customer: {
@@ -141,33 +148,56 @@ const AVAILABLE_VARIABLES = {
     variables: [
       { key: 'user.name', description: 'Nome do usuário' },
       { key: 'user.email', description: 'Email do usuário' },
-      { key: 'user.role', description: 'Função do usuário' }
+      { key: 'user.role', description: 'Função do usuário (admin, support, etc.)' },
+      { key: 'user.role_text', description: 'Função traduzida (Administrador, Suporte, etc.)' }
+    ]
+  },
+  official: {
+    label: 'Dados do Atendente',
+    variables: [
+      { key: 'official.name', description: 'Nome do atendente' },
+      { key: 'official.email', description: 'Email do atendente' },
+      { key: 'official.role', description: 'Função do atendente' },
+      { key: 'official.role_text', description: 'Função do atendente traduzida' }
     ]
   },
   reply: {
     label: 'Dados da Resposta',
     variables: [
       { key: 'reply.message', description: 'Conteúdo da resposta' },
-      { key: 'reply.created_at', description: 'Data e hora da resposta' },
+      { key: 'reply.created_at', description: 'Data e hora da resposta (formato ISO)' },
+      { key: 'reply.created_at_formatted', description: 'Data e hora da resposta formatada' },
+      { key: 'reply.author_name', description: 'Nome de quem respondeu (compatibilidade)' },
       { key: 'reply.user.name', description: 'Nome de quem respondeu' },
-      { key: 'reply.user.email', description: 'Email de quem respondeu' }
+      { key: 'reply.user.email', description: 'Email de quem respondeu' },
+      { key: 'reply.user.role', description: 'Função de quem respondeu' },
+      { key: 'reply.user.role_text', description: 'Função de quem respondeu traduzida' }
     ]
   },
   status_change: {
     label: 'Mudança de Status',
     variables: [
-      { key: 'status_change.old_status', description: 'Status anterior' },
-      { key: 'status_change.new_status', description: 'Novo status' },
-      { key: 'status_change.changed_by.name', description: 'Nome de quem alterou' },
-      { key: 'status_change.created_at', description: 'Data da alteração' }
+      { key: 'status_change.old_status', description: 'Status anterior (traduzido)' },
+      { key: 'status_change.new_status', description: 'Novo status (traduzido)' },
+      { key: 'status_change.old_status_text', description: 'Status anterior traduzido' },
+      { key: 'status_change.new_status_text', description: 'Novo status traduzido' },
+      { key: 'status_change.created_at_formatted', description: 'Data da alteração formatada' },
+      { key: 'status_change.changed_by.name', description: 'Nome de quem alterou o status' },
+      { key: 'status_change.changed_by.email', description: 'Email de quem alterou o status' },
+      { key: 'status_change.changed_by.role', description: 'Função de quem alterou o status' },
+      { key: 'status_change.changed_by.role_text', description: 'Função de quem alterou traduzida' }
     ]
   },
   system: {
     label: 'Dados do Sistema',
     variables: [
-      { key: 'system.base_url', description: 'URL base do sistema' },
+      { key: 'system.base_url', description: 'URL base do sistema (específica por domínio)' },
       { key: 'system.company_name', description: 'Nome da empresa' },
-      { key: 'system.support_email', description: 'Email de suporte' }
+      { key: 'system.support_email', description: 'Email de suporte' },
+      { key: 'system.message', description: 'Mensagem do sistema (contexto específico)' },
+      { key: 'company_name', description: 'Nome da empresa (compatibilidade)' },
+      { key: 'support_email', description: 'Email de suporte (compatibilidade)' },
+      { key: 'base_url', description: 'URL base do sistema (compatibilidade)' }
     ]
   }
 };
@@ -177,50 +207,57 @@ const getVariablesByTemplateType = (templateType: string): string[] => {
   const typeVariables: Record<string, string[]> = {
     new_ticket: [
       'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description', 
-      'ticket.priority', 'ticket.status', 'ticket.type', 'ticket.created_at',
+      'ticket.priority', 'ticket.priority_text', 'ticket.status', 'ticket.status_text', 'ticket.type', 'ticket.created_at', 'ticket.updated_at',
       'customer.name', 'customer.email', 'customer.company', 'customer.phone',
       'system.base_url', 'system.company_name', 'system.support_email'
     ],
     ticket_assigned: [
       'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description',
-      'ticket.priority', 'ticket.status', 'customer.name', 'customer.email',
-      'user.name', 'user.email', 'system.base_url', 'system.company_name'
+      'ticket.priority', 'ticket.priority_text', 'ticket.status', 'ticket.status_text', 'ticket.type', 'ticket.created_at',
+      'customer.name', 'customer.email', 'customer.company', 'customer.phone',
+      'user.name', 'user.email', 'user.role', 'user.role_text',
+      'system.base_url', 'system.company_name', 'system.support_email'
     ],
     ticket_reply: [
-      'ticket.id', 'ticket.ticket_id', 'ticket.title', 'customer.name', 'customer.email',
+      'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description', 'ticket.status', 'ticket.status_text',
+      'customer.name', 'customer.email', 'customer.company', 'customer.phone',
       'reply.message', 'reply.created_at', 'reply.user.name', 'reply.user.email',
-      'system.base_url', 'system.company_name'
+      'system.base_url', 'system.company_name', 'system.support_email'
     ],
     status_changed: [
-      'ticket.id', 'ticket.ticket_id', 'ticket.title', 'customer.name', 'customer.email',
-      'status_change.old_status', 'status_change.new_status', 'status_change.changed_by.name',
-      'status_change.created_at', 'system.base_url', 'system.company_name'
+      'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description', 'ticket.status', 'ticket.status_text', 'ticket.priority', 'ticket.priority_text',
+      'customer.name', 'customer.email', 'customer.company', 'customer.phone',
+      'status_change.old_status', 'status_change.new_status', 'status_change.old_status_text', 'status_change.new_status_text', 'status_change.changed_by.name', 'status_change.created_at',
+      'system.base_url', 'system.company_name', 'system.support_email'
     ],
     ticket_resolved: [
-      'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.resolved_at',
-      'customer.name', 'customer.email', 'user.name', 'user.email',
-      'system.base_url', 'system.company_name'
+      'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description', 'ticket.resolved_at', 'ticket.resolved_at_formatted',
+      'customer.name', 'customer.email', 'customer.company', 'customer.phone',
+      'user.name', 'user.email', 'user.role', 'user.role_text',
+      'system.base_url', 'system.company_name', 'system.support_email'
     ],
     ticket_escalated: [
-      'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.priority',
-      'customer.name', 'customer.email', 'user.name', 'user.email',
-      'system.base_url', 'system.company_name'
+      'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description', 'ticket.priority', 'ticket.priority_text',
+      'customer.name', 'customer.email', 'customer.company', 'customer.phone',
+      'user.name', 'user.email', 'user.role', 'user.role_text',
+      'system.base_url', 'system.company_name', 'system.support_email'
     ],
     ticket_due_soon: [
-      'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.priority',
-      'customer.name', 'customer.email', 'user.name', 'user.email',
-      'system.base_url', 'system.company_name'
+      'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description', 'ticket.priority', 'ticket.priority_text',
+      'customer.name', 'customer.email', 'customer.company', 'customer.phone',
+      'user.name', 'user.email', 'user.role', 'user.role_text',
+      'system.base_url', 'system.company_name', 'system.support_email'
     ],
     customer_registered: [
       'customer.name', 'customer.email', 'customer.company', 'customer.phone',
       'system.base_url', 'system.company_name', 'system.support_email'
     ],
     user_created: [
-      'user.name', 'user.email', 'user.role',
-      'system.base_url', 'system.company_name'
+      'user.name', 'user.email', 'user.role', 'user.role_text',
+      'system.base_url', 'system.company_name', 'system.support_email'
     ],
     system_maintenance: [
-      'system.company_name', 'system.support_email'
+      'system.base_url', 'system.company_name', 'system.support_email'
     ]
   };
 
@@ -426,6 +463,46 @@ export default function EmailSettings() {
         text_template: '',
         is_active: true
       });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Mutation para criar templates padrão
+  const createDefaultTemplatesMutation = useMutation({
+    mutationFn: async () => {
+      let body = {};
+      
+      // Para admin, enviar company_id no body
+      if (user?.role === 'admin' && selectedCompanyId) {
+        body = { company_id: selectedCompanyId };
+      }
+      
+      const response = await apiRequest("POST", "/api/email-templates/seed-defaults", body);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Falha ao criar templates padrão');
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      if (data.created === 0) {
+        toast({
+          title: "Informação",
+          description: data.message,
+        });
+      } else {
+        toast({
+          title: "Sucesso",
+          description: data.message,
+        });
+        refetchTemplates();
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -691,39 +768,77 @@ export default function EmailSettings() {
   const generateSampleData = (templateType: string) => {
     const baseData = {
       ticket: {
-        ticket_id: 'TKT-2024-001',
-        title: 'Problema com sistema de login',
-        description: 'Não consigo acessar o sistema há 2 dias...',
-        status: 'new',
+        id: 123,
+        ticket_id: 'TKT-2025-001',
+        title: 'Problema com login no sistema',
+        description: 'Usuário não consegue acessar o sistema após redefinir senha.',
+        status: 'ongoing',
+        status_text: 'Em Andamento',
         priority: 'high',
-        created_at: '24/05/2025 14:30'
+        priority_text: 'Alta',
+        type: 'Suporte Técnico',
+        created_at: '2025-01-31T10:30:00Z',
+        created_at_formatted: '31/01/2025 10:30',
+        updated_at: '2025-01-31T14:45:00Z',
+        updated_at_formatted: '31/01/2025 14:45',
+        first_response_at_formatted: '31/01/2025 11:15',
+        resolved_at: null,
+        resolved_at_formatted: '',
+        link: 'https://sistema.empresa.com/tickets/123'
       },
       customer: {
         name: 'João Silva',
         email: 'joao.silva@empresa.com',
-        company: 'Empresa ABC'
+        phone: '(11) 99999-9999',
+        company: 'Empresa ABC Ltda'
       },
       user: {
         name: 'Maria Santos',
-        email: 'maria.santos@suporte.com'
+        email: 'maria.santos@suporte.com',
+        role: 'support',
+        role_text: 'Suporte'
+      },
+      official: {
+        name: 'Carlos Oliveira',
+        email: 'carlos.oliveira@suporte.com',
+        role: 'support',
+        role_text: 'Suporte'
+      },
+      reply: {
+        message: 'Olá! Recebemos seu chamado e já estamos trabalhando na solução. Verificamos que o problema está relacionado ao cache do navegador.',
+        created_at: '2025-01-31T14:45:00Z',
+        created_at_formatted: '31/01/2025 14:45',
+        author_name: 'Maria Santos',
+        user: {
+          name: 'Maria Santos',
+          email: 'maria.santos@suporte.com',
+          role: 'support',
+          role_text: 'Suporte'
+        }
+      },
+      status_change: {
+        old_status: 'Novo',
+        new_status: 'Em Andamento',
+        old_status_text: 'Novo',
+        new_status_text: 'Em Andamento',
+        created_at_formatted: '31/01/2025 15:00',
+        changed_by: {
+          name: 'Maria Santos',
+          email: 'maria.santos@suporte.com',
+          role: 'support',
+          role_text: 'Suporte'
+        }
       },
       system: {
         base_url: 'https://sistema.empresa.com',
-        company_name: 'Sistema de Tickets'
+        company_name: 'Sistema de Tickets',
+        support_email: 'suporte@empresa.com',
+        message: 'Mensagem específica do contexto'
       },
-      reply: {
-        message: 'Olá! Recebemos seu chamado e já estamos trabalhando na solução.',
-        user_name: 'Maria Santos',
-        created_at: '24/05/2025 14:45'
-      },
-      status_change: {
-        old_status: 'new',
-        new_status: 'ongoing',
-        created_at: '24/05/2025 15:00',
-        changed_by: {
-          name: 'Maria Santos'
-        }
-      }
+      // Variáveis de compatibilidade
+      company_name: 'Sistema de Tickets',
+      support_email: 'suporte@empresa.com',
+      base_url: 'https://sistema.empresa.com'
     };
 
     return baseData;
@@ -947,6 +1062,23 @@ export default function EmailSettings() {
             onClick={() => setShowVariablesDoc(true)}
           >
             📋 Documentação de Variáveis
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={() => createDefaultTemplatesMutation.mutate()}
+            disabled={createDefaultTemplatesMutation.isPending}
+          >
+            {createDefaultTemplatesMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Criando...
+              </>
+            ) : (
+              <>
+                <FileText className="mr-2 h-4 w-4" />
+                Criar Templates Padrão
+              </>
+            )}
           </Button>
           <Button onClick={handleNewTemplate}>
             <Plus className="mr-2 h-4 w-4" />

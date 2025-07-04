@@ -1428,13 +1428,25 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         await notificationService.notifyNewReply(ticketId, userId);
       }
       
-      // 📧 ENVIAR EMAIL DE NOTIFICAÇÃO PARA NOVA RESPOSTA
+      // 📧 ENVIAR EMAIL DE NOTIFICAÇÃO PARA NOVA RESPOSTA OU STATUS
+      const statusChanged = req.body.status !== ticket.status;
       if (userId) {
-        await emailNotificationService.notifyTicketReply(ticketId, userId, req.body.message);
+        if (statusChanged) {
+          // Só envia notificação de status alterado
+          await emailNotificationService.notifyStatusChanged(
+            ticketId, 
+            ticket.status, 
+            req.body.status, 
+            userId
+          );
+        } else {
+          // Só envia notificação de resposta
+          await emailNotificationService.notifyTicketReply(ticketId, userId, req.body.message);
+        }
       }
-      
+
       // Se for uma atualização de status ou atribuição, notificar
-      if (req.body.status !== ticket.status || req.body.assigned_to_id !== ticket.assigned_to_id) {
+      if (statusChanged || req.body.assigned_to_id !== ticket.assigned_to_id) {
         notificationService.sendNotificationToAll({
           type: 'status_changed',
           ticketId: ticket.id,
@@ -1442,17 +1454,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           message: `O status ou atribuição do ticket ${ticket.ticket_id} foi atualizado.`,
           timestamp: new Date()
         });
-        
-        // 📧 ENVIAR EMAIL PARA MUDANÇA DE STATUS
-        if (req.body.status !== ticket.status) {
-          await emailNotificationService.notifyStatusChanged(
-            ticketId, 
-            ticket.status, 
-            req.body.status, 
-            userId
-          );
-        }
-        
         // 📧 ENVIAR EMAIL PARA ATRIBUIÇÃO
         if (req.body.assigned_to_id !== ticket.assigned_to_id && req.body.assigned_to_id) {
           await emailNotificationService.notifyTicketAssigned(ticketId, req.body.assigned_to_id);
@@ -5999,6 +6000,307 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     } catch (error) {
       console.error('Erro ao deletar template de email:', error);
       res.status(500).json({ message: "Erro interno ao deletar template de email" });
+    }
+  });
+
+  // Criar templates padrão de e-mail
+  router.post("/email-templates/seed-defaults", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const companyId = req.session.companyId;
+      const userId = req.session.userId;
+      
+      // Para admin, pode receber company_id via body
+      let targetCompanyId = companyId;
+      if (req.session.userRole === 'admin' && req.body.company_id) {
+        targetCompanyId = req.body.company_id;
+      }
+      
+      if (!targetCompanyId) {
+        return res.status(400).json({ message: 'Empresa não encontrada.' });
+      }
+
+      // Templates padrão em português
+      const defaultTemplates = [
+        {
+          name: 'Novo Ticket',
+          type: 'new_ticket',
+          description: 'Notificação enviada quando um novo ticket é criado',
+          subject_template: 'Novo ticket criado: {{ticket.ticket_id}}',
+          html_template: `<h2>Novo Ticket Criado</h2>
+<p><strong>Ticket:</strong> {{ticket.ticket_id}}</p>
+<p><strong>Título:</strong> {{ticket.title}}</p>
+<p><strong>Cliente:</strong> {{customer.name}} ({{customer.email}})</p>
+<p><strong>Prioridade:</strong> {{ticket.priority_text}}</p>
+<p><strong>Descrição:</strong></p>
+<p>{{ticket.description}}</p>
+<hr>
+<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          text_template: `Novo ticket criado: {{ticket.ticket_id}}
+Título: {{ticket.title}}
+Cliente: {{customer.name}} ({{customer.email}})
+Prioridade: {{ticket.priority_text}}
+Descrição: {{ticket.description}}
+Ver Ticket: {{ticket.link}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','customer.email','ticket.priority_text','ticket.description','ticket.link'])
+        },
+        {
+          name: 'Ticket Atribuído',
+          type: 'ticket_assigned',
+          description: 'Notificação enviada quando um ticket é atribuído a um atendente',
+          subject_template: 'Ticket {{ticket.ticket_id}} atribuído a você',
+          html_template: `<h2>Ticket Atribuído</h2>
+<p>Um ticket foi atribuído a você:</p>
+<p><strong>Ticket:</strong> {{ticket.ticket_id}}</p>
+<p><strong>Título:</strong> {{ticket.title}}</p>
+<p><strong>Cliente:</strong> {{customer.name}} ({{customer.email}})</p>
+<p><strong>Prioridade:</strong> {{ticket.priority_text}}</p>
+<p><strong>Descrição:</strong></p>
+<p>{{ticket.description}}</p>
+<hr>
+<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          text_template: `Ticket atribuído a você: {{ticket.ticket_id}}
+Título: {{ticket.title}}
+Cliente: {{customer.name}} ({{customer.email}})
+Prioridade: {{ticket.priority_text}}
+Descrição: {{ticket.description}}
+Ver Ticket: {{ticket.link}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','customer.email','ticket.priority_text','ticket.description','ticket.link','user.name'])
+        },
+        {
+          name: 'Nova Resposta',
+          type: 'ticket_reply',
+          description: 'Notificação enviada quando há uma nova resposta no ticket',
+          subject_template: 'Nova resposta no ticket {{ticket.ticket_id}}',
+          html_template: `<h2>Nova Resposta no Ticket</h2>
+<p><strong>Ticket:</strong> {{ticket.ticket_id}} - {{ticket.title}}</p>
+<p><strong>Respondido por:</strong> {{reply.user.name}}</p>
+<p><strong>Data:</strong> {{reply.created_at_formatted}}</p>
+<p><strong>Mensagem:</strong></p>
+<div style="background: #f5f5f5; padding: 15px; border-left: 4px solid #007bff;">
+  {{reply.message}}
+</div>
+<hr>
+<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          text_template: `Nova resposta no ticket {{ticket.ticket_id}}
+Respondido por: {{reply.user.name}}
+Data: {{reply.created_at_formatted}}
+Mensagem: {{reply.message}}
+Ver Ticket: {{ticket.link}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','reply.user.name','reply.created_at_formatted','reply.message','ticket.link'])
+        },
+        {
+          name: 'Status Alterado',
+          type: 'status_changed',
+          description: 'Notificação enviada quando o status do ticket é alterado',
+          subject_template: 'Ticket {{ticket.ticket_id}}: Status alterado para {{ticket.status_text}}',
+          html_template: `<h2>Status do Ticket Alterado</h2>
+<p><strong>Ticket:</strong> {{ticket.ticket_id}} - {{ticket.title}}</p>
+<p><strong>Status anterior:</strong> {{status_change.old_status_text}}</p>
+<p><strong>Novo status:</strong> {{status_change.new_status_text}}</p>
+<p><strong>Alterado por:</strong> {{status_change.changed_by.name}}</p>
+<p><strong>Data:</strong> {{status_change.created_at_formatted}}</p>
+<hr>
+<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          text_template: `Status do Ticket Alterado
+Ticket: {{ticket.ticket_id}} - {{ticket.title}}
+Status anterior: {{status_change.old_status_text}}
+Novo status: {{status_change.new_status_text}}
+Alterado por: {{status_change.changed_by.name}}
+Data: {{status_change.created_at_formatted}}
+Ver Ticket: {{ticket.link}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','status_change.old_status_text','status_change.new_status_text','status_change.changed_by.name','status_change.created_at_formatted','ticket.link'])
+        },
+        {
+          name: 'Ticket Resolvido',
+          type: 'ticket_resolved',
+          description: 'Notificação enviada quando um ticket é resolvido',
+          subject_template: 'Ticket {{ticket.ticket_id}} foi resolvido',
+          html_template: `<h2>Ticket Resolvido</h2>
+<p>Seu ticket foi resolvido com sucesso!</p>
+<p><strong>Ticket:</strong> {{ticket.ticket_id}}</p>
+<p><strong>Título:</strong> {{ticket.title}}</p>
+<p><strong>Resolvido em:</strong> {{ticket.resolved_at_formatted}}</p>
+<p><strong>Resolvido por:</strong> {{user.name}}</p>
+<hr>
+<p>Agradecemos por utilizar nosso sistema de suporte.</p>
+<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          text_template: `Ticket Resolvido
+Ticket: {{ticket.ticket_id}}
+Título: {{ticket.title}}
+Resolvido em: {{ticket.resolved_at_formatted}}
+Resolvido por: {{user.name}}
+Ver Ticket: {{ticket.link}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','ticket.resolved_at_formatted','user.name','ticket.link'])
+        },
+        {
+          name: 'Ticket Escalado',
+          type: 'ticket_escalated',
+          description: 'Notificação enviada quando um ticket é escalado',
+          subject_template: 'Ticket {{ticket.ticket_id}} foi escalado',
+          html_template: `<h2>Ticket Escalado</h2>
+<p>O ticket foi escalado para um nível superior de atendimento.</p>
+<p><strong>Ticket:</strong> {{ticket.ticket_id}}</p>
+<p><strong>Título:</strong> {{ticket.title}}</p>
+<p><strong>Prioridade:</strong> {{ticket.priority_text}}</p>
+<p><strong>Motivo:</strong> {{system.message}}</p>
+<hr>
+<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          text_template: `Ticket Escalado
+Ticket: {{ticket.ticket_id}}
+Título: {{ticket.title}}
+Prioridade: {{ticket.priority_text}}
+Motivo: {{system.message}}
+Ver Ticket: {{ticket.link}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','ticket.priority_text','system.message','ticket.link'])
+        },
+        {
+          name: 'Vencimento Próximo',
+          type: 'ticket_due_soon',
+          description: 'Notificação enviada quando um ticket está próximo do vencimento',
+          subject_template: 'Ticket {{ticket.ticket_id}} próximo do vencimento',
+          html_template: `<h2>Ticket Próximo do Vencimento</h2>
+<p><strong>Atenção:</strong> {{system.message}}</p>
+<p><strong>Ticket:</strong> {{ticket.ticket_id}}</p>
+<p><strong>Título:</strong> {{ticket.title}}</p>
+<p><strong>Cliente:</strong> {{customer.name}}</p>
+<p><strong>Prioridade:</strong> {{ticket.priority_text}}</p>
+<hr>
+<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          text_template: `Ticket Próximo do Vencimento
+Atenção: {{system.message}}
+Ticket: {{ticket.ticket_id}}
+Título: {{ticket.title}}
+Cliente: {{customer.name}}
+Prioridade: {{ticket.priority_text}}
+Ver Ticket: {{ticket.link}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','ticket.priority_text','system.message','ticket.link'])
+        },
+        {
+          name: 'Cliente Registrado',
+          type: 'customer_registered',
+          description: 'Notificação enviada quando um novo cliente é registrado',
+          subject_template: 'Novo cliente registrado: {{customer.name}}',
+          html_template: `<h2>Novo Cliente Registrado</h2>
+<p>Um novo cliente foi registrado no sistema:</p>
+<p><strong>Nome:</strong> {{customer.name}}</p>
+<p><strong>Email:</strong> {{customer.email}}</p>
+<p><strong>Empresa:</strong> {{customer.company}}</p>
+<p><strong>Telefone:</strong> {{customer.phone}}</p>`,
+          text_template: `Novo Cliente Registrado
+Nome: {{customer.name}}
+Email: {{customer.email}}
+Empresa: {{customer.company}}
+Telefone: {{customer.phone}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['customer.name','customer.email','customer.company','customer.phone'])
+        },
+        {
+          name: 'Usuário Criado',
+          type: 'user_created',
+          description: 'Notificação enviada quando um novo usuário é criado',
+          subject_template: 'Novo usuário criado: {{user.name}}',
+          html_template: `<h2>Novo Usuário Criado</h2>
+<p>{{system.message}}</p>
+<p><strong>Nome:</strong> {{user.name}}</p>
+<p><strong>Email:</strong> {{user.email}}</p>
+<p><strong>Função:</strong> {{user.role_text}}</p>`,
+          text_template: `Novo Usuário Criado
+{{system.message}}
+Nome: {{user.name}}
+Email: {{user.email}}
+Função: {{user.role_text}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['user.name','user.email','user.role_text','system.message'])
+        },
+        {
+          name: 'Manutenção do Sistema',
+          type: 'system_maintenance',
+          description: 'Notificação enviada para avisar sobre manutenção do sistema',
+          subject_template: 'Manutenção Programada do Sistema',
+          html_template: `<h2>Manutenção Programada</h2>
+<p>{{system.message}}</p>
+<p><strong>Início:</strong> {{system.maintenance_start}}</p>
+<p><strong>Término previsto:</strong> {{system.maintenance_end}}</p>
+<p>Durante este período, o sistema poderá ficar indisponível.</p>
+<p>Agradecemos a compreensão.</p>`,
+          text_template: `Manutenção Programada
+{{system.message}}
+Início: {{system.maintenance_start}}
+Término previsto: {{system.maintenance_end}}
+Durante este período, o sistema poderá ficar indisponível.
+Agradecemos a compreensão.`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['system.message','system.maintenance_start','system.maintenance_end'])
+        }
+      ];
+
+      // Verificar quais templates já existem para a empresa
+      const existingTemplates = await db
+        .select()
+        .from(schema.emailTemplates)
+        .where(
+          and(
+            eq(schema.emailTemplates.company_id, targetCompanyId),
+            eq(schema.emailTemplates.is_active, true)
+          )
+        );
+
+      const existingTypes = new Set(existingTemplates.map(t => t.type));
+
+      // Filtrar apenas os templates que não existem
+      const templatesToCreate = defaultTemplates.filter(t => !existingTypes.has(t.type));
+
+      if (templatesToCreate.length === 0) {
+        return res.status(200).json({ 
+          message: 'Todos os templates padrão já existem para esta empresa.',
+          created: 0,
+          existing: defaultTemplates.length
+        });
+      }
+
+      // Criar os templates que faltam
+      const now = new Date();
+      await db.insert(schema.emailTemplates).values(
+        templatesToCreate.map(template => ({
+          ...template,
+          company_id: targetCompanyId,
+          created_by_id: userId,
+          updated_by_id: userId,
+          created_at: now,
+          updated_at: now
+        }))
+      );
+
+      res.status(201).json({ 
+        message: `${templatesToCreate.length} templates padrão criados com sucesso!`,
+        created: templatesToCreate.length,
+        existing: existingTypes.size,
+        templates: templatesToCreate.map(t => ({ type: t.type, name: t.name }))
+      });
+
+    } catch (error) {
+      console.error('Erro ao criar templates padrão:', error);
+      res.status(500).json({ 
+        message: 'Erro ao criar templates padrão', 
+        error: String(error) 
+      });
     }
   });
 

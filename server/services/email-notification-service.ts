@@ -1,8 +1,9 @@
 import { db } from '../db';
-import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, slaDefinitions } from '@shared/schema';
+import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, slaDefinitions, companies } from '@shared/schema';
 import { eq, and, isNull } from 'drizzle-orm';
 import { emailConfigService } from './email-config-service';
 import nodemailer from 'nodemailer';
+import { PriorityService } from "./priority-service";
 
 export interface EmailNotificationContext {
   ticket?: any;
@@ -13,6 +14,8 @@ export interface EmailNotificationContext {
   status_change?: {
     old_status: string;
     new_status: string;
+    created_at?: Date;
+    changed_by?: any;
   };
   system?: {
     maintenance_start?: Date;
@@ -34,7 +37,22 @@ export class EmailNotificationService {
     companyId?: number
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // 1. Verificar se email está configurado
+      // 1. Obter URL base para a empresa
+      const baseUrl = await this.getBaseUrlForCompany(companyId);
+      
+      // 2. Adicionar URL base e outras informações do sistema ao contexto
+      const enrichedContext: EmailNotificationContext = {
+        ...context,
+        ticket: await this.mapTicketFields(context.ticket),
+        system: {
+          ...context.system,
+          base_url: baseUrl,
+          company_name: context.system?.company_name || 'Ticket Wise',
+          support_email: context.system?.support_email || 'suporte@ticketwise.com.br'
+        }
+      };
+
+      // 3. Verificar se email está configurado
       console.log(`[Email] Verificando configuração de email para empresa ${companyId}`);
       const emailConfig = await emailConfigService.getEmailConfigForFrontend(companyId);
       
@@ -54,7 +72,7 @@ export class EmailNotificationService {
         console.log(`[Email] ✅ Email configurado com provedor ${emailConfig.provider}`);
       }
 
-      // 2. Buscar template
+      // 4. Buscar template
       console.log(`[Email] Buscando template '${templateType}' para empresa ${companyId}`);
       const template = await this.getEmailTemplate(templateType, companyId);
       if (!template) {
@@ -64,19 +82,19 @@ export class EmailNotificationService {
 
       console.log(`[Email] ✅ Template encontrado: ${template.name}`);
 
-      // 3. Renderizar template
-      const renderedSubject = this.renderTemplate(template.subject_template, context);
-      const renderedHtml = this.renderTemplate(template.html_template, context);
-      const renderedText = template.text_template ? this.renderTemplate(template.text_template, context) : undefined;
+      // 5. Renderizar template com contexto enriquecido
+      const renderedSubject = this.renderTemplate(template.subject_template, enrichedContext);
+      const renderedHtml = this.renderTemplate(template.html_template, enrichedContext);
+      const renderedText = template.text_template ? this.renderTemplate(template.text_template, enrichedContext) : undefined;
 
       console.log(`[Email] Template renderizado - Subject: "${renderedSubject}"`);
 
-      // 4. Configurar transporter
+      // 6. Configurar transporter
       try {
         const transporter = await this.createTransporter(emailConfig);
         console.log(`[Email] ✅ Transporter criado com sucesso para ${emailConfig.provider}`);
 
-        // 5. Enviar email
+        // 7. Enviar email
         const mailOptions = {
           from: `${emailConfig.from_name} <${emailConfig.from_email}>`,
           to: recipientEmail,
@@ -146,62 +164,272 @@ export class EmailNotificationService {
 
   // Renderizar template com variáveis
   private renderTemplate(template: string, context: EmailNotificationContext): string {
+    if (!template || typeof template !== 'string') {
+      return '';
+    }
+
     let rendered = template;
 
-    // Substituir variáveis do ticket
+    // Função auxiliar para formatar datas
+    const formatDate = (date: any) => {
+      if (!date) return '';
+      const d = new Date(date);
+      return d.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    // Função auxiliar para traduzir status
+    const translateStatus = (status: string) => {
+      const statusMap: Record<string, string> = {
+        'new': 'Novo',
+        'ongoing': 'Em Andamento',
+        'resolved': 'Resolvido'
+      };
+      return statusMap[status] || status;
+    };
+
+    // Função auxiliar para traduzir prioridade
+    const translatePriority = (priority: string) => {
+      const priorityMap: Record<string, string> = {
+        'low': 'Baixa',
+        'medium': 'Média',
+        'high': 'Alta',
+        'critical': 'Crítica'
+      };
+      return priorityMap[priority] || priority;
+    };
+
+    // Função auxiliar para traduzir role
+    const translateRole = (role: string) => {
+      const roleMap: Record<string, string> = {
+        'admin': 'Administrador',
+        'support': 'Suporte',
+        'customer': 'Cliente',
+        'integration_bot': 'Bot de Integração',
+        'quality': 'Qualidade',
+        'triage': 'Triagem',
+        'company_admin': 'Administrador da Empresa',
+        'viewer': 'Visualizador',
+        'supervisor': 'Supervisor',
+        'manager': 'Gerente'
+      };
+      return roleMap[role] || role;
+    };
+
+    // 1. DADOS DO TICKET - TODAS as variáveis da lista
     if (context.ticket) {
-      Object.entries(context.ticket).forEach(([key, value]) => {
-        const placeholder = `{{ticket.${key}}}`;
-        rendered = rendered.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value || ''));
-      });
+      const ticket = context.ticket;
+      
+      // {{ticket.id}} - ID interno do ticket
+      rendered = rendered.replace(/\{\{ticket\.id\}\}/g, String(ticket.id || ''));
+      
+      // {{ticket.ticket_id}} - Número do ticket (ex: TKT-2024-001)
+      rendered = rendered.replace(/\{\{ticket\.ticket_id\}\}/g, String(ticket.ticket_id || ''));
+      
+      // {{ticket.title}} - Título do ticket
+      rendered = rendered.replace(/\{\{ticket\.title\}\}/g, String(ticket.title || ''));
+      
+      // {{ticket.description}} - Descrição completa do ticket
+      rendered = rendered.replace(/\{\{ticket\.description\}\}/g, String(ticket.description || ''));
+      
+      // {{ticket.status}} - Status atual (new, ongoing, resolved)
+      rendered = rendered.replace(/\{\{ticket\.status\}\}/g, String(ticket.status || ''));
+      
+      // {{ticket.priority}} - Prioridade (low, medium, high, critical)
+      rendered = rendered.replace(/\{\{ticket\.priority\}\}/g, String(ticket.priority || ''));
+      
+      // {{ticket.type}} - Tipo do ticket
+      rendered = rendered.replace(/\{\{ticket\.type\}\}/g, String(ticket.type || ''));
+      
+      // {{ticket.created_at}} - Data e hora de criação
+      rendered = rendered.replace(/\{\{ticket\.created_at\}\}/g, ticket.created_at ? String(ticket.created_at) : '');
+      
+      // {{ticket.updated_at}} - Data e hora da última atualização
+      rendered = rendered.replace(/\{\{ticket\.updated_at\}\}/g, ticket.updated_at ? String(ticket.updated_at) : '');
+      
+      // {{ticket.resolved_at}} - Data e hora de resolução
+      rendered = rendered.replace(/\{\{ticket\.resolved_at\}\}/g, ticket.resolved_at ? String(ticket.resolved_at) : '');
+
+      // Variáveis formatadas extras (mantidas para compatibilidade)
+      rendered = rendered.replace(/\{\{ticket\.created_at_formatted\}\}/g, formatDate(ticket.created_at));
+      rendered = rendered.replace(/\{\{ticket\.updated_at_formatted\}\}/g, formatDate(ticket.updated_at));
+      rendered = rendered.replace(/\{\{ticket\.first_response_at_formatted\}\}/g, formatDate(ticket.first_response_at));
+      rendered = rendered.replace(/\{\{ticket\.resolved_at_formatted\}\}/g, formatDate(ticket.resolved_at));
+      rendered = rendered.replace(/\{\{ticket\.status_text\}\}/g, translateStatus(ticket.status || ''));
+      rendered = rendered.replace(/\{\{ticket\.priority_text\}\}/g, translatePriority(ticket.priority || ''));
+      
+      // Link do ticket (usando system.base_url)
+      if (context.system?.base_url) {
+        rendered = rendered.replace(/\{\{ticket\.link\}\}/g, `${context.system.base_url}/tickets/${ticket.id}`);
+      }
     }
 
-    // Substituir variáveis do cliente
+    // 2. DADOS DO CLIENTE - TODAS as variáveis da lista
     if (context.customer) {
-      Object.entries(context.customer).forEach(([key, value]) => {
-        const placeholder = `{{customer.${key}}}`;
-        rendered = rendered.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value || ''));
-      });
+      const customer = context.customer;
+      
+      // {{customer.name}} - Nome do cliente
+      rendered = rendered.replace(/\{\{customer\.name\}\}/g, String(customer.name || ''));
+      
+      // {{customer.email}} - Email do cliente
+      rendered = rendered.replace(/\{\{customer\.email\}\}/g, String(customer.email || ''));
+      
+      // {{customer.phone}} - Telefone do cliente
+      rendered = rendered.replace(/\{\{customer\.phone\}\}/g, String(customer.phone || ''));
+      
+      // {{customer.company}} - Empresa do cliente
+      rendered = rendered.replace(/\{\{customer\.company\}\}/g, String(customer.company || ''));
     }
 
-    // Substituir variáveis do usuário
+    // 3. DADOS DO USUÁRIO/ATENDENTE - TODAS as variáveis da lista
     if (context.user) {
-      Object.entries(context.user).forEach(([key, value]) => {
-        const placeholder = `{{user.${key}}}`;
-        rendered = rendered.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value || ''));
-      });
+      const user = context.user;
+      
+      // {{user.name}} - Nome do usuário
+      rendered = rendered.replace(/\{\{user\.name\}\}/g, String(user.name || ''));
+      
+      // {{user.email}} - Email do usuário
+      rendered = rendered.replace(/\{\{user\.email\}\}/g, String(user.email || ''));
+      
+      // {{user.role}} - Função do usuário
+      rendered = rendered.replace(/\{\{user\.role\}\}/g, String(user.role || ''));
+
+      // Variáveis formatadas extras (mantidas para compatibilidade)
+      rendered = rendered.replace(/\{\{user\.role_text\}\}/g, translateRole(user.role || ''));
     }
 
-    // Substituir variáveis do atendente
+    // 4. DADOS DO ATENDENTE/OFICIAL (mantido para compatibilidade)
     if (context.official) {
-      Object.entries(context.official).forEach(([key, value]) => {
+      const official = context.official;
+      
+      Object.entries(official).forEach(([key, value]) => {
         const placeholder = `{{official.${key}}}`;
         rendered = rendered.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value || ''));
       });
+
+      // Variáveis formatadas do oficial
+      rendered = rendered.replace(/\{\{official\.role_text\}\}/g, translateRole(official.role || ''));
     }
 
-    // Substituir variáveis da resposta
+    // 5. DADOS DA RESPOSTA - TODAS as variáveis da lista incluindo aninhadas
     if (context.reply) {
-      Object.entries(context.reply).forEach(([key, value]) => {
-        const placeholder = `{{reply.${key}}}`;
-        rendered = rendered.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value || ''));
-      });
+      const reply = context.reply;
+      
+      // {{reply.message}} - Conteúdo da resposta
+      rendered = rendered.replace(/\{\{reply\.message\}\}/g, String(reply.message || ''));
+      
+      // {{reply.created_at}} - Data e hora da resposta
+      rendered = rendered.replace(/\{\{reply\.created_at\}\}/g, reply.created_at ? String(reply.created_at) : '');
+
+      // Variáveis formatadas da resposta
+      rendered = rendered.replace(/\{\{reply\.created_at_formatted\}\}/g, formatDate(reply.created_at));
+      
+      // VARIÁVEIS ANINHADAS DA RESPOSTA - {{reply.user.name}} e {{reply.user.email}}
+      if (reply.user || context.user) {
+        const replyUser = reply.user || context.user;
+        
+        // {{reply.user.name}} - Nome de quem respondeu
+        rendered = rendered.replace(/\{\{reply\.user\.name\}\}/g, String(replyUser.name || ''));
+        
+        // {{reply.user.email}} - Email de quem respondeu
+        rendered = rendered.replace(/\{\{reply\.user\.email\}\}/g, String(replyUser.email || ''));
+        
+        // Outras propriedades do usuário da resposta
+        Object.entries(replyUser).forEach(([key, value]) => {
+          if (key !== 'name' && key !== 'email') { // Já tratados acima
+            const placeholder = `{{reply.user.${key}}}`;
+            rendered = rendered.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value || ''));
+          }
+        });
+        
+        // Variáveis formatadas do usuário da resposta
+        rendered = rendered.replace(/\{\{reply\.user\.role_text\}\}/g, translateRole(replyUser.role || ''));
+      }
+
+      // Compatibilidade: reply.author_name
+      if (reply.author_name) {
+        rendered = rendered.replace(/\{\{reply\.author_name\}\}/g, String(reply.author_name));
+      } else if (reply.user?.name) {
+        rendered = rendered.replace(/\{\{reply\.author_name\}\}/g, String(reply.user.name));
+      } else if (context.user?.name) {
+        rendered = rendered.replace(/\{\{reply\.author_name\}\}/g, String(context.user.name));
+      }
     }
 
-    // Substituir variáveis de mudança de status
+    // 6. MUDANÇA DE STATUS - TODAS as variáveis da lista incluindo aninhadas
     if (context.status_change) {
-      Object.entries(context.status_change).forEach(([key, value]) => {
-        const placeholder = `{{status_change.${key}}}`;
-        rendered = rendered.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value || ''));
+      const statusChange = context.status_change;
+      
+      // {{status_change.old_status}} - Status anterior
+      rendered = rendered.replace(/\{\{status_change\.old_status\}\}/g, String(statusChange.old_status || ''));
+      
+      // {{status_change.new_status}} - Novo status
+      rendered = rendered.replace(/\{\{status_change\.new_status\}\}/g, String(statusChange.new_status || ''));
+      
+      // {{status_change.created_at}} - Data da alteração
+      rendered = rendered.replace(/\{\{status_change\.created_at\}\}/g, statusChange.created_at ? String(statusChange.created_at) : '');
+
+      // VARIÁVEIS ANINHADAS DE MUDANÇA DE STATUS - {{status_change.changed_by.name}}
+      if (statusChange.changed_by || context.user) {
+        const changedByUser = statusChange.changed_by || context.user;
+        
+        // {{status_change.changed_by.name}} - Nome de quem alterou
+        rendered = rendered.replace(/\{\{status_change\.changed_by\.name\}\}/g, String(changedByUser.name || ''));
+        
+        // Outras propriedades do usuário que mudou o status
+        Object.entries(changedByUser).forEach(([key, value]) => {
+          if (key !== 'name') { // Já tratado acima
+            const placeholder = `{{status_change.changed_by.${key}}}`;
+            rendered = rendered.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value || ''));
+          }
+        });
+        
+        // Variáveis formatadas do usuário que mudou o status
+        rendered = rendered.replace(/\{\{status_change\.changed_by\.role_text\}\}/g, translateRole(changedByUser.role || ''));
+      }
+
+      // Variáveis formatadas de status (mantidas para compatibilidade)
+      rendered = rendered.replace(/\{\{status_change\.old_status_text\}\}/g, translateStatus(statusChange.old_status || ''));
+      rendered = rendered.replace(/\{\{status_change\.new_status_text\}\}/g, translateStatus(statusChange.new_status || ''));
+      rendered = rendered.replace(/\{\{status_change\.created_at_formatted\}\}/g, formatDate(statusChange.created_at));
+    }
+
+    // 7. DADOS DO SISTEMA - TODAS as variáveis da lista
+    if (context.system) {
+      const system = context.system;
+      
+      // {{system.base_url}} - URL base do sistema
+      rendered = rendered.replace(/\{\{system\.base_url\}\}/g, String(system.base_url || ''));
+      
+      // {{system.company_name}} - Nome da empresa
+      rendered = rendered.replace(/\{\{system\.company_name\}\}/g, String(system.company_name || ''));
+      
+      // {{system.support_email}} - Email de suporte
+      rendered = rendered.replace(/\{\{system\.support_email\}\}/g, String(system.support_email || ''));
+
+      // Outras propriedades do sistema
+      Object.entries(system).forEach(([key, value]) => {
+        if (!['base_url', 'company_name', 'support_email'].includes(key)) { // Já tratados acima
+          const placeholder = `{{system.${key}}}`;
+          rendered = rendered.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value || ''));
+        }
       });
     }
 
-    // Substituir variáveis do sistema
-    if (context.system) {
-      Object.entries(context.system).forEach(([key, value]) => {
-        const placeholder = `{{system.${key}}}`;
-        rendered = rendered.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value || ''));
-      });
+    // 8. VARIÁVEIS GLOBAIS DE COMPATIBILIDADE (para templates antigos)
+    if (context.system?.company_name) {
+      rendered = rendered.replace(/\{\{company_name\}\}/g, context.system.company_name);
+    }
+    if (context.system?.support_email) {
+      rendered = rendered.replace(/\{\{support_email\}\}/g, context.system.support_email);
+    }
+    if (context.system?.base_url) {
+      rendered = rendered.replace(/\{\{base_url\}\}/g, context.system.base_url);
     }
 
     return rendered;
@@ -338,6 +566,78 @@ export class EmailNotificationService {
     }
   }
 
+  // Método auxiliar para obter a URL base correta
+  private async getBaseUrlForCompany(companyId?: number): Promise<string> {
+    try {
+      if (!companyId) {
+        return 'https://app.ticketwise.com.br'; // URL padrão
+      }
+      
+      // Buscar o domínio da empresa
+      const [company] = await db
+        .select()
+        .from(companies)
+        .where(eq(companies.id, companyId))
+        .limit(1);
+      
+      if (!company || !company.domain) {
+        return 'https://app.ticketwise.com.br'; // URL padrão
+      }
+      
+      // Mapear domínios conhecidos para URLs completas
+      const domainMap: Record<string, string> = {
+        'vixbrasil.com': 'https://suporte.vixbrasil.com',
+        'vixbrasil.com.br': 'https://suporte.vixbrasil.com',
+        'ticketwise.com.br': 'https://app.ticketwise.com.br',
+        'oficinamuda.com.br': 'https://suporte.oficinamuda.com.br',
+        'oficinamuda.com': 'https://suporte.oficinamuda.com.br'
+      };
+      
+      // Verificar se o domínio está no mapa
+      for (const [domain, url] of Object.entries(domainMap)) {
+        if (company.domain.includes(domain)) {
+          return url;
+        }
+      }
+      
+      // Se não encontrou, assumir que é um subdomínio suporte
+      return `https://suporte.${company.domain}`;
+    } catch (error) {
+      console.error('Erro ao obter URL base para empresa:', error);
+      return 'https://app.ticketwise.com.br'; // URL padrão em caso de erro
+    }
+  }
+
+  // Método auxiliar para mapear campos do ticket para variáveis mais amigáveis
+  private async mapTicketFields(ticket: any): Promise<any> {
+    if (!ticket) return ticket;
+    // Se já existe priority_text, não faz nada
+    if (ticket.priority_text) return ticket;
+    // Buscar label customizado da prioridade
+    let priorityText = ticket.priority;
+    try {
+      if (ticket.company_id && ticket.department_id && ticket.priority) {
+        const priorityService = new PriorityService();
+        // Busca todas as prioridades do departamento
+        const result = await priorityService.getDepartmentPriorities(ticket.company_id, ticket.department_id);
+        // Busca pelo nome (case-insensitive)
+        let found = result.priorities.find(p => p.name?.toLowerCase() === ticket.priority?.toLowerCase());
+        if (found) {
+          priorityText = found.name;
+        } else {
+          // Fallback para tradução padrão
+          const map: Record<string, string> = { low: 'Baixa', medium: 'Média', high: 'Alta', critical: 'Crítica' };
+          priorityText = map[ticket.priority] || ticket.priority;
+        }
+      }
+    } catch (e) {
+      // Fallback para tradução padrão
+      const map: Record<string, string> = { low: 'Baixa', medium: 'Média', high: 'Alta', critical: 'Crítica' };
+      priorityText = map[ticket.priority] || ticket.priority;
+    }
+    return { ...ticket, priority_text: priorityText };
+  }
+
   // Métodos específicos para cada tipo de notificação
   async notifyNewTicket(ticketId: number): Promise<void> {
     try {
@@ -371,11 +671,19 @@ export class EmailNotificationService {
         console.log(`[Email] Ticket sem customer_id - usando email: ${ticket.customer_email}`);
       }
 
+      // Obter URL base para a empresa
+      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
+
       const context: EmailNotificationContext = {
         ticket,
         customer: customer || { 
           name: 'Cliente', 
           email: ticket.customer_email 
+        },
+        system: {
+          base_url: baseUrl,
+          company_name: 'Sistema de Tickets',
+          support_email: 'suporte@ticketwise.com.br'
         }
       };
 
@@ -467,10 +775,19 @@ export class EmailNotificationService {
           .limit(1);
       }
 
+      // Obter URL base para a empresa
+      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
+
       const context: EmailNotificationContext = {
         ticket,
         customer: customer || { name: 'Cliente', email: ticket.customer_email },
-        official
+        user: official,
+        official,
+        system: {
+          base_url: baseUrl,
+          company_name: 'Sistema de Tickets',
+          support_email: 'suporte@ticketwise.com.br'
+        }
       };
 
       // Notificar o atendente atribuído
@@ -519,6 +836,9 @@ export class EmailNotificationService {
           .limit(1);
       }
 
+      // Obter URL base para a empresa
+      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
+
       const context: EmailNotificationContext = {
         ticket,
         customer: customer || { name: 'Cliente', email: ticket.customer_email },
@@ -526,7 +846,13 @@ export class EmailNotificationService {
         reply: {
           message: replyMessage,
           author_name: replyUser.name,
-          created_at: new Date()
+          created_at: new Date(),
+          user: replyUser
+        },
+        system: {
+          base_url: baseUrl,
+          company_name: 'Sistema de Tickets',
+          support_email: 'suporte@ticketwise.com.br'
         }
       };
 
@@ -622,19 +948,39 @@ export class EmailNotificationService {
           .limit(1);
       }
 
-      const statusNames: Record<string, string> = {
+      // Mapeamento de status igual ao frontend
+      const statusTranslations: Record<string, string> = {
         'new': 'Novo',
         'ongoing': 'Em Andamento',
-        'resolved': 'Resolvido'
+        'suspended': 'Suspenso',
+        'waiting_customer': 'Aguardando Cliente',
+        'escalated': 'Escalado',
+        'in_analysis': 'Em Análise',
+        'pending_deployment': 'Aguardando Deploy',
+        'reopened': 'Reaberto',
+        'resolved': 'Resolvido',
+        'undefined': 'Não Definido',
+        'null': 'Não Definido',
+        '': 'Não Definido'
       };
+
+      // Obter URL base para a empresa
+      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
 
       const context: EmailNotificationContext = {
         ticket,
         customer: customer || { name: 'Cliente', email: ticket.customer_email },
         user: changedByUser,
         status_change: {
-          old_status: statusNames[oldStatus] || oldStatus,
-          new_status: statusNames[newStatus] || newStatus
+          old_status: statusTranslations[oldStatus] || oldStatus,
+          new_status: statusTranslations[newStatus] || newStatus,
+          created_at: new Date(),
+          changed_by: changedByUser
+        },
+        system: {
+          base_url: baseUrl,
+          company_name: 'Sistema de Tickets',
+          support_email: 'suporte@ticketwise.com.br'
         }
       };
 
@@ -646,35 +992,18 @@ export class EmailNotificationService {
           .where(eq(users.email, ticket.customer_email))
           .limit(1);
 
-        if (customerUser) {
-          const shouldNotify = await this.shouldSendEmailToUser(customerUser.id, 'status_changed');
-          if (shouldNotify) {
-            await this.sendEmailNotification(
-              'status_changed',
-              ticket.customer_email,
-              context,
-              ticket.company_id || undefined
-            );
-          }
-        } else {
-          // Cliente sem conta, sempre notificar
+        const shouldNotify = customerUser
+          ? await this.shouldSendEmailToUser(customerUser.id, newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed')
+          : true;
+
+        if (shouldNotify) {
           await this.sendEmailNotification(
-            'status_changed',
+            newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed',
             ticket.customer_email,
             context,
             ticket.company_id || undefined
           );
         }
-      }
-
-      // Se foi resolvido, usar template específico
-      if (newStatus === 'resolved') {
-        await this.sendEmailNotification(
-          'ticket_resolved',
-          ticket.customer_email,
-          context,
-          ticket.company_id || undefined
-        );
       }
 
     } catch (error) {
@@ -712,12 +1041,18 @@ export class EmailNotificationService {
           .limit(1);
       }
 
+      // Obter URL base para a empresa
+      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
+
       const context: EmailNotificationContext = {
         ticket,
         customer: customer || { name: 'Cliente', email: ticket.customer_email },
         user: escalatedByUser,
         system: {
-          message: reason || 'Ticket escalado para nível superior'
+          message: reason || 'Ticket escalado para nível superior',
+          base_url: baseUrl,
+          company_name: 'Sistema de Tickets',
+          support_email: 'suporte@ticketwise.com.br'
         }
       };
 
@@ -811,12 +1146,18 @@ export class EmailNotificationService {
           .limit(1);
       }
 
+      // Obter URL base para a empresa
+      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
+
       const context: EmailNotificationContext = {
         ticket,
         customer: customer || { name: 'Cliente', email: ticket.customer_email },
         official: assignedOfficial,
         system: {
-          message: `Ticket vence em ${hoursUntilDue} horas`
+          message: `Ticket vence em ${hoursUntilDue} horas`,
+          base_url: baseUrl,
+          company_name: 'Sistema de Tickets',
+          support_email: 'suporte@ticketwise.com.br'
         }
       };
 
@@ -875,7 +1216,12 @@ export class EmailNotificationService {
       if (!customer) return;
 
       const context: EmailNotificationContext = {
-        customer
+        customer,
+        system: {
+          base_url: 'https://app.ticketwise.com.br',
+          company_name: 'Sistema de Tickets',
+          support_email: 'suporte@ticketwise.com.br'
+        }
       };
 
       // Notificar administradores e managers
@@ -936,7 +1282,10 @@ export class EmailNotificationService {
       const context: EmailNotificationContext = {
         user: newUser,
         system: {
-          message: `Novo usuário ${newUser.name} (${newUser.role}) foi criado`
+          message: `Novo usuário ${newUser.name} (${newUser.role}) foi criado`,
+          base_url: 'https://app.ticketwise.com.br',
+          company_name: 'Sistema de Tickets',
+          support_email: 'suporte@ticketwise.com.br'
         }
       };
 
@@ -988,7 +1337,10 @@ export class EmailNotificationService {
         system: {
           maintenance_start: maintenanceStart,
           maintenance_end: maintenanceEnd,
-          message
+          message,
+          base_url: 'https://app.ticketwise.com.br',
+          company_name: 'Sistema de Tickets',
+          support_email: 'suporte@ticketwise.com.br'
         }
       };
 
