@@ -119,7 +119,7 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
   // Debug temporário para encontrar o bug
   const isDebugMode = endDate.getFullYear() === 2025 && endDate.getMonth() === 6; // Julho 2025
   
-  if (isDebugMode) {
+  if (isDebugMode && process.env.NODE_ENV !== 'production') {
     console.log(`[DEBUG] calculateBusinessTimeMs:`, {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
@@ -137,7 +137,7 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
   while (current < endDate && dayCount < 10) { // Proteção contra loop infinito
     const currentDay = current.getDay();
     
-    if (isDebugMode) {
+    if (isDebugMode && process.env.NODE_ENV !== 'production') {
       console.log(`[DEBUG] Processando dia ${dayCount}:`, {
         currentDate: current.toISOString(),
         dayOfWeek: currentDay,
@@ -159,7 +159,7 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
       // Determinar o fim efetivo (menor entre endDate e fim do dia)
       const effectiveEnd = endDate < dayEnd ? endDate : dayEnd;
       
-      if (isDebugMode) {
+      if (isDebugMode && process.env.NODE_ENV !== 'production') {
         console.log(`[DEBUG] Período efetivo dia ${dayCount}:`, {
           dayStart: dayStart.toISOString(),
           dayEnd: dayEnd.toISOString(),
@@ -173,7 +173,7 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
         const dayTime = effectiveEnd.getTime() - effectiveStart.getTime();
         totalBusinessTime += dayTime;
         
-        if (isDebugMode) {
+        if (isDebugMode && process.env.NODE_ENV !== 'production') {
           console.log(`[DEBUG] Tempo adicionado dia ${dayCount}:`, {
             dayTimeMs: dayTime,
             dayTimeHours: dayTime / (1000 * 60 * 60),
@@ -181,7 +181,7 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
           });
         }
       }
-    } else if (isDebugMode) {
+    } else if (isDebugMode && process.env.NODE_ENV !== 'production') {
       console.log(`[DEBUG] Dia ${dayCount} é fim de semana/feriado - ignorado`);
     }
     
@@ -191,7 +191,7 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
     dayCount++;
   }
   
-  if (isDebugMode) {
+  if (isDebugMode && process.env.NODE_ENV !== 'production') {
     console.log(`[DEBUG] Resultado final:`, {
       totalBusinessTimeMs: totalBusinessTime,
       totalBusinessTimeHours: totalBusinessTime / (1000 * 60 * 60),
