@@ -305,6 +305,15 @@ export default function Settings() {
     { key: 'critical', label: 'Crítica' },
   ];
 
+  // Handler para salvar configurações gerais
+  const handleSaveGeneralSettings = () => {
+    saveGeneralSettingsMutation.mutate({
+      companyName,
+      supportEmail,
+      allowCustomerRegistration,
+    });
+  };
+
   // Impedir renderização para customers
   if (!isLoadingAuth && user?.role === 'customer') {
     return null;
