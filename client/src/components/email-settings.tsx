@@ -1471,9 +1471,9 @@ export default function EmailSettings() {
                               <h4 className="font-medium text-gray-700 mb-2">{info.label}</h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 {categoryVars.map((variable) => (
-                                  <div key={variable.key} className="bg-white p-2 rounded border">
+                                  <div key={variable} className="bg-white p-2 rounded border">
                                     <code className="text-blue-600 font-medium">
-                                      {"{{"}{variable.key}{"}"}
+                                      {"{{"}{variable}{"}}"}
                                     </code>
                                     <div className="text-gray-600 text-xs mt-1">
                                       {variable.description}
@@ -1567,7 +1567,7 @@ export default function EmailSettings() {
                 className="h-40 font-mono text-xs"
               />
               <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
-                💡 Dica: Use variáveis como {"{{"} ticket.title{"}"}, {"{{"} customer.name{"}"}, {"{{"} ticket.ticket_id{"}"}, {"{{"} user.name{"}"}, etc. 
+                💡 Dica: Use variáveis como {"{{"} ticket.title {"}}"}, {"{{"} customer.name {"}}"}, {"{{"} ticket.ticket_id {"}}"}, {"{{"} user.name {"}}"}, etc. 
                 Você pode ver um preview do template após salvá-lo.
               </div>
             </div>
@@ -1588,7 +1588,7 @@ export default function EmailSettings() {
                       return (
                         <div key={variable} className="bg-white p-2 rounded border">
                           <code className="text-blue-600 font-medium">
-                            {"{{"}{variable}{"}"}
+                            {"{{"}{variable}{"}}"}
                           </code>
                           {variableInfo && (
                             <div className="text-gray-600 text-xs mt-1">
@@ -1660,7 +1660,7 @@ export default function EmailSettings() {
                   {info.variables.map((variable) => (
                     <div key={variable.key} className="bg-gray-50 p-3 rounded border">
                       <code className="text-blue-600 font-bold text-sm">
-                        {"{{"}{variable.key}{"}"}
+                        {"{{"}{variable.key}{"}}"}
                       </code>
                       <div className="text-gray-700 text-sm mt-2">
                         {variable.description}
