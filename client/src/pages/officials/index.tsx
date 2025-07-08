@@ -281,110 +281,112 @@ export default function OfficialsIndex() {
                     </TableRow>
                   ))
                 ) : safeOfficials && safeOfficials.length > 0 ? (
-                  safeOfficials.map((official: any) => {
-                    return (
-                      <TableRow key={official.id}>
-                        <TableCell className="font-medium">{official.name}</TableCell>
-                        <TableCell>{official.email}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {official.departments && Array.isArray(official.departments) && official.departments.length > 0 ? (
-                              // Exibir os departamentos
-                              official.departments.map((dept: any, index: number) => {
-                                // Se dept é um objeto com propriedade 'department', pegamos essa propriedade
-                                // Se não, assumimos que dept é uma string diretamente
-                                const departmentValue = typeof dept === 'object' && dept !== null && 'department' in dept
-                                  ? dept.department
-                                  : dept;
-                                  
-                                return (
-                                  <Badge key={index} variant="outline" className="capitalize">
-                                    {departmentValue}
-                                  </Badge>
-                                );
-                              })
-                            ) : (
-                              <span className="text-neutral-500 text-sm">Sem departamento</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {/* Mostrar supervisor */}
-                          {(official as any).supervisor_id ? (
-                            <span className="text-sm text-neutral-600">
-                              {/* Buscar nome do supervisor nos dados */}
-                              {safeOfficials.find((o: any) => o.id === (official as any).supervisor_id)?.name || `ID: ${(official as any).supervisor_id}`}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-neutral-400">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {/* Mostrar manager */}
-                          {(official as any).manager_id ? (
-                            <span className="text-sm text-neutral-600">
-                              {/* Buscar nome do manager nos dados */}
-                              {safeOfficials.find((o: any) => o.id === (official as any).manager_id)?.name || `ID: ${(official as any).manager_id}`}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-neutral-400">-</span>
-                          )}
-                        </TableCell>
-                        {user?.role === 'admin' && (
+                  [...safeOfficials]
+                    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
+                    .map((official: any) => {
+                      return (
+                        <TableRow key={official.id}>
+                          <TableCell className="font-medium">{official.name}</TableCell>
+                          <TableCell>{official.email}</TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Building2 className="h-4 w-4 text-neutral-500" />
-                              <span className="text-sm text-neutral-600">
-                                {(official as any).company?.name || 'Sistema Global'}
-                              </span>
+                            <div className="flex flex-wrap gap-1">
+                              {official.departments && Array.isArray(official.departments) && official.departments.length > 0 ? (
+                                // Exibir os departamentos
+                                official.departments.map((dept: any, index: number) => {
+                                  // Se dept é um objeto com propriedade 'department', pegamos essa propriedade
+                                  // Se não, assumimos que dept é uma string diretamente
+                                  const departmentValue = typeof dept === 'object' && dept !== null && 'department' in dept
+                                    ? dept.department
+                                    : dept;
+                                    
+                                  return (
+                                    <Badge key={index} variant="outline" className="capitalize">
+                                      {departmentValue}
+                                    </Badge>
+                                  );
+                                })
+                              ) : (
+                                <span className="text-neutral-500 text-sm">Sem departamento</span>
+                              )}
                             </div>
                           </TableCell>
-                        )}
-                        <TableCell>
-                          {(official.is_active === undefined || official.is_active) ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Ativo
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                              Inativo
-                            </span>
+                          <TableCell>
+                            {/* Mostrar supervisor */}
+                            {(official as any).supervisor_id ? (
+                              <span className="text-sm text-neutral-600">
+                                {/* Buscar nome do supervisor nos dados */}
+                                {safeOfficials.find((o: any) => o.id === (official as any).supervisor_id)?.name || `ID: ${(official as any).supervisor_id}`}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-neutral-400">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {/* Mostrar manager */}
+                            {(official as any).manager_id ? (
+                              <span className="text-sm text-neutral-600">
+                                {/* Buscar nome do manager nos dados */}
+                                {safeOfficials.find((o: any) => o.id === (official as any).manager_id)?.name || `ID: ${(official as any).manager_id}`}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-neutral-400">-</span>
+                            )}
+                          </TableCell>
+                          {user?.role === 'admin' && (
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-4 w-4 text-neutral-500" />
+                                <span className="text-sm text-neutral-600">
+                                  {(official as any).company?.name || 'Sistema Global'}
+                                </span>
+                              </div>
+                            </TableCell>
                           )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {(() => {
-                            const count = (official as any).assignedTicketsCount;
-                            if (typeof count === 'number') return count;
-                            if (typeof count === 'string' && !isNaN(Number(count))) return Number(count);
-                            return '-';
-                          })()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleEditOfficial(official)}
-                              title="Editar atendente"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button 
-                              variant={official.is_active ? "destructive" : "default"} 
-                              size="sm"
-                              className={official.is_active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
-                              onClick={() => handleDeleteOfficial(official)}
-                              title={official.is_active ? "Desativar atendente" : "Ativar atendente"}
-                            >
-                              {official.is_active ? 
-                                <UserX className="h-3.5 w-3.5" /> : 
-                                <UserCheck className="h-3.5 w-3.5" />}
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
+                          <TableCell>
+                            {(official.is_active === undefined || official.is_active) ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                Ativo
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                Inativo
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {(() => {
+                              const count = (official as any).assignedTicketsCount;
+                              if (typeof count === 'number') return count;
+                              if (typeof count === 'string' && !isNaN(Number(count))) return Number(count);
+                              return '-';
+                            })()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleEditOfficial(official)}
+                                title="Editar atendente"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button 
+                                variant={official.is_active ? "destructive" : "default"} 
+                                size="sm"
+                                className={official.is_active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
+                                onClick={() => handleDeleteOfficial(official)}
+                                title={official.is_active ? "Desativar atendente" : "Ativar atendente"}
+                              >
+                                {official.is_active ? 
+                                  <UserX className="h-3.5 w-3.5" /> : 
+                                  <UserCheck className="h-3.5 w-3.5" />}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                 ) : (
                   <TableRow>
                     <TableCell colSpan={user?.role === 'admin' ? 9 : 8} className="text-center py-10 text-neutral-500">
