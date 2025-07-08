@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Search, Calendar } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -42,6 +43,7 @@ export default function TicketsIndex() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [assignedToFilter, setAssignedToFilter] = useState('all');
+  const [hideResolved, setHideResolved] = useState(false);
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ 
     from: undefined, 
     to: undefined 
@@ -149,6 +151,11 @@ export default function TicketsIndex() {
     
     // Apply status filter
     if (statusFilter !== 'all' && ticket.status !== statusFilter) {
+      return false;
+    }
+    
+    // Apply hide resolved filter
+    if (hideResolved && ticket.status === 'resolved') {
       return false;
     }
     
@@ -463,6 +470,23 @@ export default function TicketsIndex() {
               )}
             </SelectContent>
           </Select>
+        </div>
+
+        {/* Terceira linha: Checkbox para ocultar tickets resolvidos */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="hideResolved"
+              checked={hideResolved}
+              onCheckedChange={setHideResolved}
+            />
+            <Label
+              htmlFor="hideResolved"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              Ocultar chamados resolvidos
+            </Label>
+          </div>
         </div>
       </div>
 
