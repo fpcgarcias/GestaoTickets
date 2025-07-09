@@ -790,7 +790,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   });
   
   // Stats and dashboard endpoints
-  // Busca tickets com base no papel do usuário com paginação
+  // Busca tickets com base no papel do usuário com paginação e filtros
   router.get("/tickets/user-role", authRequired, async (req: Request, res: Response) => {
     try {
       // Obter o ID do usuário da sessão
@@ -804,21 +804,126 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Parâmetros de paginação
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20; // 20 por página para tickets
+      
+      // Parâmetros de filtro
       const search = (req.query.search as string) || '';
+      const statusFilter = req.query.status as string;
+      const priorityFilter = req.query.priority as string;
+      const departmentFilter = req.query.department_id as string;
+      const assignedToFilter = req.query.assigned_to_id as string;
+      const hideResolved = req.query.hide_resolved === 'true';
+      const timeFilter = req.query.time_filter as string;
+      const dateFrom = req.query.date_from as string;
+      const dateTo = req.query.date_to as string;
       
       const tickets = await storage.getTicketsByUserRole(userId, userRole);
       
-      // Aplicar filtro de busca se fornecido
+      // Aplicar todos os filtros
       let filteredTickets = tickets;
+      
+      // Filtro de busca
       if (search) {
         const searchLower = search.toLowerCase();
-        filteredTickets = tickets.filter(ticket => 
+        filteredTickets = filteredTickets.filter(ticket => 
           ticket.title.toLowerCase().includes(searchLower) ||
           ticket.description.toLowerCase().includes(searchLower) ||
           ticket.ticket_id.toLowerCase().includes(searchLower) ||
           (ticket.customer_email && ticket.customer_email.toLowerCase().includes(searchLower))
         );
       }
+      
+      // Filtro de status
+      if (statusFilter && statusFilter !== 'all') {
+        filteredTickets = filteredTickets.filter(ticket => ticket.status === statusFilter);
+      }
+      
+      // Filtro para ocultar resolvidos
+      if (hideResolved) {
+        filteredTickets = filteredTickets.filter(ticket => ticket.status !== 'resolved');
+      }
+      
+      // Filtro de prioridade
+      if (priorityFilter && priorityFilter !== 'all') {
+        filteredTickets = filteredTickets.filter(ticket => ticket.priority === priorityFilter);
+      }
+      
+      // Filtro de departamento
+      if (departmentFilter && departmentFilter !== 'all') {
+        const deptId = parseInt(departmentFilter);
+        filteredTickets = filteredTickets.filter(ticket => ticket.department_id === deptId);
+      }
+      
+      // Filtro de atendente
+      if (assignedToFilter && assignedToFilter !== 'all') {
+        if (assignedToFilter === 'unassigned') {
+          filteredTickets = filteredTickets.filter(ticket => ticket.assigned_to_id === null);
+        } else {
+          const assignedId = parseInt(assignedToFilter);
+          filteredTickets = filteredTickets.filter(ticket => ticket.assigned_to_id === assignedId);
+        }
+      }
+      
+      // Filtro de tempo
+      if (timeFilter || dateFrom || dateTo) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        filteredTickets = filteredTickets.filter(ticket => {
+          if (!ticket.created_at) return false;
+          
+          const ticketDate = new Date(ticket.created_at);
+          
+          // Filtro de período personalizado
+          if (dateFrom || dateTo) {
+            if (dateFrom) {
+              const startDate = new Date(dateFrom);
+              startDate.setHours(0, 0, 0, 0);
+              if (ticketDate < startDate) return false;
+            }
+            if (dateTo) {
+              const endDate = new Date(dateTo);
+              endDate.setHours(23, 59, 59, 999);
+              if (ticketDate > endDate) return false;
+            }
+            return true;
+          }
+          
+          // Filtros de tempo pré-definidos
+          if (timeFilter === 'this-week') {
+            const weekStart = new Date(today);
+            weekStart.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Segunda-feira
+            weekStart.setHours(0, 0, 0, 0);
+            return ticketDate >= weekStart;
+          }
+          
+          if (timeFilter === 'last-week') {
+            const weekStart = new Date(today);
+            weekStart.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Segunda-feira
+            
+            const lastWeekStart = new Date(weekStart);
+            lastWeekStart.setDate(weekStart.getDate() - 7);
+            
+            const lastWeekEnd = new Date(weekStart);
+            lastWeekEnd.setHours(0, 0, 0, -1);
+            
+            return ticketDate >= lastWeekStart && ticketDate <= lastWeekEnd;
+          }
+          
+          if (timeFilter === 'this-month') {
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            return ticketDate >= monthStart;
+          }
+          
+          return true;
+        });
+      }
+      
+      // Ordenar por data de criação (mais recentes primeiro)
+      filteredTickets.sort((a, b) => {
+        const dateA = new Date(a.created_at);
+        const dateB = new Date(b.created_at);
+        return dateB.getTime() - dateA.getTime();
+      });
       
       // Calcular paginação
       const total = filteredTickets.length;
@@ -1641,28 +1746,54 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   
   router.post("/customers", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
-      const { email, name, company_id } = req.body;
+      const { email, name, company_id, linkExistingUser } = req.body;
       
-      // Verificar se já existe cliente ou usuário com este email
+      // Garantir que linkExistingUser seja boolean
+      const shouldLinkUser = Boolean(linkExistingUser);
+      console.log('Cliente - linkExistingUser recebido:', linkExistingUser, 'convertido para:', shouldLinkUser);
+      
+      // Verificar se já existe cliente com este email
       const existingCustomer = await storage.getCustomerByEmail(email);
       if (existingCustomer) {
         return res.status(400).json({ message: "Email já cadastrado para outro cliente" });
       }
       
       const existingUser = await storage.getUserByEmail(email);
-      if (existingUser) {
-        return res.status(400).json({ message: "Email já cadastrado para outro usuário" });
+      
+      if (existingUser && !shouldLinkUser) {
+        // Se o usuário existe mas não foi solicitado para vincular, retornar erro com opção
+        console.log(`Cliente - Usuário com email '${email}' já existe. Sugerindo vinculação.`);
+        
+        const responseData = { 
+          message: "Usuário já existe",
+          suggestion: "link_existing",
+          existingUser: {
+            id: existingUser.id,
+            name: existingUser.name,
+            email: existingUser.email,
+            username: existingUser.username
+          }
+        };
+        
+        console.log('Cliente - Resposta 409 sendo enviada:', JSON.stringify(responseData, null, 2));
+        return res.status(409).json(responseData);
       }
       
-      // Usar o e-mail completo como nome de usuário
-      const username = email;
-      
-      // Gerar senha temporária segura
-      const { generateSecurePassword, hashPassword } = await import('./utils/password');
-      const tempPassword = generateSecurePassword();
-      
-      // Criptografar senha
-      const hashedPassword = await hashPassword(tempPassword);
+      if (existingUser && shouldLinkUser) {
+        console.log(`Cliente - Vinculando usuário existente (ID: ${existingUser.id}, role: ${existingUser.role}) como cliente`);
+        
+        // Atualizar o role do usuário para 'customer' ao vincular como cliente
+        const updatedUser = await storage.updateUser(existingUser.id, { 
+          role: 'customer'
+        });
+        if (updatedUser) {
+          existingUser.role = 'customer';
+          console.log(`Cliente - Role do usuário atualizado para 'customer'`);
+        }
+      } else if (!existingUser && shouldLinkUser) {
+        // Se solicitou vincular mas o usuário não existe, retornar erro
+        return res.status(404).json({ message: "Usuário não encontrado para vinculação" });
+      }
       
       // Determinar company_id efetivo
       const userRole = req.session?.userRole as string;
@@ -1681,15 +1812,43 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         }
       }
       
-      // Criar usuário primeiro com company_id
-      const user = await storage.createUser({
-        username,
-        email,
-        password: hashedPassword,
-        name,
-        role: 'customer' as typeof schema.userRoleEnum.enumValues[number],
-        company_id: effectiveCompanyId,
-      });
+      let user;
+      let tempPassword = '';
+      
+      if (!existingUser) {
+        // Usar o e-mail completo como nome de usuário
+        const username = email;
+        
+        // Gerar senha temporária segura
+        const { generateSecurePassword, hashPassword } = await import('./utils/password');
+        tempPassword = generateSecurePassword();
+        
+        // Criptografar senha
+        const hashedPassword = await hashPassword(tempPassword);
+        
+        // Criar usuário primeiro com company_id
+        user = await storage.createUser({
+          username,
+          email,
+          password: hashedPassword,
+          name,
+          role: 'customer' as typeof schema.userRoleEnum.enumValues[number],
+          company_id: effectiveCompanyId,
+        });
+      } else {
+        // Usar usuário existente
+        user = existingUser;
+        console.log(`Cliente - Usando usuário existente ID: ${user.id}`);
+        
+        // Atualizar company_id se necessário e se for admin
+        if (userRole === 'admin' && effectiveCompanyId !== user.company_id) {
+          console.log(`Cliente - Atualizando company_id do usuário de ${user.company_id} para ${effectiveCompanyId}`);
+          const updatedUser = await storage.updateUser(user.id, { company_id: effectiveCompanyId });
+          if (updatedUser) {
+            user = updatedUser;
+          }
+        }
+      }
       
       // Criar cliente associado ao usuário com company_id
       const customer = await storage.createCustomer({
@@ -1706,15 +1865,23 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         // Não falhar a criação do cliente por causa da notificação
       }
       
-      // Retornar o cliente com informações de acesso
-      res.status(201).json({
-        ...customer,
-        accessInfo: {
-          username,
-          temporaryPassword: tempPassword,
-          message: "Uma senha temporária foi gerada. Por favor, informe ao cliente para alterá-la no primeiro acesso."
-        }
-      });
+      // Retornar o cliente com informações de acesso (apenas para novos usuários)
+      if (!existingUser) {
+        res.status(201).json({
+          ...customer,
+          accessInfo: {
+            username: user.username,
+            temporaryPassword: tempPassword,
+            message: "Uma senha temporária foi gerada. Por favor, informe ao cliente para alterá-la no primeiro acesso."
+          }
+        });
+      } else {
+        // Para usuários vinculados, não retornar senha
+        res.status(201).json({
+          ...customer,
+          message: "Cliente vinculado com sucesso ao usuário existente."
+        });
+      }
     } catch (error) {
       console.error('Erro ao criar cliente:', error);
       res.status(500).json({ message: "Falha ao criar cliente", error: String(error) });
@@ -5899,13 +6066,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       await emailConfigService.saveEmailConfigFromFrontend(config, companyId);
       
+      console.log('[DEBUG] Configurações salvas com sucesso!');
+      
       res.json({ 
         success: true, 
         message: "Configurações de email salvas com sucesso" 
       });
     } catch (error) {
       console.error('Erro ao salvar configurações de email:', error);
-      res.status(500).json({ message: "Erro interno ao salvar configurações de email" });
+      res.status(500).json({ message: error instanceof Error ? error.message : "Erro interno ao salvar configurações de email" });
     }
   });
 

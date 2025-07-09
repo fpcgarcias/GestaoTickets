@@ -86,31 +86,24 @@ export async function createAiConfiguration(req: Request, res: Response) {
       });
     }
 
-    // Se for definida como padrão, desativar outras configurações padrão do mesmo escopo (departamento/global)
+    // OBRIGATÓRIO: Configuração deve ter department_id
+    if (!department_id) {
+      return res.status(400).json({ 
+        message: "Campo obrigatório: department_id. Cada configuração deve ser específica de um departamento." 
+      });
+    }
+
+    // Se for definida como padrão, desativar outras configurações padrão do mesmo departamento
     if (is_default) {
-      if (department_id) {
-        // Desativar outras configurações padrão do mesmo departamento
-        await db
-          .update(schema.aiConfigurations)
-          .set({ is_default: false, updated_at: new Date() })
-          .where(
-            and(
-              eq(schema.aiConfigurations.department_id, department_id),
-              eq(schema.aiConfigurations.is_default, true)
-            )
-          );
-      } else {
-        // Desativar outras configurações padrão globais
-        await db
-          .update(schema.aiConfigurations)
-          .set({ is_default: false, updated_at: new Date() })
-          .where(
-            and(
-              isNull(schema.aiConfigurations.department_id),
-              eq(schema.aiConfigurations.is_default, true)
-            )
-          );
-      }
+      await db
+        .update(schema.aiConfigurations)
+        .set({ is_default: false, updated_at: new Date() })
+        .where(
+          and(
+            eq(schema.aiConfigurations.department_id, department_id),
+            eq(schema.aiConfigurations.is_default, true)
+          )
+        );
     }
 
     // Criar nova configuração
@@ -124,7 +117,7 @@ export async function createAiConfiguration(req: Request, res: Response) {
         api_endpoint,
         system_prompt,
         user_prompt_template,
-        department_id: department_id || null,
+        department_id,
         temperature: temperature || '0.1',
         max_tokens: max_tokens || 100,
         timeout_seconds: timeout_seconds || 30,
@@ -151,8 +144,9 @@ export async function testAiConfiguration(req: Request, res: Response) {
       provider = "openai",
       model = "gpt-4o",
       api_key,
-      system_prompt = "Você é um assistente que analisa tickets de suporte e determina a prioridade. Responda apenas com: BAIXA, MEDIA, ALTA ou CRITICA",
-      user_prompt_template = "Título: {titulo}\nDescrição: {descricao}\n\nQual a prioridade deste ticket?",
+      system_prompt,
+      user_prompt_template,
+      department_id,
       test_title = "Sistema de email não está funcionando",
       test_description = "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
     } = req.body;
@@ -163,6 +157,65 @@ export async function testAiConfiguration(req: Request, res: Response) {
       });
     }
 
+    // Se department_id for fornecido, buscar as prioridades específicas do departamento
+    let adjustedSystemPrompt = system_prompt;
+    let adjustedUserPrompt = user_prompt_template;
+
+    if (department_id) {
+      try {
+        // Buscar empresa do departamento
+        const [department] = await db
+          .select({ company_id: schema.departments.company_id })
+          .from(schema.departments)
+          .where(eq(schema.departments.id, department_id))
+          .limit(1);
+
+        if (department?.company_id) {
+          // Buscar prioridades específicas do departamento
+          const priorities = await db
+            .select()
+            .from(schema.departmentPriorities)
+            .where(
+              and(
+                eq(schema.departmentPriorities.company_id, department.company_id),
+                eq(schema.departmentPriorities.department_id, department_id),
+                eq(schema.departmentPriorities.is_active, true)
+              )
+            )
+            .orderBy(schema.departmentPriorities.weight);
+
+          if (priorities.length > 0) {
+            // Ajustar prompts para usar as prioridades específicas do departamento
+            const priorityList = priorities
+              .map(p => `${p.name}: Peso ${p.weight}`)
+              .join(', ');
+
+            const priorityNames = priorities.map(p => p.name).join(', ');
+
+            adjustedSystemPrompt = `Você é um assistente especializado em análise de prioridade de tickets de suporte técnico. Analise o título e descrição do ticket e determine a prioridade apropriada baseada nas prioridades específicas deste departamento:
+
+Prioridades disponíveis: ${priorityList}
+
+IMPORTANTE: Responda APENAS com o nome exato de uma das prioridades (${priorityNames}), sem pontuação adicional.`;
+
+            adjustedUserPrompt = `Título: {titulo}
+
+Descrição: {descricao}
+
+Analise este ticket e determine sua prioridade considerando as diretrizes específicas do departamento. Responda APENAS com uma das seguintes opções: ${priorityNames}
+
+Prioridade:`;
+          }
+        }
+      } catch (error) {
+        console.warn('Erro ao buscar prioridades do departamento para teste:', error);
+      }
+    }
+
+    // Usar prompts padrão se não foram ajustados
+    const finalSystemPrompt = adjustedSystemPrompt || "Você é um assistente que analisa tickets de suporte e determina a prioridade. Responda apenas com: BAIXA, MEDIA, ALTA ou CRITICA";
+    const finalUserPrompt = adjustedUserPrompt || "Título: {titulo}\nDescrição: {descricao}\n\nQual a prioridade deste ticket?";
+
     // Criar configuração temporária para teste
     const testConfig: schema.AiConfiguration = {
       id: 0,
@@ -171,9 +224,9 @@ export async function testAiConfiguration(req: Request, res: Response) {
       model,
       api_key,
       api_endpoint: null,
-      system_prompt,
-      user_prompt_template,
-      department_id: null,
+      system_prompt: finalSystemPrompt,
+      user_prompt_template: finalUserPrompt,
+      department_id: department_id || null,
       temperature: '0.1',
       max_tokens: 100,
       timeout_seconds: 30,
@@ -194,7 +247,11 @@ export async function testAiConfiguration(req: Request, res: Response) {
     res.json({
       success: true,
       result,
-      message: "Teste executado com sucesso"
+      message: "Teste executado com sucesso",
+      used_prompts: {
+        system_prompt: finalSystemPrompt,
+        user_prompt: finalUserPrompt
+      }
     });
   } catch (error: any) {
     console.error('Erro ao testar configuração de IA:', error);
@@ -245,35 +302,26 @@ export async function updateAiConfiguration(req: Request, res: Response) {
       is_default,
     } = req.body;
 
-    // Se for definida como padrão, desativar outras configurações padrão do mesmo escopo
+    // OBRIGATÓRIO: Configuração deve ter department_id
+    const targetDepartmentId = department_id !== undefined ? department_id : existingConfig.department_id;
+    if (!targetDepartmentId) {
+      return res.status(400).json({ 
+        message: "Campo obrigatório: department_id. Cada configuração deve ser específica de um departamento." 
+      });
+    }
+
+    // Se for definida como padrão, desativar outras configurações padrão do mesmo departamento
     if (is_default && !existingConfig.is_default) {
-      const targetDepartmentId = department_id !== undefined ? department_id : existingConfig.department_id;
-      
-      if (targetDepartmentId) {
-        // Desativar outras configurações padrão do mesmo departamento
-        await db
-          .update(schema.aiConfigurations)
-          .set({ is_default: false, updated_at: new Date() })
-          .where(
-            and(
-              eq(schema.aiConfigurations.department_id, targetDepartmentId),
-              eq(schema.aiConfigurations.is_default, true),
-              ne(schema.aiConfigurations.id, configurationId)
-            )
-          );
-      } else {
-        // Desativar outras configurações padrão globais
-        await db
-          .update(schema.aiConfigurations)
-          .set({ is_default: false, updated_at: new Date() })
-          .where(
-            and(
-              isNull(schema.aiConfigurations.department_id),
-              eq(schema.aiConfigurations.is_default, true),
-              ne(schema.aiConfigurations.id, configurationId)
-            )
-          );
-      }
+      await db
+        .update(schema.aiConfigurations)
+        .set({ is_default: false, updated_at: new Date() })
+        .where(
+          and(
+            eq(schema.aiConfigurations.department_id, targetDepartmentId),
+            eq(schema.aiConfigurations.is_default, true),
+            ne(schema.aiConfigurations.id, configurationId)
+          )
+        );
     }
 
     // Atualizar configuração
@@ -287,7 +335,7 @@ export async function updateAiConfiguration(req: Request, res: Response) {
         api_endpoint,
         system_prompt,
         user_prompt_template,
-        department_id: department_id !== undefined ? department_id : existingConfig.department_id,
+        department_id: targetDepartmentId,
         temperature,
         max_tokens,
         timeout_seconds,

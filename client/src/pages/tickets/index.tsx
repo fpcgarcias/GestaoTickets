@@ -54,20 +54,42 @@ export default function TicketsIndex() {
   // Pegar estado de autenticação
   const { user, isLoading: isAuthLoading } = useAuth();
   
-  // Reset page when search changes
+  // Reset page when any filter changes
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
     setCurrentPage(1); // Reset to first page when searching
   };
+  
+  const handleFilterChange = (setter: (value: any) => void) => {
+    return (value: any) => {
+      setter(value);
+      setCurrentPage(1); // Reset to first page when filtering
+    };
+  };
+  
+  const handleCheckboxChange = (setter: (value: boolean) => void) => {
+    return (checked: boolean | "indeterminate") => {
+      setter(checked as boolean);
+      setCurrentPage(1); // Reset to first page when filtering
+    };
+  };
 
-  // Busca tickets com base no papel do usuário com paginação
+  // Busca tickets com base no papel do usuário com paginação e filtros
   const { data: ticketsResponse, isLoading: isTicketsLoading } = useQuery({
-    queryKey: ['/api/tickets/user-role', currentPage, searchQuery],
+    queryKey: ['/api/tickets/user-role', currentPage, searchQuery, statusFilter, priorityFilter, departmentFilter, assignedToFilter, hideResolved, timeFilter, dateRange],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: '20',
         ...(searchQuery && { search: searchQuery }),
+        ...(statusFilter && statusFilter !== 'all' && { status: statusFilter }),
+        ...(priorityFilter && priorityFilter !== 'all' && { priority: priorityFilter }),
+        ...(departmentFilter && departmentFilter !== 'all' && { department_id: departmentFilter }),
+        ...(assignedToFilter && assignedToFilter !== 'all' && { assigned_to_id: assignedToFilter }),
+        ...(hideResolved && { hide_resolved: 'true' }),
+        ...(timeFilter && timeFilter !== 'custom' && { time_filter: timeFilter }),
+        ...(timeFilter === 'custom' && dateRange.from && { date_from: dateRange.from.toISOString().split('T')[0] }),
+        ...(timeFilter === 'custom' && dateRange.to && { date_to: dateRange.to.toISOString().split('T')[0] }),
       });
       
       const res = await fetch(`/api/tickets/user-role?${params}`);
@@ -143,104 +165,7 @@ export default function TicketsIndex() {
     assignTicketMutation.mutate({ ticketId, assignedToId });
   };
 
-  const filteredTickets = tickets?.filter((ticket: any) => {
-    // Apply search filter
-    if (searchQuery && !ticket.title.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false;
-    }
-    
-    // Apply status filter
-    if (statusFilter !== 'all' && ticket.status !== statusFilter) {
-      return false;
-    }
-    
-    // Apply hide resolved filter
-    if (hideResolved && ticket.status === 'resolved') {
-      return false;
-    }
-    
-    // Apply priority filter
-    if (priorityFilter && priorityFilter !== 'all' && ticket.priority !== priorityFilter) {
-      return false;
-    }
-    
-    // 🆕 Apply department filter
-    if (departmentFilter && departmentFilter !== 'all' && ticket.department_id !== parseInt(departmentFilter)) {
-      return false;
-    }
-    
-    // 🆕 Apply assigned to filter
-    if (assignedToFilter && assignedToFilter !== 'all') {
-      if (assignedToFilter === 'unassigned' && ticket.assigned_to_id !== null) {
-        return false;
-      }
-      if (assignedToFilter !== 'unassigned' && ticket.assigned_to_id !== parseInt(assignedToFilter)) {
-        return false;
-      }
-    }
-    
-    // Apply time filter
-    if (timeFilter && ticket.created_at) {
-      const ticketDate = new Date(ticket.created_at);
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
-      // Corrigindo o cálculo do início da semana (domingo → segunda)
-      const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Segunda-feira
-      weekStart.setHours(0, 0, 0, 0); // Começo do dia
-      
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      
-      switch (timeFilter) {
-        case 'this-week':
-          // Não mostrar tickets se criados antes do início da semana atual
-          if (ticketDate < weekStart) return false;
-          break;
-        case 'last-week':
-          const lastWeekStart = new Date(weekStart);
-          lastWeekStart.setDate(weekStart.getDate() - 7); // Segunda-feira da semana passada
-          
-          const lastWeekEnd = new Date(weekStart);
-          lastWeekEnd.setHours(0, 0, 0, -1); // Um milissegundo antes do início desta semana
-          
-          if (ticketDate < lastWeekStart || ticketDate > lastWeekEnd) return false;
-          break;
-        case 'this-month':
-          if (ticketDate < monthStart) return false;
-          break;
-        case 'custom':
-          // Filtro personalizado com range de datas
-          if (dateRange.from) {
-            const startDate = new Date(dateRange.from);
-            startDate.setHours(0, 0, 0, 0); // Início do dia
-            if (ticketDate < startDate) return false;
-          }
-          if (dateRange.to) {
-            const endDate = new Date(dateRange.to);
-            endDate.setHours(23, 59, 59, 999); // Final do dia
-            if (ticketDate > endDate) return false;
-            
-            // Verifica se o ticketDate é do mesmo dia do endDate
-            // Se sim, verificamos se o ticket foi criado depois do horário atual
-            const currentDate = new Date();
-            const isTicketSameDay = (
-              ticketDate.getDate() === currentDate.getDate() &&
-              ticketDate.getMonth() === currentDate.getMonth() &&
-              ticketDate.getFullYear() === currentDate.getFullYear()
-            );
-            
-            // Se for o mesmo dia, não considerar tickets criados depois do horário atual
-            if (isTicketSameDay && ticketDate.getTime() > currentDate.getTime()) {
-              return false;
-            }
-          }
-          break;
-      }
-    }
-    
-    return true;
-  });
+  // Os filtros agora são aplicados no backend, não precisamos mais filtrar no frontend
 
   // Mostrar Skeleton enquanto a autenticação está carregando OU o usuário ainda não foi definido
   if (isAuthLoading || !user) {
@@ -343,6 +268,7 @@ export default function TicketsIndex() {
                       from: range?.from,
                       to: range?.to
                     });
+                    setCurrentPage(1); // Reset to first page when date range changes
                     if (range?.from && range?.to) {
                       setTimeout(() => setCalendarOpen(false), 500);
                     }
@@ -356,7 +282,7 @@ export default function TicketsIndex() {
             <Select
               value={timeFilter}
               onValueChange={(value) => {
-                setTimeFilter(value);
+                handleFilterChange(setTimeFilter)(value);
                 if (value === 'custom') {
                   setTimeout(() => setCalendarOpen(true), 100);
                 }
@@ -381,7 +307,7 @@ export default function TicketsIndex() {
           <Select
             value={departmentFilter}
             onValueChange={(value) => {
-              setDepartmentFilter(value);
+              handleFilterChange(setDepartmentFilter)(value);
               // Limpar filtro de prioridade quando departamento muda
               if (value !== departmentFilter) {
                 setPriorityFilter('all');
@@ -406,7 +332,7 @@ export default function TicketsIndex() {
           {/* 🎯 Filtro de Prioridade - SEGUNDO (depende do departamento) */}
           <Select
             value={priorityFilter}
-            onValueChange={setPriorityFilter}
+            onValueChange={handleFilterChange(setPriorityFilter)}
             disabled={prioritiesLoading}
           >
             <SelectTrigger className="w-[200px]">
@@ -431,7 +357,7 @@ export default function TicketsIndex() {
           {/* ✅ Filtro de Status */}
           <Select
             value={statusFilter}
-            onValueChange={setStatusFilter}
+            onValueChange={handleFilterChange(setStatusFilter)}
           >
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Todos os Status" />
@@ -453,7 +379,7 @@ export default function TicketsIndex() {
           {/* 🆕 Filtro de Atendente */}
           <Select
             value={assignedToFilter}
-            onValueChange={setAssignedToFilter}
+            onValueChange={handleFilterChange(setAssignedToFilter)}
           >
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Atendente" />
@@ -478,7 +404,7 @@ export default function TicketsIndex() {
             <Checkbox
               id="hideResolved"
               checked={hideResolved}
-              onCheckedChange={setHideResolved}
+              onCheckedChange={handleCheckboxChange(setHideResolved)}
             />
             <Label
               htmlFor="hideResolved"
@@ -494,7 +420,7 @@ export default function TicketsIndex() {
       <Tabs 
         defaultValue="all" 
         value={statusFilter}
-        onValueChange={setStatusFilter}
+        onValueChange={handleFilterChange(setStatusFilter)}
         className="mb-6"
       >
         <TabsList className="border-b border-neutral-200 w-full justify-start rounded-none bg-transparent">
@@ -539,17 +465,15 @@ export default function TicketsIndex() {
               </div>
             </div>
           ))
-        ) : filteredTickets?.length ? (
-          [...filteredTickets]
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            .map((ticket: any) => (
-              <TicketCard 
-                key={ticket.id} 
-                ticket={ticket} 
-                onAssignTicket={handleAssignTicket}
-                isAssigning={assignTicketMutation.isPending && assignTicketMutation.variables?.ticketId === ticket.id}
-              />
-            ))
+        ) : tickets?.length ? (
+          tickets.map((ticket: any) => (
+            <TicketCard 
+              key={ticket.id} 
+              ticket={ticket} 
+              onAssignTicket={handleAssignTicket}
+              isAssigning={assignTicketMutation.isPending && assignTicketMutation.variables?.ticketId === ticket.id}
+            />
+          ))
         ) : (
           <div className="bg-white rounded-md border border-neutral-200 p-8 text-center">
             <h3 className="text-lg font-medium text-neutral-700 mb-2">Nenhum chamado encontrado</h3>

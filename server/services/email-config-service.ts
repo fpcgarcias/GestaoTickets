@@ -48,7 +48,10 @@ class EmailConfigService {
   async getEmailConfigForFrontend(companyId?: number): Promise<SMTPConfigInput> {
     const settings = await this.getSystemSettings(companyId);
     
-    return {
+    console.log('[DEBUG Email Config] Carregando configurações para company:', companyId);
+    console.log('[DEBUG Email Config] Configurações encontradas:', settings);
+    
+    const config = {
       provider: (settings.email_provider && settings.email_provider.trim() !== '' ? settings.email_provider : 'smtp') as SMTPConfigInput['provider'],
       host: settings.smtp_host || '',
       port: parseInt(settings.smtp_port || '587') || 587,
@@ -59,6 +62,9 @@ class EmailConfigService {
       from_name: settings.from_name || 'Sistema de Tickets',
       use_tls: settings.smtp_secure === 'true'
     };
+    
+    console.log('[DEBUG Email Config] Configuração retornada:', config);
+    return config;
   }
 
   // Buscar configurações de email
@@ -138,11 +144,17 @@ class EmailConfigService {
     }
 
     // Salvar todas as configurações - garantindo que nenhum valor seja vazio
+    console.log('[DEBUG Email Config] Configurações que serão salvas:', settingsToSave);
+    console.log('[DEBUG Email Config] Company ID:', companyId);
+    
     for (const [key, value] of Object.entries(settingsToSave)) {
       if (value !== null && value !== undefined && value !== '') {
+        console.log(`[DEBUG Email Config] Salvando: ${key} = ${value} (company: ${companyId})`);
         await this.saveSystemSetting(key, value, companyId);
       }
     }
+    
+    console.log('[DEBUG Email Config] Todas as configurações salvas com sucesso!');
   }
 
   // Salvar configurações de email (formato legado)
@@ -171,6 +183,7 @@ class EmailConfigService {
     }
 
     // Salvar todas as configurações
+    console.log('[DEBUG Email Config] Salvando configurações legadas:', settingsToSave);
     for (const [key, value] of Object.entries(settingsToSave)) {
       await this.saveSystemSetting(key, value, companyId);
     }
@@ -431,15 +444,34 @@ class EmailConfigService {
 
   // Métodos auxiliares privados
   private async getSystemSettings(companyId?: number): Promise<Record<string, string>> {
+    // Usar o mesmo padrão do routes.ts para chaves compostas
     const settings = await db
       .select()
-      .from(systemSettings)
-      .where(companyId ? eq(systemSettings.company_id, companyId) : isNull(systemSettings.company_id));
+      .from(systemSettings);
 
-    return settings.reduce((acc, setting) => {
-      acc[setting.key] = setting.value;
+    console.log('[DEBUG Email Config] Todas as configurações no banco:', settings.map(s => ({ key: s.key, value: s.value, company_id: s.company_id })));
+    
+    const result = settings.reduce((acc, setting) => {
+      // Extrair a chave original das chaves compostas
+      const originalKey = companyId && setting.key.endsWith(`_company_${companyId}`) 
+        ? setting.key.replace(`_company_${companyId}`, '')
+        : setting.key;
+      
+      // Só incluir se for uma configuração global (sem company_id) ou específica da empresa
+      const isGlobal = !setting.key.includes('_company_');
+      const isForThisCompany = companyId && setting.key.endsWith(`_company_${companyId}`);
+      
+      console.log(`[DEBUG Email Config] Processando: ${setting.key} - isGlobal: ${isGlobal}, isForThisCompany: ${isForThisCompany}`);
+      
+      if (isGlobal || isForThisCompany) {
+        acc[originalKey] = setting.value;
+      }
+      
       return acc;
     }, {} as Record<string, string>);
+    
+    console.log('[DEBUG Email Config] Configurações filtradas:', result);
+    return result;
   }
 
   private async saveSystemSetting(key: string, value: string, companyId?: number): Promise<void> {
@@ -455,9 +487,12 @@ class EmailConfigService {
     // Garantir que value seja sempre uma string
     const safeValue = String(value);
 
-    const whereCondition = companyId 
-      ? and(eq(systemSettings.key, key), eq(systemSettings.company_id, companyId))
-      : and(eq(systemSettings.key, key), isNull(systemSettings.company_id));
+    // Usar o mesmo padrão do routes.ts para chaves compostas
+    const compositeKey = companyId ? `${key}_company_${companyId}` : key;
+    
+    console.log(`[DEBUG Email Config] Salvando configuração: ${key} -> ${compositeKey} = ${safeValue}`);
+    
+    const whereCondition = eq(systemSettings.key, compositeKey);
 
     const [existing] = await db
       .select()
@@ -465,6 +500,7 @@ class EmailConfigService {
       .where(whereCondition);
 
     if (existing) {
+      console.log(`[DEBUG Email Config] Atualizando configuração existente: ${compositeKey}`);
       await db
         .update(systemSettings)
         .set({ 
@@ -473,16 +509,19 @@ class EmailConfigService {
         })
         .where(eq(systemSettings.id, existing.id));
     } else {
+      console.log(`[DEBUG Email Config] Criando nova configuração: ${compositeKey}`);
       await db
         .insert(systemSettings)
         .values({
-          key: key,
+          key: compositeKey,
           value: safeValue,
           company_id: companyId || null,
           created_at: new Date(),
           updated_at: new Date()
         });
     }
+    
+    console.log(`[DEBUG Email Config] Configuração ${compositeKey} salva com sucesso!`);
   }
 }
 

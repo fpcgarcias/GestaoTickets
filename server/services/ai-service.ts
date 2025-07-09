@@ -18,10 +18,11 @@ export interface AiAnalysisRequest {
   description: string;
   companyId: number;
   ticketId?: number;
+  departmentId?: number; // Adicionado para garantir que sempre temos o departamento
 }
 
 export interface AiAnalysisResult {
-  priority: string; // Agora aceita qualquer string (prioridades dinâmicas em português)
+  priority: string;
   justification?: string;
   confidence?: number;
   usedFallback: boolean;
@@ -58,38 +59,30 @@ export class AiService {
   }
 
   /**
-   * Normaliza prioridade da IA para o formato do sistema
+   * Faz matching case-insensitive entre a resposta da IA e as prioridades do banco
+   * Retorna EXATAMENTE o nome da prioridade como está no banco
    */
-  private normalizePriority(aiPriority: string, departmentPriorities: DepartmentPriority[]): string {
-    // Lista das prioridades disponíveis no departamento
-    const availablePriorities = departmentPriorities.map(p => p.name);
-    
-    // Tentativas de normalização em ordem de preferência
-    const normalizations = [
-      aiPriority, // Tentar primeiro como veio da IA
-      aiPriority.charAt(0).toUpperCase() + aiPriority.slice(1).toLowerCase(), // Primeira maiúscula
-      aiPriority.toLowerCase(), // Tudo minúsculo
-      aiPriority.toUpperCase(), // Tudo maiúsculo
-    ];
-    
-    // Buscar por match exato primeiro
-    for (const normalized of normalizations) {
-      if (availablePriorities.includes(normalized)) {
-        return normalized;
+  private matchPriorityFromBank(aiPriority: string, departmentPriorities: DepartmentPriority[]): string {
+    // 1. Buscar match exato primeiro (caso raro, mas possível)
+    for (const priority of departmentPriorities) {
+      if (priority.name === aiPriority) {
+        console.log(`[AI] Match exato encontrado: "${aiPriority}" → "${priority.name}"`);
+        return priority.name;
       }
     }
     
-    // Se não encontrou match exato, buscar por match case-insensitive
+    // 2. Buscar match case-insensitive
     const lowercaseAI = aiPriority.toLowerCase();
-    for (const priority of availablePriorities) {
-      if (priority.toLowerCase() === lowercaseAI) {
-        return priority;
+    for (const priority of departmentPriorities) {
+      if (priority.name.toLowerCase() === lowercaseAI) {
+        console.log(`[AI] Match case-insensitive: "${aiPriority}" → "${priority.name}"`);
+        return priority.name; // Retorna EXATAMENTE como está no banco
       }
     }
     
-    // Fallback: usar a prioridade de menor peso (mais baixa)
+    // 3. Fallback: usar a prioridade de menor peso (mais baixa)
     const fallbackPriority = departmentPriorities.sort((a, b) => a.weight - b.weight)[0];
-    console.warn(`[AI] Prioridade "${aiPriority}" não encontrada. Usando fallback: ${fallbackPriority.name}`);
+    console.warn(`[AI] Prioridade "${aiPriority}" não encontrada. Usando fallback: "${fallbackPriority.name}"`);
     return fallbackPriority.name;
   }
 
@@ -121,7 +114,6 @@ export class AiService {
       console.log(`[AI] Encontradas ${priorities.length} prioridades reais para dept ${departmentId}:`, 
         priorities.map((p: DepartmentPriority) => `${p.name}(ID:${p.id})`));
 
-      // NUNCA retornar prioridades hardcoded - sempre do banco
       return priorities;
 
     } catch (error) {
@@ -197,16 +189,16 @@ export class AiService {
     config: AiConfiguration,
     priorities: DepartmentPriority[]
   ): AiConfiguration {
-    // Criar lista das prioridades ordenadas por peso (em maiúsculas)
+    // Criar lista das prioridades ordenadas por peso
     const priorityList = priorities
       .sort((a, b) => a.weight - b.weight)
-      .map(p => `${p.name.toUpperCase()}: ${this.getPriorityDescription(p.name, p.weight)}`)
+      .map(p => `${p.name}: ${this.generatePriorityDescription(p.name, p.weight)}`)
       .join('\n\n');
 
-    // Criar lista apenas dos nomes para a resposta (em maiúsculas)
+    // Criar lista apenas dos nomes para a resposta
     const priorityNames = priorities
       .sort((a, b) => a.weight - b.weight)
-      .map(p => p.name.toUpperCase())
+      .map(p => p.name)
       .join(', ');
 
     // Ajustar system prompt para usar as prioridades específicas
@@ -214,7 +206,7 @@ export class AiService {
 
 ${priorityList}
 
-IMPORTANTE: Responda APENAS com o nome exato de uma das prioridades (${priorityNames}) em MAIÚSCULAS, sem pontuação adicional.`;
+IMPORTANTE: Responda APENAS com o nome exato de uma das prioridades (${priorityNames}), sem pontuação adicional.`;
 
     // Ajustar user prompt template se não estiver personalizado
     const adjustedUserPrompt = config.user_prompt_template.includes('{titulo}') 
@@ -235,28 +227,23 @@ Prioridade:`;
   }
 
   /**
-   * Gera descrição automática baseada no nome e peso da prioridade
+   * Gera descrição dinâmica baseada no nome e peso da prioridade
+   * Remove todas as descrições hardcoded
    */
-  private getPriorityDescription(name: string, weight: number): string {
-    const descriptions: Record<string, string> = {
-      'BAIXA': 'Dúvidas simples, solicitações de treinamento, melhorias estéticas, configurações pessoais, problemas que não impedem o trabalho.',
-      'MÉDIA': 'Problemas que causam inconveniência mas têm soluções alternativas, funcionalidades secundárias não funcionando, solicitações importantes mas não urgentes.',
-      'ALTA': 'Funcionalidades principais não funcionando, problemas que impedem trabalho de usuários específicos, deadlines próximos sendo impactados.',
-      'CRÍTICA': 'Sistemas completamente fora do ar, falhas de segurança críticas, perda de dados, problemas que afetam múltiplos usuários imediatamente.',
-      'IMEDIATA': 'Situações de emergência extrema, falhas críticas de segurança, perda de dados em massa, sistemas essenciais completamente inoperantes.'
-    };
+  private generatePriorityDescription(name: string, weight: number): string {
+    // Criar descrição baseada no peso da prioridade
+    const intensityLevels = [
+      "Questões simples, dúvidas básicas, solicitações de baixo impacto que não afetam operações críticas",
+      "Problemas que causam inconveniência mas têm soluções alternativas disponíveis",
+      "Funcionalidades importantes não funcionando, problemas que impedem trabalho de usuários específicos",
+      "Sistemas críticos fora do ar, falhas que afetam múltiplos usuários e operações importantes",
+      "Situações de emergência extrema, falhas críticas que comprometem toda a operação"
+    ];
 
-    // Tentar encontrar descrição específica
-    if (descriptions[name.toUpperCase()]) {
-      return descriptions[name.toUpperCase()];
-    }
-
-    // Fallback baseado no peso
-    if (weight <= 1) return descriptions['BAIXA'];
-    if (weight <= 2) return descriptions['MÉDIA'];
-    if (weight <= 3) return descriptions['ALTA'];
-    if (weight <= 4) return descriptions['CRÍTICA'];
-    return descriptions['IMEDIATA'];
+    // Mapear peso para índice (limitado aos níveis disponíveis)
+    const levelIndex = Math.min(Math.max(weight - 1, 0), intensityLevels.length - 1);
+    
+    return `${intensityLevels[levelIndex]} (Peso: ${weight})`;
   }
 
   /**
@@ -264,48 +251,57 @@ Prioridade:`;
    */
   async analyzeTicketPriority(
     request: AiAnalysisRequest,
-    db: any // Tipo do banco de dados
+    db: any
   ): Promise<AiAnalysisResult> {
     const startTime = Date.now();
     
-          try {
-        // Buscar departamento do ticket se ticketId existir
-        let departmentId: number | undefined = undefined;
-        if (request.ticketId) {
-          const [ticket] = await db
-            .select({ department_id: schema.tickets.department_id })
-            .from(schema.tickets)
-            .where(eq(schema.tickets.id, request.ticketId))
-            .limit(1);
-          departmentId = ticket?.department_id || undefined;
-        }
+    try {
+      // Buscar departamento do ticket se ticketId existir
+      let departmentId: number | undefined = request.departmentId;
+      
+      if (!departmentId && request.ticketId) {
+        const [ticket] = await db
+          .select({ department_id: schema.tickets.department_id })
+          .from(schema.tickets)
+          .where(eq(schema.tickets.id, request.ticketId))
+          .limit(1);
+        departmentId = ticket?.department_id || undefined;
+      }
 
-        // Buscar configuração de IA ativa para a empresa e departamento
-        const config = await this.getActiveAiConfiguration(request.companyId, departmentId, db);
+      // OBRIGATÓRIO: Ter departmentId para análise de IA
+      if (!departmentId) {
+        const departmentPriorities = await this.getDepartmentPriorities(request.companyId, 1, db); // fallback dept
+        return this.createFallbackResult(startTime, 'Departamento não especificado', departmentPriorities);
+      }
+
+      // Buscar configuração de IA ativa para a empresa e departamento
+      const config = await this.getActiveAiConfiguration(request.companyId, departmentId, db);
       
       if (!config) {
-        return this.createFallbackResult(startTime, 'Nenhuma configuração de IA ativa');
+        const departmentPriorities = await this.getDepartmentPriorities(request.companyId, departmentId, db);
+        return this.createFallbackResult(startTime, 'Nenhuma configuração de IA ativa', departmentPriorities);
       }
 
-      // Buscar prioridades específicas do departamento (se tiver departmentId)
-      let adjustedConfig = config;
-      let departmentPrioritiesList: DepartmentPriority[] = [];
+             // Buscar prioridades específicas do departamento
+       const departmentPrioritiesList = await this.getDepartmentPriorities(request.companyId, departmentId, db);
+       
+       if (departmentPrioritiesList.length === 0) {
+         return this.createFallbackResult(startTime, 'Nenhuma prioridade encontrada para o departamento', departmentPrioritiesList);
+       }
+
+      // Ajustar configuração com as prioridades do departamento
+      const adjustedConfig = this.adjustPromptsForDepartment(config, departmentPrioritiesList);
       
-      if (departmentId) {
-        departmentPrioritiesList = await this.getDepartmentPriorities(request.companyId, departmentId, db);
-        adjustedConfig = this.adjustPromptsForDepartment(config, departmentPrioritiesList);
-        
-        // DEBUG: Log do prompt ajustado
-        console.log('[AI DEBUG] System Prompt:', adjustedConfig.system_prompt);
-        console.log('[AI DEBUG] User Prompt:', adjustedConfig.user_prompt_template);
-      }
+      // DEBUG: Log do prompt ajustado
+      console.log('[AI DEBUG] System Prompt:', adjustedConfig.system_prompt);
+      console.log('[AI DEBUG] User Prompt:', adjustedConfig.user_prompt_template);
 
       // Obter o provedor correto
       const provider = this.providers.get(config.provider);
       
-      if (!provider) {
-        return this.createFallbackResult(startTime, `Provedor ${config.provider} não implementado`);
-      }
+              if (!provider) {
+          return this.createFallbackResult(startTime, `Provedor ${config.provider} não implementado`, departmentPrioritiesList);
+        }
 
       // Realizar análise com retry usando a configuração ajustada
       const result = await this.executeWithRetry(
@@ -313,17 +309,15 @@ Prioridade:`;
         config.max_retries || 3
       );
 
-      // 🔧 NORMALIZAR PRIORIDADE RETORNADA PELA IA
-      if (departmentId && departmentPrioritiesList.length > 0) {
-        result.priority = this.normalizePriority(result.priority, departmentPrioritiesList);
-        console.log(`[AI] Prioridade normalizada: ${result.priority}`);
-      }
+             // Fazer match da prioridade retornada pela IA com o banco
+       result.priority = this.matchPriorityFromBank(result.priority, departmentPrioritiesList);
+       console.log(`[AI] Prioridade vinculada: ${result.priority}`);
 
       // Salvar histórico da análise
       if (request.ticketId) {
         await this.saveAnalysisHistory(
           request,
-          config, // Usar config original para o histórico
+          config,
           result,
           'success',
           db
@@ -335,23 +329,30 @@ Prioridade:`;
     } catch (error: any) {
       console.error('Erro na análise de IA:', error);
       
-              // Salvar erro no histórico
-        if (request.ticketId) {
-          // Buscar departamento do ticket
-          let departmentId: number | undefined = undefined;
-          const [ticket] = await db
-            .select({ department_id: schema.tickets.department_id })
-            .from(schema.tickets)
-            .where(eq(schema.tickets.id, request.ticketId))
-            .limit(1);
-          departmentId = ticket?.department_id || undefined;
+      // Buscar prioridades para fallback
+      let departmentId: number | undefined = request.departmentId;
+      
+      if (!departmentId && request.ticketId) {
+        const [ticket] = await db
+          .select({ department_id: schema.tickets.department_id })
+          .from(schema.tickets)
+          .where(eq(schema.tickets.id, request.ticketId))
+          .limit(1);
+        departmentId = ticket?.department_id || undefined;
+      }
 
-          const config = await this.getActiveAiConfiguration(request.companyId, departmentId, db);
+      const departmentPriorities = departmentId 
+        ? await this.getDepartmentPriorities(request.companyId, departmentId, db)
+        : [];
+
+      // Salvar erro no histórico
+      if (request.ticketId && departmentId) {
+        const config = await this.getActiveAiConfiguration(request.companyId, departmentId, db);
         if (config) {
           await this.saveAnalysisHistory(
             request,
             config,
-            this.createFallbackResult(startTime, error?.message || 'Erro desconhecido'),
+            this.createFallbackResult(startTime, error?.message || 'Erro desconhecido', departmentPriorities),
             'error',
             db,
             error?.message || 'Erro desconhecido'
@@ -359,7 +360,7 @@ Prioridade:`;
         }
       }
 
-      return this.createFallbackResult(startTime, error?.message || 'Erro desconhecido');
+      return this.createFallbackResult(startTime, error?.message || 'Erro desconhecido', departmentPriorities);
     }
   }
 
@@ -384,11 +385,12 @@ Prioridade:`;
   }
 
   /**
-   * Busca a configuração de IA ativa para uma empresa e departamento
+   * Busca a configuração de IA ativa para uma empresa e departamento específico
+   * OBRIGATÓRIO: Deve existir uma configuração por departamento
    */
   private async getActiveAiConfiguration(
     companyId: number,
-    departmentId?: number,
+    departmentId: number, // Agora obrigatório
     dbInstance: any = null
   ): Promise<AiConfiguration | null> {
     try {
@@ -406,80 +408,44 @@ Prioridade:`;
         return null;
       }
 
-      // 1. Tentar buscar configuração específica do departamento (ativa e padrão)
-      if (departmentId) {
-        const departmentConfigs = await database
-          .select()
-          .from(schema.aiConfigurations)
-          .where(
-            and(
-              eq(schema.aiConfigurations.department_id, departmentId),
-              eq(schema.aiConfigurations.is_active, true),
-              eq(schema.aiConfigurations.is_default, true)
-            )
-          )
-          .limit(1);
-
-        if (departmentConfigs[0]) {
-          console.log(`[AI] Usando configuração específica do departamento ${departmentId}`);
-          return departmentConfigs[0];
-        }
-
-        // 2. Se não tem configuração padrão específica, buscar qualquer configuração ativa do departamento
-        const anyDepartmentConfig = await database
-          .select()
-          .from(schema.aiConfigurations)
-          .where(
-            and(
-              eq(schema.aiConfigurations.department_id, departmentId),
-              eq(schema.aiConfigurations.is_active, true)
-            )
-          )
-          .limit(1);
-
-        if (anyDepartmentConfig[0]) {
-          console.log(`[AI] Usando configuração ativa do departamento ${departmentId}`);
-          return anyDepartmentConfig[0];
-        }
-      }
-
-      // 3. Fallback: buscar configuração global ativa e padrão
-      const globalConfigs = await database
+      // Buscar configuração específica do departamento (ativa e padrão)
+      const [departmentConfig] = await database
         .select()
         .from(schema.aiConfigurations)
         .where(
           and(
-            isNull(schema.aiConfigurations.department_id), // Configuração global
+            eq(schema.aiConfigurations.department_id, departmentId),
             eq(schema.aiConfigurations.is_active, true),
             eq(schema.aiConfigurations.is_default, true)
           )
         )
         .limit(1);
 
-      if (globalConfigs[0]) {
-        console.log(`[AI] Usando configuração global padrão`);
-        return globalConfigs[0];
+      if (departmentConfig) {
+        console.log(`[AI] Usando configuração padrão do departamento ${departmentId}`);
+        return departmentConfig;
       }
 
-      // 4. Último fallback: qualquer configuração global ativa
-      const anyGlobalConfig = await database
+      // Se não tem configuração padrão, buscar qualquer configuração ativa do departamento
+      const [anyDepartmentConfig] = await database
         .select()
         .from(schema.aiConfigurations)
         .where(
           and(
-            isNull(schema.aiConfigurations.department_id),
+            eq(schema.aiConfigurations.department_id, departmentId),
             eq(schema.aiConfigurations.is_active, true)
           )
         )
         .limit(1);
 
-      if (anyGlobalConfig[0]) {
-        console.log(`[AI] Usando configuração global ativa`);
-        return anyGlobalConfig[0];
+      if (anyDepartmentConfig) {
+        console.log(`[AI] Usando configuração ativa do departamento ${departmentId}`);
+        return anyDepartmentConfig;
       }
 
-      console.log(`[AI] Nenhuma configuração de IA encontrada`);
+      console.log(`[AI] Nenhuma configuração de IA encontrada para departamento ${departmentId}`);
       return null;
+
     } catch (error) {
       console.error('Erro ao buscar configuração de IA:', error);
       return null;
@@ -521,19 +487,27 @@ Prioridade:`;
 
     } catch (error) {
       console.error('Erro ao salvar histórico de análise:', error);
-      // Não falhar a operação principal por causa disso
     }
   }
 
   /**
-   * Cria um resultado de fallback quando a IA falha
+   * Cria um resultado de fallback usando as prioridades específicas do departamento
    */
   private createFallbackResult(
     startTime: number, 
-    reason: string
+    reason: string,
+    departmentPriorities: DepartmentPriority[]
   ): AiAnalysisResult {
+    // Usar a prioridade de menor peso como fallback (mais baixa prioridade)
+    let fallbackPriority = 'Baixa'; // Fallback padrão se não houver prioridades
+    
+    if (departmentPriorities.length > 0) {
+      const lowestPriority = departmentPriorities.sort((a, b) => a.weight - b.weight)[0];
+      fallbackPriority = lowestPriority.name;
+    }
+
     return {
-      priority: 'Média', // Prioridade padrão normalizada
+      priority: fallbackPriority,
       justification: `Prioridade definida automaticamente (fallback): ${reason}`,
       confidence: 0,
       usedFallback: true,
@@ -576,7 +550,9 @@ Prioridade:`;
 
         if (department && department.company_id) {
           const departmentPriorities = await this.getDepartmentPriorities(department.company_id, deptId, db);
-          adjustedConfig = this.adjustPromptsForDepartment(config, departmentPriorities);
+          if (departmentPriorities.length > 0) {
+            adjustedConfig = this.adjustPromptsForDepartment(config, departmentPriorities);
+          }
         }
       } catch (error) {
         console.warn('Erro ao buscar prioridades para teste, usando configuração original:', error);
@@ -593,7 +569,7 @@ Prioridade:`;
     title: string,
     description: string,
     companyId: number,
-    departmentId?: number
+    departmentId: number // Agora obrigatório
   ): Promise<AiAnalysisResult | null> {
     try {
       // Verificar se a empresa tem permissão para usar IA
@@ -608,26 +584,25 @@ Prioridade:`;
         return null;
       }
 
-      // Buscar configuração de IA baseada no departamento
+      // Buscar configuração de IA específica do departamento
       const config = await this.getActiveAiConfiguration(companyId, departmentId, db);
 
       if (!config) {
-        console.log(`[AI] Nenhuma configuração de IA encontrada para empresa ${companyId}, departamento ${departmentId}`);
+        console.log(`[AI] Nenhuma configuração de IA encontrada para departamento ${departmentId}`);
         return null;
       }
 
-      // Buscar prioridades específicas do departamento (se tiver departmentId)
-      let adjustedConfig = config;
-      let departmentPrioritiesList: DepartmentPriority[] = [];
+      // Buscar prioridades específicas do departamento
+      const departmentPrioritiesList = await this.getDepartmentPriorities(companyId, departmentId, db);
       
-      if (departmentId) {
-        departmentPrioritiesList = await this.getDepartmentPriorities(companyId, departmentId, db);
-        adjustedConfig = this.adjustPromptsForDepartment(config, departmentPrioritiesList);
-        console.log(`[AI] Usando prioridades específicas do departamento ${departmentId}: ${departmentPrioritiesList.map(p => p.name.toUpperCase()).join(', ')}`);
-        
-        // DEBUG: Log do prompt ajustado
-        console.log('[AI DEBUG] System Prompt usado:', adjustedConfig.system_prompt);
+      if (departmentPrioritiesList.length === 0) {
+        console.log(`[AI] Nenhuma prioridade encontrada para departamento ${departmentId}`);
+        return null;
       }
+
+      // Ajustar configuração com as prioridades do departamento
+      const adjustedConfig = this.adjustPromptsForDepartment(config, departmentPrioritiesList);
+      console.log(`[AI] Usando prioridades específicas do departamento ${departmentId}: ${departmentPrioritiesList.map(p => p.name).join(', ')}`);
 
       const provider = this.providers.get(config.provider);
       if (!provider) {
@@ -635,11 +610,14 @@ Prioridade:`;
         return null;
       }
 
-      console.log(`[AI] Analisando prioridade com ${config.provider}/${config.model} para empresa ${companyId}, departamento ${departmentId || 'global'}`);
+      console.log(`[AI] Analisando prioridade com ${config.provider}/${config.model} para departamento ${departmentId}`);
       const result = await this.executeWithRetry(
         () => provider.analyze(title, description, adjustedConfig),
         config.max_retries || 3
       );
+
+             // Fazer match da prioridade retornada pela IA com o banco
+       result.priority = this.matchPriorityFromBank(result.priority, departmentPrioritiesList);
 
       console.log(`[AI] Resultado: ${result.priority} (confiança: ${result.confidence})`);
       return result;
