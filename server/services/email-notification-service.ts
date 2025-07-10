@@ -799,15 +799,44 @@ export class EmailNotificationService {
       // Notificar administradores e suporte
       console.log(`[📧 EMAIL PROD] 🔍 Buscando usuários admin e support para notificar...`);
       
-      const adminUsers = await db
-        .select()
-        .from(users)
-        .where(and(eq(users.role, 'admin'), eq(users.active, true)));
+      let adminUsers = [];
+      let supportUsers = [];
+      if (ticket.company_id) {
+        adminUsers = await db
+          .select()
+          .from(users)
+          .where(and(
+            eq(users.role, 'admin'),
+            eq(users.active, true),
+            eq(users.company_id, ticket.company_id)
+          ));
 
-      const supportUsers = await db
-        .select()
-        .from(users)
-        .where(and(eq(users.role, 'support'), eq(users.active, true)));
+        supportUsers = await db
+          .select()
+          .from(users)
+          .where(and(
+            eq(users.role, 'support'),
+            eq(users.active, true),
+            eq(users.company_id, ticket.company_id)
+          ));
+      } else {
+        // Se não houver company_id, notifica todos admins/supports ativos (caso raro)
+        adminUsers = await db
+          .select()
+          .from(users)
+          .where(and(
+            eq(users.role, 'admin'),
+            eq(users.active, true)
+          ));
+
+        supportUsers = await db
+          .select()
+          .from(users)
+          .where(and(
+            eq(users.role, 'support'),
+            eq(users.active, true)
+          ));
+      }
 
       const allNotifyUsers = [...adminUsers, ...supportUsers];
       

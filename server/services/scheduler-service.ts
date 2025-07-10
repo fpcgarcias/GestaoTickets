@@ -37,6 +37,15 @@ export class SchedulerService {
 
   // Verificar tickets e enviar notificações
   private async checkTickets(): Promise<void> {
+    // Adiciona restrição de horário: só executa entre 06:01 e 21:59
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    // Fora do intervalo permitido: antes de 6h, ou depois de 21h, ou exatamente 6:00 ou 22:00+
+    if ((hour < 6) || (hour > 21) || (hour === 6 && minute === 0)) {
+      console.log('[Scheduler] Fora do horário permitido (06:01-21:59). Não será feita verificação de tickets agora.');
+      return;
+    }
     try {
       console.log('[Scheduler] Executando verificação de tickets próximos do vencimento...');
       await emailNotificationService.checkTicketsDueSoon();
