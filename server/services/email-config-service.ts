@@ -46,12 +46,53 @@ export interface EmailConfig {
 class EmailConfigService {
   // Buscar configurações de email (formato do frontend)
   async getEmailConfigForFrontend(companyId?: number): Promise<SMTPConfigInput> {
+    // NUNCA usar configuração global se tiver company_id
+    if (companyId) {
+      // Buscar APENAS configurações específicas da empresa
+      const settings = await db
+        .select()
+        .from(systemSettings)
+        .where(like(systemSettings.key, `%_company_${companyId}`));
+
+      // Se não encontrou configurações da empresa, retornar vazio
+      if (settings.length === 0) {
+        return {
+          provider: 'smtp',
+          host: '',
+          port: 587,
+          username: '',
+          password: '',
+          api_key: '',
+          from_email: '',
+          from_name: 'Sistema de Tickets',
+          use_tls: true
+        };
+      }
+
+      // Montar objeto removendo sufixo
+      const result: Record<string, string> = {};
+      for (const setting of settings) {
+        const key = setting.key.replace(`_company_${companyId}`, '');
+        result[key] = setting.value;
+      }
+
+      return {
+        provider: (result.email_provider || 'smtp') as SMTPConfigInput['provider'],
+        host: result.smtp_host || '',
+        port: parseInt(result.smtp_port || '587') || 587,
+        username: result.smtp_user || '',
+        password: result.smtp_password || '',
+        api_key: result.api_key || '',
+        from_email: result.from_email || '',
+        from_name: result.from_name || 'Sistema de Tickets',
+        use_tls: result.smtp_secure === 'true'
+      };
+    }
+
+    // Apenas para configuração global (sem company_id)
     const settings = await this.getSystemSettings(companyId);
     
-    console.log('[DEBUG Email Config] Carregando configurações para company:', companyId);
-    console.log('[DEBUG Email Config] Configurações encontradas:', settings);
-    
-    const config = {
+    return {
       provider: (settings.email_provider && settings.email_provider.trim() !== '' ? settings.email_provider : 'smtp') as SMTPConfigInput['provider'],
       host: settings.smtp_host || '',
       port: parseInt(settings.smtp_port || '587') || 587,
@@ -62,9 +103,6 @@ class EmailConfigService {
       from_name: settings.from_name || 'Sistema de Tickets',
       use_tls: settings.smtp_secure === 'true'
     };
-    
-    console.log('[DEBUG Email Config] Configuração retornada:', config);
-    return config;
   }
 
   // Buscar configurações de email
@@ -444,7 +482,11 @@ class EmailConfigService {
 
   // Métodos auxiliares privados
   private async getSystemSettings(companyId?: number): Promise<Record<string, string>> {
+    console.log(`[DEBUG Email Config] ==================== INICIO getSystemSettings ====================`);
+    console.log(`[DEBUG Email Config] Buscando configurações para empresa: ${companyId}`);
+    
     if (!companyId) {
+      console.log(`[DEBUG Email Config] SEM company_id - buscando configurações globais`);
       const settings = await db
         .select()
         .from(systemSettings)
@@ -455,6 +497,9 @@ class EmailConfigService {
           )
         );
       
+      console.log(`[DEBUG Email Config] Configurações globais encontradas:`, settings.length);
+      settings.forEach(s => console.log(`[DEBUG Email Config] GLOBAL: ${s.key} = ${s.value?.substring(0, 30)}...`));
+      
       return settings.reduce((acc, setting) => {
         acc[setting.key] = setting.value;
         return acc;
@@ -462,18 +507,25 @@ class EmailConfigService {
     }
 
     // Para empresa específica, buscar configurações com sufixo
+    console.log(`[DEBUG Email Config] COM company_id=${companyId} - buscando configurações da empresa`);
     const settings = await db
       .select()
       .from(systemSettings)
       .where(like(systemSettings.key, `%_company_${companyId}`));
+
+    console.log(`[DEBUG Email Config] Configurações da empresa encontradas:`, settings.length);
+    settings.forEach(s => console.log(`[DEBUG Email Config] EMPRESA: ${s.key} = ${s.value?.substring(0, 30)}...`));
 
     // Montar objeto removendo o sufixo
     const result: Record<string, string> = {};
     for (const setting of settings) {
       const key = setting.key.replace(`_company_${companyId}`, '');
       result[key] = setting.value;
+      console.log(`[DEBUG Email Config] Transformando: ${setting.key} -> ${key} = ${setting.value?.substring(0, 30)}...`);
     }
 
+    console.log(`[DEBUG Email Config] Objeto final:`, JSON.stringify(result, null, 2));
+    console.log(`[DEBUG Email Config] ==================== FIM getSystemSettings ====================`);
     return result;
   }
 
