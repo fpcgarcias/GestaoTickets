@@ -29,7 +29,7 @@ export interface StatusPeriod {
 
 const DEFAULT_BUSINESS_HOURS: BusinessHours = {
   startHour: 8,
-  endHour: 18,
+  endHour: 17,
   workDays: [1, 2, 3, 4, 5] // Segunda a sexta
 };
 
