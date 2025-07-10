@@ -444,26 +444,8 @@ class EmailConfigService {
 
   // Métodos auxiliares privados
   private async getSystemSettings(companyId?: number): Promise<Record<string, string>> {
-    console.log(`[DEBUG Email Config] Buscando configurações para empresa: ${companyId}`);
-    
-    let settings;
-    if (companyId) {
-      // Buscar todas as configurações da empresa E globais
-      settings = await db
-        .select()
-        .from(systemSettings)
-        .where(
-          or(
-            like(systemSettings.key, `%_company_${companyId}`),
-            and(
-              not(like(systemSettings.key, '%_company_%')),
-              isNull(systemSettings.company_id)
-            )
-          )
-        );
-    } else {
-      // Buscar apenas configurações globais
-      settings = await db
+    if (!companyId) {
+      const settings = await db
         .select()
         .from(systemSettings)
         .where(
@@ -472,33 +454,26 @@ class EmailConfigService {
             isNull(systemSettings.company_id)
           )
         );
+      
+      return settings.reduce((acc, setting) => {
+        acc[setting.key] = setting.value;
+        return acc;
+      }, {} as Record<string, string>);
     }
 
-    // Montar objeto final, priorizando as chaves da empresa
+    // Para empresa específica, buscar configurações com sufixo
+    const settings = await db
+      .select()
+      .from(systemSettings)
+      .where(like(systemSettings.key, `%_company_${companyId}`));
+
+    // Montar objeto removendo o sufixo
     const result: Record<string, string> = {};
     for (const setting of settings) {
-      let key = setting.key;
-      if (companyId && key.endsWith(`_company_${companyId}`)) {
-        key = key.replace(`_company_${companyId}`, '');
-      }
-      // Só sobrescreve se ainda não existe (prioriza da empresa)
-      if (!(key in result)) {
-        result[key] = setting.value;
-      }
+      const key = setting.key.replace(`_company_${companyId}`, '');
+      result[key] = setting.value;
     }
 
-    console.log(`[DEBUG Email Config] Configurações processadas para empresa ${companyId}:`, JSON.stringify(result, null, 2));
-
-    // Validação crítica: garantir que todos os campos obrigatórios existem
-    const obrigatorios = ['email_provider', 'from_email', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password'];
-    if (companyId && result.email_provider === 'smtp') {
-      for (const campo of obrigatorios) {
-        if (!result[campo] || result[campo].trim() === '') {
-          console.error(`[DEBUG Email Config] ❌ Faltando campo obrigatório: ${campo} para empresa ${companyId}`);
-          return {};
-        }
-      }
-    }
     return result;
   }
 
