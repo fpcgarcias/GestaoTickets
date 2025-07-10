@@ -23,8 +23,29 @@ export function FileUpload({
   ticketId, 
   onUploadSuccess, 
   onUploadError,
-  maxFileSize = 10 * 1024 * 1024, // 10MB padrão
-  allowedTypes = ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'gif', 'zip', 'rar'],
+  maxFileSize = 50 * 1024 * 1024, // 50MB padrão
+  allowedTypes = [
+    // Documentos
+    'pdf', 'doc', 'docx', 'txt', 'rtf',
+    // Planilhas
+    'xls', 'xlsx', 'csv',
+    // Apresentações
+    'ppt', 'pptx',
+    // Banco de dados e scripts
+    'sql', 'db', 'sqlite',
+    // Imagens
+    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'svg', 'webp',
+    // Arquivos compactados
+    'zip', 'rar', '7z', 'tar', 'gz',
+    // Outros formatos úteis
+    'json', 'xml', 'yaml', 'yml', 'log', 'ini', 'cfg', 'conf',
+    // Executáveis e instaladores
+    'exe', 'msi', 'deb', 'rpm',
+    // Vídeos (formatos comuns)
+    'mp4', 'avi', 'mov', 'wmv', 'flv', 'webm',
+    // Áudio
+    'mp3', 'wav', 'flac', 'aac'
+  ],
   disabled = false
 }: FileUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);

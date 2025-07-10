@@ -124,8 +124,8 @@ export const validateFileUpload = (req: RequestWithFile, res: Response, next: Ne
     return res.status(400).json({ message: 'Nenhum arquivo enviado' });
   }
 
-  // Validar tamanho (10MB máximo)
-  const maxSize = 10 * 1024 * 1024; // 10MB
+  // Validar tamanho (50MB máximo)
+  const maxSize = 50 * 1024 * 1024; // 50MB
   if (file.size > maxSize) {
     logSecurityEvent(
       req.ip || 'unknown',
@@ -139,21 +139,77 @@ export const validateFileUpload = (req: RequestWithFile, res: Response, next: Ne
       }
     );
     return res.status(400).json({ 
-      message: 'Arquivo muito grande. Tamanho máximo: 10MB' 
+      message: 'Arquivo muito grande. Tamanho máximo: 50MB' 
     });
   }
 
   // Validar tipo MIME
   const allowedTypes = [
+    // Documentos
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'text/plain',
+    'application/rtf',
+    'text/rtf',
+    // Planilhas
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv',
+    'application/csv',
+    // Apresentações
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    // Scripts e banco de dados
+    'application/sql',
+    'text/sql',
+    'application/x-sql',
+    'application/x-sqlite3',
+    'application/vnd.sqlite3',
+    // Imagens
     'image/jpeg',
     'image/png',
     'image/gif',
+    'image/bmp',
+    'image/tiff',
+    'image/svg+xml',
+    'image/webp',
+    // Arquivos compactados
     'application/zip',
-    'application/x-rar-compressed'
+    'application/x-rar-compressed',
+    'application/x-7z-compressed',
+    'application/x-tar',
+    'application/gzip',
+    'application/x-gzip',
+    // Outros formatos úteis
+    'application/json',
+    'text/json',
+    'application/xml',
+    'text/xml',
+    'application/x-yaml',
+    'text/yaml',
+    'text/x-log',
+    'text/log',
+    'application/x-wine-extension-ini',
+    'text/plain', // Para .cfg, .conf, .ini
+    // Executáveis e instaladores
+    'application/x-msdownload',
+    'application/x-msi',
+    'application/vnd.debian.binary-package',
+    'application/x-rpm',
+    // Vídeos
+    'video/mp4',
+    'video/x-msvideo',
+    'video/quicktime',
+    'video/x-ms-wmv',
+    'video/x-flv',
+    'video/webm',
+    // Áudio
+    'audio/mpeg',
+    'audio/wav',
+    'audio/flac',
+    'audio/aac',
+    'audio/x-aac'
   ];
 
   if (!allowedTypes.includes(file.mimetype)) {

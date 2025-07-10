@@ -601,7 +601,7 @@ export const TicketForm = () => {
                 <input
                   type="file"
                   multiple
-                  accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.zip,.rar"
+                  accept=".pdf,.doc,.docx,.txt,.rtf,.xls,.xlsx,.csv,.ppt,.pptx,.sql,.db,.sqlite,.jpg,.jpeg,.png,.gif,.bmp,.tiff,.svg,.webp,.zip,.rar,.7z,.tar,.gz,.json,.xml,.yaml,.yml,.log,.ini,.cfg,.conf,.exe,.msi,.deb,.rpm,.mp4,.avi,.mov,.wmv,.flv,.webm,.mp3,.wav,.flac,.aac"
                   onChange={(e) => {
                     const files = Array.from(e.target.files || []);
                     setPendingFiles(prev => [...prev, ...files]);
@@ -619,7 +619,7 @@ export const TicketForm = () => {
                       Clique para selecionar arquivos
                     </span>
                     <span className="text-xs text-gray-500 mt-1">
-                      PDF, DOC, TXT, imagens, ZIP (máx. 10MB cada)
+                      PDF, DOC, Excel, PowerPoint, SQL, imagens, vídeos, áudio, ZIP e outros (máx. 50MB cada)
                     </span>
                   </div>
                 </label>
