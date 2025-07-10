@@ -732,33 +732,15 @@ export class MemStorage implements IStorage {
       resolved: 0,
     };
     
-    const byPriority = {
-      low: 0,
-      medium: 0,
-      high: 0,
-      critical: 0,
-    };
+    const byPriority: Record<string, number> = {};
     
     tickets.forEach(ticket => {
       byStatus[ticket.status as keyof typeof byStatus]++;
       
-      // Normalizar prioridade para case-insensitive
-      const normalizedPriority = ticket.priority.toLowerCase();
-      
-      // Mapear prioridades normalizadas para as chaves do objeto
-      const priorityMapping: Record<string, keyof typeof byPriority> = {
-        'baixa': 'low',
-        'low': 'low',
-        'média': 'medium',
-        'medium': 'medium',
-        'alta': 'high',
-        'high': 'high',
-        'crítica': 'critical',
-        'critical': 'critical'
-      };
-      
-      const mappedPriority = priorityMapping[normalizedPriority] || 'medium';
-      byPriority[mappedPriority]++;
+      // Agrupar prioridade por nome usando case-insensitive
+      // Normalizar para agrupamento (primeira letra maiúscula, resto minúsculo)
+      const normalizedPriority = ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1).toLowerCase();
+      byPriority[normalizedPriority] = (byPriority[normalizedPriority] || 0) + 1;
     });
     
     return {
@@ -808,7 +790,7 @@ export class MemStorage implements IStorage {
   async getOfficialsByDepartment(department: string): Promise<Official[]> {
     // Simulação: retorna oficiais do departamento 'technical'
     if (department === 'technical') {
-      const official = await this.getOfficial(2); // ID do usuário de suporte
+      const official = await this.getOfficialByEmail('support@example.com');
       return official ? [official] : [];
     }
     return [];
@@ -869,8 +851,9 @@ export class MemStorage implements IStorage {
     userTickets.forEach(ticket => {
       stats.byStatus[ticket.status] = (stats.byStatus[ticket.status] || 0) + 1;
       
-      // Normalizar prioridade para case-insensitive
-      const normalizedPriority = ticket.priority.toLowerCase();
+      // Agrupar prioridade por nome usando case-insensitive
+      // Normalizar para agrupamento (primeira letra maiúscula, resto minúsculo)
+      const normalizedPriority = ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1).toLowerCase();
       stats.byPriority[normalizedPriority] = (stats.byPriority[normalizedPriority] || 0) + 1;
     });
     return stats;

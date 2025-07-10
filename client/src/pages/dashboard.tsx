@@ -256,24 +256,11 @@ export default function Dashboard() {
   // Filtrar dados para o gráfico (apenas status com valor > 0)
   const statusDataForChart = statusData.filter(item => item.value > 0);
 
-  // Processar dados de prioridade para incluir todas as prioridades (customizadas e padrão)
+  // Processar dados de prioridade - usar apenas capitalização simples
   const priorityData = Object.entries(ticketStats.byPriority)
     .map(([priority, count]) => {
-      // Mapear nomes de prioridade para exibição (considerando que vêm em lowercase do backend)
-      const priorityNames: Record<string, string> = {
-        low: 'Baixa',
-        medium: 'Média',
-        high: 'Alta',
-        critical: 'Crítica',
-        baixa: 'Baixa',
-        média: 'Média',
-        alta: 'Alta',
-        crítica: 'Crítica',
-        // Adicionar mapeamentos para prioridades customizadas se necessário
-      };
-      
       return {
-        name: priorityNames[priority.toLowerCase()] || priority.charAt(0).toUpperCase() + priority.slice(1),
+        name: priority.charAt(0).toUpperCase() + priority.slice(1).toLowerCase(),
         Qtde: count
       };
     })

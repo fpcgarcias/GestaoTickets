@@ -447,17 +447,14 @@ class EmailConfigService {
     console.log(`[DEBUG Email Config] Buscando configurações para empresa: ${companyId}`);
     
     let settings;
-    
     if (companyId) {
-      // Para empresa específica: buscar configurações específicas da empresa E globais
+      // Buscar todas as configurações da empresa E globais
       settings = await db
         .select()
         .from(systemSettings)
         .where(
           or(
-            // Configurações específicas da empresa
             like(systemSettings.key, `%_company_${companyId}`),
-            // Configurações globais (que não pertencem a nenhuma empresa)
             and(
               not(like(systemSettings.key, '%_company_%')),
               isNull(systemSettings.company_id)
@@ -465,7 +462,7 @@ class EmailConfigService {
           )
         );
     } else {
-      // Para sistema global: buscar apenas configurações globais
+      // Buscar apenas configurações globais
       settings = await db
         .select()
         .from(systemSettings)
@@ -477,54 +474,31 @@ class EmailConfigService {
         );
     }
 
-    console.log(`[DEBUG Email Config] Configurações encontradas no banco:`, settings.map(s => ({ 
-      key: s.key, 
-      value: s.value?.substring(0, 50) + (s.value?.length > 50 ? '...' : ''), 
-      company_id: s.company_id 
-    })));
-
-    const result = settings.reduce((acc, setting) => {
-      let originalKey = setting.key;
-      
-      // Se é uma configuração específica da empresa, extrair a chave original
-      if (companyId && setting.key.endsWith(`_company_${companyId}`)) {
-        originalKey = setting.key.replace(`_company_${companyId}`, '');
-        console.log(`[DEBUG Email Config] Configuração específica da empresa: ${setting.key} -> ${originalKey}`);
+    // Montar objeto final, priorizando as chaves da empresa
+    const result: Record<string, string> = {};
+    for (const setting of settings) {
+      let key = setting.key;
+      if (companyId && key.endsWith(`_company_${companyId}`)) {
+        key = key.replace(`_company_${companyId}`, '');
       }
-      
-      // Apenas processar se é uma configuração válida para esta empresa
-      const isGlobal = !setting.key.includes('_company_');
-      const isForThisCompany = companyId && setting.key.endsWith(`_company_${companyId}`);
-      
-      if (isGlobal || isForThisCompany) {
-        // Priorizar configurações específicas da empresa sobre globais
-        if (isForThisCompany || !acc[originalKey]) {
-          acc[originalKey] = setting.value;
-          console.log(`[DEBUG Email Config] Adicionando configuração: ${originalKey} = ${setting.value?.substring(0, 50)}${setting.value?.length > 50 ? '...' : ''}`);
-        }
-      }
-      
-      return acc;
-    }, {} as Record<string, string>);
-    
-    console.log(`[DEBUG Email Config] Configurações processadas para empresa ${companyId}:`, Object.keys(result));
-    
-    // VALIDAÇÃO CRÍTICA: Garantir que não há configurações de outras empresas
-    if (companyId) {
-      const hasOtherCompanyConfigs = settings.some(s => 
-        s.key.includes('_company_') && 
-        !s.key.endsWith(`_company_${companyId}`)
-      );
-      
-      if (hasOtherCompanyConfigs) {
-        console.error(`[DEBUG Email Config] ⚠️ ERRO CRÍTICO: Encontradas configurações de outras empresas!`);
-        console.error(`[DEBUG Email Config] Configurações perigosas:`, settings.filter(s => 
-          s.key.includes('_company_') && 
-          !s.key.endsWith(`_company_${companyId}`)
-        ));
+      // Só sobrescreve se ainda não existe (prioriza da empresa)
+      if (!(key in result)) {
+        result[key] = setting.value;
       }
     }
-    
+
+    console.log(`[DEBUG Email Config] Configurações processadas para empresa ${companyId}:`, JSON.stringify(result, null, 2));
+
+    // Validação crítica: garantir que todos os campos obrigatórios existem
+    const obrigatorios = ['email_provider', 'from_email', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password'];
+    if (companyId && result.email_provider === 'smtp') {
+      for (const campo of obrigatorios) {
+        if (!result[campo] || result[campo].trim() === '') {
+          console.error(`[DEBUG Email Config] ❌ Faltando campo obrigatório: ${campo} para empresa ${companyId}`);
+          return {};
+        }
+      }
+    }
     return result;
   }
 

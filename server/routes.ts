@@ -1224,7 +1224,18 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       // 📧 ENVIAR EMAIL PARA MUDANÇA DE ATRIBUIÇÃO
       if (updateData.assigned_to_id && existingTicket.assigned_to_id !== updateData.assigned_to_id) {
-        await emailNotificationService.notifyTicketAssigned(ticket.id, updateData.assigned_to_id);
+        try {
+          console.log('🚨🚨🚨 [PROD EMAIL] TENTANDO ENVIAR EMAIL DE TICKET ATRIBUÍDO (PATCH)');
+          console.log('🚨🚨🚨 [PROD EMAIL] Ticket ID:', ticket.id);
+          console.log('🚨🚨🚨 [PROD EMAIL] Atribuído para ID:', updateData.assigned_to_id);
+          
+          await emailNotificationService.notifyTicketAssigned(ticket.id, updateData.assigned_to_id);
+          
+          console.log('🚨🚨🚨 [PROD EMAIL] ✅ SUCESSO - EMAIL DE TICKET ATRIBUÍDO ENVIADO!');
+        } catch (emailError) {
+          console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO AO NOTIFICAR ATRIBUIÇÃO:', emailError);
+          console.error('🚨🚨🚨 [PROD EMAIL] Stack:', (emailError as any)?.stack);
+        }
       }
 
       res.json(ticket);
@@ -1476,9 +1487,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       // 📧 ENVIAR EMAIL PARA ADMINS E SUPPORT
       try {
+        console.log('🚨🚨🚨 [PROD EMAIL] TENTANDO ENVIAR EMAIL DE NOVO TICKET');
+        console.log('🚨🚨🚨 [PROD EMAIL] Ticket ID:', ticket.id);
+        console.log('🚨🚨🚨 [PROD EMAIL] Company ID:', ticket.company_id);
+        console.log('🚨🚨🚨 [PROD EMAIL] Customer Email:', ticket.customer_email);
+        
         await emailNotificationService.notifyNewTicket(ticket.id);
+        
+        console.log('🚨🚨🚨 [PROD EMAIL] ✅ SUCESSO - EMAIL DE NOVO TICKET ENVIADO!');
       } catch (emailError) {
-        console.error('[Email] Erro ao notificar admins/support sobre novo ticket:', emailError);
+        console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO AO NOTIFICAR NOVO TICKET:', emailError);
+        console.error('🚨🚨🚨 [PROD EMAIL] Stack:', (emailError as any)?.stack);
       }
       
     } catch (error) {
@@ -1538,15 +1557,39 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       if (userId) {
         if (statusChanged) {
           // Só envia notificação de status alterado
-          await emailNotificationService.notifyStatusChanged(
-            ticketId, 
-            ticket.status, 
-            req.body.status, 
-            userId
-          );
+          try {
+            console.log('🚨🚨🚨 [PROD EMAIL] TENTANDO ENVIAR EMAIL DE STATUS ALTERADO');
+            console.log('🚨🚨🚨 [PROD EMAIL] Ticket ID:', ticketId);
+            console.log('🚨🚨🚨 [PROD EMAIL] Status anterior:', ticket.status);
+            console.log('🚨🚨🚨 [PROD EMAIL] Novo status:', req.body.status);
+            
+            await emailNotificationService.notifyStatusChanged(
+              ticketId, 
+              ticket.status, 
+              req.body.status, 
+              userId
+            );
+            
+            console.log('🚨🚨🚨 [PROD EMAIL] ✅ SUCESSO - EMAIL DE STATUS ALTERADO ENVIADO!');
+          } catch (emailError) {
+            console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO AO NOTIFICAR STATUS:', emailError);
+            console.error('🚨🚨🚨 [PROD EMAIL] Stack:', (emailError as any)?.stack);
+          }
         } else {
           // Só envia notificação de resposta
-          await emailNotificationService.notifyTicketReply(ticketId, userId, req.body.message);
+          try {
+            console.log('🚨🚨🚨 [PROD EMAIL] TENTANDO ENVIAR EMAIL DE NOVA RESPOSTA');
+            console.log('🚨🚨🚨 [PROD EMAIL] Ticket ID:', ticketId);
+            console.log('🚨🚨🚨 [PROD EMAIL] User ID:', userId);
+            console.log('🚨🚨🚨 [PROD EMAIL] Mensagem:', req.body.message.substring(0, 100) + '...');
+            
+            await emailNotificationService.notifyTicketReply(ticketId, userId, req.body.message);
+            
+            console.log('🚨🚨🚨 [PROD EMAIL] ✅ SUCESSO - EMAIL DE NOVA RESPOSTA ENVIADO!');
+          } catch (emailError) {
+            console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO AO NOTIFICAR RESPOSTA:', emailError);
+            console.error('🚨🚨🚨 [PROD EMAIL] Stack:', (emailError as any)?.stack);
+          }
         }
       }
 
@@ -1561,7 +1604,18 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         });
         // 📧 ENVIAR EMAIL PARA ATRIBUIÇÃO
         if (req.body.assigned_to_id !== ticket.assigned_to_id && req.body.assigned_to_id) {
-          await emailNotificationService.notifyTicketAssigned(ticketId, req.body.assigned_to_id);
+          try {
+            console.log('🚨🚨🚨 [PROD EMAIL] TENTANDO ENVIAR EMAIL DE TICKET ATRIBUÍDO (REPLY)');
+            console.log('🚨🚨🚨 [PROD EMAIL] Ticket ID:', ticketId);
+            console.log('🚨🚨🚨 [PROD EMAIL] Atribuído para ID:', req.body.assigned_to_id);
+            
+            await emailNotificationService.notifyTicketAssigned(ticketId, req.body.assigned_to_id);
+            
+            console.log('🚨🚨🚨 [PROD EMAIL] ✅ SUCESSO - EMAIL DE TICKET ATRIBUÍDO ENVIADO!');
+          } catch (emailError) {
+            console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO AO NOTIFICAR ATRIBUIÇÃO:', emailError);
+            console.error('🚨🚨🚨 [PROD EMAIL] Stack:', (emailError as any)?.stack);
+          }
         }
       }
       
@@ -2678,7 +2732,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       res.status(500).json({ message: "Falha ao excluir/inativar atendente", error: String(error) });
     }
   });
-
   // Autenticação
   router.post("/auth/login", authLimiter, validateSchema(loginSchema), async (req: Request, res: Response) => {
     try {
@@ -7010,4 +7063,5 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   
   return httpServer;
 }
+
 
