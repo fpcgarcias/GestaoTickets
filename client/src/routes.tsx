@@ -21,6 +21,7 @@ import OfficialsPage from './pages/Officials';
 import OfficialDetailsPage from './pages/OfficialDetails';
 import CustomersPage from './pages/Customers';
 import CustomerDetailsPage from './pages/CustomerDetails';
+import PerformanceDashboard from './pages/performance-dashboard';
 
 const AppRoutes = () => {
   const { user } = useAuth();
@@ -68,6 +69,15 @@ const AppRoutes = () => {
             <Route path="/officials" element={<OfficialsPage />} />
             <Route path="/officials/:id" element={<OfficialDetailsPage />} />
           </>
+        )}
+        
+        {/* Rota de dashboard de performance - apenas admin */}
+        {user?.role === 'admin' && (
+          <Route path="/performance-dashboard" element={
+            <ProtectedRoute>
+              <PerformanceDashboard />
+            </ProtectedRoute>
+          } />
         )}
         
         <Route path="/profile" element={<ProfilePage />} />
