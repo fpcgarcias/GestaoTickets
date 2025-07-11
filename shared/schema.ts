@@ -351,6 +351,9 @@ export const aiConfigurations = pgTable("ai_configurations", {
   // Configurações de fallback
   fallback_priority: text("fallback_priority").default("MÉDIA"), // TEXT para prioridades dinâmicas
   
+  // Multi-tenant
+  company_id: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
+  
   // Departamento específico (NULL = configuração global)
   department_id: integer("department_id").references(() => departments.id, { onDelete: "cascade" }),
   
@@ -358,7 +361,7 @@ export const aiConfigurations = pgTable("ai_configurations", {
   is_active: boolean("is_active").default(true).notNull(),
   is_default: boolean("is_default").default(false).notNull(),
   
-  // Metadados (configuração global - removido company_id)
+  // Metadados
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
   created_by_id: integer("created_by_id").references(() => users.id),
@@ -606,6 +609,7 @@ export type Ticket = typeof tickets.$inferSelect & {
   replies?: TicketReply[];
   incidentType?: IncidentType;
   attachments?: TicketAttachment[];
+  userContext?: 'customer' | 'official' | 'both'; // Contexto do usuário para este ticket
 };
 export type InsertTicket = z.infer<typeof insertTicketSchema>;
 
@@ -795,6 +799,10 @@ export const aiConfigurationsRelations = relations(aiConfigurations, ({ one, man
   updated_by: one(users, {
     fields: [aiConfigurations.updated_by_id],
     references: [users.id],
+  }),
+  company: one(companies, {
+    fields: [aiConfigurations.company_id],
+    references: [companies.id],
   }),
   department: one(departments, {
     fields: [aiConfigurations.department_id],

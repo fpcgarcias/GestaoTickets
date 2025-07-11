@@ -434,6 +434,10 @@ export class DatabaseStorage implements IStorage {
       console.log(`Manager encontrado: ID ${managerOfficial.id}`);
       
       try {
+        // Buscar cliente associado ao usuário para determinar contexto
+        const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
+        
+        // Tickets como atendente/manager
         const subordinates = await db.select().from(officials).where(eq(officials.manager_id, managerOfficial.id));
         const subordinateIds = subordinates.map(s => s.id);
         
@@ -481,10 +485,46 @@ export class DatabaseStorage implements IStorage {
             or(...conditions)
           ));
         
-        console.log(`Encontrados ${ticketsData.length} tickets para o manager`);
+        console.log(`Encontrados ${ticketsData.length} tickets para o manager (como atendente)`);
+        
+        // Tickets como cliente
+        let customerTicketsData: any[] = [];
+        
+        if (customer) {
+          console.log(`Manager também é cliente: ID ${customer.id}`);
+          customerTicketsData = await db
+            .select()
+            .from(tickets)
+            .where(eq(tickets.customer_id, customer.id));
+          console.log(`Encontrados ${customerTicketsData.length} tickets para o manager (como cliente)`);
+        }
+        
+        // Combinar tickets e remover duplicatas
+        const allTicketsData = [...ticketsData, ...customerTicketsData];
+        const uniqueTicketsData = allTicketsData.filter((ticket, index, self) => 
+          index === self.findIndex(t => t.id === ticket.id)
+        );
+        
+        console.log(`Total de tickets únicos para o manager: ${uniqueTicketsData.length}`);
         
         const enrichedTickets = await Promise.all(
-          ticketsData.map(ticket => this.getTicketInternal(ticket.id))
+          uniqueTicketsData.map(async (ticket) => {
+            const enrichedTicket = await this.getTicketInternal(ticket.id);
+            if (enrichedTicket) {
+              // Determinar contexto do usuário para este ticket
+              const isOfficial = ticketsData.some(t => t.id === ticket.id);
+              const isCustomer = customer && customerTicketsData.some(t => t.id === ticket.id);
+              
+              if (isOfficial && isCustomer) {
+                enrichedTicket.userContext = 'both';
+              } else if (isCustomer) {
+                enrichedTicket.userContext = 'customer';
+              } else {
+                enrichedTicket.userContext = 'official';
+              }
+            }
+            return enrichedTicket;
+          })
         );
         
         return enrichedTickets.filter(Boolean) as Ticket[];
@@ -504,6 +544,10 @@ export class DatabaseStorage implements IStorage {
       console.log(`Supervisor encontrado: ID ${supervisorOfficial.id}`);
       
       try {
+        // Buscar cliente associado ao usuário para determinar contexto
+        const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
+        
+        // Tickets como supervisor
         // Buscar todos os atendentes que têm este supervisor
         const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, supervisorOfficial.id));
         const subordinateIds = subordinates.map(s => s.id);
@@ -552,10 +596,46 @@ export class DatabaseStorage implements IStorage {
             or(...conditions)
           ));
         
-        console.log(`Encontrados ${ticketsData.length} tickets para o supervisor`);
+        console.log(`Encontrados ${ticketsData.length} tickets para o supervisor (como atendente)`);
+        
+        // Tickets como cliente
+        let customerTicketsData: any[] = [];
+        
+        if (customer) {
+          console.log(`Supervisor também é cliente: ID ${customer.id}`);
+          customerTicketsData = await db
+            .select()
+            .from(tickets)
+            .where(eq(tickets.customer_id, customer.id));
+          console.log(`Encontrados ${customerTicketsData.length} tickets para o supervisor (como cliente)`);
+        }
+        
+        // Combinar tickets e remover duplicatas
+        const allTicketsData = [...ticketsData, ...customerTicketsData];
+        const uniqueTicketsData = allTicketsData.filter((ticket, index, self) => 
+          index === self.findIndex(t => t.id === ticket.id)
+        );
+        
+        console.log(`Total de tickets únicos para o supervisor: ${uniqueTicketsData.length}`);
         
         const enrichedTickets = await Promise.all(
-          ticketsData.map(ticket => this.getTicketInternal(ticket.id))
+          uniqueTicketsData.map(async (ticket) => {
+            const enrichedTicket = await this.getTicketInternal(ticket.id);
+            if (enrichedTicket) {
+              // Determinar contexto do usuário para este ticket
+              const isOfficial = ticketsData.some(t => t.id === ticket.id);
+              const isCustomer = customer && customerTicketsData.some(t => t.id === ticket.id);
+              
+              if (isOfficial && isCustomer) {
+                enrichedTicket.userContext = 'both';
+              } else if (isCustomer) {
+                enrichedTicket.userContext = 'customer';
+              } else {
+                enrichedTicket.userContext = 'official';
+              }
+            }
+            return enrichedTicket;
+          })
         );
         
         return enrichedTickets.filter(Boolean) as Ticket[];
@@ -578,18 +658,17 @@ export class DatabaseStorage implements IStorage {
       const officialDepts = await this.getOfficialDepartments(official.id);
       console.log(`Departamentos do atendente: ${JSON.stringify(officialDepts.map(d => d.department_id))}`);
       
-      if (officialDepts.length === 0) {
-        console.log('Atendente sem departamentos, mostrando apenas tickets atribuídos diretamente');
-        return this.getTicketsByOfficialId(official.id);
-      }
-      
-      // Obter os IDs dos departamentos diretamente
-      const departmentIds = officialDepts.map(dept => dept.department_id);
-      console.log(`IDs dos departamentos do atendente: ${JSON.stringify(departmentIds)}`);
-      
       // Buscar tickets relacionados aos IDs dos departamentos do atendente OU atribuídos diretamente
       try {
+        // Buscar cliente associado ao usuário para determinar contexto
+        const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
+        
         const conditions = [];
+        
+        // Obter os IDs dos departamentos diretamente
+        const departmentIds = officialDepts.map(dept => dept.department_id);
+        console.log(`IDs dos departamentos do atendente: ${JSON.stringify(departmentIds)}`);
+        
         if (departmentIds.length > 0) {
           conditions.push(inArray(tickets.department_id, departmentIds));
         }
@@ -597,16 +676,56 @@ export class DatabaseStorage implements IStorage {
         // Condição para tickets atribuídos diretamente ao oficial
         conditions.push(eq(tickets.assigned_to_id, official.id));
         
-        // Executamos a consulta com OR de todas as condições
-        const ticketsData = await db
-          .select()
-          .from(tickets)
-          .where(or(...conditions));
+        let ticketsData: any[] = [];
         
-        console.log(`Encontrados ${ticketsData.length} tickets para o atendente`);
+        if (conditions.length > 0) {
+          // Executamos a consulta com OR de todas as condições
+          ticketsData = await db
+            .select()
+            .from(tickets)
+            .where(or(...conditions));
+        }
+        
+        console.log(`Encontrados ${ticketsData.length} tickets para o atendente (como atendente)`);
+        
+        // Tickets como cliente
+        let customerTicketsData: any[] = [];
+        
+        if (customer) {
+          console.log(`Atendente também é cliente: ID ${customer.id}`);
+          customerTicketsData = await db
+            .select()
+            .from(tickets)
+            .where(eq(tickets.customer_id, customer.id));
+          console.log(`Encontrados ${customerTicketsData.length} tickets para o atendente (como cliente)`);
+        }
+        
+        // Combinar tickets e remover duplicatas
+        const allTicketsData = [...ticketsData, ...customerTicketsData];
+        const uniqueTicketsData = allTicketsData.filter((ticket, index, self) => 
+          index === self.findIndex(t => t.id === ticket.id)
+        );
+        
+        console.log(`Total de tickets únicos para o atendente: ${uniqueTicketsData.length}`);
         
         const enrichedTickets = await Promise.all(
-          ticketsData.map(ticket => this.getTicket(ticket.id))
+          uniqueTicketsData.map(async (ticket) => {
+            const enrichedTicket = await this.getTicket(ticket.id);
+            if (enrichedTicket) {
+              // Determinar contexto do usuário para este ticket
+              const isOfficial = ticketsData.some(t => t.id === ticket.id);
+              const isCustomer = customer && customerTicketsData.some(t => t.id === ticket.id);
+              
+              if (isOfficial && isCustomer) {
+                enrichedTicket.userContext = 'both';
+              } else if (isCustomer) {
+                enrichedTicket.userContext = 'customer';
+              } else {
+                enrichedTicket.userContext = 'official';
+              }
+            }
+            return enrichedTicket;
+          })
         );
         
         return enrichedTickets.filter(Boolean) as Ticket[];
