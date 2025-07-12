@@ -18,6 +18,7 @@ import { db } from "./db";
 import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike, asc } from "drizzle-orm";
 import { IStorage } from "./storage";
 import { isSlaPaused } from "@shared/ticket-utils";
+import { convertStatusHistoryToPeriods, calculateEffectiveBusinessTime, getBusinessHoursConfig } from "@shared/utils/sla-calculator";
 
 export class DatabaseStorage implements IStorage {
   // User operations
@@ -1314,55 +1315,34 @@ export class DatabaseStorage implements IStorage {
   // Obter tempo médio de primeira resposta filtrado pelo papel do usuário
   async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number> {
     try {
-      // Obter tickets filtrados pelo papel do usuário
       let userTickets = await this.getTicketsByUserRole(userId, userRole);
-      
-      // Filtrar por atendente se especificado
       if (officialId) {
         userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
       }
-      
-      // Filtrar por período se especificado
       if (startDate && endDate) {
         userTickets = userTickets.filter(ticket => {
           const createdAt = new Date(ticket.created_at);
           return createdAt >= startDate && createdAt <= endDate;
         });
       }
-      
-      // Filtrar apenas tickets que têm primeira resposta
-      const ticketsWithFirstResponse = userTickets.filter(ticket => 
-        ticket.first_response_at && ticket.created_at
-      );
-      
+      const ticketsWithFirstResponse = userTickets.filter(ticket => ticket.first_response_at && ticket.created_at);
       if (ticketsWithFirstResponse.length === 0) {
         return 0;
       }
-      
-      // Calcular tempo médio de primeira resposta considerando períodos de suspensão
+      const businessHours = getBusinessHoursConfig();
       const totalResponseTime = await ticketsWithFirstResponse.reduce(async (sumPromise, ticket) => {
         const sum = await sumPromise;
         const createdAt = new Date(ticket.created_at);
         const firstResponseAt = new Date(ticket.first_response_at!);
-        
-        // Buscar histórico de status para calcular tempo efetivo
         const statusHistory = await db
           .select()
           .from(ticketStatusHistory)
           .where(eq(ticketStatusHistory.ticket_id, ticket.id))
           .orderBy(asc(ticketStatusHistory.created_at));
-        
-        // Calcular tempo efetivo excluindo períodos suspensos
-        const effectiveTime = this.calculateEffectiveTime(
-          createdAt,
-          firstResponseAt,
-          statusHistory,
-          'new' // Status inicial
-        );
-        
-        return sum + (effectiveTime / (1000 * 60 * 60)); // converter para horas
+        const statusPeriods = convertStatusHistoryToPeriods(createdAt, ticket.status, statusHistory);
+        const effectiveTimeMs = calculateEffectiveBusinessTime(createdAt, firstResponseAt, statusPeriods, businessHours);
+        return sum + (effectiveTimeMs / (1000 * 60 * 60)); // horas
       }, Promise.resolve(0));
-      
       return Math.round((totalResponseTime / ticketsWithFirstResponse.length) * 100) / 100;
     } catch (error) {
       console.error('Erro ao calcular tempo médio de primeira resposta:', error);
@@ -1373,55 +1353,34 @@ export class DatabaseStorage implements IStorage {
   // Obter tempo médio de resolução filtrado pelo papel do usuário
   async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number> {
     try {
-      // Obter tickets filtrados pelo papel do usuário
       let userTickets = await this.getTicketsByUserRole(userId, userRole);
-      
-      // Filtrar por atendente se especificado
       if (officialId) {
         userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
       }
-      
-      // Filtrar por período se especificado
       if (startDate && endDate) {
         userTickets = userTickets.filter(ticket => {
           const createdAt = new Date(ticket.created_at);
           return createdAt >= startDate && createdAt <= endDate;
         });
       }
-      
-      // Filtrar apenas tickets resolvidos
-      const resolvedTickets = userTickets.filter(ticket => 
-        ticket.status === 'resolved' && ticket.resolved_at && ticket.created_at
-      );
-      
+      const resolvedTickets = userTickets.filter(ticket => ticket.status === 'resolved' && ticket.resolved_at && ticket.created_at);
       if (resolvedTickets.length === 0) {
         return 0;
       }
-      
-      // Calcular tempo médio de resolução considerando períodos de suspensão
+      const businessHours = getBusinessHoursConfig();
       const totalResolutionTime = await resolvedTickets.reduce(async (sumPromise, ticket) => {
         const sum = await sumPromise;
         const createdAt = new Date(ticket.created_at);
         const resolvedAt = new Date(ticket.resolved_at!);
-        
-        // Buscar histórico de status para calcular tempo efetivo
         const statusHistory = await db
           .select()
           .from(ticketStatusHistory)
           .where(eq(ticketStatusHistory.ticket_id, ticket.id))
           .orderBy(asc(ticketStatusHistory.created_at));
-        
-        // Calcular tempo efetivo excluindo períodos suspensos
-        const effectiveTime = this.calculateEffectiveTime(
-          createdAt,
-          resolvedAt,
-          statusHistory,
-          'new' // Status inicial
-        );
-        
-        return sum + (effectiveTime / (1000 * 60 * 60)); // converter para horas
+        const statusPeriods = convertStatusHistoryToPeriods(createdAt, ticket.status, statusHistory);
+        const effectiveTimeMs = calculateEffectiveBusinessTime(createdAt, resolvedAt, statusPeriods, businessHours);
+        return sum + (effectiveTimeMs / (1000 * 60 * 60)); // horas
       }, Promise.resolve(0));
-      
       return Math.round((totalResolutionTime / resolvedTickets.length) * 100) / 100;
     } catch (error) {
       console.error('Erro ao calcular tempo médio de resolução:', error);
