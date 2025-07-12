@@ -61,6 +61,7 @@ interface AiConfiguration {
   system_prompt: string;
   user_prompt_template: string;
   department_id?: number | null;
+  company_id?: number | null;
   temperature: string;
   max_tokens: number;
   timeout_seconds: number;
@@ -91,6 +92,7 @@ interface FormData {
   system_prompt: string;
   user_prompt_template: string;
   department_id: number | null;
+  company_id: number | null;
   temperature: string;
   max_tokens: number;
   timeout_seconds: number;
@@ -422,6 +424,7 @@ function DepartmentAiConfiguration() {
     system_prompt: '',
     user_prompt_template: '',
     department_id: null as number | null,
+    company_id: user?.company?.id || null,
     temperature: '0.1',
     max_tokens: 100,
     timeout_seconds: 30,
@@ -431,18 +434,15 @@ function DepartmentAiConfiguration() {
     is_default: false
   });
 
-  // Buscar configurações de IA (filtrar por company)
+  // Buscar configurações de IA (backend já filtra por empresa)
   const fetchConfigurations = async () => {
     setIsLoading(true);
     try {
       const response = await apiRequest('GET', '/api/ai-configurations');
       if (response.ok) {
         const data = await response.json();
-        // Filtrar apenas configurações da empresa e por departamento
-        const filteredConfigs = data.filter((config: AiConfiguration) => 
-          config.department_id !== null
-        );
-        setConfigurations(filteredConfigs);
+        // Backend já retorna apenas as configurações da empresa do usuário
+        setConfigurations(data);
       }
     } catch (error) {
       console.error('Erro ao buscar configurações:', error);
@@ -477,6 +477,7 @@ function DepartmentAiConfiguration() {
       system_prompt: '',
       user_prompt_template: '',
       department_id: null,
+      company_id: user?.company?.id || null,
       temperature: '0.1',
       max_tokens: 100,
       timeout_seconds: 30,
@@ -579,6 +580,7 @@ function DepartmentAiConfiguration() {
       system_prompt: config.system_prompt || '',
       user_prompt_template: config.user_prompt_template || '',
       department_id: config.department_id || null,
+      company_id: config.company_id || user?.company?.id || null,
       temperature: config.temperature || '0.1',
       max_tokens: config.max_tokens || 100,
       timeout_seconds: config.timeout_seconds || 30,
@@ -948,6 +950,7 @@ function AdminAiConfiguration() {
     system_prompt: '',
     user_prompt_template: '',
     department_id: null as number | null,
+    company_id: null as number | null,
     temperature: '0.1',
     max_tokens: 100,
     timeout_seconds: 30,
@@ -1089,6 +1092,7 @@ function AdminAiConfiguration() {
       system_prompt: '',
       user_prompt_template: '',
       department_id: null,
+      company_id: null,
       temperature: '0.1',
       max_tokens: 100,
       timeout_seconds: 30,
@@ -1111,6 +1115,7 @@ function AdminAiConfiguration() {
       system_prompt: config.system_prompt || '',
       user_prompt_template: config.user_prompt_template || '',
       department_id: config.department_id || null,
+      company_id: config.company_id || null,
       temperature: config.temperature || '0.1',
       max_tokens: config.max_tokens || 100,
       timeout_seconds: config.timeout_seconds || 30,

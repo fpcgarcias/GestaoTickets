@@ -464,7 +464,26 @@ Prioridade:`;
         return companyConfig;
       }
 
-      // 4. Fallback: buscar configuração global (sem empresa e sem departamento)
+      // 4. Buscar configuração global específica por departamento (sem empresa, mas com departamento)
+      const [globalDepartmentConfig] = await database
+        .select()
+        .from(schema.aiConfigurations)
+        .where(
+          and(
+            isNull(schema.aiConfigurations.company_id),
+            eq(schema.aiConfigurations.department_id, departmentId),
+            eq(schema.aiConfigurations.is_active, true)
+          )
+        )
+        .orderBy(schema.aiConfigurations.is_default)
+        .limit(1);
+
+      if (globalDepartmentConfig) {
+        console.log(`[AI] Usando configuração global específica por departamento: ${departmentId}`);
+        return globalDepartmentConfig;
+      }
+
+      // 5. Fallback: buscar configuração global (sem empresa e sem departamento)
       const [globalConfig] = await database
         .select()
         .from(schema.aiConfigurations)
