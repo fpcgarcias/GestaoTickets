@@ -6111,15 +6111,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       }
       
       // Debug: Logar o que está chegando
-      console.log('[DEBUG] Dados recebidos no backend:', JSON.stringify(config, null, 2));
-      console.log('[DEBUG] Company ID usado:', companyId);
-      console.log('[DEBUG] Provider:', config.provider);
-      console.log('[DEBUG] From email:', config.from_email);
-      console.log('[DEBUG] API Key:', config.api_key ? '***mascarado***' : 'vazio');
+          // Dados de configuração recebidos
       
       await emailConfigService.saveEmailConfigFromFrontend(config, companyId);
       
-      console.log('[DEBUG] Configurações salvas com sucesso!');
+      // Configurações salvas com sucesso
       
       res.json({ 
         success: true, 

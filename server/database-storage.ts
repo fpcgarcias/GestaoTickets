@@ -12,13 +12,19 @@ import {
   systemSettings, type SystemSetting,
   incidentTypes, type IncidentType,
   categories, type Category,
-  companies, departments } from "@shared/schema";
+  companies, departments
+} from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike, asc, gte, lte } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike, asc, gte, lte, ne } from "drizzle-orm";
 import { IStorage } from "./storage";
+<<<<<<< Updated upstream
 import { isSlaPaused } from "@shared/ticket-utils";
 import { convertStatusHistoryToPeriods, calculateEffectiveBusinessTime, getBusinessHoursConfig } from "@shared/utils/sla-calculator";
+=======
+import { isSlaPaused, isSlaFinished, shouldRestartSla, type TicketStatus } from "@shared/ticket-utils";
+import { calculateBusinessTimeMs, type BusinessHours } from "@shared/utils/sla-calculator";
+>>>>>>> Stashed changes
 
 export class DatabaseStorage implements IStorage {
   // User operations
@@ -1394,7 +1400,7 @@ export class DatabaseStorage implements IStorage {
 
   /**
    * Calcula o tempo efetivo excluindo períodos de suspensão
-   * Baseado na lógica do SLA calculator
+   * CORRIGIDO: Agora usa horário comercial igual ao SLA (8h às 17h, segunda a sexta)
    */
   private calculateEffectiveTime(
     startTime: Date,
@@ -1406,20 +1412,31 @@ export class DatabaseStorage implements IStorage {
     let currentPeriodStart = startTime;
     let currentStatus = initialStatus;
     
-    // Se não há histórico, considerar período inteiro como ativo
+    // Configuração de horário comercial igual ao SLA
+    const businessHours: BusinessHours = {
+      startHour: 8,
+      endHour: 17,
+      workDays: [1, 2, 3, 4, 5] // Segunda a sexta
+    };
+    
+    // Se não há histórico, considerar período inteiro como ativo mas apenas em horário comercial
     if (statusHistory.length === 0) {
-      return !isSlaPaused(currentStatus as any) ? (endTime.getTime() - startTime.getTime()) : 0;
+      if (isSlaPaused(currentStatus as any)) {
+        return 0;
+      }
+      return calculateBusinessTimeMs(startTime, endTime, businessHours);
     }
     
     // Processar cada mudança de status
     for (const change of statusHistory) {
       const changeTime = new Date(change.created_at);
       
-      // Se o período atual não está pausado, contar o tempo
+      // Se o período atual não está pausado, contar o tempo (apenas horário comercial)
       if (!isSlaPaused(currentStatus as any) && currentPeriodStart < changeTime) {
         const periodEnd = changeTime > endTime ? endTime : changeTime;
         if (currentPeriodStart < periodEnd) {
-          totalEffectiveTime += periodEnd.getTime() - currentPeriodStart.getTime();
+          // CORREÇÃO: Usar cálculo de horário comercial em vez de tempo total
+          totalEffectiveTime += calculateBusinessTimeMs(currentPeriodStart, periodEnd, businessHours);
         }
       }
       
@@ -1433,9 +1450,9 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    // Período final (do último status até o fim)
+    // Período final (do último status até o fim) - apenas horário comercial
     if (currentPeriodStart < endTime && !isSlaPaused(currentStatus as any)) {
-      totalEffectiveTime += endTime.getTime() - currentPeriodStart.getTime();
+      totalEffectiveTime += calculateBusinessTimeMs(currentPeriodStart, endTime, businessHours);
     }
     
     return totalEffectiveTime;

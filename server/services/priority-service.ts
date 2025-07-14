@@ -31,8 +31,7 @@ export class PriorityService {
    */
   async getAllCompanyPriorities(companyId: number): Promise<DepartmentPriority[]> {
     try {
-      console.log(`=== DEBUG getAllCompanyPriorities ===`);
-      console.log(`Buscando prioridades para companyId: ${companyId}`);
+          // Debug removido
       
       const priorities = await db
         .select()
@@ -43,10 +42,7 @@ export class PriorityService {
         ))
         .orderBy(departmentPriorities.department_id, departmentPriorities.weight);
 
-      console.log(`Query retornou ${priorities.length} prioridades`);
-      priorities.forEach(p => {
-        console.log(`  ID: ${p.id}, Dept: ${p.department_id}, Weight: ${p.weight}, Name: ${p.name}, Active: ${p.is_active}`);
-      });
+          // Query executada
 
       return priorities;
     } catch (error) {
@@ -63,8 +59,7 @@ export class PriorityService {
     departmentId: number
   ): Promise<PriorityResult> {
     try {
-      console.log(`=== DEBUG getDepartmentPriorities ===`);
-      console.log(`CompanyId: ${companyId}, DepartmentId: ${departmentId}`);
+          // Debug removido
       
       // Buscar empresa para verificar se usa sistema flexível
       const [company] = await db
@@ -73,23 +68,21 @@ export class PriorityService {
         .where(eq(companies.id, companyId))
         .limit(1);
 
-      console.log(`Company uses flexible SLA: ${company?.uses_flexible_sla}`);
+      // Company uses flexible SLA verificado
 
       // Se empresa não usa sistema flexível, retornar prioridades padrão
       if (!usesFlexibleSLA(company)) {
-        console.log('Usando sistema legado');
+        // Usando sistema legado
         return await this.getLegacyPriorities(companyId, departmentId);
       }
 
       // Buscar todas as prioridades da empresa para eficiência
       const allPriorities = await this.getAllCompanyPriorities(companyId);
-      console.log(`Total prioridades da empresa: ${allPriorities.length}`);
-      console.log(`Prioridades encontradas:`, allPriorities.map(p => ({ id: p.id, dept: p.department_id, weight: p.weight, name: p.name })));
+          // Prioridades da empresa carregadas
       
       // Usar utilitário para determinar prioridades com fallback
       const result = getDepartmentPriorities(companyId, departmentId, allPriorities);
-      console.log(`Resultado final - isDefault: ${result.isDefault}, source: ${result.source}, count: ${result.priorities.length}`);
-      console.log(`Prioridades retornadas:`, result.priorities.map(p => ({ id: p.id, weight: p.weight, name: p.name })));
+          // Resultado final calculado
       
       return result;
       
@@ -117,7 +110,7 @@ export class PriorityService {
 
     // Se existem prioridades reais, retornar elas
     if (existingPriorities.length > 0) {
-      console.log(`Encontradas ${existingPriorities.length} prioridades reais para departamento ${departmentId}`);
+      // Prioridades reais encontradas
       return {
         priorities: existingPriorities,
         isDefault: false,
@@ -127,7 +120,7 @@ export class PriorityService {
 
     // Se não existem prioridades reais, retornar lista VAZIA
     // Isso permite que o frontend mostre apenas o botão "Criar Padrão"
-    console.log(`Nenhuma prioridade real encontrada, retornando lista vazia para departamento ${departmentId}`);
+          // Nenhuma prioridade real encontrada
     return {
       priorities: [],
       isDefault: true,
@@ -385,14 +378,14 @@ export class PriorityService {
         throw new Error('Pesos duplicados na reordenação');
       }
 
-      console.log('🔄 TODAS para temporário primeiro, depois TODAS para final!');
+      // Reordenação iniciada
       
       // Buscar o maior peso atual para usar como base para temporários
       const maxWeight = Math.max(...existingPriorities.map(p => p.weight));
-      console.log(`📊 Maior peso atual: ${maxWeight}`);
+      // Peso atual calculado
 
       // PASSO 1: TODAS as prioridades que serão alteradas vão para temporários únicos
-      console.log('📝 PASSO 1: Movendo TODAS para temporários...');
+      // PASSO 1: Movendo TODAS para temporários...
       for (let i = 0; i < priorityOrders.length; i++) {
         const { id } = priorityOrders[i];
         const tempWeight = maxWeight + 100 + i; // Temporários únicos bem altos
@@ -405,11 +398,11 @@ export class PriorityService {
           })
           .where(eq(departmentPriorities.id, id));
         
-        console.log(`  ✓ Prioridade ${id} → temporário ${tempWeight}`);
+        // Prioridade movida para temporário
       }
 
       // PASSO 2: TODAS para os pesos finais desejados
-      console.log('🎯 PASSO 2: Aplicando pesos finais...');
+      // PASSO 2: Aplicando pesos finais...
       const updatedPriorities: DepartmentPriority[] = [];
       
       for (const { id, weight } of priorityOrders) {
@@ -423,10 +416,10 @@ export class PriorityService {
           .returning();
         
         updatedPriorities.push(updated);
-        console.log(`  ✅ Prioridade ${id} → peso final ${weight}`);
+        // Peso final aplicado
       }
 
-      console.log('✅ Reordenação concluída com sucesso!');
+      // Reordenação concluída com sucesso
       return updatedPriorities.sort((a, b) => a.weight - b.weight);
       
     } catch (error) {

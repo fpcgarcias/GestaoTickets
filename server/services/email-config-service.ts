@@ -182,17 +182,16 @@ class EmailConfigService {
     }
 
     // Salvar todas as configurações - garantindo que nenhum valor seja vazio
-    console.log('[DEBUG Email Config] Configurações que serão salvas:', settingsToSave);
-    console.log('[DEBUG Email Config] Company ID:', companyId);
+    // Configurações sendo salvas
     
     for (const [key, value] of Object.entries(settingsToSave)) {
       if (value !== null && value !== undefined && value !== '') {
-        console.log(`[DEBUG Email Config] Salvando: ${key} = ${value} (company: ${companyId})`);
+        // Configuração salva
         await this.saveSystemSetting(key, value, companyId);
       }
     }
     
-    console.log('[DEBUG Email Config] Todas as configurações salvas com sucesso!');
+    // Todas as configurações salvas com sucesso
   }
 
   // Salvar configurações de email (formato legado)
@@ -221,7 +220,7 @@ class EmailConfigService {
     }
 
     // Salvar todas as configurações
-    console.log('[DEBUG Email Config] Salvando configurações legadas:', settingsToSave);
+    // Salvando configurações legadas
     for (const [key, value] of Object.entries(settingsToSave)) {
       await this.saveSystemSetting(key, value, companyId);
     }
@@ -482,11 +481,10 @@ class EmailConfigService {
 
   // Métodos auxiliares privados
   private async getSystemSettings(companyId?: number): Promise<Record<string, string>> {
-    console.log(`[DEBUG Email Config] ==================== INICIO getSystemSettings ====================`);
-    console.log(`[DEBUG Email Config] Buscando configurações para empresa: ${companyId}`);
+    // Buscando configurações do sistema
     
     if (!companyId) {
-      console.log(`[DEBUG Email Config] SEM company_id - buscando configurações globais`);
+      // Buscando configurações globais
       const settings = await db
         .select()
         .from(systemSettings)
@@ -497,8 +495,7 @@ class EmailConfigService {
           )
         );
       
-      console.log(`[DEBUG Email Config] Configurações globais encontradas:`, settings.length);
-      settings.forEach(s => console.log(`[DEBUG Email Config] GLOBAL: ${s.key} = ${s.value?.substring(0, 30)}...`));
+      // Configurações globais carregadas
       
       return settings.reduce((acc, setting) => {
         acc[setting.key] = setting.value;
@@ -507,25 +504,23 @@ class EmailConfigService {
     }
 
     // Para empresa específica, buscar configurações com sufixo
-    console.log(`[DEBUG Email Config] COM company_id=${companyId} - buscando configurações da empresa`);
+          // Buscando configurações da empresa
     const settings = await db
       .select()
       .from(systemSettings)
       .where(like(systemSettings.key, `%_company_${companyId}`));
 
-    console.log(`[DEBUG Email Config] Configurações da empresa encontradas:`, settings.length);
-    settings.forEach(s => console.log(`[DEBUG Email Config] EMPRESA: ${s.key} = ${s.value?.substring(0, 30)}...`));
+          // Configurações da empresa carregadas
 
     // Montar objeto removendo o sufixo
     const result: Record<string, string> = {};
     for (const setting of settings) {
       const key = setting.key.replace(`_company_${companyId}`, '');
       result[key] = setting.value;
-      console.log(`[DEBUG Email Config] Transformando: ${setting.key} -> ${key} = ${setting.value?.substring(0, 30)}...`);
+      // Configuração transformada
     }
 
-    console.log(`[DEBUG Email Config] Objeto final:`, JSON.stringify(result, null, 2));
-    console.log(`[DEBUG Email Config] ==================== FIM getSystemSettings ====================`);
+    // Configurações carregadas com sucesso
     return result;
   }
 
@@ -545,7 +540,7 @@ class EmailConfigService {
     // Usar o mesmo padrão do routes.ts para chaves compostas
     const compositeKey = companyId ? `${key}_company_${companyId}` : key;
     
-    console.log(`[DEBUG Email Config] Salvando configuração: ${key} -> ${compositeKey} = ${safeValue}`);
+    // Salvando configuração
     
     const whereCondition = eq(systemSettings.key, compositeKey);
 
@@ -555,7 +550,7 @@ class EmailConfigService {
       .where(whereCondition);
 
     if (existing) {
-      console.log(`[DEBUG Email Config] Atualizando configuração existente: ${compositeKey}`);
+      // Atualizando configuração existente
       await db
         .update(systemSettings)
         .set({ 
@@ -564,7 +559,7 @@ class EmailConfigService {
         })
         .where(eq(systemSettings.id, existing.id));
     } else {
-      console.log(`[DEBUG Email Config] Criando nova configuração: ${compositeKey}`);
+      // Criando nova configuração
       await db
         .insert(systemSettings)
         .values({
@@ -576,7 +571,7 @@ class EmailConfigService {
         });
     }
     
-    console.log(`[DEBUG Email Config] Configuração ${compositeKey} salva com sucesso!`);
+    // Configuração salva com sucesso
   }
 }
 

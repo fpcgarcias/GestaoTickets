@@ -902,12 +902,21 @@ export class MemStorage implements IStorage {
       return 0;
     }
     
-    // Calcular tempo médio de primeira resposta em horas (implementação simples para MemStorage)
-    // TODO: Implementar lógica de períodos suspensos quando necessário
+    // CORRIGIDO: Usar horário comercial igual ao SLA (8h às 17h, segunda a sexta)
+    // Importar função de cálculo de horário comercial
+    const { calculateBusinessTimeMs } = await import('@shared/utils/sla-calculator');
+    
+    const businessHours = {
+      startHour: 8,
+      endHour: 17,
+      workDays: [1, 2, 3, 4, 5] // Segunda a sexta
+    };
+    
     const totalResponseTime = ticketsWithFirstResponse.reduce((sum, ticket) => {
       const createdAt = new Date(ticket.createdAt);
       const firstResponseAt = new Date(ticket.firstResponseAt!);
-      const responseTime = (firstResponseAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+      // Usar cálculo de horário comercial em vez de tempo total
+      const responseTime = calculateBusinessTimeMs(createdAt, firstResponseAt, businessHours) / (1000 * 60 * 60);
       return sum + responseTime;
     }, 0);
     
@@ -938,12 +947,21 @@ export class MemStorage implements IStorage {
       return 0;
     }
     
-    // Calcular tempo médio de resolução em horas (implementação simples para MemStorage)
-    // TODO: Implementar lógica de períodos suspensos quando necessário
+    // CORRIGIDO: Usar horário comercial igual ao SLA (8h às 17h, segunda a sexta)
+    // Importar função de cálculo de horário comercial
+    const { calculateBusinessTimeMs } = await import('@shared/utils/sla-calculator');
+    
+    const businessHours = {
+      startHour: 8,
+      endHour: 17,
+      workDays: [1, 2, 3, 4, 5] // Segunda a sexta
+    };
+    
     const totalResolutionTime = resolvedTickets.reduce((sum, ticket) => {
       const createdAt = new Date(ticket.createdAt);
       const resolvedAt = new Date(ticket.resolvedAt!);
-      const resolutionTime = (resolvedAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+      // Usar cálculo de horário comercial em vez de tempo total
+      const resolutionTime = calculateBusinessTimeMs(createdAt, resolvedAt, businessHours) / (1000 * 60 * 60);
       return sum + resolutionTime;
     }, 0);
     

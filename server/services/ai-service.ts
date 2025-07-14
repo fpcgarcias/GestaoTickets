@@ -293,8 +293,7 @@ Prioridade:`;
       const adjustedConfig = this.adjustPromptsForDepartment(config, departmentPrioritiesList);
       
       // DEBUG: Log do prompt ajustado
-      console.log('[AI DEBUG] System Prompt:', adjustedConfig.system_prompt);
-      console.log('[AI DEBUG] User Prompt:', adjustedConfig.user_prompt_template);
+          // Prompts configurados
 
       // Obter o provedor correto
       const provider = this.providers.get(config.provider);

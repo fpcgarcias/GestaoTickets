@@ -113,19 +113,8 @@ function getNextBusinessHour(date: Date, businessHours: BusinessHours = DEFAULT_
 /**
  * Calcula o tempo em milissegundos entre duas datas considerando apenas horário comercial
  */
-function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: BusinessHours = DEFAULT_BUSINESS_HOURS): number {
+export function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: BusinessHours = DEFAULT_BUSINESS_HOURS): number {
   if (startDate >= endDate) return 0;
-  
-  // Debug temporário para encontrar o bug
-  const isDebugMode = endDate.getFullYear() === 2025 && endDate.getMonth() === 6; // Julho 2025
-  
-  if (isDebugMode && process.env.NODE_ENV !== 'production') {
-    console.log(`[DEBUG] calculateBusinessTimeMs:`, {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      businessHours
-    });
-  }
   
   let totalBusinessTime = 0;
   const current = new Date(startDate);
@@ -136,14 +125,6 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
   
   while (current < endDate && dayCount < 10) { // Proteção contra loop infinito
     const currentDay = current.getDay();
-    
-    if (isDebugMode && process.env.NODE_ENV !== 'production') {
-      console.log(`[DEBUG] Processando dia ${dayCount}:`, {
-        currentDate: current.toISOString(),
-        dayOfWeek: currentDay,
-        isWorkDay: businessHours.workDays.includes(currentDay)
-      });
-    }
     
     // Se é um dia útil
     if (businessHours.workDays.includes(currentDay)) {
@@ -159,44 +140,17 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
       // Determinar o fim efetivo (menor entre endDate e fim do dia)
       const effectiveEnd = endDate < dayEnd ? endDate : dayEnd;
       
-      if (isDebugMode && process.env.NODE_ENV !== 'production') {
-        console.log(`[DEBUG] Período efetivo dia ${dayCount}:`, {
-          dayStart: dayStart.toISOString(),
-          dayEnd: dayEnd.toISOString(),
-          effectiveStart: effectiveStart.toISOString(),
-          effectiveEnd: effectiveEnd.toISOString()
-        });
-      }
-      
       // Se há sobreposição no dia atual
       if (effectiveStart < effectiveEnd) {
         const dayTime = effectiveEnd.getTime() - effectiveStart.getTime();
         totalBusinessTime += dayTime;
-        
-        if (isDebugMode && process.env.NODE_ENV !== 'production') {
-          console.log(`[DEBUG] Tempo adicionado dia ${dayCount}:`, {
-            dayTimeMs: dayTime,
-            dayTimeHours: dayTime / (1000 * 60 * 60),
-            totalSoFarHours: totalBusinessTime / (1000 * 60 * 60)
-          });
-        }
       }
-    } else if (isDebugMode && process.env.NODE_ENV !== 'production') {
-      console.log(`[DEBUG] Dia ${dayCount} é fim de semana/feriado - ignorado`);
     }
     
     // Ir para o próximo dia
     current.setDate(current.getDate() + 1);
     current.setHours(businessHours.startHour, 0, 0, 0);
     dayCount++;
-  }
-  
-  if (isDebugMode && process.env.NODE_ENV !== 'production') {
-    console.log(`[DEBUG] Resultado final:`, {
-      totalBusinessTimeMs: totalBusinessTime,
-      totalBusinessTimeHours: totalBusinessTime / (1000 * 60 * 60),
-      daysProcessed: dayCount
-    });
   }
   
   return totalBusinessTime;
