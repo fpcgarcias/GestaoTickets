@@ -46,8 +46,8 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
   // Buscar prioridades do departamento para obter informações adicionais
   const { data: priorities = [] } = usePriorities(departmentId || undefined);
   
-  // Determinar se o usuário é cliente
-  const isCustomer = user?.role === 'customer';
+  // Determinar se o usuário é cliente NESTE TICKET específico
+  const isCustomerForThisTicket = user?.role === 'customer' || ticket.userContext === 'customer';
   
   const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
     queryKey: ['/api/officials', departmentId],
@@ -62,6 +62,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
       return res.json();
     },
     staleTime: 5 * 60 * 1000,
+    enabled: !isCustomerForThisTicket, // Só buscar se não for cliente neste ticket
   });
 
   const allOfficialsData = officialsResponse?.data || [];
@@ -81,7 +82,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
     if (!assignedToId) return 'Não atribuído';
     
     // Para clientes, usar informação básica do ticket se disponível
-    if (isCustomer) {
+    if (isCustomerForThisTicket) {
       // Se o ticket tem informação do oficial diretamente, usar
       if (ticket.official?.name) {
         return ticket.official.name;
@@ -143,7 +144,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
           </div>
           
           <div className="flex items-center gap-2">
-            {isCustomer ? (
+            {isCustomerForThisTicket ? (
               // Para clientes: dropdown bloqueado
               <div className="flex items-center gap-2">
                 <Select 

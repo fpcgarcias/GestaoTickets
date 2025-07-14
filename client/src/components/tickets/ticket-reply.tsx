@@ -43,10 +43,10 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   
-  // Determinar se o usuário é cliente
-  const isCustomer = user?.role === 'customer';
-  const canModifyStatus = !isCustomer;
-  const canModifyAssignment = !isCustomer;
+  // Determinar se o usuário é cliente NESTE TICKET específico
+  const isCustomerForThisTicket = user?.role === 'customer' || ticket.userContext === 'customer';
+  const canModifyStatus = !isCustomerForThisTicket;
+  const canModifyAssignment = !isCustomerForThisTicket;
   
   // Buscar a lista de atendentes disponíveis (apenas para não-clientes)
   const { data: officialsResponse, isLoading: isLoadingOfficials } = useQuery({
@@ -61,7 +61,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
       if (!res.ok) throw new Error('Erro ao carregar atendentes');
       return res.json();
     },
-    enabled: !isCustomer, // Só busca se não for cliente
+    enabled: !isCustomerForThisTicket, // Só busca se não for cliente neste ticket
   });
 
   const officials = officialsResponse?.data || [];
@@ -146,8 +146,8 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     console.log("❌ Erros do formulário:", formErrors);
     
     // Para clientes, sempre manter status e atendente originais
-    const statusToUse = isCustomer ? ticket.status : data.status;
-    const assignedToUse = isCustomer ? ticket.assigned_to_id : data.assigned_to_id;
+    const statusToUse = isCustomerForThisTicket ? ticket.status : data.status;
+    const assignedToUse = isCustomerForThisTicket ? ticket.assigned_to_id : data.assigned_to_id;
     
     // Verificar se o status foi alterado para registrar no histórico
     const statusChanged = statusToUse !== ticket.status;
@@ -181,7 +181,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   // Adicionar log para verificar se o formulário está sendo criado corretamente
   console.log("🎯 Ticket carregado:", ticket);
   console.log("🎯 Usuário atual:", user);
-  console.log("🎯 É cliente?", isCustomer);
+  console.log("🎯 É cliente?", isCustomerForThisTicket);
   console.log("🎯 Valores padrão do formulário:", {
     ticket_id: ticket.id,
     message: '',
@@ -259,7 +259,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    {isCustomer ? (
+                    {isCustomerForThisTicket ? (
                       // Para clientes: campo somente-leitura mostrando o status atual
                       <Input 
                         value={getStatusConfig(ticket.status as TicketStatus).label}
@@ -321,7 +321,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Atendente Responsável</FormLabel>
-                    {isCustomer ? (
+                    {isCustomerForThisTicket ? (
                       // Para clientes: campo somente-leitura mostrando o atendente atual
                       <Input 
                         value={getCurrentOfficialName()}

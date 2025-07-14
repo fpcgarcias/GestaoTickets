@@ -59,30 +59,30 @@ export class AiService {
   }
 
   /**
-   * Faz matching case-insensitive entre a resposta da IA e as prioridades do banco
-   * Retorna EXATAMENTE o nome da prioridade como está no banco
+   * Faz matching entre a resposta da IA e as prioridades do banco
+   * AGORA PRIORIZA manter o formato exato retornado pela IA se existe no banco
    */
   private matchPriorityFromBank(aiPriority: string, departmentPriorities: DepartmentPriority[]): string {
-    // 1. Buscar match exato primeiro (caso raro, mas possível)
+    // 1. Buscar match exato primeiro - SE EXISTE, usar EXATAMENTE como a IA retornou
     for (const priority of departmentPriorities) {
       if (priority.name === aiPriority) {
-        console.log(`[AI] Match exato encontrado: "${aiPriority}" → "${priority.name}"`);
-        return priority.name;
+        console.log(`[AI] ✅ Match exato encontrado: IA retornou "${aiPriority}" e existe no banco. Mantendo formato da IA.`);
+        return aiPriority; // RETORNA EXATAMENTE como a IA enviou
       }
     }
     
-    // 2. Buscar match case-insensitive
+    // 2. Buscar match case-insensitive - retorna o formato do banco
     const lowercaseAI = aiPriority.toLowerCase();
     for (const priority of departmentPriorities) {
       if (priority.name.toLowerCase() === lowercaseAI) {
-        console.log(`[AI] Match case-insensitive: "${aiPriority}" → "${priority.name}"`);
-        return priority.name; // Retorna EXATAMENTE como está no banco
+        console.log(`[AI] ⚠️ Match case-insensitive: IA retornou "${aiPriority}" → usando formato do banco "${priority.name}"`);
+        return priority.name; // Retorna como está no banco
       }
     }
     
     // 3. Fallback: usar a prioridade de menor peso (mais baixa)
     const fallbackPriority = departmentPriorities.sort((a, b) => a.weight - b.weight)[0];
-    console.warn(`[AI] Prioridade "${aiPriority}" não encontrada. Usando fallback: "${fallbackPriority.name}"`);
+    console.warn(`[AI] ❌ Prioridade "${aiPriority}" não encontrada. Usando fallback: "${fallbackPriority.name}"`);
     return fallbackPriority.name;
   }
 
@@ -408,12 +408,13 @@ Prioridade:`;
         return null;
       }
 
-      // Buscar configuração específica do departamento (ativa e padrão)
-      const [departmentConfig] = await database
+      // 1. Buscar configuração específica da empresa + departamento (ativa e padrão)
+      const [specificConfig] = await database
         .select()
         .from(schema.aiConfigurations)
         .where(
           and(
+            eq(schema.aiConfigurations.company_id, companyId),
             eq(schema.aiConfigurations.department_id, departmentId),
             eq(schema.aiConfigurations.is_active, true),
             eq(schema.aiConfigurations.is_default, true)
@@ -421,29 +422,87 @@ Prioridade:`;
         )
         .limit(1);
 
-      if (departmentConfig) {
-        console.log(`[AI] Usando configuração padrão do departamento ${departmentId}`);
-        return departmentConfig;
+      if (specificConfig) {
+        console.log(`[AI] Usando configuração específica padrão: empresa ${companyId}, departamento ${departmentId}`);
+        return specificConfig;
       }
 
-      // Se não tem configuração padrão, buscar qualquer configuração ativa do departamento
-      const [anyDepartmentConfig] = await database
+      // 2. Buscar qualquer configuração ativa da empresa + departamento
+      const [anySpecificConfig] = await database
         .select()
         .from(schema.aiConfigurations)
         .where(
           and(
+            eq(schema.aiConfigurations.company_id, companyId),
             eq(schema.aiConfigurations.department_id, departmentId),
             eq(schema.aiConfigurations.is_active, true)
           )
         )
         .limit(1);
 
-      if (anyDepartmentConfig) {
-        console.log(`[AI] Usando configuração ativa do departamento ${departmentId}`);
-        return anyDepartmentConfig;
+      if (anySpecificConfig) {
+        console.log(`[AI] Usando configuração específica ativa: empresa ${companyId}, departamento ${departmentId}`);
+        return anySpecificConfig;
       }
 
-      console.log(`[AI] Nenhuma configuração de IA encontrada para departamento ${departmentId}`);
+      // 3. Buscar configuração geral da empresa (sem departamento específico)
+      const [companyConfig] = await database
+        .select()
+        .from(schema.aiConfigurations)
+        .where(
+          and(
+            eq(schema.aiConfigurations.company_id, companyId),
+            isNull(schema.aiConfigurations.department_id),
+            eq(schema.aiConfigurations.is_active, true)
+          )
+        )
+        .orderBy(schema.aiConfigurations.is_default)
+        .limit(1);
+
+      if (companyConfig) {
+        console.log(`[AI] Usando configuração geral da empresa: ${companyId}`);
+        return companyConfig;
+      }
+
+      // 4. Buscar configuração global específica por departamento (sem empresa, mas com departamento)
+      const [globalDepartmentConfig] = await database
+        .select()
+        .from(schema.aiConfigurations)
+        .where(
+          and(
+            isNull(schema.aiConfigurations.company_id),
+            eq(schema.aiConfigurations.department_id, departmentId),
+            eq(schema.aiConfigurations.is_active, true)
+          )
+        )
+        .orderBy(schema.aiConfigurations.is_default)
+        .limit(1);
+
+      if (globalDepartmentConfig) {
+        console.log(`[AI] Usando configuração global específica por departamento: ${departmentId}`);
+        return globalDepartmentConfig;
+      }
+
+      // 5. Fallback: buscar configuração global (sem empresa e sem departamento)
+      const [globalConfig] = await database
+        .select()
+        .from(schema.aiConfigurations)
+        .where(
+          and(
+            isNull(schema.aiConfigurations.company_id),
+            isNull(schema.aiConfigurations.department_id),
+            eq(schema.aiConfigurations.is_active, true)
+          )
+        )
+        .orderBy(schema.aiConfigurations.is_default)
+        .limit(1);
+
+      if (globalConfig) {
+        console.log(`[AI] Usando configuração global (fallback)`);
+        return globalConfig;
+      }
+
+      console.log(`[AI] Nenhuma configuração de IA encontrada para empresa ${companyId}, departamento ${departmentId}`);
       return null;
 
     } catch (error) {

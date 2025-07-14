@@ -252,7 +252,7 @@ export function addBusinessTime(startDate: Date, businessHoursToAdd: number, bus
 /**
  * Calcula tempo de SLA efetivo considerando períodos pausados
  */
-function calculateEffectiveBusinessTime(
+export function calculateEffectiveBusinessTime(
   ticketCreatedAt: Date,
   currentTime: Date,
   statusPeriods: StatusPeriod[],

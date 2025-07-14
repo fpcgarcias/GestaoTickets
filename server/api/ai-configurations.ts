@@ -8,6 +8,8 @@ import { AiService } from "../services/ai-service";
 export async function getAiConfigurations(req: Request, res: Response) {
   try {
     const { department_id } = req.query;
+    const userRole = req.session?.userRole;
+    const userCompanyId = req.session?.companyId;
 
     let baseQuery = db
       .select({
@@ -20,6 +22,7 @@ export async function getAiConfigurations(req: Request, res: Response) {
         system_prompt: schema.aiConfigurations.system_prompt,
         user_prompt_template: schema.aiConfigurations.user_prompt_template,
         department_id: schema.aiConfigurations.department_id,
+        company_id: schema.aiConfigurations.company_id,
         is_active: schema.aiConfigurations.is_active,
         is_default: schema.aiConfigurations.is_default,
         temperature: schema.aiConfigurations.temperature,
@@ -36,18 +39,36 @@ export async function getAiConfigurations(req: Request, res: Response) {
       .leftJoin(schema.users, eq(schema.aiConfigurations.created_by_id, schema.users.id))
       .leftJoin(schema.departments, eq(schema.aiConfigurations.department_id, schema.departments.id));
 
-    // Aplicar filtros se especificados
-    let configurations;
+    // Construir condições de filtro
+    let whereConditions: any[] = [];
+
+    // Filtrar por empresa (exceto para admin)
+    if (userRole !== 'admin' && userCompanyId) {
+      // Para usuários não-admin: mostrar apenas configurações da sua empresa
+      whereConditions.push(eq(schema.aiConfigurations.company_id, userCompanyId));
+    } else if (userRole === 'admin') {
+      // Para admin: mostrar todas as configurações (globais e específicas de empresas)
+      // Sem filtro de empresa
+    }
+
+    // Filtrar por departamento se especificado
     if (department_id) {
       if (department_id === 'global') {
-        configurations = await baseQuery.where(isNull(schema.aiConfigurations.department_id))
-          .orderBy(desc(schema.aiConfigurations.created_at));
+        whereConditions.push(isNull(schema.aiConfigurations.department_id));
       } else {
-        configurations = await baseQuery.where(eq(schema.aiConfigurations.department_id, parseInt(department_id as string)))
-          .orderBy(desc(schema.aiConfigurations.created_at));
+        whereConditions.push(eq(schema.aiConfigurations.department_id, parseInt(department_id as string)));
       }
+    }
+
+    // Aplicar filtros
+    let configurations;
+    if (whereConditions.length > 0) {
+      configurations = await baseQuery
+        .where(and(...whereConditions))
+        .orderBy(desc(schema.aiConfigurations.created_at));
     } else {
-      configurations = await baseQuery.orderBy(desc(schema.aiConfigurations.created_at));
+      configurations = await baseQuery
+        .orderBy(desc(schema.aiConfigurations.created_at));
     }
 
     res.json(configurations);
@@ -61,6 +82,8 @@ export async function getAiConfigurations(req: Request, res: Response) {
 export async function createAiConfiguration(req: Request, res: Response) {
   try {
     const userId = req.session.userId;
+    const userRole = req.session?.userRole;
+    const userCompanyId = req.session?.companyId;
 
     const {
       name,
@@ -93,7 +116,23 @@ export async function createAiConfiguration(req: Request, res: Response) {
       });
     }
 
-    // Se for definida como padrão, desativar outras configurações padrão do mesmo departamento
+    // Definir company_id baseado no papel do usuário
+    let targetCompanyId: number | null = null;
+    if (userRole === 'admin') {
+      // Admin pode criar configurações globais (company_id: null) ou para empresas específicas
+      // Se não especificar company_id no body, será global
+      targetCompanyId = req.body.company_id || null;
+    } else {
+      // Usuários não-admin só podem criar configurações para sua própria empresa
+      if (!userCompanyId) {
+        return res.status(400).json({ 
+          message: "Usuário deve estar associado a uma empresa para criar configurações de IA" 
+        });
+      }
+      targetCompanyId = userCompanyId;
+    }
+
+    // Se for definida como padrão, desativar outras configurações padrão do mesmo departamento e empresa
     if (is_default) {
       await db
         .update(schema.aiConfigurations)
@@ -101,6 +140,7 @@ export async function createAiConfiguration(req: Request, res: Response) {
         .where(
           and(
             eq(schema.aiConfigurations.department_id, department_id),
+            targetCompanyId ? eq(schema.aiConfigurations.company_id, targetCompanyId) : isNull(schema.aiConfigurations.company_id),
             eq(schema.aiConfigurations.is_default, true)
           )
         );
@@ -118,6 +158,7 @@ export async function createAiConfiguration(req: Request, res: Response) {
         system_prompt,
         user_prompt_template,
         department_id,
+        company_id: targetCompanyId,
         temperature: temperature || '0.1',
         max_tokens: max_tokens || 100,
         timeout_seconds: timeout_seconds || 30,
@@ -227,6 +268,7 @@ Prioridade:`;
       system_prompt: finalSystemPrompt,
       user_prompt_template: finalUserPrompt,
       department_id: department_id || null,
+      company_id: null,
       temperature: '0.1',
       max_tokens: 100,
       timeout_seconds: 30,
@@ -268,6 +310,8 @@ export async function updateAiConfiguration(req: Request, res: Response) {
   try {
     const configurationId = parseInt(req.params.id);
     const userId = req.session.userId;
+    const userRole = req.session?.userRole;
+    const userCompanyId = req.session?.companyId;
 
     if (isNaN(configurationId)) {
       return res.status(400).json({ message: "ID de configuração inválido" });
@@ -310,7 +354,24 @@ export async function updateAiConfiguration(req: Request, res: Response) {
       });
     }
 
-    // Se for definida como padrão, desativar outras configurações padrão do mesmo departamento
+    // Definir company_id baseado no papel do usuário
+    let targetCompanyId: number | null = existingConfig.company_id;
+    if (userRole === 'admin') {
+      // Admin pode alterar company_id (ou deixar como null para global)
+      if (req.body.company_id !== undefined) {
+        targetCompanyId = req.body.company_id;
+      }
+    } else {
+      // Usuários não-admin só podem editar configurações da sua própria empresa
+      if (existingConfig.company_id !== userCompanyId) {
+        return res.status(403).json({ 
+          message: "Você não pode editar configurações de outras empresas" 
+        });
+      }
+      targetCompanyId = userCompanyId;
+    }
+
+    // Se for definida como padrão, desativar outras configurações padrão do mesmo departamento e empresa
     if (is_default && !existingConfig.is_default) {
       await db
         .update(schema.aiConfigurations)
@@ -318,6 +379,7 @@ export async function updateAiConfiguration(req: Request, res: Response) {
         .where(
           and(
             eq(schema.aiConfigurations.department_id, targetDepartmentId),
+            targetCompanyId ? eq(schema.aiConfigurations.company_id, targetCompanyId) : isNull(schema.aiConfigurations.company_id),
             eq(schema.aiConfigurations.is_default, true),
             ne(schema.aiConfigurations.id, configurationId)
           )
@@ -336,6 +398,7 @@ export async function updateAiConfiguration(req: Request, res: Response) {
         system_prompt,
         user_prompt_template,
         department_id: targetDepartmentId,
+        company_id: targetCompanyId,
         temperature,
         max_tokens,
         timeout_seconds,
