@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,8 +37,8 @@ const CategoryManagement: React.FC = () => {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  
-  // Estados para o formulário
+
+  // Estados para o formulário (recolocados)
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<CategoryFormData>({
@@ -50,7 +50,24 @@ const CategoryManagement: React.FC = () => {
   });
   const [isEditing, setIsEditing] = useState(false);
 
-  // Buscar a lista de tipos de incidente
+  // Remover:
+  // const [userDepartments, setUserDepartments] = useState<number[]>([]);
+  // const [loadingDepartments, setLoadingDepartments] = useState(false);
+  // useEffect(() => { ... fetchDepartments ... }, [user]);
+
+  // Buscar departamentos igual à tela de tickets
+  const { data: departmentsResponse, isLoading: isDepartmentsLoading } = useQuery({
+    queryKey: ['/api/departments', { active_only: true }],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/departments?active_only=true');
+      if (!res.ok) throw new Error('Erro ao carregar departamentos');
+      return res.json();
+    },
+    enabled: !!user,
+  });
+  const departments = departmentsResponse?.departments || departmentsResponse || [];
+
+  // Buscar a lista de tipos de incidente normalmente
   const { 
     data: incidentTypesResponse, 
     isLoading: isLoadingIncidentTypes,
@@ -72,9 +89,15 @@ const CategoryManagement: React.FC = () => {
       }
       return response.json();
     },
+    enabled: !!user,
   });
+  const allIncidentTypes = incidentTypesResponse?.incidentTypes || [];
 
-  const incidentTypes = incidentTypesResponse?.incidentTypes || [];
+  // Filtrar incidentTypes para mostrar apenas os tipos do(s) departamento(s) do usuário
+  const allowedDepartmentIds = user?.role === 'admin' ? null : departments.map((d: any) => d.id);
+  const incidentTypes = allowedDepartmentIds
+    ? allIncidentTypes.filter((it) => allowedDepartmentIds.includes(it.department_id))
+    : allIncidentTypes;
 
   // Buscar a lista de empresas (apenas para admin)
   const { data: companies = [] } = useQuery<any[]>({
@@ -417,6 +440,7 @@ const CategoryManagement: React.FC = () => {
                 <Select
                   value={selectedIncidentTypeId?.toString() || "all"}
                   onValueChange={(value) => handleIncidentTypeChange(value === "all" ? undefined : parseInt(value))}
+                  disabled={isLoadingIncidentTypes || isDepartmentsLoading}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Filtrar por tipo" />

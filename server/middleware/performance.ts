@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { performance } from 'perf_hooks';
+import * as os from 'os';
 
 // Interface para métricas de performance
 interface PerformanceMetrics {
@@ -119,19 +120,132 @@ export const clearOldMetrics = () => {
   console.log('📊 Métricas de performance limpas');
 };
 
+// Função para agrupar erros por endpoint, método e status
+const getErrorDetails = (limit = 10) => {
+  const errorMap = new Map<string, { count: number; method: string; path: string; statusCode: number }>();
+  for (const metric of performanceMetrics) {
+    if (metric.statusCode >= 400) {
+      const key = `${metric.method} ${metric.path} ${metric.statusCode}`;
+      if (!errorMap.has(key)) {
+        errorMap.set(key, { count: 0, method: metric.method, path: metric.path, statusCode: metric.statusCode });
+      }
+      errorMap.get(key)!.count++;
+    }
+  }
+  return Array.from(errorMap.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+};
+
+// Função para distribuição de status codes
+const getStatusCodeDistribution = () => {
+  const dist: Record<string, number> = {};
+  for (const metric of performanceMetrics) {
+    const code = `${metric.statusCode}`;
+    dist[code] = (dist[code] || 0) + 1;
+  }
+  return dist;
+};
+
+// Função para top endpoints por volume
+const getTopEndpoints = (limit = 10) => {
+  const endpointMap = new Map<string, { count: number; method: string; path: string }>();
+  for (const metric of performanceMetrics) {
+    const key = `${metric.method} ${metric.path}`;
+    if (!endpointMap.has(key)) {
+      endpointMap.set(key, { count: 0, method: metric.method, path: metric.path });
+    }
+    endpointMap.get(key)!.count++;
+  }
+  return Array.from(endpointMap.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+};
+
+// Função para top endpoints por tempo médio de resposta
+const getTopEndpointsByAvgTime = (limit = 10) => {
+  const endpointMap = new Map<string, { totalTime: number; count: number; method: string; path: string }>();
+  for (const metric of performanceMetrics) {
+    const key = `${metric.method} ${metric.path}`;
+    if (!endpointMap.has(key)) {
+      endpointMap.set(key, { totalTime: 0, count: 0, method: metric.method, path: metric.path });
+    }
+    const entry = endpointMap.get(key)!;
+    entry.totalTime += metric.duration;
+    entry.count++;
+  }
+  return Array.from(endpointMap.values())
+    .map(e => ({
+      method: e.method,
+      path: e.path,
+      avgDuration: Math.round(e.totalTime / e.count),
+      count: e.count
+    }))
+    .sort((a, b) => b.avgDuration - a.avgDuration)
+    .slice(0, limit);
+};
+
+// Função para percentual de erros por endpoint
+const getErrorRateByEndpoint = (limit = 10, minReqs = 5) => {
+  const endpointMap = new Map<string, { errors: number; total: number; method: string; path: string }>();
+  for (const metric of performanceMetrics) {
+    const key = `${metric.method} ${metric.path}`;
+    if (!endpointMap.has(key)) {
+      endpointMap.set(key, { errors: 0, total: 0, method: metric.method, path: metric.path });
+    }
+    const entry = endpointMap.get(key)!;
+    entry.total++;
+    if (metric.statusCode >= 400) entry.errors++;
+  }
+  return Array.from(endpointMap.values())
+    .filter(e => e.total >= minReqs)
+    .map(e => ({
+      method: e.method,
+      path: e.path,
+      errorRate: Math.round((e.errors / e.total) * 10000) / 100,
+      total: e.total,
+      errors: e.errors
+    }))
+    .sort((a, b) => b.errorRate - a.errorRate)
+    .slice(0, limit);
+};
+
 // Middleware para endpoints de métricas (apenas admin)
 export const performanceStatsHandler = (req: Request, res: Response) => {
   const stats = getPerformanceStats();
   const slowestRequests = getSlowestRequests();
-  
+  const errorDetails = getErrorDetails(); // Detalhamento dos erros
+  const statusCodeDistribution = getStatusCodeDistribution(); // Distribuição de status codes
+  const topEndpoints = getTopEndpoints(); // Top endpoints por volume
+  const topEndpointsByAvgTime = getTopEndpointsByAvgTime(); // Top endpoints por tempo médio
+  const errorRateByEndpoint = getErrorRateByEndpoint(); // Percentual de erro por endpoint
+
+  // Cálculo de uso médio de CPU
+  let cpuUsage = undefined;
+  if (typeof process.cpuUsage === 'function') {
+    const usage = process.cpuUsage();
+    // user + system em microssegundos, dividir por 1_000_000 para segundos
+    const totalMicros = usage.user + usage.system;
+    const uptime = process.uptime();
+    if (uptime > 0) {
+      cpuUsage = totalMicros / 1_000_000 / uptime / os.cpus().length;
+    }
+  }
+
   res.json({
     stats,
     slowestRequests,
+    errorDetails, // Novo: detalhamento dos erros
+    statusCodeDistribution, // Novo: distribuição de status codes
+    topEndpoints, // Novo: top endpoints por volume
+    topEndpointsByAvgTime, // Novo: top endpoints por tempo médio
+    errorRateByEndpoint, // Novo: percentual de erro por endpoint
     systemInfo: {
       nodeVersion: process.version,
       platform: process.platform,
       uptime: Math.round(process.uptime()),
-      memory: process.memoryUsage()
+      memory: process.memoryUsage(),
+      cpuUsage
     }
   });
 }; 

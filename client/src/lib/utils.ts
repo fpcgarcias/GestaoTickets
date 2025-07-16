@@ -18,12 +18,7 @@ export function formatDate(date: Date | string | number): string {
   });
 }
 
-export function generateTicketId(): string {
-  const year = new Date().getFullYear();
-  const letters = 'CS';
-  const numbers = Math.floor(Math.random() * 9000) + 1000;
-  return `${year}-${letters}${numbers}`;
-}
+
 
 export const TICKET_STATUS = {
   NEW: 'new',

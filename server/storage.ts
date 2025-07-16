@@ -16,7 +16,7 @@ import {
   InsertOfficialDepartment,
   ticketStatusEnum, ticketPriorityEnum, userRoleEnum
 } from "@shared/schema";
-import { generateTicketId } from "../client/src/lib/utils";
+import { generateTicketId } from "@shared/utils";
 
 // Interface for storage operations
 export interface IStorage {
@@ -58,6 +58,24 @@ export interface IStorage {
   
   // Ticket filtering by user role
   getTicketsByUserRole(userId: number, userRole: string): Promise<Ticket[]>;
+  getTicketsByUserRolePaginated?(
+    userId: number,
+    userRole: string,
+    filters: {
+      search?: string;
+      status?: string;
+      priority?: string;
+      department_id?: number;
+      assigned_to_id?: number;
+      unassigned?: boolean;
+      hide_resolved?: boolean;
+      time_filter?: string;
+      date_from?: string;
+      date_to?: string;
+    },
+    page?: number,
+    limit?: number
+  ): Promise<{ data: Ticket[]; pagination: { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean } }>;
   
   // Ticket operations
   getTickets(): Promise<Ticket[]>;
@@ -828,6 +846,97 @@ export class MemStorage implements IStorage {
     
     // Se não for nenhum papel conhecido, retorna array vazio
     return [];
+  }
+
+  async getTicketsByUserRolePaginated(
+    userId: number,
+    userRole: string,
+    filters: {
+      search?: string;
+      status?: string;
+      priority?: string;
+      department_id?: number;
+      assigned_to_id?: number;
+      unassigned?: boolean;
+      hide_resolved?: boolean;
+      time_filter?: string;
+      date_from?: string;
+      date_to?: string;
+    },
+    page?: number,
+    limit?: number
+  ): Promise<{ data: Ticket[]; pagination: { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean } }> {
+    let userTickets = await this.getTicketsByUserRole(userId, userRole);
+
+    // Apply filters
+    if (filters.search) {
+      const searchTerm = filters.search.toLowerCase();
+      userTickets = userTickets.filter(ticket =>
+        ticket.title.toLowerCase().includes(searchTerm) ||
+        ticket.description.toLowerCase().includes(searchTerm) ||
+        ticket.ticketId.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    if (filters.status) {
+      userTickets = userTickets.filter(ticket => ticket.status === filters.status);
+    }
+
+    if (filters.priority) {
+      userTickets = userTickets.filter(ticket => ticket.priority === filters.priority);
+    }
+
+    if (filters.department_id) {
+      userTickets = userTickets.filter(ticket => ticket.departmentId === filters.department_id);
+    }
+
+    if (filters.assigned_to_id) {
+      userTickets = userTickets.filter(ticket => ticket.assignedToId === filters.assigned_to_id);
+    }
+
+    if (filters.unassigned) {
+      userTickets = userTickets.filter(ticket => !ticket.assignedToId);
+    }
+
+    if (filters.hide_resolved) {
+      userTickets = userTickets.filter(ticket => ticket.status !== 'resolved');
+    }
+
+    if (filters.time_filter === 'first_response') {
+      userTickets = userTickets.filter(ticket => ticket.firstResponseAt);
+    } else if (filters.time_filter === 'resolution') {
+      userTickets = userTickets.filter(ticket => ticket.resolvedAt);
+    }
+
+    if (filters.date_from) {
+      const dateFrom = new Date(filters.date_from);
+      userTickets = userTickets.filter(ticket => new Date(ticket.createdAt) >= dateFrom);
+    }
+
+    if (filters.date_to) {
+      const dateTo = new Date(filters.date_to);
+      userTickets = userTickets.filter(ticket => new Date(ticket.createdAt) <= dateTo);
+    }
+
+    const total = userTickets.length;
+    const totalPages = Math.ceil(total / (limit || 10));
+    const hasNext = page && page < totalPages;
+    const hasPrev = page && page > 1;
+
+    const start = (page || 1) * (limit || 10) - (limit || 10);
+    const end = start + (limit || 10);
+
+    return {
+      data: userTickets.slice(start, end),
+      pagination: {
+        page: page || 1,
+        limit: limit || 10,
+        total,
+        totalPages,
+        hasNext,
+        hasPrev,
+      },
+    };
   }
 
   async getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {

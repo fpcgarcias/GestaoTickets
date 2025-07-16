@@ -70,30 +70,20 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const { data: incidentTypesData, isLoading: isLoadingIncidentTypes } = useQuery<{incidentTypes: IncidentType[], pagination?: any}>({
     queryKey: ["/api/incident-types", { active_only: true }],
     queryFn: async () => {
-      console.log("🔍 [DEBUG] Buscando tipos de incidentes...");
       const response = await apiRequest('GET', '/api/incident-types?active_only=true');
       const data = await response.json();
-      console.log("📊 [DEBUG] Tipos de incidentes recebidos:", data);
       return data;
     },
   });
 
   // Garantir que incidentTypes é um array
   const incidentTypes = Array.isArray(incidentTypesData?.incidentTypes) ? incidentTypesData.incidentTypes : [];
-  console.log("🎯 [DEBUG] Ticket department_id:", ticket.department_id);
-  console.log("📋 [DEBUG] incidentTypes processados:", incidentTypes);
 
   // Filtrar tipos de incidentes pelo departamento do ticket
   const filteredIncidentTypes = ticket.department_id && Array.isArray(incidentTypes)
     ? incidentTypes.filter((type: IncidentType) => type.department_id === ticket.department_id)
     : (incidentTypes || []);
     
-  console.log("🔍 [DEBUG] Tipos filtrados por departamento:", filteredIncidentTypes);
-  console.log("🔍 [DEBUG] Comparando:", {
-    ticketDeptId: ticket.department_id,
-    availableTypes: incidentTypes.map((t: IncidentType) => ({ id: t.id, name: t.name, dept_id: t.department_id }))
-  });
-
   // Estender o tipo do formulário para incluir incidentTypeId
   const formSchema = insertTicketReplySchema.extend({
     incidentTypeId: z.number().optional(),
@@ -139,11 +129,9 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   });
 
   const onSubmit = (data: any) => {
-    console.log("🚀 onSubmit chamado com dados:", data);
     
     // Verificar se o formulário é válido
     const formErrors = form.formState.errors;
-    console.log("❌ Erros do formulário:", formErrors);
     
     // Para clientes, sempre manter status e atendente originais
     const statusToUse = isCustomerForThisTicket ? ticket.status : data.status;
@@ -151,21 +139,22 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     
     // Verificar se o status foi alterado para registrar no histórico
     const statusChanged = statusToUse !== ticket.status;
-    console.log("📊 Status mudou?", statusChanged, "De:", ticket.status, "Para:", statusToUse);
     
     // Transformar os dados para o formato esperado pela API
-    const requestData = {
+    const requestData: any = {
       ticket_id: data.ticket_id || ticket.id,
       message: data.message || "Status atualizado automaticamente",
       status: statusToUse,
-      assigned_to_id: assignedToUse,
       type: data.type,
       is_internal: false,
       statusChanged: statusChanged,
       previousStatus: statusChanged ? ticket.status : undefined,
     };
     
-    console.log("📤 Dados que serão enviados:", requestData);
+    // Só adicionar assigned_to_id se não for cliente
+    if (!isCustomerForThisTicket) {
+      requestData.assigned_to_id = assignedToUse;
+    }
     
     // Enviar a resposta com os dados transformados
     replyMutation.mutate(requestData as any);
@@ -173,22 +162,21 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
 
   // Função para encontrar o nome do atendente atual
   const getCurrentOfficialName = () => {
-    if (!ticket.assigned_to_id || !officials) return 'Não atribuído';
-    const official = officials.find((o: Official) => o.id === ticket.assigned_to_id);
-    return official?.name || 'Atendente não encontrado';
+    if (!ticket.assigned_to_id) return 'Não atribuído';
+    
+    // Usar sempre o nome do atendente que veio no ticket
+    if (ticket.official?.name) {
+      return ticket.official.name;
+    }
+    
+    // Se não tiver o nome no ticket, buscar na lista de atendentes (só para não-clientes)
+    if (!isCustomerForThisTicket && officials && officials.length > 0) {
+      const official = officials.find((o: Official) => o.id === ticket.assigned_to_id);
+      return official?.name || 'Atendente não encontrado';
+    }
+    
+    return 'Atendente não encontrado';
   };
-
-  // Adicionar log para verificar se o formulário está sendo criado corretamente
-  console.log("🎯 Ticket carregado:", ticket);
-  console.log("🎯 Usuário atual:", user);
-  console.log("🎯 É cliente?", isCustomerForThisTicket);
-  console.log("🎯 Valores padrão do formulário:", {
-    ticket_id: ticket.id,
-    message: '',
-    status: ticket.status,
-    assigned_to_id: ticket.assigned_to_id || undefined,
-    type: ticket.type,
-  });
 
   return (
     <Card>

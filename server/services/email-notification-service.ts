@@ -1,6 +1,6 @@
 import { db } from '../db';
-import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, slaDefinitions, companies } from '@shared/schema';
-import { eq, and, isNull } from 'drizzle-orm';
+import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, slaDefinitions, companies } from '@shared/schema';
+import { eq, and, isNull, inArray, not } from 'drizzle-orm';
 import { emailConfigService } from './email-config-service';
 import nodemailer from 'nodemailer';
 import { PriorityService } from "./priority-service";
@@ -763,6 +763,7 @@ export class EmailNotificationService {
       console.log(`[📧 EMAIL PROD] - Número: ${ticket.ticket_id}`);
       console.log(`[📧 EMAIL PROD] - Título: ${ticket.title}`);
       console.log(`[📧 EMAIL PROD] - Empresa ID: ${ticket.company_id}`);
+      console.log(`[📧 EMAIL PROD] - Departamento ID: ${ticket.department_id}`);
       console.log(`[📧 EMAIL PROD] - Email cliente: ${ticket.customer_email}`);
 
       // Buscar dados do cliente
@@ -796,68 +797,54 @@ export class EmailNotificationService {
         }
       };
 
-      // Notificar administradores e suporte
-      console.log(`[📧 EMAIL PROD] 🔍 Buscando usuários admin e support para notificar...`);
+      // 🔥 NOVA LÓGICA: Buscar APENAS os atendentes do departamento específico do ticket
+      console.log(`[📧 EMAIL PROD] 🔍 Buscando atendentes do departamento ${ticket.department_id}...`);
       
-      let adminUsers = [];
-      let supportUsers = [];
-      if (ticket.company_id) {
-        adminUsers = await db
-          .select()
+      let departmentUsers = [];
+      
+      if (ticket.department_id) {
+        // Buscar usuários que são atendentes deste departamento específico
+        departmentUsers = await db
+          .select({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            role: users.role,
+            company_id: users.company_id
+          })
           .from(users)
+          .innerJoin(officials, eq(users.id, officials.user_id))
+          .innerJoin(officialDepartments, eq(officials.id, officialDepartments.official_id))
           .where(and(
-            eq(users.role, 'admin'),
+            eq(officialDepartments.department_id, ticket.department_id),
             eq(users.active, true),
-            eq(users.company_id, ticket.company_id)
-          ));
-
-        supportUsers = await db
-          .select()
-          .from(users)
-          .where(and(
-            eq(users.role, 'support'),
-            eq(users.active, true),
-            eq(users.company_id, ticket.company_id)
+            eq(officials.is_active, true),
+            inArray(users.role, ['admin', 'support', 'manager', 'supervisor']),
+            // 🛡️ FILTRO DEFENSIVO: Garantir que department_id não seja NULL
+            not(isNull(officialDepartments.department_id)),
+            ticket.company_id ? eq(users.company_id, ticket.company_id) : undefined
           ));
       } else {
-        // Se não houver company_id, notifica todos admins/supports ativos (caso raro)
-        adminUsers = await db
-          .select()
-          .from(users)
-          .where(and(
-            eq(users.role, 'admin'),
-            eq(users.active, true)
-          ));
-
-        supportUsers = await db
-          .select()
-          .from(users)
-          .where(and(
-            eq(users.role, 'support'),
-            eq(users.active, true)
-          ));
+        console.log(`[📧 EMAIL PROD] ⚠️  Ticket sem department_id - pulando notificações (sistema defensivo)`);
+        return;
       }
-
-      const allNotifyUsers = [...adminUsers, ...supportUsers];
       
-      console.log(`[📧 EMAIL PROD] 👥 Encontrados ${allNotifyUsers.length} usuários para notificar:`);
-      console.log(`[📧 EMAIL PROD] - ${adminUsers.length} administradores`);
-      console.log(`[📧 EMAIL PROD] - ${supportUsers.length} suporte`);
+      console.log(`[📧 EMAIL PROD] 👥 Encontrados ${departmentUsers.length} atendentes do departamento para notificar:`);
       
-      if (allNotifyUsers.length === 0) {
-        console.log(`[📧 EMAIL PROD] ⚠️  ALERTA: Nenhum usuário admin/support ativo encontrado - pulando notificações`);
+      if (departmentUsers.length === 0) {
+        console.log(`[📧 EMAIL PROD] ⚠️  ALERTA: Nenhum atendente ativo encontrado para o departamento ${ticket.department_id} - pulando notificações`);
         return;
       }
 
       // Listar usuários que serão notificados
-      allNotifyUsers.forEach(user => {
+      departmentUsers.forEach(user => {
         console.log(`[📧 EMAIL PROD] - ${user.name} (${user.email}) - Role: ${user.role}`);
       });
 
       let emailsSent = 0;
       let emailsFailed = 0;
 
-      for (const user of allNotifyUsers) {
+      for (const user of departmentUsers) {
         console.log(`[📧 EMAIL PROD] -------------------------------------------`);
         console.log(`[📧 EMAIL PROD] 📧 Processando usuário: ${user.name} (${user.email})`);
         
@@ -887,18 +874,24 @@ export class EmailNotificationService {
       console.log(`[📧 EMAIL PROD] ===========================================`);
       console.log(`[📧 EMAIL PROD] 📊 RESUMO DA NOTIFICAÇÃO`);
       console.log(`[📧 EMAIL PROD] Ticket: ${ticket.ticket_id}`);
+      console.log(`[📧 EMAIL PROD] Departamento: ${ticket.department_id}`);
       console.log(`[📧 EMAIL PROD] Emails enviados: ${emailsSent}`);
       console.log(`[📧 EMAIL PROD] Emails falharam: ${emailsFailed}`);
       console.log(`[📧 EMAIL PROD] ===========================================`);
-
+      
     } catch (error) {
-      console.error(`[📧 EMAIL PROD] ❌ ERRO GERAL ao notificar novo ticket ${ticketId}:`, error);
-      console.error(`[📧 EMAIL PROD] Stack trace:`, (error as any)?.stack);
+      console.error('Erro ao enviar notificação de novo ticket:', error);
     }
   }
 
   async notifyTicketAssigned(ticketId: number, assignedToId: number): Promise<void> {
     try {
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+      console.log(`[📧 EMAIL PROD] 🎯 INICIANDO NOTIFICAÇÃO DE TICKET ATRIBUÍDO`);
+      console.log(`[📧 EMAIL PROD] Ticket ID: ${ticketId}`);
+      console.log(`[📧 EMAIL PROD] Atribuído para ID: ${assignedToId}`);
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+
       // Buscar dados do ticket
       const [ticket] = await db
         .select()
@@ -906,7 +899,16 @@ export class EmailNotificationService {
         .where(eq(tickets.id, ticketId))
         .limit(1);
 
-      if (!ticket) return;
+      if (!ticket) {
+        console.log(`[📧 EMAIL PROD] ❌ ERRO: Ticket ${ticketId} não encontrado no banco`);
+        return;
+      }
+
+      console.log(`[📧 EMAIL PROD] ✅ Ticket encontrado:`);
+      console.log(`[📧 EMAIL PROD] - ID: ${ticket.id}`);
+      console.log(`[📧 EMAIL PROD] - Número: ${ticket.ticket_id}`);
+      console.log(`[📧 EMAIL PROD] - Título: ${ticket.title}`);
+      console.log(`[📧 EMAIL PROD] - Empresa ID: ${ticket.company_id}`);
 
       // Buscar dados do atendente atribuído
       const [official] = await db
@@ -915,7 +917,16 @@ export class EmailNotificationService {
         .where(and(eq(users.id, assignedToId), eq(users.active, true)))
         .limit(1);
 
-      if (!official) return;
+      if (!official) {
+        console.log(`[📧 EMAIL PROD] ❌ ERRO: Atendente ${assignedToId} não encontrado ou inativo`);
+        return;
+      }
+
+      console.log(`[📧 EMAIL PROD] ✅ Atendente encontrado:`);
+      console.log(`[📧 EMAIL PROD] - ID: ${official.id}`);
+      console.log(`[📧 EMAIL PROD] - Nome: ${official.name}`);
+      console.log(`[📧 EMAIL PROD] - Email: ${official.email}`);
+      console.log(`[📧 EMAIL PROD] - Role: ${official.role}`);
 
       // Buscar dados do cliente
       let customer = null;
@@ -925,10 +936,15 @@ export class EmailNotificationService {
           .from(customers)
           .where(eq(customers.id, ticket.customer_id))
           .limit(1);
+        
+        console.log(`[📧 EMAIL PROD] ✅ Cliente encontrado: ${customer?.name || 'N/A'} (${customer?.email || ticket.customer_email})`);
+      } else {
+        console.log(`[📧 EMAIL PROD] ℹ️  Ticket sem customer_id - usando email: ${ticket.customer_email}`);
       }
 
       // Obter URL base para a empresa
       const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
+      console.log(`[📧 EMAIL PROD] ✅ URL base obtida: ${baseUrl}`);
 
       const context: EmailNotificationContext = {
         ticket,
@@ -943,15 +959,34 @@ export class EmailNotificationService {
       };
 
       // Notificar o atendente atribuído
+      console.log(`[📧 EMAIL PROD] 🔍 Verificando configurações de notificação do atendente...`);
       const shouldNotify = await this.shouldSendEmailToUser(official.id, 'ticket_assigned');
+      
       if (shouldNotify) {
-        await this.sendEmailNotification(
+        console.log(`[📧 EMAIL PROD] ✅ Atendente ${official.name} configurado para receber notificações`);
+        
+        const result = await this.sendEmailNotification(
           'ticket_assigned',
           official.email,
           context,
           ticket.company_id || undefined
         );
+        
+        if (result.success) {
+          console.log(`[📧 EMAIL PROD] ✅ Email de atribuição enviado com sucesso para ${official.name}`);
+        } else {
+          console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email de atribuição para ${official.name}: ${result.error}`);
+        }
+      } else {
+        console.log(`[📧 EMAIL PROD] 🔕 Atendente ${official.name} não configurado para receber notificações`);
       }
+
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+      console.log(`[📧 EMAIL PROD] 📊 RESUMO DA NOTIFICAÇÃO DE ATRIBUIÇÃO`);
+      console.log(`[📧 EMAIL PROD] Ticket: ${ticket.ticket_id}`);
+      console.log(`[📧 EMAIL PROD] Atendente: ${official.name} (${official.email})`);
+      console.log(`[📧 EMAIL PROD] Sucesso: ${shouldNotify ? 'Sim' : 'Não (configurações)'}`);
+      console.log(`[📧 EMAIL PROD] ===========================================`);
 
     } catch (error) {
       console.error('Erro ao enviar notificação de ticket atribuído:', error);

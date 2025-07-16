@@ -311,23 +311,25 @@ export default function OfficialsIndex() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {/* Mostrar supervisor */}
-                            {(official as any).supervisor_id ? (
-                              <span className="text-sm text-neutral-600">
-                                {/* Buscar nome do supervisor nos dados */}
-                                {safeOfficials.find((o: any) => o.id === (official as any).supervisor_id)?.name || `ID: ${(official as any).supervisor_id}`}
-                              </span>
-                            ) : (
-                              <span className="text-sm text-neutral-400">-</span>
-                            )}
+                            {/* SUPERVISOR: só para support, nunca para manager/supervisor */}
+                            {(() => {
+                              // Se o official tem supervisor_id, mostrar nome do supervisor
+                              if ((official as any).supervisor_id) {
+                                const supervisor = safeOfficials.find((o: any) => o.id === (official as any).supervisor_id);
+                                return supervisor ? (
+                                  <span className="text-sm text-neutral-600">{supervisor.name}</span>
+                                ) : (
+                                  <span className="text-sm text-neutral-400">-</span>
+                                );
+                              }
+                              // Se não tem supervisor vinculado, mostrar '-'
+                              return <span className="text-sm text-neutral-400">-</span>;
+                            })()}
                           </TableCell>
                           <TableCell>
-                            {/* Mostrar manager */}
-                            {(official as any).manager_id ? (
-                              <span className="text-sm text-neutral-600">
-                                {/* Buscar nome do manager nos dados */}
-                                {safeOfficials.find((o: any) => o.id === (official as any).manager_id)?.name || `ID: ${(official as any).manager_id}`}
-                              </span>
+                            {/* MANAGER: para support e supervisor, nunca para manager */}
+                            {official.manager && official.manager.name ? (
+                              <span className="text-sm text-neutral-600">{official.manager.name}</span>
                             ) : (
                               <span className="text-sm text-neutral-400">-</span>
                             )}

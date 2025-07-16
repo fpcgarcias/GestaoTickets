@@ -81,33 +81,17 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   useEffect(() => {
     // 🔥 CRÍTICO: Se o ticket está resolvido, NÃO fazer nenhum cálculo de SLA
     if (isSlaFinished(ticketStatus)) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[SLA Debug] Ticket ${ticketId} resolvido - parando todos os cálculos de SLA`);
-      }
+      // Removido log de debug
       return;
     }
 
     // 🔥 CRÍTICO: Se o ticket NÃO está mais "new", significa que já foi respondido
     // Só deve calcular SLA de resolução, NÃO de primeira resposta
     if (ticketStatus !== 'new' && !firstResponseAt) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[SLA Debug] Ticket ${ticketId} com status '${ticketStatus}' - primeira resposta já foi dada, só calculando resolução`);
-      }
+      // Removido log de debug
     }
 
-    // Debug para entender por que alguns tickets não mostram SLA
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[SLA Debug] Ticket ${ticketId}:`, {
-        priority: ticketPriority,
-        status: ticketStatus,
-        companyId: ticketCompanyId,
-        hasNewSLA: !!ticketSLAInfo,
-        hasOldSLA: !!slaSettingsData,
-        isLoading: isOldSLALoading,
-        error: oldSLAError,
-        firstResponseAt: firstResponseAt
-      });
-    }
+    // Removido log de debug geral
 
     // Primeiro, tentar usar o novo sistema de SLA
     if (ticketSLAInfo) {

@@ -378,10 +378,6 @@ export default function SLAConfigurations() {
     onSuccess: async (data, variables) => {
       toast({ title: "Sucesso", description: "Configuração SLA removida com sucesso!" });
       
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('🗑️ [DELETE SUCCESS] Configuração deletada:', variables);
-      }
-      
       // Usar função auxiliar para invalidar cache
       await invalidateSLACache();
     },

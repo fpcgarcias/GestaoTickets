@@ -36,7 +36,6 @@ export default function PermissionsPage() {
   const { data: companies = [], isLoading: loadingCompanies, error } = useQuery<CompanyPermissions[]>({
     queryKey: ["companies-permissions"],
     queryFn: async () => {
-      console.log("🔍 Buscando empresas...");
       const response = await fetch("/api/companies-permissions");
       
       if (!response.ok) {
@@ -45,7 +44,6 @@ export default function PermissionsPage() {
       }
       
       const data = await response.json();
-      console.log("✅ Dados recebidos:", data);
       return data;
     },
     retry: 3,
@@ -58,7 +56,6 @@ export default function PermissionsPage() {
     queryFn: async () => {
       if (!selectedCompanyId) return null;
       
-      console.log(`🔍 Buscando detalhes da empresa ${selectedCompanyId}...`);
       const response = await fetch(`/api/company-permissions/${selectedCompanyId}`);
       
       if (!response.ok) {
@@ -67,7 +64,6 @@ export default function PermissionsPage() {
       }
       
       const data = await response.json();
-      console.log("✅ Detalhes recebidos:", data);
       return data;
     },
     enabled: !!selectedCompanyId,
@@ -76,8 +72,6 @@ export default function PermissionsPage() {
   // Mutation para atualizar permissões
   const updatePermissionsMutation = useMutation({
     mutationFn: async ({ companyId, ai_enabled }: { companyId: number; ai_enabled: boolean }) => {
-      console.log(`🔄 Atualizando permissões da empresa ${companyId}:`, { ai_enabled });
-      
       const response = await fetch(`/api/company-permissions/${companyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -166,8 +160,6 @@ export default function PermissionsPage() {
       </div>
     );
   }
-
-  console.log("🎯 Renderizando página com empresas:", companies);
 
   return (
     <div className="space-y-6">

@@ -463,30 +463,39 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                 Supervisor
               </Label>
               <div className="col-span-3">
-                <Select 
-                  value={formData.supervisor_id?.toString() || "none"} 
-                  onValueChange={(value) => setFormData({ ...formData, supervisor_id: value === "none" ? null : parseInt(value) })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecionar supervisor (opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum supervisor</SelectItem>
-                    {Array.isArray(existingOfficials) ? existingOfficials
-                      .filter((off: any) => {
-                        // Filtrar apenas supervisores, excluindo o próprio atendente
-                        return off && 
-                               off.id !== official?.id && 
-                               off.user && 
-                               off.user.role === 'supervisor';
-                      })
-                      .map((off: any) => (
-                        <SelectItem key={off.id} value={off.id.toString()}>
-                          {off.name || 'Nome não disponível'} ({off.email || 'Email não disponível'})
-                        </SelectItem>
-                      )) : null}
-                  </SelectContent>
-                </Select>
+                {(user?.role === 'admin' || user?.role === 'company_admin') ? (
+                  <Select 
+                    value={formData.supervisor_id?.toString() || "none"} 
+                    onValueChange={(value) => setFormData({ ...formData, supervisor_id: value === "none" ? null : parseInt(value) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar supervisor (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum supervisor</SelectItem>
+                      {Array.isArray(existingOfficials) ? existingOfficials
+                        .filter((off: any) => {
+                          return off && off.id !== official?.id && off.user && off.user.role === 'supervisor';
+                        })
+                        .map((off: any) => (
+                          <SelectItem key={off.id} value={off.id.toString()}>
+                            {off.name || 'Nome não disponível'} ({off.email || 'Email não disponível'})
+                          </SelectItem>
+                        )) : null}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  (() => {
+                    const supervisor = existingOfficials.find((off: any) => off.id === formData.supervisor_id);
+                    return (
+                      <Input
+                        value={supervisor ? `${supervisor.name} (${supervisor.email})` : 'Nenhum'}
+                        disabled
+                        className="bg-gray-100"
+                      />
+                    );
+                  })()
+                )}
               </div>
             </div>
             
@@ -495,30 +504,39 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                 Manager
               </Label>
               <div className="col-span-3">
-                <Select 
-                  value={formData.manager_id?.toString() || "none"} 
-                  onValueChange={(value) => setFormData({ ...formData, manager_id: value === "none" ? null : parseInt(value) })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecionar manager (opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum manager</SelectItem>
-                    {Array.isArray(existingOfficials) ? existingOfficials
-                      .filter((off: any) => {
-                        // Filtrar apenas managers e company_admins, excluindo o próprio atendente
-                        return off && 
-                               off.id !== official?.id && 
-                               off.user && 
-                               (off.user.role === 'manager' || off.user.role === 'company_admin');
-                      })
-                      .map((off: any) => (
-                        <SelectItem key={off.id} value={off.id.toString()}>
-                          {off.name || 'Nome não disponível'} ({off.email || 'Email não disponível'})
-                        </SelectItem>
-                      )) : null}
-                  </SelectContent>
-                </Select>
+                {(user?.role === 'admin' || user?.role === 'company_admin') ? (
+                  <Select 
+                    value={formData.manager_id?.toString() || "none"} 
+                    onValueChange={(value) => setFormData({ ...formData, manager_id: value === "none" ? null : parseInt(value) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar manager (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum manager</SelectItem>
+                      {Array.isArray(existingOfficials) ? existingOfficials
+                        .filter((off: any) => {
+                          return off && off.id !== official?.id && off.user && (off.user.role === 'manager' || off.user.role === 'company_admin');
+                        })
+                        .map((off: any) => (
+                          <SelectItem key={off.id} value={off.id.toString()}>
+                            {off.name || 'Nome não disponível'} ({off.email || 'Email não disponível'})
+                          </SelectItem>
+                        )) : null}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  (() => {
+                    const manager = existingOfficials.find((off: any) => off.id === formData.manager_id);
+                    return (
+                      <Input
+                        value={manager ? `${manager.name} (${manager.email})` : 'Nenhum'}
+                        disabled
+                        className="bg-gray-100"
+                      />
+                    );
+                  })()
+                )}
               </div>
             </div>
 

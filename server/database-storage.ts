@@ -8,17 +8,21 @@ import {
   type TicketStatusHistory,
   type SLADefinition,
   officialDepartments, type OfficialDepartment, type InsertOfficialDepartment,
-  ticketStatusEnum, userRoleEnum,
+  ticketStatusEnum,
+  userRoleEnum,
   systemSettings, type SystemSetting,
   incidentTypes, type IncidentType,
   categories, type Category,
   companies, departments } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike, asc } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike, asc, gte, lte } from "drizzle-orm";
 import { IStorage } from "./storage";
 import { isSlaPaused } from "@shared/ticket-utils";
 import { convertStatusHistoryToPeriods, calculateEffectiveBusinessTime, getBusinessHoursConfig } from "@shared/utils/sla-calculator";
+
+// Definir tipo TicketStatus globalmente para uso nos casts
+type TicketStatus = typeof ticketStatusEnum.enumValues[number];
 
 export class DatabaseStorage implements IStorage {
   // User operations
@@ -136,7 +140,28 @@ export class DatabaseStorage implements IStorage {
   
   // Customer operations
   async getCustomers(): Promise<Customer[]> {
-    return db.select().from(customers).orderBy(asc(customers.name));
+    // Busca clientes já com nome da empresa e status do usuário associado, eliminando N+1 queries
+    return db
+      .select({
+        id: customers.id,
+        name: customers.name,
+        email: customers.email,
+        phone: customers.phone,
+        company: customers.company, // campo original
+        company_id: customers.company_id,
+        user_id: customers.user_id,
+        avatar_url: customers.avatar_url,
+        created_at: customers.created_at,
+        updated_at: customers.updated_at,
+        company_name: companies.name, // nome da empresa (auxiliar)
+        user_active: users.active, // status do usuário (auxiliar)
+        user_username: users.username,
+        user_role: users.role
+      })
+      .from(customers)
+      .leftJoin(companies, eq(customers.company_id, companies.id))
+      .leftJoin(users, eq(customers.user_id, users.id))
+      .orderBy(asc(customers.name));
   }
 
   async getCustomer(id: number): Promise<Customer | undefined> {
@@ -170,72 +195,85 @@ export class DatabaseStorage implements IStorage {
 
   // Official operations
   async getOfficials(): Promise<Official[]> {
-    const officialsData = await db.select().from(officials);
-    
-    const mappedOfficials = officialsData.map(official => {
+    // 1ª Query: Busca oficiais, dados do usuário, empresa e contagem de tickets em uma query agregada
+    const officialsWithUserAndTicketCount = await db
+      .select({
+        id: officials.id,
+        name: officials.name,
+        email: officials.email,
+        department_id: officials.department_id,
+        user_id: officials.user_id,
+        is_active: officials.is_active,
+        avatar_url: officials.avatar_url,
+        company_id: officials.company_id,
+        supervisor_id: officials.supervisor_id,
+        manager_id: officials.manager_id,
+        created_at: officials.created_at,
+        updated_at: officials.updated_at,
+        user_username: users.username,
+        user_email: users.email,
+        user_role: users.role,
+        company_name: companies.name,
+        assignedTicketsCount: sql<number>`COUNT(tickets.id)`
+      })
+      .from(officials)
+      .leftJoin(users, eq(officials.user_id, users.id))
+      .leftJoin(companies, eq(officials.company_id, companies.id))
+      .leftJoin(tickets, eq(tickets.assigned_to_id, officials.id))
+      .groupBy(officials.id, users.id, companies.id);
+
+    // 2ª Query: Busca todos os departamentos de todos os oficiais de uma vez
+    const officialDepartmentsData = await db
+      .select({
+        official_id: officialDepartments.official_id,
+        department_name: departments.name
+      })
+      .from(officialDepartments)
+      .leftJoin(departments, eq(officialDepartments.department_id, departments.id));
+
+    // Monta um mapa de official_id para array de nomes de departamentos
+    const departmentsMap = new Map<number, string[]>();
+    for (const row of officialDepartmentsData) {
+      if (!departmentsMap.has(row.official_id)) {
+        departmentsMap.set(row.official_id, []);
+      }
+      if (row.department_name) {
+        departmentsMap.get(row.official_id)!.push(row.department_name);
+      }
+    }
+
+    // Monta um mapa de id para dados do official (para lookup rápido do manager)
+    const officialIdMap = new Map<number, { id: number, name: string, email: string }>();
+    for (const row of officialsWithUserAndTicketCount) {
+      officialIdMap.set(row.id, { id: row.id, name: row.name, email: row.email });
+    }
+
+    // Monta o array final de oficiais, agregando departamentos, dados do usuário, empresa e manager
+    const officialsResult: Official[] = officialsWithUserAndTicketCount.map((row) => {
+      let manager = null;
+      if (row.manager_id && officialIdMap.has(row.manager_id)) {
+        manager = officialIdMap.get(row.manager_id);
+      }
       return {
-        ...official,
-        // Garantir que os campos tenham valores padrão
-        avatar_url: official.avatar_url || null,
-        manager_id: official.manager_id || null,
-        supervisor_id: official.supervisor_id || null,
-        is_active: official.is_active !== false, // Garantir boolean
-        created_at: official.created_at || new Date(),
-        updated_at: official.updated_at || new Date()
+        ...row,
+        departments: departmentsMap.get(row.id) || [],
+        assignedTicketsCount: Number(row.assignedTicketsCount) || 0,
+        company: row.company_name ? { name: row.company_name } : null,
+        user: row.user_id
+          ? {
+              id: row.user_id,
+              username: row.user_username,
+              email: row.user_email,
+              role: row.user_role
+            }
+          : undefined,
+        manager // agora retorna objeto {id, name, email} ou null
       };
     });
-    
-    // Para cada oficial, buscar seus departamentos e contagem de tickets
-    const officialsWithDepartments = await Promise.all(
-      mappedOfficials.map(async (official) => {
-        // Buscar os registros de departamento da tabela de junção
-        const departmentsData: OfficialDepartment[] = await this.getOfficialDepartments(official.id);
-        
-        // Buscar os nomes dos departamentos pelos IDs
-        const departmentNames = await Promise.all(
-          departmentsData.map(async (od) => {
-            const [dept] = await db.select({ name: departments.name })
-              .from(departments)
-              .where(eq(departments.id, od.department_id));
-            return dept?.name || `Dept-${od.department_id}`;
-          })
-        );
-        
-        // Buscar a contagem de tickets atribuídos
-        const [ticketCount] = await db
-          .select({ count: sql<number>`COUNT(*)` })
-          .from(tickets)
-          .where(eq(tickets.assigned_to_id, official.id));
-        
-        const ticketCountNumber = parseInt(String(ticketCount?.count || 0), 10);
-        
-        // Buscar dados do usuário associado
-        let userData = undefined;
-        if (official.user_id) {
-          const [user] = await db
-            .select({
-              id: users.id,
-              username: users.username,
-              email: users.email,
-              role: users.role
-            })
-            .from(users)
-            .where(eq(users.id, official.user_id));
-          userData = user;
-        }
-  
-        
-        // Anexar o array de nomes de departamentos, contagem de tickets e dados do usuário
-        return { 
-          ...official, 
-          departments: departmentNames,
-          assignedTicketsCount: ticketCountNumber,
-          user: userData
-        };
-      })
-    );
-    
-    return officialsWithDepartments;
+
+    // // melhoria de performance: eliminadas N+1 queries usando JOINs e agregação
+    // // agora apenas 2 queries fixas, independente do número de oficiais
+    return officialsResult;
   }
 
   async getOfficial(id: number): Promise<Official | undefined> {
@@ -379,366 +417,270 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Filtrar tickets baseado no perfil do usuário
-  async getTicketsByUserRole(userId: number, userRole: string): Promise<Ticket[]> {
-    console.log(`Buscando tickets para usuário ID ${userId} com papel ${userRole}`);
+  // Método paginado principal
+  async getTicketsByUserRolePaginated(
+    userId: number,
+    userRole: string,
+    filters: {
+      search?: string;
+      status?: string;
+      priority?: string;
+      department_id?: number;
+      assigned_to_id?: number;
+      unassigned?: boolean;
+      hide_resolved?: boolean;
+      time_filter?: string;
+      date_from?: string;
+      date_to?: string;
+    } = {},
+    page: number = 1,
+    limit: number = 20
+  ): Promise<{ data: Ticket[]; pagination: { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean } }> {
+    // Montar cláusulas WHERE conforme role e filtros
+    let whereClauses: any[] = [];
+    let companyId: number | null = null;
     
-    // Comportamento baseado no papel do usuário
     if (userRole === 'admin') {
-      console.log('Papel: admin - retornando todos os tickets');
-      return this.getTickets();
+      // Admin vê tudo
     } else if (userRole === 'company_admin') {
-      console.log('Papel: company_admin - buscando tickets da empresa');
+      // Company admin vê apenas tickets da empresa
       const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!user || !user.company_id) {
-        console.log(`Company_admin sem empresa associada para o usuário ID ${userId}`);
-        return [];
+        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       }
-      
-      console.log(`Buscando tickets da empresa ID ${user.company_id}`);
-      
-      try {
-        const ticketsData = await db
-          .select()
-          .from(tickets)
-          .where(eq(tickets.company_id, user.company_id));
-        
-        console.log(`Encontrados ${ticketsData.length} tickets para a empresa`);
-        
-        const enrichedTickets = await Promise.all(
-          ticketsData.map(ticket => this.getTicketInternal(ticket.id))
-        );
-        
-        return enrichedTickets.filter(Boolean) as Ticket[];
-      } catch (error) {
-        console.error('Erro ao buscar tickets para company_admin:', error);
-        return [];
-      }
+      companyId = user.company_id;
+      whereClauses.push(eq(tickets.company_id, companyId));
     } else if (userRole === 'customer') {
-      console.log('Papel: customer - buscando tickets do cliente');
+      // CLIENTE SÓ VÊ SEUS PRÓPRIOS TICKETS
       const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
       if (!customer) {
-        console.log(`Não foi encontrado nenhum cliente para o usuário ID ${userId}`);
-        return [];
+        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       }
-      
-      console.log(`Cliente encontrado: ID ${customer.id}`);
-      return this.getTicketsByCustomerId(customer.id);
+      whereClauses.push(eq(tickets.customer_id, customer.id));
     } else if (userRole === 'manager') {
-      console.log('Papel: manager - buscando tickets do manager e subordinados');
-      
-      const [managerOfficial] = await db.select().from(officials).where(eq(officials.user_id, userId));
-      if (!managerOfficial) {
-        console.log(`Não foi encontrado nenhum atendente para o usuário manager ID ${userId}`);
-        return [];
-      }
-      
-      console.log(`Manager encontrado: ID ${managerOfficial.id}`);
-      
-      try {
-        // Buscar cliente associado ao usuário para determinar contexto
-        const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
-        
-        // Tickets como atendente/manager
-        const subordinates = await db.select().from(officials).where(eq(officials.manager_id, managerOfficial.id));
-        const subordinateIds = subordinates.map(s => s.id);
-        
-        console.log(`Subordinados do manager: ${JSON.stringify(subordinateIds)}`);
-        
-        // Buscar departamentos dos subordinados para tickets não atribuídos
-        const allDepartmentIds = new Set<number>();
-        for (const subordinate of subordinates) {
-          const depts = await this.getOfficialDepartments(subordinate.id);
-          depts.forEach(dept => allDepartmentIds.add(dept.department_id));
-        }
-        
-        // Buscar seus próprios departamentos também
-        const managerDepartments = await this.getOfficialDepartments(managerOfficial.id);
-        managerDepartments.forEach(dept => allDepartmentIds.add(dept.department_id));
-        
-        const departmentIds = Array.from(allDepartmentIds);
-        console.log(`IDs dos departamentos: ${JSON.stringify(departmentIds)}`);
-        
-        const conditions = [];
-        
-        // Tickets do próprio manager
-        conditions.push(eq(tickets.assigned_to_id, managerOfficial.id));
-        
-        // Tickets dos subordinados
-        if (subordinateIds.length > 0) {
-          conditions.push(inArray(tickets.assigned_to_id, subordinateIds));
-        }
-        
-        // Tickets não atribuídos dos departamentos relevantes
-        if (departmentIds.length > 0) {
-          conditions.push(
-            and(
-              isNull(tickets.assigned_to_id),
-              inArray(tickets.department_id, departmentIds)
-            )
-          );
-        }
-        
-        const ticketsData = await db
-          .select()
-          .from(tickets)
-          .where(and(
-            eq(tickets.company_id, managerOfficial.company_id || 0),
-            or(...conditions)
-          ));
-        
-        console.log(`Encontrados ${ticketsData.length} tickets para o manager (como atendente)`);
-        
-        // Tickets como cliente
-        let customerTicketsData: any[] = [];
-        
-        if (customer) {
-          console.log(`Manager também é cliente: ID ${customer.id}`);
-          customerTicketsData = await db
-            .select()
-            .from(tickets)
-            .where(eq(tickets.customer_id, customer.id));
-          console.log(`Encontrados ${customerTicketsData.length} tickets para o manager (como cliente)`);
-        }
-        
-        // Combinar tickets e remover duplicatas
-        const allTicketsData = [...ticketsData, ...customerTicketsData];
-        const uniqueTicketsData = allTicketsData.filter((ticket, index, self) => 
-          index === self.findIndex(t => t.id === ticket.id)
-        );
-        
-        console.log(`Total de tickets únicos para o manager: ${uniqueTicketsData.length}`);
-        
-        const enrichedTickets = await Promise.all(
-          uniqueTicketsData.map(async (ticket) => {
-            const enrichedTicket = await this.getTicketInternal(ticket.id);
-            if (enrichedTicket) {
-              // Determinar contexto do usuário para este ticket
-              const isOfficial = ticketsData.some(t => t.id === ticket.id);
-              const isCustomer = customer && customerTicketsData.some(t => t.id === ticket.id);
-              
-              if (isOfficial && isCustomer) {
-                enrichedTicket.userContext = 'both';
-              } else if (isCustomer) {
-                enrichedTicket.userContext = 'customer';
-              } else {
-                enrichedTicket.userContext = 'official';
-              }
-            }
-            return enrichedTicket;
-          })
-        );
-        
-        return enrichedTickets.filter(Boolean) as Ticket[];
-      } catch (error) {
-        console.error('Erro ao buscar tickets para manager:', error);
-        return [];
-      }
-    } else if (userRole === 'supervisor') {
-      console.log('Papel: supervisor - buscando tickets do supervisor e subordinados');
-      
-      const [supervisorOfficial] = await db.select().from(officials).where(eq(officials.user_id, userId));
-      if (!supervisorOfficial) {
-        console.log(`Não foi encontrado nenhum atendente para o usuário supervisor ID ${userId}`);
-        return [];
-      }
-      
-      console.log(`Supervisor encontrado: ID ${supervisorOfficial.id}`);
-      
-      try {
-        // Buscar cliente associado ao usuário para determinar contexto
-        const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
-        
-        // Tickets como supervisor
-        // Buscar todos os atendentes que têm este supervisor
-        const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, supervisorOfficial.id));
-        const subordinateIds = subordinates.map(s => s.id);
-        
-        console.log(`Subordinados do supervisor: ${JSON.stringify(subordinateIds)}`);
-        
-        // Buscar departamentos dos subordinados para tickets não atribuídos
-        const allDepartmentIds = new Set<number>();
-        for (const subordinate of subordinates) {
-          const depts = await this.getOfficialDepartments(subordinate.id);
-          depts.forEach(dept => allDepartmentIds.add(dept.department_id));
-        }
-        
-        // Buscar seus próprios departamentos também
-        const supervisorDepartments = await this.getOfficialDepartments(supervisorOfficial.id);
-        supervisorDepartments.forEach(dept => allDepartmentIds.add(dept.department_id));
-        
-        const departmentIds = Array.from(allDepartmentIds);
-        console.log(`IDs dos departamentos: ${JSON.stringify(departmentIds)}`);
-        
-        const conditions = [];
-        
-        // Tickets do próprio supervisor
-        conditions.push(eq(tickets.assigned_to_id, supervisorOfficial.id));
-        
-        // Tickets dos subordinados
-        if (subordinateIds.length > 0) {
-          conditions.push(inArray(tickets.assigned_to_id, subordinateIds));
-        }
-        
-        // Tickets não atribuídos dos departamentos relevantes
-        if (departmentIds.length > 0) {
-          conditions.push(
-            and(
-              isNull(tickets.assigned_to_id),
-              inArray(tickets.department_id, departmentIds)
-            )
-          );
-        }
-        
-        const ticketsData = await db
-          .select()
-          .from(tickets)
-          .where(and(
-            eq(tickets.company_id, supervisorOfficial.company_id || 0),
-            or(...conditions)
-          ));
-        
-        console.log(`Encontrados ${ticketsData.length} tickets para o supervisor (como atendente)`);
-        
-        // Tickets como cliente
-        let customerTicketsData: any[] = [];
-        
-        if (customer) {
-          console.log(`Supervisor também é cliente: ID ${customer.id}`);
-          customerTicketsData = await db
-            .select()
-            .from(tickets)
-            .where(eq(tickets.customer_id, customer.id));
-          console.log(`Encontrados ${customerTicketsData.length} tickets para o supervisor (como cliente)`);
-        }
-        
-        // Combinar tickets e remover duplicatas
-        const allTicketsData = [...ticketsData, ...customerTicketsData];
-        const uniqueTicketsData = allTicketsData.filter((ticket, index, self) => 
-          index === self.findIndex(t => t.id === ticket.id)
-        );
-        
-        console.log(`Total de tickets únicos para o supervisor: ${uniqueTicketsData.length}`);
-        
-        const enrichedTickets = await Promise.all(
-          uniqueTicketsData.map(async (ticket) => {
-            const enrichedTicket = await this.getTicketInternal(ticket.id);
-            if (enrichedTicket) {
-              // Determinar contexto do usuário para este ticket
-              const isOfficial = ticketsData.some(t => t.id === ticket.id);
-              const isCustomer = customer && customerTicketsData.some(t => t.id === ticket.id);
-              
-              if (isOfficial && isCustomer) {
-                enrichedTicket.userContext = 'both';
-              } else if (isCustomer) {
-                enrichedTicket.userContext = 'customer';
-              } else {
-                enrichedTicket.userContext = 'official';
-              }
-            }
-            return enrichedTicket;
-          })
-        );
-        
-        return enrichedTickets.filter(Boolean) as Ticket[];
-      } catch (error) {
-        console.error('Erro ao buscar tickets para supervisor:', error);
-        return [];
-      }
-    } else if (userRole === 'support') {
-      console.log('Papel: support - buscando tickets do atendente');
-      
+      // Manager: tickets dele, de subordinados OU não atribuídos + FILTRO POR DEPARTAMENTO
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
       if (!official) {
-        console.log(`Não foi encontrado nenhum atendente para o usuário ID ${userId}`);
-        return [];
+        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       }
       
-      console.log(`Atendente encontrado: ID ${official.id}`);
+      // Buscar departamentos do official
+      const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
       
-      // Obter os departamentos do atendente
-      const officialDepts = await this.getOfficialDepartments(official.id);
-      console.log(`Departamentos do atendente: ${JSON.stringify(officialDepts.map(d => d.department_id))}`);
+      // Buscar subordinados
+      const subordinates = await db.select().from(officials).where(eq(officials.manager_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
       
-      // Buscar tickets relacionados aos IDs dos departamentos do atendente OU atribuídos diretamente
-      try {
-        // Buscar cliente associado ao usuário para determinar contexto
-        const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
-        
-        const conditions = [];
-        
-        // Obter os IDs dos departamentos diretamente
-        const departmentIds = officialDepts.map(dept => dept.department_id);
-        console.log(`IDs dos departamentos do atendente: ${JSON.stringify(departmentIds)}`);
-        
-        if (departmentIds.length > 0) {
-          conditions.push(inArray(tickets.department_id, departmentIds));
-        }
-        
-        // Condição para tickets atribuídos diretamente ao oficial
-        conditions.push(eq(tickets.assigned_to_id, official.id));
-        
-        let ticketsData: any[] = [];
-        
-        if (conditions.length > 0) {
-          // Executamos a consulta com OR de todas as condições
-          ticketsData = await db
-            .select()
-            .from(tickets)
-            .where(or(...conditions));
-        }
-        
-        console.log(`Encontrados ${ticketsData.length} tickets para o atendente (como atendente)`);
-        
-        // Tickets como cliente
-        let customerTicketsData: any[] = [];
-        
-        if (customer) {
-          console.log(`Atendente também é cliente: ID ${customer.id}`);
-          customerTicketsData = await db
-            .select()
-            .from(tickets)
-            .where(eq(tickets.customer_id, customer.id));
-          console.log(`Encontrados ${customerTicketsData.length} tickets para o atendente (como cliente)`);
-        }
-        
-        // Combinar tickets e remover duplicatas
-        const allTicketsData = [...ticketsData, ...customerTicketsData];
-        const uniqueTicketsData = allTicketsData.filter((ticket, index, self) => 
-          index === self.findIndex(t => t.id === ticket.id)
-        );
-        
-        console.log(`Total de tickets únicos para o atendente: ${uniqueTicketsData.length}`);
-        
-        const enrichedTickets = await Promise.all(
-          uniqueTicketsData.map(async (ticket) => {
-            const enrichedTicket = await this.getTicket(ticket.id);
-            if (enrichedTicket) {
-              // Determinar contexto do usuário para este ticket
-              const isOfficial = ticketsData.some(t => t.id === ticket.id);
-              const isCustomer = customer && customerTicketsData.some(t => t.id === ticket.id);
-              
-              if (isOfficial && isCustomer) {
-                enrichedTicket.userContext = 'both';
-              } else if (isCustomer) {
-                enrichedTicket.userContext = 'customer';
-              } else {
-                enrichedTicket.userContext = 'official';
-              }
-            }
-            return enrichedTicket;
-          })
-        );
-        
-        return enrichedTickets.filter(Boolean) as Ticket[];
-      } catch (error) {
-        console.error('Erro ao buscar tickets para atendente:', error);
-        return [];
+      // Filtro: (assigned_to_id = official.id OU assigned_to_id IN subordinados OU assigned_to_id IS NULL) E department_id IN departamentos
+      const assignmentFilter = or(
+        eq(tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(tickets.assigned_to_id)
+      );
+      
+      whereClauses.push(assignmentFilter);
+      whereClauses.push(inArray(tickets.department_id, departmentIds));
+      
+    } else if (userRole === 'supervisor') {
+      // Supervisor: tickets dele, de subordinados OU não atribuídos + FILTRO POR DEPARTAMENTO
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!official) {
+        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+      }
+      
+      // Buscar departamentos do official
+      const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      // Buscar subordinados
+      const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      
+      // Filtro: (assigned_to_id = official.id OU assigned_to_id IN subordinados OU assigned_to_id IS NULL) E department_id IN departamentos
+      const assignmentFilter = or(
+        eq(tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(tickets.assigned_to_id)
+      );
+      
+      whereClauses.push(assignmentFilter);
+      whereClauses.push(inArray(tickets.department_id, departmentIds));
+      
+    } else if (userRole === 'support') {
+      // Support: tickets atribuídos a ele OU não atribuídos + FILTRO POR DEPARTAMENTO
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!official) {
+        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+      }
+      
+      // Buscar departamentos do official
+      const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      // Filtro: (assigned_to_id = official.id OU assigned_to_id IS NULL) E department_id IN departamentos
+      const assignmentFilter = or(
+        eq(tickets.assigned_to_id, official.id),
+        isNull(tickets.assigned_to_id)
+      );
+      
+      whereClauses.push(assignmentFilter);
+      whereClauses.push(inArray(tickets.department_id, departmentIds));
+    } else {
+      // Outros tipos de usuário: filtra por empresa
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user || !user.company_id) {
+        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+      }
+      companyId = user.company_id;
+      whereClauses.push(eq(tickets.company_id, companyId));
+    }
+    // Filtros específicos
+    if (filters.status && filters.status !== 'all') {
+      if ((ticketStatusEnum.enumValues as string[]).includes(filters.status)) {
+        whereClauses.push(eq(tickets.status, filters.status as any));
       }
     }
-    
-    // Se o papel do usuário não for reconhecido, retorna array vazio
-    console.log(`Papel desconhecido: ${userRole}`);
-    return [];
+    if (filters.priority && filters.priority !== 'all') {
+      whereClauses.push(eq(tickets.priority, filters.priority));
+    }
+    if (filters.department_id) {
+      whereClauses.push(eq(tickets.department_id, filters.department_id));
+    }
+    if (filters.assigned_to_id) {
+      whereClauses.push(eq(tickets.assigned_to_id, filters.assigned_to_id));
+    }
+    if (filters.unassigned) {
+      whereClauses.push(isNull(tickets.assigned_to_id));
+    }
+    if (filters.hide_resolved) {
+      whereClauses.push(sql`${tickets.status} != 'resolved'`);
+    }
+    if (filters.date_from) {
+      whereClauses.push(gte(tickets.created_at, new Date(filters.date_from)));
+    }
+    if (filters.date_to) {
+      const endDate = new Date(filters.date_to);
+      endDate.setHours(23, 59, 59, 999);
+      whereClauses.push(lte(tickets.created_at, endDate));
+    }
+    if (filters.time_filter && !filters.date_from && !filters.date_to) {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      if (filters.time_filter === 'this-week') {
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1));
+        weekStart.setHours(0, 0, 0, 0);
+        whereClauses.push(gte(tickets.created_at, weekStart));
+      } else if (filters.time_filter === 'last-week') {
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1));
+        const lastWeekStart = new Date(weekStart);
+        lastWeekStart.setDate(weekStart.getDate() - 7);
+        const lastWeekEnd = new Date(weekStart);
+        lastWeekEnd.setHours(0, 0, 0, -1);
+        whereClauses.push(gte(tickets.created_at, lastWeekStart));
+        whereClauses.push(lte(tickets.created_at, lastWeekEnd));
+      } else if (filters.time_filter === 'this-month') {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        whereClauses.push(gte(tickets.created_at, monthStart));
+      }
+    }
+    // Filtro de busca textual livre (em múltiplos campos)
+    let searchClause: any = undefined;
+    if (filters.search) {
+      const search = `%${filters.search.toLowerCase()}%`;
+      searchClause = or(
+        ilike(tickets.title, search),
+        ilike(tickets.description, search),
+        ilike(tickets.ticket_id, search),
+        ilike(customers.name, search),
+        ilike(customers.email, search)
+      );
+    }
+    // Montar query principal com JOINs
+    let query = db
+      .select({
+        ...getTableColumns(tickets),
+        customer_name: customers.name,
+        customer_email: customers.email,
+        official_name: officials.name,
+        official_email: officials.email
+      })
+      .from(tickets)
+      .leftJoin(customers, eq(tickets.customer_id, customers.id))
+      .leftJoin(officials, eq(tickets.assigned_to_id, officials.id));
+    let whereFinal;
+    if (whereClauses.length > 0 && searchClause) {
+      whereFinal = and(...whereClauses, searchClause);
+    } else if (whereClauses.length > 0) {
+      whereFinal = and(...whereClauses);
+    } else if (searchClause) {
+      whereFinal = searchClause;
+    }
+    // Query de total
+    let total = 0;
+    if (whereFinal) {
+      const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(tickets)
+        .leftJoin(customers, eq(tickets.customer_id, customers.id))
+        .where(whereFinal);
+      total = Number(count);
+    } else {
+      const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(tickets);
+      total = Number(count);
+    }
+    // Paginação e ordenação
+    let qFinal;
+    if (whereFinal) {
+      const q1 = query.where(whereFinal);
+      const q2 = q1.orderBy(desc(tickets.created_at));
+      const q3 = q2.limit(limit);
+      qFinal = q3.offset((page - 1) * limit);
+    } else {
+      const q1 = query.orderBy(desc(tickets.created_at));
+      const q2 = q1.limit(limit);
+      qFinal = q2.offset((page - 1) * limit);
+    }
+    const ticketsData = await qFinal;
+    // Mapear para o formato esperado pelo frontend
+    const mappedTickets = ticketsData.map(row => ({
+      ...row,
+      customer: row.customer_name || row.customer_email ? {
+        name: row.customer_name,
+        email: row.customer_email
+      } : {},
+      official: row.official_name || row.official_email ? {
+        name: row.official_name,
+        email: row.official_email
+      } : undefined
+    }));
+    const totalPages = Math.ceil(total / limit);
+    return {
+      data: mappedTickets as Ticket[],
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
+      }
+    };
+  }
+
+  // Wrapper para compatibilidade com interface antiga (array)
+  async getTicketsByUserRole(userId: number, userRole: string): Promise<Ticket[]> {
+    const result = await this.getTicketsByUserRolePaginated(userId, userRole, {}, 1, 1000);
+    return result.data;
   }
 
   // Ticket operations
@@ -1183,25 +1125,38 @@ export class DatabaseStorage implements IStorage {
   // Stats and dashboard operations
   async getTicketStats(): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
     try {
-      const allTickets = await this.getTickets();
-      
+      // Total de tickets
+      const totalResult = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(tickets);
+      const total = totalResult[0]?.count || 0;
+
+      // Agrupamento por status
+      const statusRows = await db
+        .select({ status: tickets.status, count: sql<number>`COUNT(*)` })
+        .from(tickets)
+        .groupBy(tickets.status);
       const byStatus: Record<string, number> = {};
+      for (const row of statusRows) {
+        byStatus[row.status || 'new'] = Number(row.count);
+      }
+
+      // Agrupamento por prioridade (case-insensitive, normalizando)
+      const priorityRows = await db
+        .select({ priority: tickets.priority, count: sql<number>`COUNT(*)` })
+        .from(tickets)
+        .groupBy(tickets.priority);
       const byPriority: Record<string, number> = {};
-      
-      allTickets.forEach(ticket => {
-        // Processar status
-        const status = ticket.status || 'new';
-        byStatus[status] = (byStatus[status] || 0) + 1;
-        
-        // Processar prioridade - agrupar por nome usando case-insensitive
-        const priority = ticket.priority || 'medium';
-        // Normalizar para agrupamento (primeira letra maiúscula, resto minúsculo)
-        const normalizedPriority = priority.charAt(0).toUpperCase() + priority.slice(1).toLowerCase();
-        byPriority[normalizedPriority] = (byPriority[normalizedPriority] || 0) + 1;
-      });
-      
+      for (const row of priorityRows) {
+        // Normalizar prioridade: primeira letra maiúscula, resto minúsculo
+        const priority = row.priority
+          ? row.priority.charAt(0).toUpperCase() + row.priority.slice(1).toLowerCase()
+          : 'Medium';
+        byPriority[priority] = Number(row.count);
+      }
+
       return {
-        total: allTickets.length,
+        total,
         byStatus,
         byPriority,
       };
@@ -1218,39 +1173,159 @@ export class DatabaseStorage implements IStorage {
   // Obter estatísticas dos tickets filtrados pelo papel do usuário
   async getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
     try {
-      // Obter tickets filtrados pelo papel do usuário
-      let userTickets = await this.getTicketsByUserRole(userId, userRole);
-      
-      // Filtrar por atendente se especificado
-      if (officialId) {
-        userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
-      }
-      
-      // Filtrar por período se especificado
-      if (startDate && endDate) {
-        userTickets = userTickets.filter(ticket => {
-          const createdAt = new Date(ticket.created_at);
-          return createdAt >= startDate && createdAt <= endDate;
-        });
-      }
-      
-      const byStatus: Record<string, number> = {};
-      const byPriority: Record<string, number> = {};
-      
-      userTickets.forEach(ticket => {
-        // Processar status
-        const status = ticket.status || 'new';
-        byStatus[status] = (byStatus[status] || 0) + 1;
+      // Montar filtros SQL conforme papel do usuário
+      let whereClauses: any[] = [];
+      let companyId: number | null = null;
+      if (userRole === 'admin') {
+        // Admin vê tudo
+      } else if (userRole === 'company_admin') {
+        const [user] = await db.select().from(users).where(eq(users.id, userId));
+        if (!user || !user.company_id) return { total: 0, byStatus: {}, byPriority: {} };
+        companyId = user.company_id;
+        whereClauses.push(eq(tickets.company_id, companyId));
+      } else if (userRole === 'customer') {
+        const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
+        if (!customer) return { total: 0, byStatus: {}, byPriority: {} };
+        whereClauses.push(eq(tickets.customer_id, customer.id));
+      } else if (userRole === 'manager') {
+        const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+        if (!official) return { total: 0, byStatus: {}, byPriority: {} };
         
-        // Processar prioridade - agrupar por nome usando case-insensitive
-        const priority = ticket.priority || 'medium';
-        // Normalizar para agrupamento (primeira letra maiúscula, resto minúsculo)
-        const normalizedPriority = priority.charAt(0).toUpperCase() + priority.slice(1).toLowerCase();
-        byPriority[normalizedPriority] = (byPriority[normalizedPriority] || 0) + 1;
-      });
-      
+        // Buscar departamentos do official
+        const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+        if (officialDepts.length === 0) return { total: 0, byStatus: {}, byPriority: {} };
+        const departmentIds = officialDepts.map(od => od.department_id);
+        
+        // Buscar subordinados
+        const subordinates = await db.select().from(officials).where(eq(officials.manager_id, official.id));
+        const subordinateIds = subordinates.map(s => s.id);
+        
+        // Se não filtrar por officialId, mostrar tickets do próprio, subordinados e não atribuídos
+        if (!officialId) {
+          const assignmentFilter = or(
+            eq(tickets.assigned_to_id, official.id),
+            subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
+            isNull(tickets.assigned_to_id)
+          );
+          whereClauses.push(assignmentFilter);
+        } else {
+          // Se filtrar por officialId, só permitir se for subordinado ou ele mesmo
+          if (subordinateIds.includes(officialId)) {
+            whereClauses.push(eq(tickets.assigned_to_id, officialId));
+          } else if (officialId === official.id) {
+            whereClauses.push(eq(tickets.assigned_to_id, official.id));
+          } else {
+            // Não tem permissão
+            return { total: 0, byStatus: {}, byPriority: {} };
+          }
+        }
+        
+        // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+        whereClauses.push(inArray(tickets.department_id, departmentIds));
+        
+      } else if (userRole === 'supervisor') {
+        const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+        if (!official) return { total: 0, byStatus: {}, byPriority: {} };
+        
+        // Buscar departamentos do official
+        const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+        if (officialDepts.length === 0) return { total: 0, byStatus: {}, byPriority: {} };
+        const departmentIds = officialDepts.map(od => od.department_id);
+        
+        // Buscar subordinados
+        const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, official.id));
+        const subordinateIds = subordinates.map(s => s.id);
+        
+        // Se não filtrar por officialId, mostrar tickets do próprio, subordinados e não atribuídos
+        if (!officialId) {
+          const assignmentFilter = or(
+            eq(tickets.assigned_to_id, official.id),
+            subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
+            isNull(tickets.assigned_to_id)
+          );
+          whereClauses.push(assignmentFilter);
+        } else {
+          // Se filtrar por officialId, só permitir se for subordinado ou ele mesmo
+          if (subordinateIds.includes(officialId)) {
+            whereClauses.push(eq(tickets.assigned_to_id, officialId));
+          } else if (officialId === official.id) {
+            whereClauses.push(eq(tickets.assigned_to_id, official.id));
+          } else {
+            // Não tem permissão
+            return { total: 0, byStatus: {}, byPriority: {} };
+          }
+        }
+        
+        // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+        whereClauses.push(inArray(tickets.department_id, departmentIds));
+        
+      } else if (userRole === 'support') {
+        const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+        if (!official) return { total: 0, byStatus: {}, byPriority: {} };
+        
+        // Buscar departamentos do official
+        const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+        if (officialDepts.length === 0) return { total: 0, byStatus: {}, byPriority: {} };
+        const departmentIds = officialDepts.map(od => od.department_id);
+        
+        // Support vê tickets atribuídos a ele ou não atribuídos
+        if (!officialId) {
+          const assignmentFilter = or(
+            eq(tickets.assigned_to_id, official.id),
+            isNull(tickets.assigned_to_id)
+          );
+          whereClauses.push(assignmentFilter);
+        } else if (officialId === official.id) {
+          whereClauses.push(eq(tickets.assigned_to_id, official.id));
+        } else {
+          // Não pode ver de outros
+          return { total: 0, byStatus: {}, byPriority: {} };
+        }
+        
+        // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+        whereClauses.push(inArray(tickets.department_id, departmentIds));
+      } else if (officialId) {
+        whereClauses.push(eq(tickets.assigned_to_id, officialId));
+      }
+      if (startDate && endDate) {
+        whereClauses.push(
+          and(
+            gte(tickets.created_at, startDate),
+            lte(tickets.created_at, endDate)
+          )
+        );
+      }
+      // Total de tickets filtrados
+      const totalResult = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(tickets)
+        .where(whereClauses.length > 0 ? and(...whereClauses) : undefined);
+      const total = totalResult[0]?.count || 0;
+      // Agrupamento por status
+      const statusRows = await db
+        .select({ status: tickets.status, count: sql<number>`COUNT(*)` })
+        .from(tickets)
+        .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
+        .groupBy(tickets.status);
+      const byStatus: Record<string, number> = {};
+      for (const row of statusRows) {
+        byStatus[row.status || 'new'] = Number(row.count);
+      }
+      // Agrupamento por prioridade (case-insensitive, normalizando)
+      const priorityRows = await db
+        .select({ priority: tickets.priority, count: sql<number>`COUNT(*)` })
+        .from(tickets)
+        .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
+        .groupBy(tickets.priority);
+      const byPriority: Record<string, number> = {};
+      for (const row of priorityRows) {
+        const priority = row.priority
+          ? row.priority.charAt(0).toUpperCase() + row.priority.slice(1).toLowerCase()
+          : 'Medium';
+        byPriority[priority] = Number(row.count);
+      }
       return {
-        total: userTickets.length,
+        total,
         byStatus,
         byPriority,
       };
@@ -1286,24 +1361,22 @@ export class DatabaseStorage implements IStorage {
   // Obter tickets recentes filtrados pelo papel do usuário
   async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 10, officialId?: number, startDate?: Date, endDate?: Date): Promise<Ticket[]> {
     try {
-      // Obter tickets filtrados pelo papel do usuário
-      let userTickets = await this.getTicketsByUserRole(userId, userRole);
-      
+      const userTicketsArr = await this.getTicketsByUserRole(userId, userRole);
+
+      let filtered = userTicketsArr;
       // Filtrar por atendente se especificado
       if (officialId) {
-        userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
+        filtered = filtered.filter(ticket => ticket.assigned_to_id === officialId);
       }
-      
       // Filtrar por período se especificado
       if (startDate && endDate) {
-        userTickets = userTickets.filter(ticket => {
+        filtered = filtered.filter(ticket => {
           const createdAt = new Date(ticket.created_at);
           return createdAt >= startDate && createdAt <= endDate;
         });
       }
-      
       // Ordenar tickets por data de criação (mais recentes primeiro) e limitar
-      return userTickets
+      return filtered
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, limit);
     } catch (error) {
@@ -1312,76 +1385,103 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Obter tempo médio de primeira resposta filtrado pelo papel do usuário
   async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number> {
     try {
-      let userTickets = await this.getTicketsByUserRole(userId, userRole);
-      if (officialId) {
-        userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
-      }
-      if (startDate && endDate) {
-        userTickets = userTickets.filter(ticket => {
-          const createdAt = new Date(ticket.created_at);
-          return createdAt >= startDate && createdAt <= endDate;
-        });
-      }
-      const ticketsWithFirstResponse = userTickets.filter(ticket => ticket.first_response_at && ticket.created_at);
+      // Buscar tickets filtrados via SQL (otimizado)
+      const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate);
+      
+      // Filtrar apenas tickets com first_response_at e created_at
+      const ticketsWithFirstResponse = tickets.filter(ticket => ticket.first_response_at && ticket.created_at);
       if (ticketsWithFirstResponse.length === 0) {
         return 0;
       }
+
+      // Buscar status history de todos os tickets em uma única query (otimizado)
+      const ticketIds = ticketsWithFirstResponse.map(t => t.id);
+      const allStatusHistory = await db
+        .select()
+        .from(ticketStatusHistory)
+        .where(inArray(ticketStatusHistory.ticket_id, ticketIds))
+        .orderBy(asc(ticketStatusHistory.created_at));
+
+      // Agrupar status history por ticket_id
+      const statusMap = new Map<number, TicketStatusHistory[]>();
+      for (const status of allStatusHistory) {
+        if (!statusMap.has(status.ticket_id)) statusMap.set(status.ticket_id, []);
+        statusMap.get(status.ticket_id)!.push(status);
+      }
+
       const businessHours = getBusinessHoursConfig();
-      const totalResponseTime = await ticketsWithFirstResponse.reduce(async (sumPromise, ticket) => {
-        const sum = await sumPromise;
+      
+      // Calcular tempo útil (horário comercial, dias úteis, descontando pausas) para cada ticket
+      const totalResponseTime = ticketsWithFirstResponse.map((ticket) => {
         const createdAt = new Date(ticket.created_at);
         const firstResponseAt = new Date(ticket.first_response_at!);
-        const statusHistory = await db
-          .select()
-          .from(ticketStatusHistory)
-          .where(eq(ticketStatusHistory.ticket_id, ticket.id))
-          .orderBy(asc(ticketStatusHistory.created_at));
-        const statusPeriods = convertStatusHistoryToPeriods(createdAt, ticket.status, statusHistory);
+        
+        // Buscar status history do ticket
+        const statusHistory = statusMap.get(ticket.id) || [];
+        
+        // Definir tipo TicketStatus localmente se necessário
+        const statusPeriods = convertStatusHistoryToPeriods(createdAt, ticket.status as TicketStatus, statusHistory);
         const effectiveTimeMs = calculateEffectiveBusinessTime(createdAt, firstResponseAt, statusPeriods, businessHours);
-        return sum + (effectiveTimeMs / (1000 * 60 * 60)); // horas
-      }, Promise.resolve(0));
-      return Math.round((totalResponseTime / ticketsWithFirstResponse.length) * 100) / 100;
+        
+        return effectiveTimeMs / (1000 * 60 * 60); // converter para horas
+      });
+
+      const soma = totalResponseTime.reduce((a, b) => a + b, 0);
+      return Math.round((soma / ticketsWithFirstResponse.length) * 100) / 100;
     } catch (error) {
       console.error('Erro ao calcular tempo médio de primeira resposta:', error);
       return 0;
     }
   }
 
-  // Obter tempo médio de resolução filtrado pelo papel do usuário
   async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number> {
     try {
-      let userTickets = await this.getTicketsByUserRole(userId, userRole);
-      if (officialId) {
-        userTickets = userTickets.filter(ticket => ticket.assigned_to_id === officialId);
-      }
-      if (startDate && endDate) {
-        userTickets = userTickets.filter(ticket => {
-          const createdAt = new Date(ticket.created_at);
-          return createdAt >= startDate && createdAt <= endDate;
-        });
-      }
-      const resolvedTickets = userTickets.filter(ticket => ticket.status === 'resolved' && ticket.resolved_at && ticket.created_at);
+      // Buscar tickets filtrados via SQL (otimizado)
+      const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate);
+      
+      // Filtrar apenas tickets realmente resolvidos
+      const resolvedTickets = tickets.filter(ticket => ticket.status === 'resolved' && ticket.resolved_at && ticket.created_at);
       if (resolvedTickets.length === 0) {
         return 0;
       }
+
+      // Buscar status history de todos os tickets em uma única query (otimizado)
+      const ticketIds = resolvedTickets.map(t => t.id);
+      const allStatusHistory = await db
+        .select()
+        .from(ticketStatusHistory)
+        .where(inArray(ticketStatusHistory.ticket_id, ticketIds))
+        .orderBy(asc(ticketStatusHistory.created_at));
+
+      // Agrupar status history por ticket_id
+      const statusMap = new Map<number, TicketStatusHistory[]>();
+      for (const status of allStatusHistory) {
+        if (!statusMap.has(status.ticket_id)) statusMap.set(status.ticket_id, []);
+        statusMap.get(status.ticket_id)!.push(status);
+      }
+
       const businessHours = getBusinessHoursConfig();
-      const totalResolutionTime = await resolvedTickets.reduce(async (sumPromise, ticket) => {
-        const sum = await sumPromise;
+      
+      // Calcular tempo útil (horário comercial, dias úteis, descontando pausas) para cada ticket
+      const times = resolvedTickets.map(ticket => {
         const createdAt = new Date(ticket.created_at);
         const resolvedAt = new Date(ticket.resolved_at!);
-        const statusHistory = await db
-          .select()
-          .from(ticketStatusHistory)
-          .where(eq(ticketStatusHistory.ticket_id, ticket.id))
-          .orderBy(asc(ticketStatusHistory.created_at));
-        const statusPeriods = convertStatusHistoryToPeriods(createdAt, ticket.status, statusHistory);
+        
+        // Buscar status history do ticket
+        const statusHistory = statusMap.get(ticket.id) || [];
+        
+        // Definir tipo TicketStatus localmente se necessário
+        const statusPeriods = convertStatusHistoryToPeriods(createdAt, ticket.status as TicketStatus, statusHistory);
         const effectiveTimeMs = calculateEffectiveBusinessTime(createdAt, resolvedAt, statusPeriods, businessHours);
-        return sum + (effectiveTimeMs / (1000 * 60 * 60)); // horas
-      }, Promise.resolve(0));
-      return Math.round((totalResolutionTime / resolvedTickets.length) * 100) / 100;
+        
+        return effectiveTimeMs / (1000 * 60 * 60); // converter para horas
+      });
+
+      const total = times.reduce((a, b) => a + b, 0);
+      const avg = times.length ? Math.round((total / times.length) * 100) / 100 : 0;
+      return avg;
     } catch (error) {
       console.error('Erro ao calcular tempo médio de resolução:', error);
       return 0;
@@ -1440,22 +1540,16 @@ export class DatabaseStorage implements IStorage {
   // Categories operations
   async getCategories(filters: any = {}, page: number = 1, limit: number = 50): Promise<{ categories: Category[], total: number }> {
     try {
-      let query = db.select().from(categories);
       let whereConditions: any[] = [];
-
-      // Filtros
       if (filters.incident_type_id) {
         whereConditions.push(eq(categories.incident_type_id, filters.incident_type_id));
       }
-
       if (filters.company_id) {
         whereConditions.push(eq(categories.company_id, filters.company_id));
       }
-
       if (filters.is_active !== undefined) {
         whereConditions.push(eq(categories.is_active, filters.is_active));
       }
-
       if (filters.search) {
         whereConditions.push(
           or(
@@ -1464,23 +1558,13 @@ export class DatabaseStorage implements IStorage {
           )
         );
       }
-
-      // Aplicar condições WHERE
-      if (whereConditions.length > 0) {
-        query = query.where(and(...whereConditions));
-      }
-
+      // Query principal
+      const queryBuilder = db.select().from(categories);
+      const query = whereConditions.length > 0 ? queryBuilder.where(and(...whereConditions)) : queryBuilder;
       // Contar total de registros
-      const countQuery = db
-        .select({ count: sql<number>`count(*)` })
-        .from(categories);
-      
-      if (whereConditions.length > 0) {
-        countQuery.where(and(...whereConditions));
-      }
-
+      const countQueryBuilder = db.select({ count: sql<number>`count(*)` }).from(categories);
+      const countQuery = whereConditions.length > 0 ? countQueryBuilder.where(and(...whereConditions)) : countQueryBuilder;
       const [{ count: total }] = await countQuery;
-
       // Aplicar paginação e ordenação
       const categoriesData = await query
         .orderBy(categories.name)
@@ -1490,15 +1574,15 @@ export class DatabaseStorage implements IStorage {
       // Enriquecer com dados relacionados
       const enrichedCategories = await Promise.all(
         categoriesData.map(async (category) => {
-          let incidentType = null;
-          let company = null;
+          let incidentType: Partial<IncidentType> | undefined = undefined;
+          let company: Partial<{ id: number; name: string; email: string; domain: string | null; active: boolean; created_at: Date; updated_at: Date; cnpj: string | null; phone: string | null; ai_permission: boolean; uses_flexible_sla: boolean; }> | undefined = undefined;
 
           if (category.incident_type_id) {
             const [incident] = await db
               .select()
               .from(incidentTypes)
               .where(eq(incidentTypes.id, category.incident_type_id));
-            incidentType = incident || null;
+            incidentType = incident || undefined;
           }
 
           if (category.company_id) {
@@ -1506,7 +1590,7 @@ export class DatabaseStorage implements IStorage {
               .select()
               .from(companies)
               .where(eq(companies.id, category.company_id));
-            company = comp || null;
+            company = comp ? ({ ...comp } as Partial<{ id: number; name: string; email: string; domain: string | null; active: boolean; created_at: Date; updated_at: Date; cnpj: string | null; phone: string | null; ai_permission: boolean; uses_flexible_sla: boolean; }>) : undefined;
           }
 
           return {
@@ -1539,15 +1623,15 @@ export class DatabaseStorage implements IStorage {
       }
 
       // Enriquecer com dados relacionados
-      let incidentType = null;
-      let company = null;
+      let incidentType: Partial<IncidentType> | undefined = undefined;
+      let company: Partial<{ id: number; name: string; email: string; domain: string | null; active: boolean; created_at: Date; updated_at: Date; cnpj: string | null; phone: string | null; ai_permission: boolean; uses_flexible_sla: boolean; }> | undefined = undefined;
 
       if (category.incident_type_id) {
         const [incident] = await db
           .select()
           .from(incidentTypes)
           .where(eq(incidentTypes.id, category.incident_type_id));
-        incidentType = incident || null;
+        incidentType = incident || undefined;
       }
 
       if (category.company_id) {
@@ -1555,7 +1639,7 @@ export class DatabaseStorage implements IStorage {
           .select()
           .from(companies)
           .where(eq(companies.id, category.company_id));
-        company = comp || null;
+        company = comp ? ({ ...comp } as Partial<{ id: number; name: string; email: string; domain: string | null; active: boolean; created_at: Date; updated_at: Date; cnpj: string | null; phone: string | null; ai_permission: boolean; uses_flexible_sla: boolean; }>) : undefined;
       }
 
       return {
@@ -1576,7 +1660,7 @@ export class DatabaseStorage implements IStorage {
         .from(categories)
         .where(
           and(
-            eq(categories.value, value),
+            eq(categories.name, value), // garantir que o campo existe
             eq(categories.incident_type_id, incidentTypeId),
             eq(categories.company_id, companyId)
           )
@@ -1595,7 +1679,6 @@ export class DatabaseStorage implements IStorage {
         .insert(categories)
         .values({
           name: categoryData.name,
-          value: categoryData.value,
           description: categoryData.description || null,
           incident_type_id: categoryData.incident_type_id,
           company_id: categoryData.company_id,
@@ -1644,11 +1727,244 @@ export class DatabaseStorage implements IStorage {
         .from(tickets)
         .where(eq(tickets.category_id, categoryId));
 
-      return ticketsData;
+      // Enriquecer com customer
+      const enriched = await Promise.all(
+        ticketsData.map(async (ticket) => {
+          let customerData = {};
+          if (ticket.customer_id) {
+            [customerData] = await db.select().from(customers).where(eq(customers.id, ticket.customer_id));
+          }
+          return {
+            ...ticket,
+            customer: customerData || {}
+          };
+        })
+      );
+      return enriched as Ticket[];
     } catch (error) {
       console.error('Erro ao buscar tickets por categoria:', error);
       return [];
     }
+  }
+
+  /**
+   * Busca otimizada para dashboards de performance: retorna apenas os campos essenciais,
+   * aplica todos os filtros no SQL e não faz enrichments.
+   * NÃO IMPACTA OUTRAS TELAS.
+   */
+  async getTicketsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{
+    id: number;
+    created_at: Date;
+    first_response_at: Date | null;
+    resolved_at: Date | null;
+    status: string;
+    assigned_to_id: number | null;
+    company_id: number | null;
+    department_id: number | null;
+    priority: string | null;
+  }[]> {
+    // Montar filtros SQL conforme papel do usuário
+    let whereClauses: any[] = [];
+    let companyId: number | null = null;
+    if (userRole === 'admin') {
+      // Admin vê tudo
+    } else if (userRole === 'company_admin') {
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user || !user.company_id) return [];
+      companyId = user.company_id;
+      whereClauses.push(eq(tickets.company_id, companyId));
+    } else if (userRole === 'customer') {
+      const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
+      if (!customer) return [];
+      whereClauses.push(eq(tickets.customer_id, customer.id));
+    } else if (userRole === 'manager') {
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!official) return [];
+      
+      // Buscar departamentos do official
+      const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) return [];
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      // Buscar subordinados
+      const subordinates = await db.select().from(officials).where(eq(officials.manager_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      
+      if (!officialId) {
+        const assignmentFilter = or(
+          eq(tickets.assigned_to_id, official.id),
+          subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
+          isNull(tickets.assigned_to_id)
+        );
+        whereClauses.push(assignmentFilter);
+      } else {
+        if (subordinateIds.includes(officialId)) {
+          whereClauses.push(eq(tickets.assigned_to_id, officialId));
+        } else if (officialId === official.id) {
+          whereClauses.push(eq(tickets.assigned_to_id, official.id));
+        } else {
+          // Não tem permissão
+          return [];
+        }
+      }
+      
+      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+      whereClauses.push(inArray(tickets.department_id, departmentIds));
+      
+    } else if (userRole === 'supervisor') {
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!official) return [];
+      
+      // Buscar departamentos do official
+      const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) return [];
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      // Buscar subordinados
+      const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      
+      if (!officialId) {
+        const assignmentFilter = or(
+          eq(tickets.assigned_to_id, official.id),
+          subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
+          isNull(tickets.assigned_to_id)
+        );
+        whereClauses.push(assignmentFilter);
+      } else {
+        if (subordinateIds.includes(officialId)) {
+          whereClauses.push(eq(tickets.assigned_to_id, officialId));
+        } else if (officialId === official.id) {
+          whereClauses.push(eq(tickets.assigned_to_id, official.id));
+        } else {
+          // Não tem permissão
+          return [];
+        }
+      }
+      
+      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+      whereClauses.push(inArray(tickets.department_id, departmentIds));
+      
+    } else if (userRole === 'support') {
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!official) return [];
+      
+      // Buscar departamentos do official
+      const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) return [];
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      if (!officialId) {
+        const assignmentFilter = or(
+          eq(tickets.assigned_to_id, official.id),
+          isNull(tickets.assigned_to_id)
+        );
+        whereClauses.push(assignmentFilter);
+      } else if (officialId === official.id) {
+        whereClauses.push(eq(tickets.assigned_to_id, official.id));
+      } else {
+        return [];
+      }
+      
+      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+      whereClauses.push(inArray(tickets.department_id, departmentIds));
+    } else if (officialId) {
+      whereClauses.push(eq(tickets.assigned_to_id, officialId));
+    }
+    if (startDate && endDate) {
+      whereClauses.push(
+        and(
+          gte(tickets.created_at, startDate),
+          lte(tickets.created_at, endDate)
+        )
+      );
+    }
+    // Buscar apenas os campos essenciais
+    const result = await db
+      .select({
+        id: tickets.id,
+        created_at: tickets.created_at,
+        first_response_at: tickets.first_response_at,
+        resolved_at: tickets.resolved_at,
+        status: tickets.status,
+        assigned_to_id: tickets.assigned_to_id,
+        company_id: tickets.company_id,
+        department_id: tickets.department_id,
+        priority: tickets.priority
+      })
+      .from(tickets)
+      .where(whereClauses.length > 0 ? and(...whereClauses) : undefined);
+    return result;
+  }
+
+  /**
+   * Retorna estatísticas de tickets para o dashboard (total, byStatus, byPriority),
+   * aplicando filtros no SQL e sem enrichments.
+   */
+  async getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+    const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate);
+    const byStatus: Record<string, number> = {};
+    const byPriority: Record<string, number> = {};
+    tickets.forEach(ticket => {
+      const status = ticket.status || 'new';
+      byStatus[status] = (byStatus[status] || 0) + 1;
+      const priority = ticket.priority || 'medium';
+      byPriority[priority] = (byPriority[priority] || 0) + 1;
+    });
+    return {
+      total: tickets.length,
+      byStatus,
+      byPriority
+    };
+  }
+
+  /**
+   * Retorna tickets recentes para o dashboard, apenas campos essenciais, sem enrichments.
+   */
+  async getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number = 10, officialId?: number, startDate?: Date, endDate?: Date): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>> {
+    // Reaproveita a query otimizada, mas só pega os campos necessários
+    const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate);
+    return tickets
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, limit)
+      .map(ticket => ({
+        id: ticket.id,
+        title: (ticket as any).title || '',
+        status: ticket.status,
+        priority: ticket.priority,
+        created_at: ticket.created_at,
+        company_id: ticket.company_id,
+        assigned_to_id: ticket.assigned_to_id,
+        department_id: ticket.department_id
+      }));
+  }
+
+  /**
+   * Retorna lista de officials para o dashboard, apenas campos essenciais, sem enrichments.
+   */
+  async getOfficialsForDashboard(companyId?: number, onlyActive: boolean = true): Promise<Array<{ id: number; name: string; email: string; is_active: boolean; company_id: number | null; supervisor_id: number | null; manager_id: number | null; department_id: number | null; }>> {
+    let whereClauses: any[] = [];
+    if (companyId) {
+      whereClauses.push(eq(officials.company_id, companyId));
+    }
+    if (onlyActive) {
+      whereClauses.push(eq(officials.is_active, true));
+    }
+    const result = await db
+      .select({
+        id: officials.id,
+        name: officials.name,
+        email: officials.email,
+        is_active: officials.is_active,
+        company_id: officials.company_id,
+        supervisor_id: officials.supervisor_id,
+        manager_id: officials.manager_id,
+        department_id: officials.department_id,
+        // role removido pois não existe na tabela
+      })
+      .from(officials)
+      .where(whereClauses.length > 0 ? and(...whereClauses) : undefined);
+    return result;
   }
 
 

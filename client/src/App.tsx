@@ -31,6 +31,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useSystemSettings } from "@/hooks/use-system-settings";
 import PermissionsPage from "@/pages/permissions";
 import Changelog from "@/pages/changelog";
+import PerformanceDashboard from "@/pages/performance-dashboard";
 
 function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -51,12 +52,6 @@ function MainLayout({ children }: { children: React.ReactNode }) {
 function AppContent() {
   const { user } = useAuth();
   const { settings } = useSystemSettings();
-  
-  // Definir título do documento usando o nome da empresa das configurações do sistema
-  useEffect(() => {
-    const companyName = settings.companyName;
-    document.title = `${companyName} - Sistema de Gestão de Chamados`;
-  }, [settings.companyName]);
   
   return (
     <Switch>
@@ -161,6 +156,12 @@ function AppContent() {
       <ProtectedRoute path="/customers" component={() => (
         <MainLayout>
           <ClientsIndex />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/performance-dashboard" component={() => (
+        <MainLayout>
+          <PerformanceDashboard />
         </MainLayout>
       )} />
       

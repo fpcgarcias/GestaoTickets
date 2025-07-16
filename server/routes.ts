@@ -14,6 +14,7 @@ import multer from 'multer';
 import s3Service from './services/s3-service';
 import { emailConfigService, type EmailConfig, type SMTPConfigInput } from './services/email-config-service';
 import { emailNotificationService } from './services/email-notification-service';
+import dashboardRouter from './routes/dashboard';
 
 // === IMPORTS DE SEGURANÇA ===
 import { 
@@ -1655,29 +1656,12 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         customers = allCustomers.filter(customer => customer.company_id === sessionCompanyId);
       }
       
-      // Carregar as informações de cada cliente
-      const enrichedCustomers = await Promise.all(
-        customers.map(async (customer) => {
-          // Informações da empresa
-          let company = null;
-          if (customer.company_id) {
-            company = await storage.getCompany(customer.company_id);
-          }
-          
-          // Informações do usuário associado
-          let active = true;
-          if (customer.user_id) {
-            const user = await storage.getUser(customer.user_id);
-            active = user ? user.active : true;
-          }
-          
-          return {
-            ...customer,
-            company: company?.name || customer.company || '-',
-            active
-          };
-        })
-      );
+      // Enriquecer clientes com nome da empresa e status do usuário, sem sobrescrever o campo company original
+      const enrichedCustomers = customers.map(customer => ({
+        ...customer,
+        company_display: customer.company_name || customer.company || '-', // campo auxiliar para exibição
+        active: typeof customer.user_active === 'boolean' ? customer.user_active : true
+      }));
       
       // Filtrar os clientes inativos se necessário
       let filteredCustomers = includeInactive 
@@ -1690,7 +1674,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         filteredCustomers = filteredCustomers.filter(customer => 
           customer.name.toLowerCase().includes(searchLower) ||
           customer.email.toLowerCase().includes(searchLower) ||
-          (customer.company && customer.company.toLowerCase().includes(searchLower))
+          (customer.company_display && customer.company_display.toLowerCase().includes(searchLower))
         );
       }
       
@@ -2387,14 +2371,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         
         // Buscar os departamentos reais do banco para retornar nomes corretos
         const officialDepts = await storage.getOfficialDepartments(official.id);
-        const departmentNames = await Promise.all(
-          officialDepts.map(async (od) => {
-            const [dept] = await db.select({ name: schema.departments.name })
-              .from(schema.departments)
-              .where(eq(schema.departments.id, od.department_id));
-            return dept?.name || `Dept-${od.department_id}`;
-          })
-        );
+        const departmentIds = officialDepts.map(od => od.department_id);
+        let departmentNames: string[] = [];
+        if (departmentIds.length > 0) {
+          const depts = await db
+            .select({ id: schema.departments.id, name: schema.departments.name })
+            .from(schema.departments)
+            .where(inArray(schema.departments.id, departmentIds));
+          const deptMap = new Map(depts.map(d => [d.id, d.name]));
+          departmentNames = departmentIds.map(id => deptMap.get(id) || `Dept-${id}`);
+        }
         
         // Anexar nomes de departamentos ao resultado
         official.departments = departmentNames;
@@ -2584,14 +2570,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         
         // Buscar os departamentos reais do banco para retornar nomes corretos
         const officialDepts = await storage.getOfficialDepartments(id);
-        const departmentNames = await Promise.all(
-          officialDepts.map(async (od) => {
-            const [dept] = await db.select({ name: schema.departments.name })
-              .from(schema.departments)
-              .where(eq(schema.departments.id, od.department_id));
-            return dept?.name || `Dept-${od.department_id}`;
-          })
-        );
+        const departmentIds = officialDepts.map(od => od.department_id);
+        let departmentNames: string[] = [];
+        if (departmentIds.length > 0) {
+          const depts = await db
+            .select({ id: schema.departments.id, name: schema.departments.name })
+            .from(schema.departments)
+            .where(inArray(schema.departments.id, departmentIds));
+          const deptMap = new Map(depts.map(d => [d.id, d.name]));
+          departmentNames = departmentIds.map(id => deptMap.get(id) || `Dept-${id}`);
+        }
         
         // Anexar nomes de departamentos ao resultado
         updatedOfficial.departments = departmentNames;
@@ -6473,56 +6461,20 @@ Agradecemos a compreensão.`,
         }
       ];
 
-      // Verificar quais templates já existem para a empresa
-      const existingTemplates = await db
-        .select()
-        .from(schema.emailTemplates)
-        .where(
-          and(
-            eq(schema.emailTemplates.company_id, targetCompanyId),
-            eq(schema.emailTemplates.is_active, true)
-          )
-        );
-
-      const existingTypes = new Set(existingTemplates.map(t => t.type));
-
-      // Filtrar apenas os templates que não existem
-      const templatesToCreate = defaultTemplates.filter(t => !existingTypes.has(t.type));
-
-      if (templatesToCreate.length === 0) {
-        return res.status(200).json({ 
-          message: 'Todos os templates padrão já existem para esta empresa.',
-          created: 0,
-          existing: defaultTemplates.length
-        });
-      }
-
-      // Criar os templates que faltam
-      const now = new Date();
-      await db.insert(schema.emailTemplates).values(
-        templatesToCreate.map(template => ({
+      // Salvar templates padrão
+      for (const template of defaultTemplates) {
+        await emailConfigService.saveEmailTemplate({
           ...template,
           company_id: targetCompanyId,
           created_by_id: userId,
-          updated_by_id: userId,
-          created_at: now,
-          updated_at: now
-        }))
-      );
+          updated_by_id: userId
+        });
+      }
 
-      res.status(201).json({ 
-        message: `${templatesToCreate.length} templates padrão criados com sucesso!`,
-        created: templatesToCreate.length,
-        existing: existingTypes.size,
-        templates: templatesToCreate.map(t => ({ type: t.type, name: t.name }))
-      });
-
+      res.json({ success: true, message: 'Templates padrão criados com sucesso' });
     } catch (error) {
-      console.error('Erro ao criar templates padrão:', error);
-      res.status(500).json({ 
-        message: 'Erro ao criar templates padrão', 
-        error: String(error) 
-      });
+      console.error('Erro ao criar templates padrão de e-mail:', error);
+      res.status(500).json({ message: "Erro interno ao criar templates padrão de e-mail" });
     }
   });
 
@@ -6922,6 +6874,9 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
     }
   });
 
+  // Registrar router do dashboard
+  app.use("/api/tickets", dashboardRouter);
+  
   app.use("/api", router);
   
   // Criar servidor HTTP
@@ -7062,6 +7017,5 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   });
   
   return httpServer;
+
 }
-
-

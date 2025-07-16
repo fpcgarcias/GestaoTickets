@@ -98,8 +98,9 @@ const DOMAIN_THEME_MAP: Record<string, ThemeKey> = {
 // Função para detectar o tema (otimizada - executa apenas uma vez)
 function detectThemeFromDomain(): ThemeKey {
   if (typeof window === 'undefined') return 'default';
-  
+
   const hostname = window.location.hostname;
+  console.log('Detectando tema para o hostname:', hostname);
   const urlParams = new URLSearchParams(window.location.search);
   
   // 🧪 MODO DESENVOLVIMENTO: Query parameter tem prioridade
@@ -116,16 +117,13 @@ function detectThemeFromDomain(): ThemeKey {
     }
   }
   
-  // Verificar domínios mapeados
-  for (const [domain, theme] of Object.entries(DOMAIN_THEME_MAP)) {
-    if (hostname === domain || hostname.includes(domain)) {
-      return theme;
+  // Sort domains by length descending to check specific subdomains first
+  const sortedDomains = Object.keys(DOMAIN_THEME_MAP).sort((a, b) => b.length - a.length);
+
+  for (const domain of sortedDomains) {
+    if (hostname === domain || hostname.endsWith(`.${domain}`)) {
+      return DOMAIN_THEME_MAP[domain];
     }
-  }
-  
-  // Verificar subdomínios específicos
-  if (hostname.endsWith('.oficinamuda.com.br') || hostname === 'oficinamuda.com.br') {
-    return 'oficinaMuda';
   }
   
   return 'default';
@@ -143,9 +141,7 @@ function applyThemeColors(themeName: ThemeKey) {
   });
   
   // Atualizar título da página
-  if (theme.name !== 'Ticket Wise') {
-    document.title = `${theme.name} - Sistema de Gestão de Chamados`;
-  }
+  document.title = `${theme.name} - Sistema de Gestão de Chamados`;
 }
 
 // Função para obter logo baseado no tema
@@ -225,4 +221,4 @@ export const devUtils = {
 // Disponibilizar no window
 if (typeof window !== 'undefined') {
   (window as any).themeDevUtils = devUtils;
-} 
+}

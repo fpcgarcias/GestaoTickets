@@ -54,12 +54,6 @@ export default function Settings() {
   const [, navigate] = useLocation();
   const { user, company: userCompany, isLoading: isLoadingAuth } = useAuth(); // Usar o hook de autenticação global
 
-  if (process.env.NODE_ENV !== 'production') {
-    console.log("[Settings] User from global useAuth:", user);
-    console.log("[Settings] Company from global useAuth:", userCompany);
-    console.log("[Settings] isLoadingAuth from global useAuth:", isLoadingAuth);
-  }
-
   // Redirecionar customers que tentarem acessar esta página
   useEffect(() => {
     if (!isLoadingAuth && user?.role === 'customer') {
@@ -76,9 +70,6 @@ export default function Settings() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>(
     (user?.role === 'manager' || user?.role === 'company_admin') && userCompany?.id ? userCompany.id : undefined
   );
-  if (process.env.NODE_ENV !== 'production') {
-    console.log("[Settings] Initial selectedCompanyId:", selectedCompanyId);
-  }
 
   // useEffect(() => {
   //   if (hash === 'departments') {
@@ -109,38 +100,20 @@ export default function Settings() {
 
   useEffect(() => {
     if (user?.role === 'admin' && companiesData) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.log("[Settings] Admin role and companiesData received. companiesData:", companiesData);
-      }
       setCompanies(companiesData);
       if (!selectedCompanyId) { 
         if (userCompany?.id && companiesData.some(c => c.id === userCompany.id)) {
           setSelectedCompanyId(userCompany.id);
-          if (process.env.NODE_ENV !== 'production') {
-            console.log("[Settings] setSelectedCompanyId (admin, from userCompany.id):", userCompany.id);
-          }
         } else if (companiesData.length > 0) {
           setSelectedCompanyId(companiesData[0].id);
-          if (process.env.NODE_ENV !== 'production') {
-            console.log("[Settings] setSelectedCompanyId (admin, from companiesData[0].id):", companiesData[0].id);
-          }
         }
       }
     } else if (user?.role === 'manager' && userCompany?.id && !selectedCompanyId) {
       setSelectedCompanyId(userCompany.id);
-      if (process.env.NODE_ENV !== 'production') {
-        console.log("[Settings] setSelectedCompanyId (manager, from userCompany.id):", userCompany.id);
-      }
     } else if (user?.role === 'company_admin' && userCompany?.id && !selectedCompanyId) {
       setSelectedCompanyId(userCompany.id);
-      if (process.env.NODE_ENV !== 'production') {
-        console.log("[Settings] setSelectedCompanyId (company_admin, from userCompany.id):", userCompany.id);
-      }
     } else if (user?.role === 'support' && userCompany?.id && !selectedCompanyId) {
       setSelectedCompanyId(userCompany.id);
-      if (process.env.NODE_ENV !== 'production') {
-        console.log("[Settings] setSelectedCompanyId (support, from userCompany.id):", userCompany.id);
-      }
     }
   }, [companiesData, user?.role, userCompany, selectedCompanyId]);
 
@@ -159,15 +132,6 @@ export default function Settings() {
                         (!isLoadingAuth && user?.role === 'supervisor' && !!userCompany?.id) ||
                         (!isLoadingAuth && user?.role === 'company_admin' && !!userCompany?.id) ||
                         (!isLoadingAuth && user?.role === 'support' && !!userCompany?.id);
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(
-      "[Settings] slaQueryEnabled:", slaQueryEnabled, 
-      "isLoadingAuth:", isLoadingAuth,
-      "user.role:", user?.role, 
-      "selectedCompanyId:", selectedCompanyId, 
-      "userCompany.id:", userCompany?.id
-    );
-  }
   const { 
     data: slaSettingsData, 
     isLoading: isLoadingSla, 
@@ -189,13 +153,7 @@ export default function Settings() {
       } else if (user?.role === 'support' && userCompany?.id) {
         endpoint = '/api/settings/sla';
       } else {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log("[Settings SLA Query] No valid conditions to fetch, returning empty. User Role:", user?.role, "SelectedCompanyId:", selectedCompanyId, "UserCompanyId:", userCompany?.id);
-        }
         return Promise.resolve({ company_id: selectedCompanyId || userCompany?.id || 0, settings: {} }); 
-      }
-      if (process.env.NODE_ENV !== 'production') {
-        console.log("[Settings SLA Query] Fetching SLA with endpoint:", endpoint);
       }
       const response = await apiRequest("GET", endpoint);
       if (!response.ok) {

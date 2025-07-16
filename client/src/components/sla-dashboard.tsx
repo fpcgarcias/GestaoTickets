@@ -38,6 +38,7 @@ import {
   Legend
 } from 'recharts';
 import { useAuth } from '@/hooks/use-auth';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 // Interfaces para os dados
 interface SLADashboardStats {
@@ -86,6 +87,7 @@ interface SLADashboardProps {
 export function SLADashboard({ className }: SLADashboardProps) {
   const { user } = useAuth();
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [showMissingConfigsModal, setShowMissingConfigsModal] = useState(false);
 
   // Buscar departamentos disponíveis
   const { data: departmentsResponse } = useQuery({
@@ -181,12 +183,17 @@ export function SLADashboard({ className }: SLADashboardProps) {
   if (!slaStats) return null;
 
   // Preparar dados para gráficos
-  const coverageData = slaStats.configurationsByDepartment.map(dept => ({
-    name: dept.departmentName,
-    coverage: dept.coverage,
-    configuracoes: dept.configurationsCount,
-    faltantes: dept.missingConfigurations
-  }));
+  const coverageData = slaStats.configurationsByDepartment.map(dept => {
+    const realMissing = slaStats.missingConfigurationAlerts.filter(a => a.departmentId === dept.departmentId).length;
+    const total = dept.configurationsCount + realMissing;
+    const coverage = total > 0 ? (dept.configurationsCount / total) * 100 : 0;
+    return {
+      name: dept.departmentName,
+      coverage,
+      configuracoes: dept.configurationsCount,
+      faltantes: realMissing
+    };
+  });
 
   const complianceData = slaStats.slaCompliance.map(dept => ({
     name: dept.departmentName,
@@ -291,8 +298,30 @@ export function SLADashboard({ className }: SLADashboardProps) {
               <AlertTriangle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">
-                {totalMissingConfigs}
+              <div className="flex items-center gap-2">
+                <div className="text-2xl font-bold text-orange-600">
+                  {totalMissingConfigs}
+                </div>
+                {totalMissingConfigs > 0 && (
+                  <Dialog open={showMissingConfigsModal} onOpenChange={setShowMissingConfigsModal}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline" className="ml-2">Ver detalhes</Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-lg">
+                      <DialogHeader>
+                        <DialogTitle>Configurações SLA Faltantes</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                        {slaStats.missingConfigurationAlerts.map((alert, idx) => (
+                          <div key={idx} className="border rounded p-2 flex flex-col">
+                            <span className="font-medium">{alert.departmentName} - {alert.incidentTypeName}</span>
+                            <span className="text-xs text-muted-foreground">Prioridade: {alert.priorityName || 'Padrão'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">
                 Alertas de configurações necessárias
@@ -363,16 +392,16 @@ export function SLADashboard({ className }: SLADashboardProps) {
                             <span>{dept.configurationsCount} configurações</span>
                             {dept.missingConfigurations > 0 && (
                               <Badge variant="outline" className="text-orange-600">
-                                {dept.missingConfigurations} faltantes
+                                {slaStats.missingConfigurationAlerts.filter(a => a.departmentId === dept.departmentId).length} faltantes
                               </Badge>
                             )}
                           </div>
                         </div>
                         <div className="text-right space-y-1">
                           <div className="text-sm font-medium">
-                            {dept.coverage.toFixed(1)}%
+                            {coverageData.find(d => d.name === dept.departmentName)?.coverage.toFixed(1)}%
                           </div>
-                          <Progress value={dept.coverage} className="w-20 h-2" />
+                          <Progress value={coverageData.find(d => d.name === dept.departmentName)?.coverage || 0} className="w-20 h-2" />
                         </div>
                       </div>
                     ))}

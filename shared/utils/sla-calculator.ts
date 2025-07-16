@@ -120,11 +120,11 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
   const isDebugMode = endDate.getFullYear() === 2025 && endDate.getMonth() === 6; // Julho 2025
   
   if (isDebugMode && process.env.NODE_ENV !== 'production') {
-    console.log(`[DEBUG] calculateBusinessTimeMs:`, {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      businessHours
-    });
+      // console.log(`[DEBUG] calculateBusinessTimeMs:`, {
+  //   startDate: startDate.toISOString(),
+  //   endDate: endDate.toISOString(),
+  //   businessHours
+  // });
   }
   
   let totalBusinessTime = 0;
@@ -138,11 +138,11 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
     const currentDay = current.getDay();
     
     if (isDebugMode && process.env.NODE_ENV !== 'production') {
-      console.log(`[DEBUG] Processando dia ${dayCount}:`, {
-        currentDate: current.toISOString(),
-        dayOfWeek: currentDay,
-        isWorkDay: businessHours.workDays.includes(currentDay)
-      });
+      // console.log(`[DEBUG] Processando dia ${dayCount}:`, {
+      //   currentDate: current.toISOString(),
+      //   dayOfWeek: currentDay,
+      //   isWorkDay: businessHours.workDays.includes(currentDay)
+      // });
     }
     
     // Se é um dia útil
@@ -160,12 +160,12 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
       const effectiveEnd = endDate < dayEnd ? endDate : dayEnd;
       
       if (isDebugMode && process.env.NODE_ENV !== 'production') {
-        console.log(`[DEBUG] Período efetivo dia ${dayCount}:`, {
-          dayStart: dayStart.toISOString(),
-          dayEnd: dayEnd.toISOString(),
-          effectiveStart: effectiveStart.toISOString(),
-          effectiveEnd: effectiveEnd.toISOString()
-        });
+        // console.log(`[DEBUG] Período efetivo dia ${dayCount}:`, {
+        //   dayStart: dayStart.toISOString(),
+        //   dayEnd: dayEnd.toISOString(),
+        //   effectiveStart: effectiveStart.toISOString(),
+        //   effectiveEnd: effectiveEnd.toISOString()
+        // });
       }
       
       // Se há sobreposição no dia atual
@@ -174,15 +174,15 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
         totalBusinessTime += dayTime;
         
         if (isDebugMode && process.env.NODE_ENV !== 'production') {
-          console.log(`[DEBUG] Tempo adicionado dia ${dayCount}:`, {
-            dayTimeMs: dayTime,
-            dayTimeHours: dayTime / (1000 * 60 * 60),
-            totalSoFarHours: totalBusinessTime / (1000 * 60 * 60)
-          });
+          // console.log(`[DEBUG] Tempo adicionado dia ${dayCount}:`, {
+          //   dayTimeMs: dayTime,
+          //   dayTimeHours: dayTime / (1000 * 60 * 60),
+          //   totalSoFarHours: totalBusinessTime / (1000 * 60 * 60)
+          // });
         }
       }
     } else if (isDebugMode && process.env.NODE_ENV !== 'production') {
-      console.log(`[DEBUG] Dia ${dayCount} é fim de semana/feriado - ignorado`);
+      // console.log(`[DEBUG] Dia ${dayCount} é fim de semana/feriado - ignorado`);
     }
     
     // Ir para o próximo dia
@@ -192,11 +192,11 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
   }
   
   if (isDebugMode && process.env.NODE_ENV !== 'production') {
-    console.log(`[DEBUG] Resultado final:`, {
-      totalBusinessTimeMs: totalBusinessTime,
-      totalBusinessTimeHours: totalBusinessTime / (1000 * 60 * 60),
-      daysProcessed: dayCount
-    });
+    // console.log(`[DEBUG] Resultado final:`, {
+    //   totalBusinessTimeMs: totalBusinessTime,
+    //   totalBusinessTimeHours: totalBusinessTime / (1000 * 60 * 60),
+    //   daysProcessed: dayCount
+    // });
   }
   
   return totalBusinessTime;

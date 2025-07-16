@@ -33,6 +33,19 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { usePriorities } from '@/hooks/use-priorities';
 
+// Utilitário para converter data local (Brasília) para UTC ISO string (yyyy-mm-ddTHH:MM:SSZ)
+function toBrasiliaISOString(date: Date, endOfDay = false) {
+  // Ajusta para UTC-3
+  const offsetMs = 3 * 60 * 60 * 1000;
+  const local = new Date(date.getTime() - offsetMs);
+  if (endOfDay) {
+    local.setHours(23, 59, 59, 999);
+  } else {
+    local.setHours(0, 0, 0, 0);
+  }
+  return local.toISOString();
+}
+
 export default function TicketsIndex() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -43,7 +56,7 @@ export default function TicketsIndex() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [assignedToFilter, setAssignedToFilter] = useState('all');
-  const [hideResolved, setHideResolved] = useState(false);
+  const [hideResolved, setHideResolved] = useState(true);
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ 
     from: undefined, 
     to: undefined 
@@ -88,8 +101,8 @@ export default function TicketsIndex() {
         ...(assignedToFilter && assignedToFilter !== 'all' && { assigned_to_id: assignedToFilter }),
         ...(hideResolved && { hide_resolved: 'true' }),
         ...(timeFilter && timeFilter !== 'custom' && { time_filter: timeFilter }),
-        ...(timeFilter === 'custom' && dateRange.from && { date_from: dateRange.from.toISOString().split('T')[0] }),
-        ...(timeFilter === 'custom' && dateRange.to && { date_to: dateRange.to.toISOString().split('T')[0] }),
+        ...(timeFilter === 'custom' && dateRange.from && { date_from: toBrasiliaISOString(dateRange.from, false) }),
+        ...(timeFilter === 'custom' && dateRange.to && { date_to: toBrasiliaISOString(dateRange.to, true) }),
       });
       
       const res = await fetch(`/api/tickets/user-role?${params}`);

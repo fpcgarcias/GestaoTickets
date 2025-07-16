@@ -110,7 +110,6 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
 
   const createSupportUserMutation = useMutation({
     mutationFn: async (userData: any) => {
-      console.log('Enviando dados para criar usuário de suporte:', JSON.stringify(userData, null, 2));
       const res = await apiRequest('POST', '/api/support-users', userData);
       if (!res.ok) {
         const errorData = await res.json();

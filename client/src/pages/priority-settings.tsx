@@ -392,7 +392,6 @@ export default function PrioritySettings() {
       weight: index + 1
     }));
 
-    console.log('🎯 Enviando reordenação final:', reorderedPriorities);
     reorderPrioritiesMutation.mutate(reorderedPriorities);
   };
   const currentDepartment = prioritiesData?.data?.department;

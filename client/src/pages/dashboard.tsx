@@ -6,12 +6,10 @@ import { StatusDot } from '@/components/tickets/status-badge';
 import { TimeMetricCard } from '@/components/ui/time-metric-card';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
 import { Clock, CheckCircle2, Users, Calendar, MoreHorizontal } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
-import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   PieChart, 
@@ -73,50 +71,59 @@ const PERIOD_OPTIONS = [
   { value: 'custom', label: 'Personalizado' }
 ];
 
+// Utilitário para converter data local (Brasília) para UTC ISO string (yyyy-mm-ddTHH:MM:SSZ)
+function toBrasiliaISOString(date: Date, endOfDay = false) {
+  // Ajusta para UTC-3
+  const offsetMs = 3 * 60 * 60 * 1000;
+  const local = new Date(date.getTime() - offsetMs);
+  if (endOfDay) {
+    local.setHours(23, 59, 59, 999);
+  } else {
+    local.setHours(0, 0, 0, 0);
+  }
+  return local.toISOString();
+}
+
 export default function Dashboard() {
   const { user, isLoading: isLoadingAuth } = useAuth();
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
   
-  // Estados para filtro de período
-  const [selectedPeriod, setSelectedPeriod] = useState('current_month');
-  const [customStartDate, setCustomStartDate] = useState<Date | undefined>(undefined);
-  const [customEndDate, setCustomEndDate] = useState<Date | undefined>(undefined);
-  const [isCustomPeriod, setIsCustomPeriod] = useState(false);
+  // Novo filtro de datas igual ao index.tsx
+  const [timeFilter, setTimeFilter] = useState('this-week');
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
-  // Função para calcular datas baseado no período selecionado
-  const getPeriodDates = () => {
+  // Função para calcular datas igual ao index.tsx
+  function getPeriodDates() {
     const now = new Date();
-    
-    switch (selectedPeriod) {
-      case 'current_month':
-        return {
-          startDate: startOfMonth(now),
-          endDate: endOfMonth(now)
-        };
-      case 'last_month':
-        const lastMonth = subMonths(now, 1);
-        return {
-          startDate: startOfMonth(lastMonth),
-          endDate: endOfMonth(lastMonth)
-        };
-      case 'current_year':
-        return {
-          startDate: startOfYear(now),
-          endDate: endOfYear(now)
-        };
+    let from: Date;
+    let to: Date;
+    switch (timeFilter) {
+      case 'this-week':
+        from = startOfWeek(now, { weekStartsOn: 1 }); // segunda-feira
+        to = endOfWeek(now, { weekStartsOn: 1 }); // domingo
+        break;
+      case 'last-week': {
+        const lastWeek = new Date(now);
+        lastWeek.setDate(now.getDate() - 7);
+        from = startOfWeek(lastWeek, { weekStartsOn: 1 });
+        to = endOfWeek(lastWeek, { weekStartsOn: 1 });
+        break;
+      }
+      case 'this-month':
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+        break;
       case 'custom':
-        return {
-          startDate: customStartDate || startOfMonth(now),
-          endDate: customEndDate || endOfMonth(now)
-        };
+        from = dateRange.from ? dateRange.from : startOfMonth(now);
+        to = dateRange.to ? dateRange.to : endOfMonth(now);
+        break;
       default:
-        return {
-          startDate: startOfMonth(now),
-          endDate: endOfMonth(now)
-        };
+        from = startOfMonth(now);
+        to = endOfMonth(now);
     }
-  };
-
+    return { startDate: from, endDate: to };
+  }
   const { startDate, endDate } = getPeriodDates();
 
   const [selectedOfficialId, setSelectedOfficialId] = useState<string>('all');
@@ -171,75 +178,46 @@ export default function Dashboard() {
   // Construir parâmetros de query incluindo período
   const getQueryParamsWithPeriod = () => {
     const periodParams = new URLSearchParams();
-    
     // Adicionar filtro de atendente se selecionado
     if (selectedOfficialId !== 'all') {
       periodParams.append('official_id', selectedOfficialId);
     }
-    
-    // Adicionar datas do período
-    periodParams.append('start_date', startDate.toISOString());
-    periodParams.append('end_date', endDate.toISOString());
-    
+    // Adicionar datas do período (ajustadas para UTC-3)
+    periodParams.append('start_date', toBrasiliaISOString(startDate, false));
+    periodParams.append('end_date', toBrasiliaISOString(endDate, true));
     return periodParams.toString();
   };
 
-  // Utilizamos as rotas que já filtram tickets baseados no papel do usuário
-  const { data: ticketStatsData, isLoading: isStatsLoading } = useQuery<TicketStats>({
-    queryKey: ['tickets/stats', startDate.toISOString(), endDate.toISOString(), selectedOfficialId],
+  // Função para determinar se está no horário permitido (6h às 21h)
+  const isWithinAllowedHours = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    return hour >= 6 && hour < 21;
+  };
+
+  // Query única para todas as métricas do dashboard
+  const { data: dashboardData, isLoading: isDashboardLoading } = useQuery({
+    queryKey: ['dashboard-metrics', startDate.toISOString(), endDate.toISOString(), selectedOfficialId],
     queryFn: async () => {
       const params = getQueryParamsWithPeriod();
-      const url = `/api/tickets/stats${params ? `?${params}` : ''}`;
+      const url = `/api/tickets/dashboard-metrics${params ? `?${params}` : ''}`;
       const response = await fetch(url, { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch stats');
+      if (!response.ok) throw new Error('Failed to fetch dashboard metrics');
       return response.json();
     },
-    refetchInterval: 30000, // Atualiza a cada 30 segundos
+    refetchInterval: isWithinAllowedHours() ? 60000 : false,
+    refetchIntervalInBackground: false,
   });
 
-  const { data: recentTicketsData, isLoading: isRecentLoading } = useQuery<RecentTicket[]>({
-    queryKey: ['tickets/recent', startDate.toISOString(), endDate.toISOString(), selectedOfficialId],
-    queryFn: async () => {
-      const params = getQueryParamsWithPeriod();
-      const url = `/api/tickets/recent${params ? `?${params}` : ''}`;
-      const response = await fetch(url, { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch recent tickets');
-      return response.json();
-    },
-    refetchInterval: 30000, // Atualiza a cada 30 segundos
-  });
-
-  const { data: avgFirstResponseData, isLoading: isFirstResponseLoading } = useQuery<{ averageTime: number }>({
-    queryKey: ['tickets/average-first-response-time', startDate.toISOString(), endDate.toISOString(), selectedOfficialId],
-    queryFn: async () => {
-      const params = getQueryParamsWithPeriod();
-      const url = `/api/tickets/average-first-response-time${params ? `?${params}` : ''}`;
-      const response = await fetch(url, { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch avg first response time');
-      return response.json();
-    },
-    refetchInterval: 30000, // Atualiza a cada 30 segundos
-  });
-
-  const { data: avgResolutionData, isLoading: isResolutionLoading } = useQuery<{ averageTime: number }>({
-    queryKey: ['tickets/average-resolution-time', startDate.toISOString(), endDate.toISOString(), selectedOfficialId],
-    queryFn: async () => {
-      const params = getQueryParamsWithPeriod();
-      const url = `/api/tickets/average-resolution-time${params ? `?${params}` : ''}`;
-      const response = await fetch(url, { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch avg resolution time');
-      return response.json();
-    },
-    refetchInterval: 30000, // Atualiza a cada 30 segundos
-  });
-
-  // Garantir que os dados não sejam undefined antes de acessar propriedades
-  const ticketStats = ticketStatsData || { 
+  // Adaptar os dados para o formato esperado
+  const ticketStats = dashboardData?.stats || { 
     total: 0, 
     byStatus: { new: 0, ongoing: 0, resolved: 0 }, 
     byPriority: { low: 0, medium: 0, high: 0, critical: 0 } 
   };
-  const recentTickets = Array.isArray(recentTicketsData) ? recentTicketsData : [];
+  const avgFirstResponseData = { averageTime: dashboardData?.averageFirstResponseTime || 0 };
+  const avgResolutionData = { averageTime: dashboardData?.averageResolutionTime || 0 };
+  const recentTickets = Array.isArray(dashboardData?.recentTickets) ? dashboardData.recentTickets : [];
 
   // Calcular chamados com outros status (qualquer status que não seja new, ongoing ou resolved)
   const otherStatusCount = Object.entries(ticketStats.byStatus)
@@ -261,85 +239,32 @@ export default function Dashboard() {
     .map(([priority, count]) => {
       return {
         name: priority.charAt(0).toUpperCase() + priority.slice(1).toLowerCase(),
-        Qtde: count
+        Qtde: Number(count ?? 0)
       };
     })
-    .filter(item => item.Qtde > 0) // Filtrar apenas prioridades com tickets
-    .sort((a, b) => b.Qtde - a.Qtde); // Ordenar por quantidade decrescente
+    .filter(item => item.Qtde > 0)
+    .sort((a, b) => b.Qtde - a.Qtde);
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold text-neutral-900">Painel de Controle</h1>
-        
-        {/* Filtros */}
         <div className="flex items-center gap-4">
-          {/* Filtro de período */}
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-neutral-500" />
-            <Select value={selectedPeriod} onValueChange={(value) => {
-              setSelectedPeriod(value);
-              setIsCustomPeriod(value === 'custom');
-            }}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                {PERIOD_OPTIONS.map(option => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            {/* Calendários para período personalizado */}
-            {isCustomPeriod && (
-              <>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-32">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {customStartDate ? format(customStartDate, 'dd/MM', { locale: ptBR }) : 'Início'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <CalendarComponent
-                      mode="single"
-                      selected={customStartDate}
-                      onSelect={setCustomStartDate}
-                      initialFocus
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
-                
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-32">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {customEndDate ? format(customEndDate, 'dd/MM', { locale: ptBR }) : 'Fim'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <CalendarComponent
-                      mode="single"
-                      selected={customEndDate}
-                      onSelect={setCustomEndDate}
-                      initialFocus
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </>
-            )}
-            
+            <DateRangeFilter
+              timeFilter={timeFilter}
+              setTimeFilter={setTimeFilter}
+              dateRange={dateRange}
+              setDateRange={setDateRange}
+              calendarOpen={calendarOpen}
+              setCalendarOpen={setCalendarOpen}
+            />
             {/* Indicador discreto do período */}
             <span className="text-xs text-muted-foreground">
               {format(startDate, 'dd/MM/yy', { locale: ptBR })} - {format(endDate, 'dd/MM/yy', { locale: ptBR })}
             </span>
           </div>
-          
           {/* Filtro de Atendente */}
           {shouldShowOfficialFilter && (
             <div className="flex items-center gap-2">
@@ -368,30 +293,30 @@ export default function Dashboard() {
         <StatCard 
           title="Total de Chamados" 
           value={ticketStats.total} // Acesso direto agora é seguro
-          isLoading={isStatsLoading}
+          isLoading={isDashboardLoading}
         />
         <StatCard 
           title="Chamados Novos" 
           value={ticketStats.byStatus.new} // Acesso direto agora é seguro
-          isLoading={isStatsLoading}
+          isLoading={isDashboardLoading}
           status={TICKET_STATUS.NEW as 'new'} // Cast para o tipo literal
         />
         <StatCard 
           title="Chamados em Andamento" 
           value={ticketStats.byStatus.ongoing} // Acesso direto agora é seguro
-          isLoading={isStatsLoading}
+          isLoading={isDashboardLoading}
           status={TICKET_STATUS.ONGOING as 'ongoing'} // Cast para o tipo literal
         />
         <StatCard 
           title="Chamados Resolvidos" 
           value={ticketStats.byStatus.resolved} // Acesso direto agora é seguro
-          isLoading={isStatsLoading}
+          isLoading={isDashboardLoading}
           status={TICKET_STATUS.RESOLVED as 'resolved'} // Cast para o tipo literal
         />
         <StatCard 
           title="Outros Status" 
           value={otherStatusCount}
-          isLoading={isStatsLoading}
+          isLoading={isDashboardLoading}
           icon="other" // Ícone especial para outros status
         />
       </div>
@@ -402,14 +327,14 @@ export default function Dashboard() {
           title="Tempo Médio de Início de Atendimento"
           description="Tempo médio entre a criação e início de atendimento dos chamados"
           value={avgFirstResponseData?.averageTime || 0}
-          isLoading={isFirstResponseLoading}
+          isLoading={isDashboardLoading}
           icon={<Clock className="h-4 w-4 text-blue-500" />}
         />
         <TimeMetricCard
           title="Tempo Médio de Resolução"
           description="Tempo médio entre a criação e resolução dos chamados"
           value={avgResolutionData?.averageTime || 0}
-          isLoading={isResolutionLoading}
+          isLoading={isDashboardLoading}
           icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
         />
       </div>
@@ -421,7 +346,7 @@ export default function Dashboard() {
             <CardDescription>Distribuição de chamados por diferentes status</CardDescription>
           </CardHeader>
           <CardContent>
-            {isStatsLoading ? (
+            {isDashboardLoading ? (
               <Skeleton className="w-full h-72" />
             ) : statusDataForChart.length > 0 ? (
               <>
@@ -498,7 +423,7 @@ export default function Dashboard() {
             <CardDescription>Número de chamados para cada nível de prioridade</CardDescription>
           </CardHeader>
           <CardContent>
-            {isStatsLoading ? (
+            {isDashboardLoading ? (
               <Skeleton className="w-full h-72" />
             ) : priorityData.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
@@ -536,7 +461,7 @@ export default function Dashboard() {
           <CardDescription>Chamados mais recentes que precisam de atenção</CardDescription>
         </CardHeader>
         <CardContent>
-          {isRecentLoading ? (
+          {isDashboardLoading ? (
             <div className="space-y-4">
               <Skeleton className="w-full h-16" />
               <Skeleton className="w-full h-16" />

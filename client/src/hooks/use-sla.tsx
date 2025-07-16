@@ -293,7 +293,6 @@ export function useSLA(
 
       const response = await fetch(`/api/sla-resolver?${params}`);
       if (!response.ok) {
-        console.error('Erro ao buscar SLA:', response.status, response.statusText);
         return null;
       }
 
@@ -301,7 +300,6 @@ export function useSLA(
       
       // Se não há configuração de SLA, retornar null ao invés de criar valores fake
       if (!data || data.responseTimeHours === undefined) {
-        console.log('[SLA] Nenhuma configuração de SLA encontrada');
         return null;
       }
 
