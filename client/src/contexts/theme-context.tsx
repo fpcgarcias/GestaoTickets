@@ -132,16 +132,46 @@ function detectThemeFromDomain(): ThemeKey {
 // Função para aplicar as cores CSS
 function applyThemeColors(themeName: ThemeKey) {
   const theme = THEMES[themeName];
-  if (!theme) return;
+  if (!theme) {
+    console.error(`❌ [THEME] Tema '${themeName}' não encontrado`);
+    return;
+  }
   
   const root = document.documentElement;
   
+  // LOG CRÍTICO PARA DEPURAÇÃO
+  console.log(`🎨 [THEME] Aplicando tema '${themeName}' (${theme.name})`);
+  console.log(`🎨 [THEME] Cores a serem aplicadas:`, theme.colors);
+  
+  // Verificar se estamos em produção para forçar !important
+  const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+  
   Object.entries(theme.colors).forEach(([property, value]) => {
-    root.style.setProperty(property, value);
+    console.log(`🎨 [THEME] Aplicando: ${property} = ${value}`);
+    
+    if (isProduction) {
+      // Em produção, usar setProperty com priority
+      root.style.setProperty(property, value, 'important');
+    } else {
+      // Em desenvolvimento, usar normalmente
+      root.style.setProperty(property, value);
+    }
+    
+    // Verificar se foi aplicado
+    const appliedValue = root.style.getPropertyValue(property);
+    if (appliedValue !== value) {
+      console.error(`❌ [THEME] Falha ao aplicar ${property}: esperado '${value}', obtido '${appliedValue}'`);
+    }
   });
+  
+  // Verificar se as propriedades estão realmente no elemento
+  const computedStyle = window.getComputedStyle(root);
+  const primaryColor = computedStyle.getPropertyValue('--primary');
+  console.log(`🎨 [THEME] Cor primária final aplicada: ${primaryColor}`);
   
   // Atualizar título da página
   document.title = `${theme.name} - Sistema de Gestão de Chamados`;
+  console.log(`🎨 [THEME] Título da página atualizado para: ${document.title}`);
 }
 
 // Função para obter logo baseado no tema
@@ -169,8 +199,42 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const detectedTheme = detectThemeFromDomain();
     const theme = THEMES[detectedTheme];
     
-    // Aplicar cores CSS
+    // Aplicar cores CSS imediatamente
     applyThemeColors(detectedTheme);
+    
+    // FORÇAR REAPLICAÇÃO APÓS CARREGAMENTO COMPLETO (PRODUÇÃO)
+    setTimeout(() => {
+      console.log('🎨 [THEME] Reaplicando tema após carregamento completo');
+      applyThemeColors(detectedTheme);
+      
+      // Forçar recalculo do CSS
+      document.documentElement.style.display = 'none';
+      document.documentElement.offsetHeight; // Trigger reflow
+      document.documentElement.style.display = '';
+    }, 100);
+    
+    // VERIFICADOR DE TEMA - Garantir que foi aplicado
+    const verifyTheme = () => {
+      const computedStyle = window.getComputedStyle(document.documentElement);
+      const primaryColor = computedStyle.getPropertyValue('--primary').trim();
+      const expectedColor = theme.colors['--primary'];
+      
+      if (primaryColor !== expectedColor) {
+        console.warn(`⚠️ [THEME] Tema não aplicado corretamente. Esperado: ${expectedColor}, Obtido: ${primaryColor}`);
+        console.log('🔄 [THEME] Tentando aplicar tema novamente...');
+        applyThemeColors(detectedTheme);
+        
+        // Forçar atualização do DOM
+        const root = document.documentElement;
+        root.className = root.className; // Força re-render
+      } else {
+        console.log(`✅ [THEME] Tema ${detectedTheme} verificado e funcionando corretamente`);
+      }
+    };
+    
+    // Verificar após 500ms e 1s
+    setTimeout(verifyTheme, 500);
+    setTimeout(verifyTheme, 1000);
     
     // Atualizar estado do contexto
     setThemeData({

@@ -13,6 +13,79 @@
     
     <!-- Favicon -->
     <link rel="icon" href="/ticketwise.ico" type="image/x-icon" />
+    
+    <!-- APLICAR TEMA ANTES DO REACT CARREGAR -->
+    <script>
+      (function() {
+        // Temas disponíveis
+        const THEMES = {
+          vix: {
+            '--primary': '45 93% 47%',
+            '--primary-foreground': '0 0% 100%',
+            '--secondary': '45 20% 95%',
+            '--secondary-foreground': '45 20% 20%',
+            '--accent': '45 50% 90%',
+            '--accent-foreground': '45 50% 30%',
+            '--background': '45 10% 98%',
+            '--foreground': '45 20% 15%',
+            '--card': '0 0% 100%',
+            '--card-foreground': '45 20% 15%',
+            '--border': '45 20% 85%',
+            '--input': '45 20% 90%',
+            '--ring': '45 93% 47%',
+            '--muted': '45 20% 95%',
+            '--muted-foreground': '45 20% 45%',
+            '--popover': '0 0% 100%',
+            '--popover-foreground': '45 20% 15%',
+            '--destructive': '0 84.2% 60.2%',
+            '--destructive-foreground': '210 20% 98%',
+          },
+          oficinaMuda: {
+            '--primary': '200 100% 35%',
+            '--primary-foreground': '0 0% 100%',
+            '--secondary': '200 20% 95%',
+            '--secondary-foreground': '200 20% 20%',
+            '--accent': '200 50% 90%',
+            '--accent-foreground': '200 50% 30%',
+            '--background': '200 10% 98%',
+            '--foreground': '200 20% 15%',
+            '--card': '0 0% 100%',
+            '--card-foreground': '200 20% 15%',
+            '--border': '200 20% 85%',
+            '--input': '200 20% 90%',
+            '--ring': '200 100% 35%',
+            '--muted': '200 20% 95%',
+            '--muted-foreground': '200 20% 45%',
+            '--popover': '0 0% 100%',
+            '--popover-foreground': '200 20% 15%',
+            '--destructive': '0 84.2% 60.2%',
+            '--destructive-foreground': '210 20% 98%',
+          }
+        };
+        
+        // Detectar tema pelo domínio
+        const hostname = window.location.hostname;
+        let themeName = null;
+        
+        if (hostname.includes('vixbrasil.com')) {
+          themeName = 'vix';
+        } else if (hostname.includes('oficinamuda.com')) {
+          themeName = 'oficinaMuda';
+        }
+        
+        // Aplicar tema se encontrado
+        if (themeName && THEMES[themeName]) {
+          const theme = THEMES[themeName];
+          const root = document.documentElement;
+          
+          Object.entries(theme).forEach(([property, value]) => {
+            root.style.setProperty(property, value);
+          });
+          
+          console.log('🎨 [THEME-PRELOAD] Tema ' + themeName + ' aplicado via HTML');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
