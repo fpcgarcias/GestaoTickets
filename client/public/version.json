@@ -1,7 +1,35 @@
 {
-  "current": "1.0.19",
-  "releaseDate": "2025-07-08",
+  "current": "1.0.20",
+  "releaseDate": "2025-07-16",
   "versions": [
+    {
+      "version": "1.0.20",
+      "date": "2025-07-16",
+      "title": "Mehorias de performance e correções de bugs",
+      "type": "update",
+      "changes": {
+        "improved": [
+          "Melhoria de performance na tela de tickets",
+          "Melhoria de performance na tela de atendentes",
+          "Melhoria de performance na tela de clientes",
+          "Melhoria de performance na tela de tipos de chamado",
+          "Melhoria de performance na tela de categorias",
+          "Melhoria de performance na tela de SLA",
+          "Melhoria de performance na tela de dashboard",
+          "Melhoria de performance na tela de notificações",
+          "Adição de novos formatos de arquivos para anexos de chamados"
+        ],
+        "fixed": [
+          "Correção de permissão nas respostas de tickets",
+          "Correção de envio de e-mails de notificação de chamados para atendentes de outros departamentos",
+          "Acerto dos cálculos de SLA na tela inicial (dashboard) para seguir as regras de SLA",
+          "Aceerto dos cálculos de SLA no dashboard para seguir as regras de SLA",
+          "Acerto dos filtros de tickets para clientes, exibindo apenas os próprios chamados",
+          "Melhorias nas estatísticas de performance",
+          "Checkbox de ocultar tickets resolvidos fica fixo na tela de tickets"          
+        ]
+      }
+    },
     {
       "version": "1.0.19",
       "date": "2025-07-08",
