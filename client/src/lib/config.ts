@@ -7,10 +7,25 @@ interface AppConfig {
   isProduction: boolean;
 }
 
+// Lista de domínios de produção conhecidos
+const PRODUCTION_DOMAINS = [
+  'suporte.vixbrasil.com',
+  'suporte.oficinamuda.com.br',
+  'app.ticketwise.com.br'
+];
+
 // Detectar ambiente automaticamente
-const isDevelopment = import.meta.env.DEV || 
-                     window.location.hostname === 'localhost' || 
-                     window.location.hostname === '127.0.0.1';
+const currentHostname = window.location.hostname;
+const isProductionDomain = PRODUCTION_DOMAINS.some(domain => 
+  currentHostname === domain || currentHostname.endsWith(`.${domain}`)
+);
+
+// FORÇAR produção para domínios conhecidos
+const isDevelopment = !isProductionDomain && (
+  import.meta.env.DEV || 
+  currentHostname === 'localhost' || 
+  currentHostname === '127.0.0.1'
+);
 
 const isProduction = !isDevelopment;
 
@@ -39,13 +54,15 @@ function getConfig(): AppConfig {
       };
     }
   } else {
-    // Em produção, usar o mesmo host da página atual
-    const isHTTPS = currentUrl.protocol === 'https:';
-    const protocol = isHTTPS ? 'https:' : 'http:';
+    // Em produção com Cloudflare Tunnel
+    // SEMPRE usar o protocolo da página atual (Cloudflare cuida do HTTPS)
+    const pageProtocol = currentUrl.protocol;
+    const isHTTPS = pageProtocol === 'https:';
+    const apiProtocol = isHTTPS ? 'https:' : 'http:';
     const wsProtocol = isHTTPS ? 'wss:' : 'ws:';
     
     return {
-      apiBaseUrl: `${protocol}//${currentHost}`,
+      apiBaseUrl: `${apiProtocol}//${currentHost}`,
       wsBaseUrl: `${wsProtocol}//${currentHost}`,
       isDevelopment: false,
       isProduction: true
