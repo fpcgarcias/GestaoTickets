@@ -106,6 +106,10 @@ export interface IStorage {
   getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number>;
   getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number>;
 
+  // Dashboard optimized operations
+  getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
+  getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number, officialId?: number, startDate?: Date, endDate?: Date): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>>;
+
   // Company operations (adicionar se não existir)
   getCompany(id: number): Promise<any | undefined>;
 }
@@ -1072,6 +1076,78 @@ export class MemStorage implements IStorage {
         if (company.id === id) return company;
     }
     return undefined;
+  }
+
+  // Dashboard optimized operations
+  async getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+    // Implementação básica para memória
+    const userTickets = await this.getTicketsByUserRole(userId, userRole);
+    
+    // Filtrar por atendente se especificado
+    let filteredTickets = userTickets;
+    if (officialId) {
+      filteredTickets = userTickets.filter(ticket => ticket.assignedToId === officialId);
+    }
+    
+    // Filtrar por período se especificado
+    if (startDate && endDate) {
+      filteredTickets = filteredTickets.filter(ticket => {
+        const createdAt = new Date(ticket.createdAt);
+        return createdAt >= startDate && createdAt <= endDate;
+      });
+    }
+    
+    // Calcular estatísticas
+    const byStatus: Record<string, number> = {};
+    const byPriority: Record<string, number> = {};
+    
+    filteredTickets.forEach(ticket => {
+      const status = ticket.status || 'new';
+      byStatus[status] = (byStatus[status] || 0) + 1;
+      
+      const priority = ticket.priority || 'medium';
+      byPriority[priority] = (byPriority[priority] || 0) + 1;
+    });
+    
+    return {
+      total: filteredTickets.length,
+      byStatus,
+      byPriority
+    };
+  }
+
+  async getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number, officialId?: number, startDate?: Date, endDate?: Date): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>> {
+    // Implementação básica para memória
+    const userTickets = await this.getTicketsByUserRole(userId, userRole);
+    
+    // Filtrar por atendente se especificado
+    let filteredTickets = userTickets;
+    if (officialId) {
+      filteredTickets = userTickets.filter(ticket => ticket.assignedToId === officialId);
+    }
+    
+    // Filtrar por período se especificado
+    if (startDate && endDate) {
+      filteredTickets = filteredTickets.filter(ticket => {
+        const createdAt = new Date(ticket.createdAt);
+        return createdAt >= startDate && createdAt <= endDate;
+      });
+    }
+    
+    // Ordenar por data de criação (mais recentes primeiro) e limitar
+    return filteredTickets
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit)
+      .map(ticket => ({
+        id: ticket.id,
+        title: ticket.title,
+        status: ticket.status,
+        priority: ticket.priority,
+        created_at: ticket.createdAt,
+        company_id: ticket.companyId,
+        assigned_to_id: ticket.assignedToId,
+        department_id: ticket.departmentId
+      }));
   }
 }
 
