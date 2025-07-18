@@ -15,7 +15,7 @@ interface PerformanceMetrics {
 
 // Armazenar métricas em memória (em produção, usar Redis ou banco)
 const performanceMetrics: PerformanceMetrics[] = [];
-const MAX_METRICS_IN_MEMORY = 1000;
+const MAX_METRICS_IN_MEMORY = 10000;
 
 // Thresholds de performance
 const SLOW_REQUEST_THRESHOLD = 1000; // 1 segundo
