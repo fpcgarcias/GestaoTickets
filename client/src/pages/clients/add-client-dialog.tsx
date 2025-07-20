@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -45,7 +46,8 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
     email: '',
     phone: '',
     company: '',
-    company_id: user?.company?.id || 0
+    company_id: user?.company?.id || 0,
+    must_change_password: true
   });
   
   // Buscar lista de empresas (apenas para admin)
@@ -221,7 +223,8 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
       email: '',
       phone: '',
       company: '',
-      company_id: user?.company?.id || 0
+      company_id: user?.company?.id || 0,
+      must_change_password: true
     });
     setClientCreated(false);
     setCredentials({ username: '', password: '' });
@@ -367,6 +370,21 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
                     className="bg-gray-100"
                   />
                 )}
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="must_change_password"
+                  checked={formData.must_change_password}
+                  onCheckedChange={(checked: boolean | 'indeterminate') => 
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      must_change_password: checked === true 
+                    }))
+                  }
+                />
+                <Label htmlFor="must_change_password" className="text-sm">
+                  Forçar alteração de senha no próximo login
+                </Label>
               </div>
               <div className="flex justify-end space-x-2 pt-4">
                 <Button type="button" variant="outline" onClick={handleCloseDialog}>

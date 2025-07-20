@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   Search, Key, Pencil, Loader2, Copy, AlertTriangle, 
@@ -53,6 +54,7 @@ export default function UsersIndex() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [mustChangePassword, setMustChangePassword] = useState(true);
   
   // Estados para edição de usuário
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -73,6 +75,7 @@ export default function UsersIndex() {
     setPassword('');
     setConfirmPassword('');
     setPasswordError('');
+    setMustChangePassword(true);
     setResetPasswordDialogOpen(true);
   };
   
@@ -161,8 +164,11 @@ export default function UsersIndex() {
   
   // Mutação para redefinir senha
   const resetPasswordMutation = useMutation({
-    mutationFn: async ({ id, newPassword }: { id: number; newPassword: string }) => {
-      const res = await apiRequest('PATCH', `/api/users/${id}`, { password: newPassword });
+    mutationFn: async ({ id, newPassword, mustChangePassword }: { id: number; newPassword: string; mustChangePassword: boolean }) => {
+      const res = await apiRequest('PATCH', `/api/users/${id}`, { 
+        password: newPassword,
+        must_change_password: mustChangePassword
+      });
       return res.json();
     },
     onSuccess: () => {
@@ -248,7 +254,8 @@ export default function UsersIndex() {
     // Submeter a redefinição de senha
     resetPasswordMutation.mutate({
       id: selectedUser.id,
-      newPassword: password
+      newPassword: password,
+      mustChangePassword: mustChangePassword
     });
   };
 
@@ -682,6 +689,19 @@ export default function UsersIndex() {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirme a nova senha"
                   />
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="must_change_password"
+                    checked={mustChangePassword}
+                    onCheckedChange={(checked: boolean | 'indeterminate') => 
+                      setMustChangePassword(checked === true)
+                    }
+                  />
+                  <Label htmlFor="must_change_password" className="text-sm">
+                    Forçar alteração de senha no próximo login
+                  </Label>
                 </div>
                 
                 {passwordError && (

@@ -41,6 +41,7 @@ interface FormData {
   supervisor_id: number | null;
   manager_id: number | null;
   company_id: number | null;
+  must_change_password: boolean;
 }
 
 interface EditOfficialDialogProps {
@@ -76,6 +77,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
     supervisor_id: null,
     manager_id: null,
     company_id: null,
+    must_change_password: false,
   });
 
   // Estado para o formulário de senha
@@ -171,6 +173,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
         supervisor_id: (official as any).supervisor_id || null,
         manager_id: (official as any).manager_id || null,
         company_id: (official as any).company_id || null,
+        must_change_password: false,
       });
     }
   }, [official]);
@@ -610,6 +613,29 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                     {passwordError && (
                       <p className="text-sm text-red-500">{passwordError}</p>
                     )}
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <div className="text-right">
+                    <Label htmlFor="must_change_password" className="text-sm">
+                      Forçar alteração
+                    </Label>
+                  </div>
+                  <div className="col-span-3 flex items-center space-x-2">
+                    <Checkbox
+                      id="must_change_password"
+                      checked={formData.must_change_password}
+                      onCheckedChange={(checked: boolean | 'indeterminate') => 
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          must_change_password: checked === true 
+                        }))
+                      }
+                    />
+                    <Label htmlFor="must_change_password" className="text-sm">
+                      Forçar alteração de senha no próximo login
+                    </Label>
                   </div>
                 </div>
               </>

@@ -46,6 +46,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     supervisor_id: null as number | null,
     manager_id: null as number | null,
     company_id: null as number | null,
+    must_change_password: true,
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -326,6 +327,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       supervisor_id: null,
       manager_id: null,
       company_id: null,
+      must_change_password: true,
     });
     setUserCreated(false);
     setGeneratedPassword('');
@@ -585,6 +587,22 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                       </Select>
                     </div>
                   </div>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="must_change_password"
+                    checked={formData.must_change_password}
+                    onCheckedChange={(checked: boolean | 'indeterminate') => 
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        must_change_password: checked === true 
+                      }))
+                    }
+                  />
+                  <Label htmlFor="must_change_password" className="text-sm">
+                    Forçar alteração de senha no próximo login
+                  </Label>
                 </div>
                 
                 <DialogFooter>

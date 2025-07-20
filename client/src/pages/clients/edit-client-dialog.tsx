@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -40,7 +41,8 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
     company: '',
     company_id: 0,
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    must_change_password: false
   });
 
   // Buscar lista de empresas (apenas para admin)
@@ -59,7 +61,8 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
         company: client.company || '',
         company_id: client.company_id || (user?.company?.id || 0),
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        must_change_password: false
       });
     }
   }, [client, user]);
@@ -287,6 +290,23 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
                 onChange={handleChange}
               />
             </div>
+            {(formData.password || formData.confirmPassword) && (
+              <div className="flex items-center space-x-2 mt-2">
+                <Checkbox
+                  id="must_change_password"
+                  checked={formData.must_change_password}
+                  onCheckedChange={(checked: boolean | 'indeterminate') => 
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      must_change_password: checked === true 
+                    }))
+                  }
+                />
+                <Label htmlFor="must_change_password" className="text-sm">
+                  Forçar alteração de senha no próximo login
+                </Label>
+              </div>
+            )}
           </div>
           
           <div className="flex justify-end space-x-2 pt-4">
