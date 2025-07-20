@@ -16,6 +16,7 @@ import s3Service from './services/s3-service';
 import { emailConfigService, type EmailConfig, type SMTPConfigInput } from './services/email-config-service';
 import { emailNotificationService } from './services/email-notification-service';
 import dashboardRouter from './routes/dashboard';
+import logsRouter from './routes/logs';
 
 // === IMPORTS DE SEGURANÇA ===
 import { 
@@ -6957,6 +6958,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   // Registrar router do dashboard
   app.use("/api/tickets", dashboardRouter);
+  app.use("/api/logs", logsRouter);
   
   app.use("/api", router);
   

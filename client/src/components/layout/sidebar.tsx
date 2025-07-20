@@ -19,7 +19,8 @@ import {
   Palette,
   Clock,
   BarChart3,
-  Grid3X3
+  Grid3X3,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -74,6 +75,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     { href: "/sla-configurations", icon: <Clock size={20} />, label: "Configurações SLA", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/sla-dashboard", icon: <BarChart3 size={20} />, label: "Dashboard SLA", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/performance-dashboard", icon: <BarChart3 size={20} />, label: "Dashboard Performance", roles: ['admin'] },
+    { href: "/logs", icon: <FileText size={20} />, label: "Logs do Sistema", roles: ['admin'] },
     { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'viewer'] },
   ];
   

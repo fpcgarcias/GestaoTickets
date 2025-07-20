@@ -19,14 +19,14 @@ router.get('/dashboard-metrics', async (req: Request, res: Response) => {
     const endDate = end_date ? new Date(String(end_date)) : undefined;
     const officialId = official_id && official_id !== 'all' ? Number(official_id) : undefined;
 
-    // Estatísticas
-    const stats = await storage.getTicketStatsByUserRole(userId, userRole, officialId, startDate, endDate);
+    // Estatísticas - usar função otimizada que aplica corretamente o filtro de officialId
+    const stats = await storage.getTicketStatsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate);
     // Tempo médio de início de atendimento
     const averageFirstResponseTime = await storage.getAverageFirstResponseTimeByUserRole(userId, userRole, officialId, startDate, endDate);
     // Tempo médio de resolução
     const averageResolutionTime = await storage.getAverageResolutionTimeByUserRole(userId, userRole, officialId, startDate, endDate);
-    // Tickets recentes (limitado a 5) - limit é o 4º argumento
-    const recentTickets = await storage.getRecentTicketsByUserRole(userId, userRole, 5, officialId, startDate, endDate);
+    // Tickets recentes (limitado a 5) - usar função otimizada
+    const recentTickets = await storage.getRecentTicketsForDashboardByUserRole(userId, userRole, 5, officialId, startDate, endDate);
 
     return res.json({
       stats,

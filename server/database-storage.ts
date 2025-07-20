@@ -1754,6 +1754,7 @@ export class DatabaseStorage implements IStorage {
    */
   async getTicketsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{
     id: number;
+    title: string;
     created_at: Date;
     first_response_at: Date | null;
     resolved_at: Date | null;
@@ -1868,7 +1869,10 @@ export class DatabaseStorage implements IStorage {
       
       // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
       whereClauses.push(inArray(tickets.department_id, departmentIds));
-    } else if (officialId) {
+    }
+    
+    // APLICAR FILTRO DE ATENDENTE SE ESPECIFICADO (para todas as roles)
+    if (officialId) {
       whereClauses.push(eq(tickets.assigned_to_id, officialId));
     }
     if (startDate && endDate) {
@@ -1883,6 +1887,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .select({
         id: tickets.id,
+        title: tickets.title,
         created_at: tickets.created_at,
         first_response_at: tickets.first_response_at,
         resolved_at: tickets.resolved_at,
@@ -1929,7 +1934,7 @@ export class DatabaseStorage implements IStorage {
       .slice(0, limit)
       .map(ticket => ({
         id: ticket.id,
-        title: (ticket as any).title || '',
+        title: ticket.title || '',
         status: ticket.status,
         priority: ticket.priority,
         created_at: ticket.created_at,

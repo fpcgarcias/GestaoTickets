@@ -32,6 +32,7 @@ import { useSystemSettings } from "@/hooks/use-system-settings";
 import PermissionsPage from "@/pages/permissions";
 import Changelog from "@/pages/changelog";
 import PerformanceDashboard from "@/pages/performance-dashboard";
+import LogsPage from "@/pages/logs";
 
 function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -162,6 +163,12 @@ function AppContent() {
       <ProtectedRoute path="/performance-dashboard" component={() => (
         <MainLayout>
           <PerformanceDashboard />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/logs" component={() => (
+        <MainLayout>
+          <LogsPage />
         </MainLayout>
       )} />
       
