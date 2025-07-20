@@ -1,9 +1,4 @@
 ---
-description: 
-globs: 
-alwaysApply: true
----
----
 Rule Type: Always
 alwaysApply: true
 globs:
@@ -23,10 +18,10 @@ globs:
 - `ai_configuration_id` : `integer`
 - `input_title` : `text`
 - `input_description` : `text`
-- `suggested_priority` : `USER-DEFINED`
+- `suggested_priority` : `text`
 - `ai_response_raw` : `text`
 - `ai_justification` : `text`
-- `provider` : `USER-DEFINED`
+- `provider` : `ai_provider`
 - `model` : `text`
 - `request_tokens` : `integer`
 - `response_tokens` : `integer`
@@ -40,7 +35,7 @@ globs:
 ### Tabela `ai_configurations`
 - `id` : `integer`
 - `name` : `text`
-- `provider` : `USER-DEFINED`
+- `provider` : `ai_provider`
 - `model` : `text`
 - `api_key` : `text`
 - `api_endpoint` : `text`
@@ -50,13 +45,25 @@ globs:
 - `max_tokens` : `integer`
 - `timeout_seconds` : `integer`
 - `max_retries` : `integer`
-- `fallback_priority` : `USER-DEFINED`
 - `is_active` : `boolean`
 - `is_default` : `boolean`
 - `created_at` : `timestamp without time zone`
 - `updated_at` : `timestamp without time zone`
 - `created_by_id` : `integer`
 - `updated_by_id` : `integer`
+- `department_id` : `integer`
+- `fallback_priority` : `text`
+- `company_id` : `integer`
+
+### Tabela `categories`
+- `id` : `integer`
+- `name` : `text`
+- `description` : `text`
+- `incident_type_id` : `integer`
+- `company_id` : `integer`
+- `is_active` : `boolean`
+- `created_at` : `timestamp without time zone`
+- `updated_at` : `timestamp without time zone`
 
 ### Tabela `companies`
 - `id` : `integer`
@@ -110,7 +117,7 @@ globs:
 ### Tabela `email_templates`
 - `id` : `integer`
 - `name` : `text`
-- `type` : `USER-DEFINED`
+- `type` : `email_template_type`
 - `description` : `text`
 - `subject_template` : `text`
 - `html_template` : `text`
@@ -143,8 +150,8 @@ globs:
 ### Tabela `official_departments`
 - `id` : `integer`
 - `official_id` : `integer`
-- `department` : `text`
 - `created_at` : `timestamp with time zone`
+- `department_id` : `integer`
 
 ### Tabela `officials`
 - `id` : `integer`
@@ -174,12 +181,12 @@ globs:
 
 ### Tabela `sla_definitions`
 - `id` : `integer`
-- `priority` : `USER-DEFINED`
 - `response_time_hours` : `integer`
 - `resolution_time_hours` : `integer`
 - `created_at` : `timestamp without time zone`
 - `updated_at` : `timestamp without time zone`
 - `company_id` : `integer`
+- `priority` : `text`
 
 ### Tabela `system_settings`
 - `id` : `integer`
@@ -215,13 +222,13 @@ globs:
 ### Tabela `ticket_status_history`
 - `id` : `integer`
 - `ticket_id` : `integer`
-- `old_status` : `USER-DEFINED`
-- `new_status` : `USER-DEFINED`
+- `old_status` : `ticket_status`
+- `new_status` : `ticket_status`
 - `changed_by_id` : `integer`
 - `created_at` : `timestamp without time zone`
 - `change_type` : `text`
-- `old_priority` : `USER-DEFINED`
-- `new_priority` : `USER-DEFINED`
+- `old_priority` : `text`
+- `new_priority` : `text`
 
 ### Tabela `ticket_types`
 - `id` : `integer`
@@ -239,8 +246,7 @@ globs:
 - `ticket_id` : `text`
 - `title` : `text`
 - `description` : `text`
-- `status` : `USER-DEFINED`
-- `priority` : `USER-DEFINED`
+- `status` : `ticket_status`
 - `type` : `text`
 - `customer_id` : `integer`
 - `customer_email` : `text`
@@ -253,6 +259,8 @@ globs:
 - `department_id` : `integer`
 - `incident_type_id` : `integer`
 - `company_id` : `integer`
+- `category_id` : `integer`
+- `priority` : `text`
 
 ### Tabela `user_notification_settings`
 - `id` : `integer`
@@ -278,7 +286,7 @@ globs:
 ### Tabela `user_sessions`
 - `sid` : `character varying`
 - `sess` : `json`
-- `expire` : `timestamp without time zone`
+- `expire` : `timestamp(6) without time zone`
 
 ### Tabela `users`
 - `id` : `integer`
@@ -286,7 +294,7 @@ globs:
 - `password` : `text`
 - `email` : `text`
 - `name` : `text`
-- `role` : `USER-DEFINED`
+- `role` : `user_role`
 - `avatar_url` : `text`
 - `created_at` : `timestamp without time zone`
 - `updated_at` : `timestamp without time zone`
@@ -314,18 +322,12 @@ globs:
 - `user_created`
 - `system_maintenance`
 
-### `ticket_priority` (USER-DEFINED)
-- `low`
-- `medium`
-- `high`
-- `critical`
-
-### `ticket_status` (USER-DEFINED)
+### `ticket_status`
 - `new`
 - `ongoing`
 - `resolved`
 
-### `user_role` (USER-DEFINED)
+### `user_role`
 - `admin`
 - `support`
 - `customer`
@@ -351,30 +353,124 @@ globs:
 - Sistema flexível de configuração de SLA
 - Permite SLA específico por combinação de empresa/departamento/tipo/prioridade
 
-### Índices de Performance (Implementados em 2024-12-29)
-- `idx_tickets_status_priority` - Otimização para consultas por status e prioridade
+### `categories`
+- Sistema de categorização de tickets
+- Permite categorias específicas por tipo de incidente e empresa
+- Controle de ativação/desativação por categoria
+
+### `ai_configurations`
+- Configurações de IA por departamento e empresa
+- Sistema de fallback para prioridades padrão
+- Controle de configurações ativas e padrão
+
+## Índices de Performance (Atualizados em 2025-07-20)
+
+### Índices de Tickets
+- `idx_tickets_status` - Otimização para consultas por status
 - `idx_tickets_company_status` - Otimização para tickets por empresa e status
+- `idx_tickets_department_status` - Otimização para tickets por departamento e status
 - `idx_tickets_assigned_status` - Otimização para tickets atribuídos por status
 - `idx_tickets_created_desc` - Otimização para ordenação temporal descendente
 - `idx_tickets_company_created` - Otimização para tickets por empresa ordenados por data
-- `idx_tickets_department_status` - Otimização para tickets por departamento e status
+- `idx_tickets_sla_status_time` - Otimização para SLA e status
+- `idx_tickets_status_category` - Otimização para status e categoria
+- `idx_tickets_priority` - Otimização para consultas por prioridade
+- `idx_tickets_category_id` - Otimização para consultas por categoria
+- `idx_tickets_assigned_to_id` - Otimização para tickets atribuídos
+- `idx_tickets_created_at` - Otimização para ordenação por data de criação
+- `idx_tickets_sla_response_time` - Otimização para tempo de resposta SLA
+- `idx_tickets_sla_resolution_time` - Otimização para tempo de resolução SLA
+
+### Índices de Respostas e Histórico
 - `idx_ticket_replies_ticket_created` - Otimização para respostas por ticket ordenadas por data
 - `idx_ticket_replies_user_created` - Otimização para respostas por usuário ordenadas por data
+- `idx_ticket_status_history_ticket_created` - Otimização para histórico de status por ticket
+- `idx_ticket_status_history_change_type` - Otimização para tipos de mudança no histórico
+- `idx_ticket_status_history_ticket_change_type` - Otimização para ticket e tipo de mudança
+
+### Índices de Usuários e Clientes
 - `idx_users_email_active` - Otimização para busca de usuários ativos por email
 - `idx_users_username_active` - Otimização para busca de usuários ativos por username
 - `idx_users_company_role` - Otimização para usuários por empresa e role
+- `idx_users_company_id` - Otimização para usuários por empresa
 - `idx_customers_email` - Otimização para busca de clientes por email
 - `idx_customers_company_created` - Otimização para clientes por empresa ordenados por data
+- `idx_customers_company_id` - Otimização para clientes por empresa
+
+### Índices de Atendentes e Departamentos
 - `idx_officials_company_active` - Otimização para atendentes ativos por empresa
 - `idx_officials_user_id` - Otimização para busca de atendentes por user_id
+- `idx_officials_company_id` - Otimização para atendentes por empresa
 - `idx_departments_company_active` - Otimização para departamentos ativos por empresa
+- `idx_departments_company_id` - Otimização para departamentos por empresa
+
+### Índices de Tipos de Incidente
 - `idx_incident_types_company_active` - Otimização para tipos de incidente ativos por empresa
 - `idx_incident_types_global_active` - Otimização para tipos de incidente globais ativos
-- `idx_ticket_attachments_ticket_active` - Otimização para anexos ativos por ticket
-- `idx_ticket_status_history_ticket_created` - Otimização para histórico de status por ticket
-- `idx_sla_definitions_company_priority` - Otimização para definições SLA por empresa e prioridade
 
-## Implementações de Performance (2024-12-29)
+### Índices de Anexos
+- `idx_ticket_attachments_ticket_active` - Otimização para anexos ativos por ticket
+- `idx_ticket_attachments_ticket_id` - Otimização para anexos por ticket
+- `idx_ticket_attachments_user_id` - Otimização para anexos por usuário
+- `idx_ticket_attachments_uploaded_at` - Otimização para anexos por data de upload
+- `idx_ticket_attachments_is_deleted` - Otimização para anexos deletados
+
+### Índices de Categorias
+- `idx_categories_name` - Otimização para busca por nome de categoria
+- `idx_categories_incident_type_active` - Otimização para categorias ativas por tipo de incidente
+- `idx_categories_company_active` - Otimização para categorias ativas por empresa
+
+### Índices de Configurações AI
+- `idx_ai_configurations_active` - Otimização para configurações AI ativas
+- `idx_ai_configurations_default` - Otimização para configurações AI padrão
+- `idx_ai_configurations_department` - Otimização para configurações AI por departamento
+- `idx_ai_configurations_company_dept` - Otimização para configurações AI por empresa e departamento
+- `idx_ai_configurations_company_id` - Otimização para configurações AI por empresa
+- `idx_ai_configurations_unique_default_per_dept` - Otimização para configurações padrão únicas por departamento
+
+### Índices de Prioridades de Departamento
+- `idx_department_priorities_company_dept` - Otimização para prioridades por empresa e departamento
+- `idx_department_priorities_weight` - Otimização para prioridades por peso
+- `idx_department_priorities_lookup` - Otimização para lookup de prioridades
+- `idx_department_priorities_active` - Otimização para prioridades ativas
+
+### Índices de SLA
+- `idx_sla_configurations_lookup` - Otimização para lookup de configurações SLA
+- `idx_sla_configurations_company_active` - Otimização para SLA ativas por empresa
+- `idx_sla_configurations_department_active` - Otimização para SLA ativas por departamento
+- `idx_sla_configurations_incident_type` - Otimização para SLA por tipo de incidente
+- `idx_sla_configurations_priority_lookup` - Otimização para lookup de prioridades SLA
+- `idx_sla_configurations_active` - Otimização para configurações SLA ativas
+- `idx_sla_definitions_priority` - Otimização para definições SLA por prioridade
+
+### Índices de Análise AI
+- `idx_ai_analysis_history_ticket_id` - Otimização para histórico de análise AI por ticket
+- `idx_ai_analysis_history_status` - Otimização para histórico de análise AI por status
+- `idx_ai_analysis_history_company_id` - Otimização para histórico de análise AI por empresa
+- `idx_ai_analysis_history_created_at` - Otimização para histórico de análise AI por data
+
+### Índices de Empresas
+- `idx_companies_domain` - Otimização para busca de empresas por domínio
+- `idx_companies_cnpj` - Otimização para busca de empresas por CNPJ
+- `idx_companies_plan` - Otimização para empresas por plano contratado
+
+### Índices de Templates de Email
+- `idx_email_templates_type` - Otimização para templates por tipo
+- `idx_email_templates_is_active` - Otimização para templates ativos
+- `idx_email_templates_company_id` - Otimização para templates por empresa
+- `idx_email_templates_default_per_type_company` - Otimização para templates padrão por tipo e empresa
+
+### Índices de Configurações do Sistema
+- `idx_system_settings_company_id` - Otimização para configurações por empresa
+
+### Índices de Sessões
+- `idx_user_sessions_expire` - Otimização para expiração de sessões
+
+### Índices de Notificações
+- `idx_user_notification_settings_user_id` - Otimização para configurações de notificação por usuário
+- `idx_user_notification_settings_user_unique` - Otimização para configurações únicas por usuário
+
+## Implementações de Performance (Atualizadas em 2025-07-20)
 
 ### Sistema de Logging Profissional
 - **Winston Logger**: Sistema de logging estruturado com níveis (error, warn, info, debug)
@@ -403,16 +499,27 @@ globs:
 - **Assets Inline**: Otimização para arquivos pequenos
 - **Compressão**: Gzip e Brotli para produção
 
-### Sistema de Prioridades Flexível (2025-01-31)
+### Sistema de Prioridades Flexível
 - **Prioridades Customizadas**: Sistema flexível de prioridades por departamento
 - **Fallback Inteligente**: Sistema de fallback para prioridades padrão quando customizadas não existem
 - **Cache de Prioridades**: Cache otimizado para consultas frequentes de prioridades
 - **Migração Segura**: Sistema de migração que preserva dados existentes
 
-### Melhorias de SLA (2025-01-31)
+### Melhorias de SLA
 - **SLA Flexível**: Configurações de SLA específicas por empresa/departamento/tipo/prioridade
 - **Cálculo Dinâmico**: Sistema de cálculo de SLA baseado em configurações flexíveis
 - **Histórico Expandido**: Tracking de mudanças de prioridade no histórico de tickets
+
+### Sistema de Categorização
+- **Categorias Flexíveis**: Sistema de categorização de tickets por tipo de incidente
+- **Controle por Empresa**: Categorias específicas por empresa
+- **Ativação/Desativação**: Controle granular de categorias ativas
+
+### Sistema de IA Inteligente
+- **Configurações por Departamento**: Configurações de IA específicas por departamento
+- **Fallback de Prioridades**: Sistema de fallback para prioridades padrão
+- **Histórico de Análises**: Tracking completo de análises de IA realizadas
+- **Métricas de Performance**: Monitoramento de tokens, tempo de processamento e retry
 
 ### Dependências Adicionadas
 ```json
@@ -429,30 +536,36 @@ globs:
 - **Memory Usage**: 150MB → 80MB (47% redução)
 - **Cache Hit Rate**: 0% → 85%
 
-## Novas Funcionalidades (2025-06-01)
+## Novas Funcionalidades (2025-07-20)
 
-### Sistema de Prioridades Customizadas
-- **Tabela `department_priorities`**: Permite definir prioridades específicas por departamento
-- **Peso Numérico**: Sistema de peso para ordenação e comparação de prioridades
+### Sistema de Categorização
+- **Tabela `categories`**: Permite categorizar tickets por tipo de incidente
+- **Controle por Empresa**: Categorias específicas por empresa
+- **Associação com Tipos de Incidente**: Categorias vinculadas a tipos específicos de incidente
+- **Ativação/Desativação**: Controle granular de categorias ativas
+
+### Sistema de IA Avançado
+- **Configurações por Departamento**: Configurações de IA específicas por departamento
+- **Fallback de Prioridades**: Sistema de fallback para prioridades padrão quando IA falha
+- **Histórico Completo**: Tracking de todas as análises de IA realizadas
+- **Métricas Detalhadas**: Monitoramento de tokens, tempo de processamento, retry count
+- **Múltiplos Provedores**: Suporte para OpenAI, Google e Anthropic
+
+### Melhorias no Sistema de Prioridades
+- **Prioridades como Texto**: Mudança de enum para texto para maior flexibilidade
+- **Sistema de Peso**: Peso numérico para ordenação e comparação de prioridades
 - **Cores Customizadas**: Interface visual personalizada por prioridade
-- **Ativação/Desativação**: Controle granular de prioridades ativas
-
-### Sessões de Usuário
-- **Tabela `user_sessions`**: Armazenamento seguro de sessões de usuário
-- **Formato JSON**: Dados de sessão estruturados
-- **Expiração Automática**: Controle de tempo de vida das sessões
-
-### Controle de Senhas
-- **Campo `must_change_password`**: Força alteração de senha no próximo login
-- **Migração de Senhas**: Sistema para migração segura de senhas existentes
 
 ### Expansão do Histórico de Tickets
 - **Tracking de Prioridades**: Histórico completo de mudanças de prioridade
 - **Tipos de Mudança**: Categorização específica de tipos de alterações
 - **Auditoria Completa**: Rastreamento detalhado de todas as alterações
 
+### Sistema de Sessões Melhorado
+- **Precisão de Timestamp**: Timestamp com precisão de 6 casas decimais
+- **Expiração Otimizada**: Índice específico para controle de expiração
 
-
-
-
-
+### Configurações de IA por Empresa
+- **Controle Granular**: Configurações de IA específicas por empresa
+- **Configurações Padrão**: Sistema de configurações padrão por departamento
+- **Controle de Ativação**: Ativação/desativação de configurações de IA
