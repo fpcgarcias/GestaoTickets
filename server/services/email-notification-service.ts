@@ -2063,8 +2063,28 @@ export class EmailNotificationService {
   }
 
   // Método para verificar tickets próximos do vencimento (para rodar periodicamente)
-  async checkTicketsDueSoon(): Promise<void> {
+  async checkTicketsDueSoon(companyFilter?: string): Promise<void> {
     try {
+      // Função para interpretar o filtro de empresas
+      const parseCompanyFilter = (filter: string): (companyId: number) => boolean => {
+        if (!filter || filter === '*') {
+          return () => true; // Todas as empresas
+        }
+        
+        if (filter.startsWith('<>')) {
+          const excludedId = parseInt(filter.substring(2));
+          return (companyId: number) => companyId !== excludedId;
+        }
+        
+        if (filter.includes(',')) {
+          const allowedIds = filter.split(',').map(id => parseInt(id.trim()));
+          return (companyId: number) => allowedIds.includes(companyId);
+        }
+        
+        const specificId = parseInt(filter);
+        return (companyId: number) => companyId === specificId;
+      };
+
       // Buscar tickets em andamento que ainda não venceram
       const ongoingTickets = await db
         .select({
@@ -2082,9 +2102,23 @@ export class EmailNotificationService {
           )
         );
 
+      // Aplicar filtro de empresa se fornecido
+      const companyFilterFn = parseCompanyFilter(companyFilter || '*');
+      const filteredTickets = ongoingTickets.filter(ticket => 
+        ticket.company_id ? companyFilterFn(ticket.company_id) : false
+      );
+
+      // Log das empresas que estão sendo processadas
+      const processedCompanies = filteredTickets
+        .map(t => t.company_id)
+        .filter((id, index, arr) => id !== null && arr.indexOf(id) === index)
+        .sort();
+      console.log(`[Email] Filtro aplicado: ${companyFilter || '*'}`);
+      console.log(`[Email] Processando ${filteredTickets.length} tickets de ${processedCompanies.length} empresas: [${processedCompanies.join(', ')}]`);
+
       const now = new Date();
 
-      for (const ticket of ongoingTickets) {
+      for (const ticket of filteredTickets) {
         // Buscar SLA específico para a prioridade e empresa do ticket
         let slaHours = 24; // Valor padrão
         
@@ -2157,7 +2191,7 @@ export class EmailNotificationService {
         }
       }
 
-      console.log(`[Email] Verificação concluída. Analisados ${ongoingTickets.length} tickets em andamento.`);
+      console.log(`[Email] Verificação concluída. Analisados ${filteredTickets.length} tickets em andamento (de ${ongoingTickets.length} total).`);
 
     } catch (error) {
       console.error('Erro ao verificar tickets próximos do vencimento:', error);

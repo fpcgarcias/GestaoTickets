@@ -4,6 +4,26 @@ export class SchedulerService {
   private intervalId: NodeJS.Timeout | null = null;
   private isRunning = false;
 
+  // Função para interpretar o filtro de empresas
+  private parseCompanyFilter(filter: string): (companyId: number) => boolean {
+    if (!filter || filter === '*') {
+      return () => true; // Todas as empresas
+    }
+    
+    if (filter.startsWith('<>')) {
+      const excludedId = parseInt(filter.substring(2));
+      return (companyId: number) => companyId !== excludedId;
+    }
+    
+    if (filter.includes(',')) {
+      const allowedIds = filter.split(',').map(id => parseInt(id.trim()));
+      return (companyId: number) => allowedIds.includes(companyId);
+    }
+    
+    const specificId = parseInt(filter);
+    return (companyId: number) => companyId === specificId;
+  }
+
   // Iniciar o agendador (rodar a cada hora)
   start(): void {
     if (this.isRunning) {
@@ -46,9 +66,14 @@ export class SchedulerService {
       console.log('[Scheduler] Fora do horário permitido (06:01-21:59). Não será feita verificação de tickets agora.');
       return;
     }
+
+    // Obter filtro de empresa da variável de ambiente
+    const companyFilter = process.env.SCHEDULER_COMPANY_FILTER || '*';
+    console.log(`[Scheduler] Filtro de empresa configurado: ${companyFilter}`);
+
     try {
       console.log('[Scheduler] Executando verificação de tickets próximos do vencimento...');
-      await emailNotificationService.checkTicketsDueSoon();
+      await emailNotificationService.checkTicketsDueSoon(companyFilter);
       console.log('[Scheduler] Verificação de tickets concluída');
     } catch (error) {
       console.error('[Scheduler] Erro na verificação de tickets:', error);
