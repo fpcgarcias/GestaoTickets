@@ -54,18 +54,18 @@ class EmailConfigService {
         .from(systemSettings)
         .where(like(systemSettings.key, `%_company_${companyId}`));
 
-      // Se não encontrou configurações da empresa, retornar vazio
+      // Se não encontrou configurações da empresa, retornar objeto totalmente vazio (NÃO USA GLOBAL)
       if (settings.length === 0) {
         return {
           provider: 'smtp',
           host: '',
-          port: 587,
+          port: 0,
           username: '',
           password: '',
           api_key: '',
           from_email: '',
-          from_name: 'Sistema de Tickets',
-          use_tls: true
+          from_name: '',
+          use_tls: false
         };
       }
 
@@ -79,17 +79,17 @@ class EmailConfigService {
       return {
         provider: (result.email_provider || 'smtp') as SMTPConfigInput['provider'],
         host: result.smtp_host || '',
-        port: parseInt(result.smtp_port || '587') || 587,
+        port: parseInt(result.smtp_port || '0') || 0,
         username: result.smtp_user || '',
         password: result.smtp_password || '',
         api_key: result.api_key || '',
         from_email: result.from_email || '',
-        from_name: result.from_name || 'Sistema de Tickets',
+        from_name: result.from_name || '',
         use_tls: result.smtp_secure === 'true'
       };
     }
 
-    // Apenas para configuração global (sem company_id)
+    // Nunca retorna configuração global se companyId for passado
     const settings = await this.getSystemSettings(companyId);
     
     return {

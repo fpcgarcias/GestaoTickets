@@ -7,6 +7,7 @@ import { z } from "zod";
 import { insertTicketSchema, insertTicketReplySchema, slaDefinitions, departments as departmentsSchema, userRoleEnum } from "@shared/schema";
 import { eq, desc, asc, isNull, sql, and, ne, or, inArray, ilike, not, type SQLWrapper } from "drizzle-orm";
 import * as schema from "@shared/schema";
+import { users } from "@shared/schema";
 import { db } from "./db";
 import { notificationService } from "./services/notification-service";
 import * as crypto from 'crypto';
@@ -1199,6 +1200,48 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Validar assignedToId se fornecido
       if (assigned_to_id !== undefined) {
         if (assigned_to_id === null || typeof assigned_to_id === 'number') {
+          // 🔥 VALIDAÇÃO CRÍTICA: Verificar se o atendente é da MESMA EMPRESA do ticket!
+          if (assigned_to_id !== null && typeof assigned_to_id === 'number') {
+            // Buscar dados do usuário que será atribuído
+            const [assignedUser] = await db
+              .select()
+              .from(users)
+              .where(and(eq(users.id, assigned_to_id), eq(users.active, true)))
+              .limit(1);
+
+            if (!assignedUser) {
+              return res.status(400).json({ 
+                message: "Usuário atribuído não encontrado ou inativo",
+                details: `Usuário ID ${assigned_to_id} não existe ou está inativo.`
+              });
+            }
+
+            // 🔥 VALIDAÇÃO DE EMPRESA: Ticket e atendente devem ser da mesma empresa!
+            if (existingTicket.company_id && assignedUser.company_id && existingTicket.company_id !== assignedUser.company_id) {
+              console.error(`[🚨 SEGURANÇA] ❌ VIOLAÇÃO: Tentativa de atribuir ticket da empresa ${existingTicket.company_id} para atendente da empresa ${assignedUser.company_id}!`);
+              console.error(`[🚨 SEGURANÇA] ❌ Ticket: ${existingTicket.ticket_id} (${existingTicket.title})`);
+              console.error(`[🚨 SEGURANÇA] ❌ Atendente: ${assignedUser.name} (${assignedUser.email})`);
+              
+              return res.status(403).json({ 
+                message: "Operação não permitida",
+                details: `Não é possível atribuir um ticket da empresa ${existingTicket.company_id} para um atendente da empresa ${assignedUser.company_id}.`
+              });
+            }
+
+            // 🔥 VALIDAÇÃO ADICIONAL: Se ticket tem empresa, atendente deve ter empresa (exceto admin)
+            if (existingTicket.company_id && !assignedUser.company_id && assignedUser.role !== 'admin') {
+              console.error(`[🚨 SEGURANÇA] ❌ VIOLAÇÃO: Atendente sem empresa para ticket com empresa!`);
+              console.error(`[🚨 SEGURANÇA] ❌ Ticket empresa: ${existingTicket.company_id}, Atendente empresa: ${assignedUser.company_id}`);
+              
+              return res.status(403).json({ 
+                message: "Operação não permitida",
+                details: `Não é possível atribuir um ticket da empresa ${existingTicket.company_id} para um atendente sem empresa.`
+              });
+            }
+
+            console.log(`[✅ SEGURANÇA] Validação de empresa: OK - Ticket e atendente são da mesma empresa`);
+          }
+          
           updateData.assigned_to_id = assigned_to_id;
         } else {
           return res.status(400).json({ message: "assigned_to_id inválido" });
@@ -1605,6 +1648,44 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         });
         // 📧 ENVIAR EMAIL PARA ATRIBUIÇÃO
         if (req.body.assigned_to_id !== ticket.assigned_to_id && req.body.assigned_to_id) {
+          // 🔥 VALIDAÇÃO CRÍTICA: Verificar se o atendente é da MESMA EMPRESA do ticket!
+          try {
+            // Buscar dados do usuário que será atribuído
+            const [assignedUser] = await db
+              .select()
+              .from(users)
+              .where(and(eq(users.id, req.body.assigned_to_id), eq(users.active, true)))
+              .limit(1);
+
+            if (!assignedUser) {
+              console.error(`[🚨 SEGURANÇA] ❌ ERRO: Usuário ${req.body.assigned_to_id} não encontrado ou inativo`);
+              throw new Error(`Usuário ${req.body.assigned_to_id} não encontrado ou inativo`);
+            }
+
+            // 🔥 VALIDAÇÃO DE EMPRESA: Ticket e atendente devem ser da mesma empresa!
+            if (ticket.company_id && assignedUser.company_id && ticket.company_id !== assignedUser.company_id) {
+              console.error(`[🚨 SEGURANÇA] ❌ VIOLAÇÃO: Tentativa de atribuir ticket da empresa ${ticket.company_id} para atendente da empresa ${assignedUser.company_id}!`);
+              console.error(`[🚨 SEGURANÇA] ❌ Ticket: ${ticket.ticket_id} (${ticket.title})`);
+              console.error(`[🚨 SEGURANÇA] ❌ Atendente: ${assignedUser.name} (${assignedUser.email})`);
+              
+              throw new Error(`Não é possível atribuir um ticket da empresa ${ticket.company_id} para um atendente da empresa ${assignedUser.company_id}`);
+            }
+
+            // 🔥 VALIDAÇÃO ADICIONAL: Se ticket tem empresa, atendente deve ter empresa (exceto admin)
+            if (ticket.company_id && !assignedUser.company_id && assignedUser.role !== 'admin') {
+              console.error(`[🚨 SEGURANÇA] ❌ VIOLAÇÃO: Atendente sem empresa para ticket com empresa!`);
+              console.error(`[🚨 SEGURANÇA] ❌ Ticket empresa: ${ticket.company_id}, Atendente empresa: ${assignedUser.company_id}`);
+              
+              throw new Error(`Não é possível atribuir um ticket da empresa ${ticket.company_id} para um atendente sem empresa`);
+            }
+
+            console.log(`[✅ SEGURANÇA] Validação de empresa: OK - Ticket e atendente são da mesma empresa`);
+          } catch (validationError) {
+            console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO DE VALIDAÇÃO:', validationError);
+            // Não enviar email se a validação falhar
+            return;
+          }
+
           try {
             console.log('🚨🚨🚨 [PROD EMAIL] TENTANDO ENVIAR EMAIL DE TICKET ATRIBUÍDO (REPLY)');
             console.log('🚨🚨🚨 [PROD EMAIL] Ticket ID:', ticketId);
