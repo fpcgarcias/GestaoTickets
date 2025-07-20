@@ -193,6 +193,9 @@ export async function readLogFile(req: Request, res: Response) {
       });
     }
 
+    // Ordenação por timestamp (mais recente primeiro)
+    filteredLines.reverse();
+
     // Paginação
     const pageNum = parseInt(page.toString());
     const limitNum = parseInt(limit.toString());

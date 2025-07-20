@@ -83,6 +83,7 @@ export default function LogsPage() {
   const [levelFilter, setLevelFilter] = useState<string>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const [orderDirection, setOrderDirection] = useState<'asc' | 'desc'>('desc');
 
   // Redirecionar se não for admin
   useEffect(() => {
