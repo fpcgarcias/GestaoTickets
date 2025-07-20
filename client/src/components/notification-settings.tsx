@@ -21,6 +21,8 @@ interface NotificationSettingsData {
   new_reply_received: boolean;
   ticket_escalated: boolean;
   ticket_due_soon: boolean;
+  ticket_participant_added: boolean;
+  ticket_participant_removed: boolean;
   // Notificações administrativas
   new_customer_registered: boolean;
   new_user_created: boolean;
@@ -256,6 +258,38 @@ const NotificationSettings: React.FC = () => {
             <Switch
               checked={settings.ticket_due_soon ?? true}
               onCheckedChange={(checked) => handleSwitchChange('ticket_due_soon', checked)}
+            />
+          </div>
+          
+          <div className="flex items-center justify-between p-3 border rounded-lg">
+            <div>
+              <Label className="font-medium">Participante Adicionado</Label>
+              <p className="text-sm text-muted-foreground">
+                {user?.role === 'customer'
+                  ? 'Quando você for adicionado como participante de um chamado'
+                  : 'Quando você for adicionado como participante de um ticket'
+                }
+              </p>
+            </div>
+            <Switch
+              checked={settings.ticket_participant_added ?? true}
+              onCheckedChange={(checked) => handleSwitchChange('ticket_participant_added', checked)}
+            />
+          </div>
+          
+          <div className="flex items-center justify-between p-3 border rounded-lg">
+            <div>
+              <Label className="font-medium">Participante Removido</Label>
+              <p className="text-sm text-muted-foreground">
+                {user?.role === 'customer'
+                  ? 'Quando você for removido como participante de um chamado'
+                  : 'Quando você for removido como participante de um ticket'
+                }
+              </p>
+            </div>
+            <Switch
+              checked={settings.ticket_participant_removed ?? true}
+              onCheckedChange={(checked) => handleSwitchChange('ticket_participant_removed', checked)}
             />
           </div>
         </div>

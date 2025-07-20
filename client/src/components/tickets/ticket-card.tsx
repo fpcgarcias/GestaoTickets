@@ -4,6 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { StatusDot, StatusBadge, PriorityBadge } from './status-badge';
 import { SLAIndicator } from './sla-indicator';
 import { formatDate } from '@/lib/utils';
@@ -24,6 +30,26 @@ interface TicketCardProps {
   ticket: Ticket;
   onAssignTicket: (ticketId: number, assignedToId: number | null) => void;
   isAssigning: boolean;
+}
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  username: string;
+  role: string;
+  active: boolean;
+  company_id?: number;
+}
+
+interface TicketParticipant {
+  id: number;
+  ticket_id: number;
+  user_id: number;
+  added_by_id: number;
+  added_at: string;
+  user?: User;
+  added_by?: User;
 }
 
 export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, isAssigning }) => {
@@ -64,6 +90,27 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
     staleTime: 5 * 60 * 1000,
     enabled: !isCustomerForThisTicket, // Só buscar se não for cliente neste ticket
   });
+
+  // Buscar participantes do ticket
+  const { data: participantsResponse, isLoading: participantsLoading } = useQuery({
+    queryKey: [`/api/ticket-participants/${id}`],
+    queryFn: async () => {
+      const response = await fetch(`/api/ticket-participants/${id}`);
+      if (!response.ok) {
+        // Se der erro 404, retornar array vazio (ticket pode não ter participantes)
+        if (response.status === 404) {
+          return { data: [] };
+        }
+        throw new Error('Falha ao carregar participantes');
+      }
+      return response.json();
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutos
+    retry: 1, // Tentar apenas 1 vez
+    retryDelay: 1000, // Esperar 1 segundo antes de tentar novamente
+  });
+
+  const participants = participantsResponse?.data || [];
 
   const allOfficialsData = officialsResponse?.data || [];
 
@@ -217,6 +264,58 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
             </Button>
           </div>
         </div>
+        
+        {/* Participantes do Ticket */}
+        {participants.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-neutral-100">
+            <div className="flex items-center justify-between">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-help">
+                      <span className="text-xs text-neutral-500 mr-1">👥</span>
+                      <div className="flex items-center gap-1">
+                                          {participants.slice(0, 2).map((participant: TicketParticipant) => (
+                    <div
+                      key={participant.id}
+                      className="flex items-center gap-1 bg-neutral-50 px-2 py-1 rounded-full"
+                    >
+                      <div className="w-4 h-4 bg-primary/10 rounded-full flex items-center justify-center">
+                        <span className="text-xs font-medium text-primary">
+                          {participant.user?.name?.charAt(0).toUpperCase() || 'U'}
+                        </span>
+                      </div>
+                      <span className="text-xs text-neutral-700 truncate max-w-16">
+                        {participant.user?.name || 'Usuário'}
+                      </span>
+                    </div>
+                  ))}
+                        {participants.length > 2 && (
+                          <span className="text-xs text-neutral-500 bg-neutral-50 px-2 py-1 rounded-full">
+                            +{participants.length - 2}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <div className="space-y-1">
+                      <div className="text-sm font-medium">Participantes ({participants.length})</div>
+                      {participants.map((participant: TicketParticipant) => (
+                        <div key={participant.id} className="text-xs">
+                          <span className="font-medium">{participant.user?.name || 'Usuário'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <span className="text-xs text-neutral-500">
+                {participants.length} participante{participants.length > 1 ? 's' : ''}
+              </span>
+            </div>
+          </div>
+        )}
         
         {createdAt && companyId && priority && (
           <div className="mt-3">

@@ -7,6 +7,7 @@ import { Ticket } from '@shared/schema';
 import { StatusDot } from './status-badge';
 import { SLAStatus } from './sla-status';
 import { AttachmentsList } from './attachments-list';
+import { ParticipantManagement } from './participant-management';
 import { Building, UserCircle2 } from 'lucide-react';
 
 interface TicketDetailProps {
@@ -128,6 +129,15 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
         
         <div className="mb-8 text-neutral-700 space-y-4 whitespace-pre-line">
           {ticket.description}
+        </div>
+
+        {/* Gerenciamento de Participantes */}
+        <div className="mt-6 border-t pt-6">
+          <ParticipantManagement 
+            ticketId={ticket.id}
+            ticketCompanyId={ticket.company_id || undefined}
+            ticketCreatorId={ticket.customer?.user_id || undefined}
+          />
         </div>
 
         {/* Lista de Anexos */}

@@ -1,7 +1,57 @@
 import { db } from "../../../db";
-import { eq } from "drizzle-orm";
-import { tickets, ticketReplies, customers } from "@shared/schema";
+import { eq, and, ne } from "drizzle-orm";
+import { tickets, ticketReplies, customers, ticketParticipants } from "@shared/schema";
 import { Request, Response } from "express";
+import { storage } from "../../../storage";
+
+// Função auxiliar para verificar se um usuário pode acessar um ticket
+async function canUserAccessTicket(
+  userId: number, 
+  userRole: string, 
+  ticketId: number, 
+  userCompanyId?: number
+): Promise<{ canAccess: boolean; reason?: string }> {
+  try {
+    // Buscar o ticket
+    const ticket = await storage.getTicket(ticketId, userRole, userCompanyId);
+    if (!ticket) {
+      return { canAccess: false, reason: "Ticket não encontrado" };
+    }
+
+    // 🔥 FASE 4.1: Verificar se o usuário é participante do ticket
+    const isParticipant = await storage.isUserTicketParticipant(ticketId, userId);
+    
+    // Se é participante, sempre pode acessar
+    if (isParticipant) {
+      return { canAccess: true };
+    }
+
+    // Verificar permissões baseadas na role
+    if (userRole === 'admin' || userRole === 'support' || userRole === 'manager' || userRole === 'supervisor') {
+      return { canAccess: true };
+    }
+
+    // Para clientes, verificar se é o criador do ticket
+    if (userRole === 'customer') {
+      if (ticket.customer_id) {
+        const [customer] = await db
+          .select()
+          .from(customers)
+          .where(eq(customers.id, ticket.customer_id));
+        
+        if (customer?.user_id === userId) {
+          return { canAccess: true };
+        }
+      }
+      return { canAccess: false, reason: "Apenas o criador do ticket pode acessar" };
+    }
+
+    return { canAccess: false, reason: "Permissão insuficiente para acessar este ticket" };
+  } catch (error) {
+    console.error('Erro ao verificar permissões de acesso:', error);
+    return { canAccess: false, reason: "Erro interno ao verificar permissões" };
+  }
+}
 
 // GET /api/tickets/[id]/replies
 export async function GET(req: Request, res: Response) {
@@ -16,37 +66,21 @@ export async function GET(req: Request, res: Response) {
       return res.status(401).json({ error: "Não autorizado" });
     }
 
-    // Verificar se o ticket existe
-    const [ticket] = await db
-      .select()
-      .from(tickets)
-      .where(eq(tickets.id, ticketId));
-
-    if (!ticket) {
-      return res.status(404).json({ error: "Ticket não encontrado" });
-    }
-
-    // Verificar se o usuário tem acesso ao ticket
+    // 🔥 FASE 4.1: Verificar permissões de acesso para participantes
     const sessionUserId = req.session.userId;
-    const userRole = req.session.userRole;
-    let hasAccess = false;
+    const userRole = req.session.userRole || 'customer'; // Default para customer se não definido
+    const userCompanyId = req.session.companyId;
     
-    // Admin e suporte sempre têm acesso
-    if (userRole === "admin" || userRole === "support") {
-      hasAccess = true;
-    } else if (userRole === "customer") {
-      // Para clientes, verificar se é o dono do ticket através da relação customer_id->user_id
-      if (ticket.customer_id) {
-        const [customer] = await db
-          .select()
-          .from(customers)
-          .where(eq(customers.id, ticket.customer_id));
-        hasAccess = customer?.user_id === sessionUserId;
-      }
+    if (!sessionUserId) {
+      return res.status(401).json({ error: "Usuário não identificado" });
     }
-
-    if (!hasAccess) {
-      return res.status(403).json({ error: "Acesso negado" });
+    
+    const permissionCheck = await canUserAccessTicket(sessionUserId, userRole, ticketId, userCompanyId);
+    if (!permissionCheck.canAccess) {
+      return res.status(403).json({ 
+        error: "Acesso negado", 
+        details: permissionCheck.reason 
+      });
     }
 
     // Buscar respostas do ticket com dados do usuário que as criou

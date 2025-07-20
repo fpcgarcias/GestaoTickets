@@ -11,6 +11,10 @@ interface NotificationPayload {
   ticketCode?: string;
   timestamp: Date;
   priority?: 'low' | 'medium' | 'high' | 'critical';
+  // 🔥 FASE 4.2: Novos campos para notificações de participantes
+  participantId?: number;
+  participantName?: string;
+  action?: 'added' | 'removed';
 }
 
 interface WebSocketContextValue {
@@ -79,13 +83,43 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'notification') {
-          setNotifications(prev => [data.notification, ...prev.slice(0, 99)]);
+          const notification = data.notification;
+          
+          // 🔥 FASE 4.2: Tratamento especial para notificações de participantes
+          let toastVariant: 'default' | 'destructive' = 'default';
+          let toastTitle = notification.title;
+          let toastDescription = notification.message;
+
+          // Personalizar toast baseado no tipo de notificação
+          switch (notification.type) {
+            case 'participant_added':
+              toastVariant = 'default';
+              toastTitle = '👥 Participante Adicionado';
+              break;
+            case 'participant_removed':
+              toastVariant = 'destructive';
+              toastTitle = '👥 Participante Removido';
+              break;
+            case 'new_reply':
+              toastVariant = notification.priority === 'critical' ? 'destructive' : 'default';
+              toastTitle = '💬 Nova Resposta';
+              break;
+            case 'status_change':
+              toastVariant = notification.priority === 'critical' ? 'destructive' : 'default';
+              toastTitle = '🔄 Status Alterado';
+              break;
+            default:
+              toastVariant = notification.priority === 'critical' ? 'destructive' : 'default';
+          }
+
+          setNotifications(prev => [notification, ...prev.slice(0, 99)]);
           setUnreadCount(prev => prev + 1);
-          if (data.notification.title && data.notification.message) {
+          
+          if (notification.title && notification.message) {
             toast({
-              title: data.notification.title,
-              description: data.notification.message,
-              variant: data.notification.priority === 'critical' ? 'destructive' : 'default'
+              title: toastTitle,
+              description: toastDescription,
+              variant: toastVariant
             });
           }
         }

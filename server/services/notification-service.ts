@@ -1,7 +1,7 @@
 import { WebSocket } from 'ws';
 import { db } from '../db';
-import { tickets, users, ticketStatusHistory, userNotificationSettings } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { tickets, users, ticketStatusHistory, userNotificationSettings, ticketParticipants } from '@shared/schema';
+import { eq, and, ne } from 'drizzle-orm';
 import { emailNotificationService } from './email-notification-service';
 
 interface NotificationPayload {
@@ -480,10 +480,29 @@ class NotificationService {
       const [replyUser] = await db.select().from(users).where(eq(users.id, replyUserId));
       if (!replyUser) return;
       
+      // 🔥 FASE 4.1: Buscar participantes do ticket
+      const participants = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          company_id: users.company_id
+        })
+        .from(users)
+        .innerJoin(ticketParticipants, eq(users.id, ticketParticipants.user_id))
+        .where(and(
+          eq(ticketParticipants.ticket_id, ticketId),
+          eq(users.active, true),
+          ne(users.id, replyUserId) // Excluir quem respondeu
+        ));
+
+      console.log(`[🔔 NOTIFICAÇÃO] Encontrados ${participants.length} participantes para notificar sobre nova resposta`);
+      
       // Determinar para quem enviar a notificação
       const notifyUserIds: number[] = [];
       
-      // Se a resposta foi do cliente, notificar suporte/admin
+      // Se a resposta foi do cliente, notificar suporte/admin + participantes
       if (replyUser.role === 'customer') {
         // Notificar administradores e suporte
         const payload: NotificationPayload = {
@@ -498,9 +517,25 @@ class NotificationService {
         
         this.sendNotificationToAdmins(payload);
         this.sendNotificationToSupport(payload);
+        
+        // 🔥 FASE 4.1: Notificar participantes
+        for (const participant of participants) {
+          const participantPayload: NotificationPayload = {
+            type: 'new_reply',
+            title: 'Nova Resposta de Cliente',
+            message: `O cliente respondeu ao ticket #${ticket.ticket_id}: "${ticket.title}".`,
+            ticketId: ticket.id,
+            ticketCode: ticket.ticket_id,
+            timestamp: new Date(),
+            priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
+          };
+          
+          this.sendNotificationToUser(participant.id, participantPayload);
+          console.log(`[🔔 NOTIFICAÇÃO] Notificação enviada para participante: ${participant.name}`);
+        }
       } 
-      // Se a resposta foi do suporte/admin, notificar o cliente
-      else if (replyUser.role === 'admin' || replyUser.role === 'support') {
+      // Se a resposta foi do suporte/admin, notificar o cliente + participantes
+      else if (replyUser.role === 'admin' || replyUser.role === 'support' || replyUser.role === 'manager' || replyUser.role === 'supervisor') {
         // Notificar o cliente
         if (ticket.customer_id) {
           const [customerUser] = await db
@@ -522,11 +557,329 @@ class NotificationService {
             this.sendNotificationToUser(customerUser.id, payload);
           }
         }
+        
+        // 🔥 FASE 4.1: Notificar participantes
+        for (const participant of participants) {
+          const participantPayload: NotificationPayload = {
+            type: 'new_reply',
+            title: 'Nova Resposta de Atendente',
+            message: `Há uma nova resposta no ticket #${ticket.ticket_id}: "${ticket.title}".`,
+            ticketId: ticket.id,
+            ticketCode: ticket.ticket_id,
+            timestamp: new Date(),
+            priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
+          };
+          
+          this.sendNotificationToUser(participant.id, participantPayload);
+          console.log(`[🔔 NOTIFICAÇÃO] Notificação enviada para participante: ${participant.name}`);
+        }
       }
       
       console.log(`Notificação enviada para nova resposta no ticket #${ticket.ticket_id}`);
     } catch (error) {
       console.error('Erro ao notificar sobre nova resposta no ticket:', error);
+    }
+  }
+  
+  // 🔥 FASE 4.2: Notificar quando um participante é adicionado a um ticket
+  public async notifyParticipantAdded(ticketId: number, participantUserId: number, addedByUserId: number): Promise<void> {
+    try {
+      console.log(`[🔔 WEBSOCKET] 👥 Iniciando notificação de participante adicionado`);
+      console.log(`[🔔 WEBSOCKET] Ticket ID: ${ticketId}, Participante: ${participantUserId}, Adicionado por: ${addedByUserId}`);
+
+      // Buscar dados do ticket
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket) {
+        console.log(`[🔔 WEBSOCKET] ❌ Ticket ${ticketId} não encontrado`);
+        return;
+      }
+
+      // Buscar dados do participante adicionado
+      const [participant] = await db.select().from(users).where(eq(users.id, participantUserId));
+      if (!participant) {
+        console.log(`[🔔 WEBSOCKET] ❌ Participante ${participantUserId} não encontrado`);
+        return;
+      }
+
+      // Buscar dados de quem adicionou
+      const [addedBy] = await db.select().from(users).where(eq(users.id, addedByUserId));
+      if (!addedBy) {
+        console.log(`[🔔 WEBSOCKET] ❌ Usuário ${addedByUserId} não encontrado`);
+        return;
+      }
+
+      // Notificar o participante adicionado
+      const participantPayload: NotificationPayload = {
+        type: 'participant_added',
+        title: 'Você foi adicionado como participante',
+        message: `Você foi adicionado como participante do ticket #${ticket.ticket_id}: "${ticket.title}" por ${addedBy.name}.`,
+        ticketId: ticket.id,
+        ticketCode: ticket.ticket_id,
+        timestamp: new Date(),
+        priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
+      };
+
+      await this.sendNotificationToUser(participantUserId, participantPayload);
+      console.log(`[🔔 WEBSOCKET] ✅ Notificação enviada para participante adicionado: ${participant.name}`);
+
+      // Notificar outros participantes do ticket
+      const otherParticipants = await db
+        .select({
+          id: users.id,
+          name: users.name
+        })
+        .from(users)
+        .innerJoin(ticketParticipants, eq(users.id, ticketParticipants.user_id))
+        .where(and(
+          eq(ticketParticipants.ticket_id, ticketId),
+          eq(users.active, true),
+          ne(users.id, participantUserId),
+          ne(users.id, addedByUserId) // Excluir quem adicionou
+        ));
+
+      for (const otherParticipant of otherParticipants) {
+        const otherParticipantPayload: NotificationPayload = {
+          type: 'participant_added',
+          title: 'Novo participante adicionado',
+          message: `${participant.name} foi adicionado como participante do ticket #${ticket.ticket_id}: "${ticket.title}" por ${addedBy.name}.`,
+          ticketId: ticket.id,
+          ticketCode: ticket.ticket_id,
+          timestamp: new Date(),
+          priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
+        };
+
+        await this.sendNotificationToUser(otherParticipant.id, otherParticipantPayload);
+        console.log(`[🔔 WEBSOCKET] ✅ Notificação enviada para outro participante: ${otherParticipant.name}`);
+      }
+
+      // Notificar atendentes do departamento (se aplicável)
+      if (ticket.department_id) {
+        const departmentPayload: NotificationPayload = {
+          type: 'participant_added',
+          title: 'Participante adicionado ao ticket',
+          message: `${participant.name} foi adicionado como participante do ticket #${ticket.ticket_id}: "${ticket.title}" por ${addedBy.name}.`,
+          ticketId: ticket.id,
+          ticketCode: ticket.ticket_id,
+          timestamp: new Date(),
+          priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
+        };
+
+        // Notificar suporte e admin
+        await this.sendNotificationToSupport(departmentPayload);
+        await this.sendNotificationToAdmins(departmentPayload);
+      }
+
+      console.log(`[🔔 WEBSOCKET] ✅ Notificação de participante adicionado concluída`);
+
+    } catch (error) {
+      console.error('[🔔 WEBSOCKET] ❌ Erro ao notificar participante adicionado:', error);
+    }
+  }
+
+  // 🔥 FASE 4.2: Notificar quando um participante é removido de um ticket
+  public async notifyParticipantRemoved(ticketId: number, participantUserId: number, removedByUserId: number): Promise<void> {
+    try {
+      console.log(`[🔔 WEBSOCKET] 👥 Iniciando notificação de participante removido`);
+      console.log(`[🔔 WEBSOCKET] Ticket ID: ${ticketId}, Participante: ${participantUserId}, Removido por: ${removedByUserId}`);
+
+      // Buscar dados do ticket
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket) {
+        console.log(`[🔔 WEBSOCKET] ❌ Ticket ${ticketId} não encontrado`);
+        return;
+      }
+
+      // Buscar dados do participante removido
+      const [participant] = await db.select().from(users).where(eq(users.id, participantUserId));
+      if (!participant) {
+        console.log(`[🔔 WEBSOCKET] ❌ Participante ${participantUserId} não encontrado`);
+        return;
+      }
+
+      // Buscar dados de quem removeu
+      const [removedBy] = await db.select().from(users).where(eq(users.id, removedByUserId));
+      if (!removedBy) {
+        console.log(`[🔔 WEBSOCKET] ❌ Usuário ${removedByUserId} não encontrado`);
+        return;
+      }
+
+      // Notificar o participante removido
+      const participantPayload: NotificationPayload = {
+        type: 'participant_removed',
+        title: 'Você foi removido como participante',
+        message: `Você foi removido como participante do ticket #${ticket.ticket_id}: "${ticket.title}" por ${removedBy.name}.`,
+        ticketId: ticket.id,
+        ticketCode: ticket.ticket_id,
+        timestamp: new Date(),
+        priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
+      };
+
+      await this.sendNotificationToUser(participantUserId, participantPayload);
+      console.log(`[🔔 WEBSOCKET] ✅ Notificação enviada para participante removido: ${participant.name}`);
+
+      // Notificar outros participantes do ticket
+      const otherParticipants = await db
+        .select({
+          id: users.id,
+          name: users.name
+        })
+        .from(users)
+        .innerJoin(ticketParticipants, eq(users.id, ticketParticipants.user_id))
+        .where(and(
+          eq(ticketParticipants.ticket_id, ticketId),
+          eq(users.active, true),
+          ne(users.id, removedByUserId) // Excluir quem removeu
+        ));
+
+      for (const otherParticipant of otherParticipants) {
+        const otherParticipantPayload: NotificationPayload = {
+          type: 'participant_removed',
+          title: 'Participante removido do ticket',
+          message: `${participant.name} foi removido como participante do ticket #${ticket.ticket_id}: "${ticket.title}" por ${removedBy.name}.`,
+          ticketId: ticket.id,
+          ticketCode: ticket.ticket_id,
+          timestamp: new Date(),
+          priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
+        };
+
+        await this.sendNotificationToUser(otherParticipant.id, otherParticipantPayload);
+        console.log(`[🔔 WEBSOCKET] ✅ Notificação enviada para outro participante: ${otherParticipant.name}`);
+      }
+
+      // Notificar atendentes do departamento (se aplicável)
+      if (ticket.department_id) {
+        const departmentPayload: NotificationPayload = {
+          type: 'participant_removed',
+          title: 'Participante removido do ticket',
+          message: `${participant.name} foi removido como participante do ticket #${ticket.ticket_id}: "${ticket.title}" por ${removedBy.name}.`,
+          ticketId: ticket.id,
+          ticketCode: ticket.ticket_id,
+          timestamp: new Date(),
+          priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
+        };
+
+        // Notificar suporte e admin
+        await this.sendNotificationToSupport(departmentPayload);
+        await this.sendNotificationToAdmins(departmentPayload);
+      }
+
+      console.log(`[🔔 WEBSOCKET] ✅ Notificação de participante removido concluída`);
+
+    } catch (error) {
+      console.error('[🔔 WEBSOCKET] ❌ Erro ao notificar participante removido:', error);
+    }
+  }
+
+  // 🔥 FASE 4.2: Notificar participantes sobre mudanças no ticket
+  public async notifyTicketParticipants(ticketId: number, excludeUserId: number, payload: NotificationPayload): Promise<void> {
+    try {
+      console.log(`[🔔 WEBSOCKET] 👥 Notificando participantes do ticket ${ticketId}`);
+
+      // Buscar todos os participantes do ticket (exceto o excluído)
+      const participants = await db
+        .select({
+          id: users.id,
+          name: users.name
+        })
+        .from(users)
+        .innerJoin(ticketParticipants, eq(users.id, ticketParticipants.user_id))
+        .where(and(
+          eq(ticketParticipants.ticket_id, ticketId),
+          eq(users.active, true),
+          ne(users.id, excludeUserId)
+        ));
+
+      console.log(`[🔔 WEBSOCKET] 👥 Encontrados ${participants.length} participantes para notificar`);
+
+      for (const participant of participants) {
+        await this.sendNotificationToUser(participant.id, payload);
+        console.log(`[🔔 WEBSOCKET] ✅ Notificação enviada para participante: ${participant.name}`);
+      }
+
+      console.log(`[🔔 WEBSOCKET] ✅ Notificação de participantes concluída`);
+
+    } catch (error) {
+      console.error('[🔔 WEBSOCKET] ❌ Erro ao notificar participantes:', error);
+    }
+  }
+  
+  // Notificar sobre mudança de status de um ticket
+  public async notifyStatusChange(ticketId: number, oldStatus: string, newStatus: string, changedByUserId: number): Promise<void> {
+    try {
+      // Obter os detalhes do ticket
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket) return;
+      
+      // Obter detalhes do usuário que mudou o status
+      const [changedBy] = await db.select().from(users).where(eq(users.id, changedByUserId));
+      if (!changedBy) return;
+      
+      // 🔥 FASE 4.2: Buscar participantes do ticket
+      const participants = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          company_id: users.company_id
+        })
+        .from(users)
+        .innerJoin(ticketParticipants, eq(users.id, ticketParticipants.user_id))
+        .where(and(
+          eq(ticketParticipants.ticket_id, ticketId),
+          eq(users.active, true),
+          ne(users.id, changedByUserId) // Excluir quem mudou o status
+        ));
+
+      console.log(`[🔔 NOTIFICAÇÃO] Encontrados ${participants.length} participantes para notificar sobre mudança de status`);
+      
+      // Determinar prioridade baseada no novo status
+      let priority: 'low' | 'medium' | 'high' | 'critical' = 'medium';
+      if (newStatus === 'resolved') priority = 'low';
+      else if (newStatus === 'in_progress') priority = 'high';
+      else if (newStatus === 'pending') priority = 'medium';
+      
+      // Criar payload de notificação
+      const payload: NotificationPayload = {
+        type: 'status_change',
+        title: 'Status do Ticket Alterado',
+        message: `O status do ticket #${ticket.ticket_id}: "${ticket.title}" foi alterado de "${oldStatus}" para "${newStatus}" por ${changedBy.name}.`,
+        ticketId: ticket.id,
+        ticketCode: ticket.ticket_id,
+        timestamp: new Date(),
+        priority
+      };
+      
+      // Notificar o cliente (se aplicável)
+      if (ticket.customer_id && ticket.customer_id !== changedByUserId) {
+        this.sendNotificationToUser(ticket.customer_id, payload);
+      }
+      
+      // 🔥 FASE 4.2: Notificar participantes
+      for (const participant of participants) {
+        const participantPayload: NotificationPayload = {
+          type: 'status_change',
+          title: 'Status do Ticket Alterado',
+          message: `O status do ticket #${ticket.ticket_id}: "${ticket.title}" foi alterado de "${oldStatus}" para "${newStatus}" por ${changedBy.name}.`,
+          ticketId: ticket.id,
+          ticketCode: ticket.ticket_id,
+          timestamp: new Date(),
+          priority
+        };
+        
+        this.sendNotificationToUser(participant.id, participantPayload);
+        console.log(`[🔔 NOTIFICAÇÃO] Notificação de mudança de status enviada para participante: ${participant.name}`);
+      }
+      
+      // Notificar administradores e suporte (se não for quem mudou)
+      if (changedBy.role !== 'admin' && changedBy.role !== 'support' && changedBy.role !== 'manager' && changedBy.role !== 'supervisor') {
+        this.sendNotificationToAdmins(payload);
+        this.sendNotificationToSupport(payload);
+      }
+      
+      console.log(`Notificação enviada para mudança de status no ticket #${ticket.ticket_id}`);
+    } catch (error) {
+      console.error('Erro ao notificar mudança de status:', error);
     }
   }
   

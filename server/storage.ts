@@ -112,6 +112,13 @@ export interface IStorage {
 
   // Company operations (adicionar se não existir)
   getCompany(id: number): Promise<any | undefined>;
+
+  // Ticket participants operations
+  addTicketParticipant(ticketId: number, userId: number, addedById: number): Promise<any>;
+  removeTicketParticipant(ticketId: number, userId: number): Promise<boolean>;
+  getTicketParticipants(ticketId: number): Promise<any[]>;
+  isUserTicketParticipant(ticketId: number, userId: number): Promise<boolean>;
+  getTicketParticipantsHistory(ticketId: number): Promise<any[]>;
 }
 
 // In-memory storage implementation
@@ -1148,6 +1155,37 @@ export class MemStorage implements IStorage {
         assigned_to_id: ticket.assignedToId,
         department_id: ticket.departmentId
       }));
+  }
+
+  // Ticket participants operations
+  async addTicketParticipant(ticketId: number, userId: number, addedById: number): Promise<any> {
+    // Implementação básica para memória
+    console.warn(`[MemStorage] addTicketParticipant(${ticketId}, ${userId}, ${addedById}) não implementado`);
+    return { id: 1, ticket_id: ticketId, user_id: userId, added_by_id: addedById, added_at: new Date() };
+  }
+
+  async removeTicketParticipant(ticketId: number, userId: number): Promise<boolean> {
+    // Implementação básica para memória
+    console.warn(`[MemStorage] removeTicketParticipant(${ticketId}, ${userId}) não implementado`);
+    return true;
+  }
+
+  async getTicketParticipants(ticketId: number): Promise<any[]> {
+    // Implementação básica para memória
+    console.warn(`[MemStorage] getTicketParticipants(${ticketId}) não implementado`);
+    return [];
+  }
+
+  async isUserTicketParticipant(ticketId: number, userId: number): Promise<boolean> {
+    // Implementação básica para memória
+    console.warn(`[MemStorage] isUserTicketParticipant(${ticketId}, ${userId}) não implementado`);
+    return false;
+  }
+
+  async getTicketParticipantsHistory(ticketId: number): Promise<any[]> {
+    // Implementação básica para memória
+    console.warn(`[MemStorage] getTicketParticipantsHistory(${ticketId}) não implementado`);
+    return [];
   }
 }
 

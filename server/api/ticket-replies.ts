@@ -1,8 +1,63 @@
 import { db } from "../db";
-import { eq } from "drizzle-orm";
-import { tickets, ticketReplies, ticketStatusHistory, customers } from "@shared/schema";
+import { eq, and, ne } from "drizzle-orm";
+import { tickets, ticketReplies, ticketStatusHistory, customers, ticketParticipants } from "@shared/schema";
 import { insertTicketReplySchema } from "@shared/schema";
 import { Request, Response } from "express";
+import { storage } from "../storage";
+
+// Função auxiliar para verificar se um usuário pode responder a um ticket
+async function canUserReplyToTicket(
+  userId: number, 
+  userRole: string, 
+  ticketId: number, 
+  userCompanyId?: number
+): Promise<{ canReply: boolean; reason?: string }> {
+  try {
+    // Buscar o ticket
+    const ticket = await storage.getTicket(ticketId, userRole, userCompanyId);
+    if (!ticket) {
+      return { canReply: false, reason: "Ticket não encontrado" };
+    }
+
+    // Verificar se o ticket está resolvido
+    if (ticket.status === 'resolved') {
+      return { canReply: false, reason: "Não é possível responder a tickets resolvidos" };
+    }
+
+    // 🔥 FASE 4.1: Verificar se o usuário é participante do ticket
+    const isParticipant = await storage.isUserTicketParticipant(ticketId, userId);
+    
+    // Se é participante, sempre pode responder
+    if (isParticipant) {
+      return { canReply: true };
+    }
+
+    // Verificar permissões baseadas na role
+    if (userRole === 'admin' || userRole === 'support' || userRole === 'manager' || userRole === 'supervisor') {
+      return { canReply: true };
+    }
+
+    // Para clientes, verificar se é o criador do ticket
+    if (userRole === 'customer') {
+      if (ticket.customer_id) {
+        const [customer] = await db
+          .select()
+          .from(customers)
+          .where(eq(customers.id, ticket.customer_id));
+        
+        if (customer?.user_id === userId) {
+          return { canReply: true };
+        }
+      }
+      return { canReply: false, reason: "Apenas o criador do ticket pode responder" };
+    }
+
+    return { canReply: false, reason: "Permissão insuficiente para responder a este ticket" };
+  } catch (error) {
+    console.error('Erro ao verificar permissões de resposta:', error);
+    return { canReply: false, reason: "Erro interno ao verificar permissões" };
+  }
+}
 
 // POST /api/ticket-replies
 export async function POST(req: Request, res: Response) {
@@ -26,28 +81,17 @@ export async function POST(req: Request, res: Response) {
       return res.status(404).json({ error: "Ticket não encontrado" });
     }
 
-    // Verificar permissões para responder ao ticket
+    // 🔥 FASE 4.1: Verificar permissões de resposta para participantes
     const sessionUserId = req.session.userId;
     const userRole = req.session.userRole;
-    let isOwner = false;
+    const userCompanyId = req.session.companyId;
     
-    // Para clientes, verificar se é o dono do ticket através da relação customer_id->user_id
-    if (userRole === 'customer' && ticket.customer_id) {
-      const [customer] = await db
-        .select()
-        .from(customers)
-        .where(eq(customers.id, ticket.customer_id));
-      isOwner = customer?.user_id === sessionUserId;
-    }
-
-    if (
-      userRole !== "admin" &&
-      userRole !== "support" &&
-      userRole !== "manager" &&
-      userRole !== "company_admin" &&
-      !isOwner
-    ) {
-      return res.status(403).json({ error: "Acesso negado: você não tem permissão para responder a este ticket." });
+    const permissionCheck = await canUserReplyToTicket(sessionUserId, userRole, ticketId, userCompanyId);
+    if (!permissionCheck.canReply) {
+      return res.status(403).json({ 
+        error: "Acesso negado", 
+        details: permissionCheck.reason 
+      });
     }
 
     // Estruturar os dados da resposta
@@ -97,6 +141,15 @@ export async function POST(req: Request, res: Response) {
         .update(tickets)
         .set(updateData)
         .where(eq(tickets.id, ticketId));
+
+      // 🔥 FASE 4.2: Enviar notificação WebSocket de mudança de status
+      try {
+        const { notificationService } = await import('../services/notification-service');
+        await notificationService.notifyStatusChange(ticketId, ticket.status, validatedData.status, sessionUserId);
+      } catch (notificationError) {
+        console.error('Erro ao enviar notificação WebSocket de mudança de status:', notificationError);
+        // Não falhar a operação por erro de notificação
+      }
     }
     
     // Se foi especificado um atendente e é diferente do atual

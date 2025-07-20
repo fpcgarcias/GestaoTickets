@@ -1,6 +1,6 @@
 import { db } from '../db';
-import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, slaDefinitions, companies } from '@shared/schema';
-import { eq, and, isNull, inArray, not, ne } from 'drizzle-orm';
+import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, slaDefinitions, companies, ticketParticipants, systemSettings } from '@shared/schema';
+import { eq, and, isNull, inArray, not, ne, or, gte } from 'drizzle-orm';
 import { emailConfigService } from './email-config-service';
 import nodemailer from 'nodemailer';
 import { PriorityService } from "./priority-service";
@@ -24,6 +24,25 @@ export interface EmailNotificationContext {
     base_url?: string;
     company_name?: string;
     support_email?: string;
+    custom_message?: string;
+    colors?: {
+      primary: string;
+      primaryDark: string;
+      secondary: string;
+      accent: string;
+      background: string;
+      text: string;
+    };
+    from_name?: string;
+    from_email?: string;
+  };
+  digest?: {
+    type: string;
+    date: Date;
+    tickets: any[];
+    activity_count: number;
+    resolved_count?: number;
+    new_count?: number;
   };
 }
 
@@ -80,7 +99,11 @@ export class EmailNotificationService {
       const baseUrl = await this.getBaseUrlForCompany(validatedCompanyId);
       console.log(`[📧 EMAIL PROD] URL base obtida: ${baseUrl}`);
       
-      // 2. Adicionar URL base e outras informações do sistema ao contexto
+      // 2. Obter cores e configurações da empresa
+      const companyColors = await this.getCompanyColors(validatedCompanyId);
+      const emailConfigData = await this.getEmailConfigForCompany(validatedCompanyId);
+      
+      // 3. Adicionar URL base e outras informações do sistema ao contexto
       const enrichedContext: EmailNotificationContext = {
         ...context,
         ticket: await this.mapTicketFields(context.ticket),
@@ -88,11 +111,15 @@ export class EmailNotificationService {
           ...context.system,
           base_url: baseUrl,
           company_name: context.system?.company_name || 'Ticket Wise',
-          support_email: context.system?.support_email || 'suporte@ticketwise.com.br'
+          support_email: context.system?.support_email || 'suporte@ticketwise.com.br',
+          // Adicionar cores e configurações da empresa
+          colors: companyColors,
+          from_name: emailConfigData.fromName,
+          from_email: emailConfigData.fromEmail
         }
       };
 
-      // 3. Verificar se email está configurado - CRÍTICO: APENAS PARA A EMPRESA ESPECÍFICA
+      // 4. Verificar se email está configurado - CRÍTICO: APENAS PARA A EMPRESA ESPECÍFICA
       console.log(`[📧 EMAIL PROD] Verificando configuração de email APENAS para empresa ${validatedCompanyId}`);
       const emailConfig = await emailConfigService.getEmailConfigForFrontend(validatedCompanyId);
 
@@ -480,9 +507,25 @@ export class EmailNotificationService {
       // {{system.support_email}} - Email de suporte
       rendered = rendered.replace(/\{\{system\.support_email\}\}/g, String(system.support_email || ''));
 
+      // {{system.from_name}} - Nome do remetente
+      rendered = rendered.replace(/\{\{system\.from_name\}\}/g, String(system.from_name || 'Sistema de Tickets'));
+      
+      // {{system.from_email}} - Email do remetente
+      rendered = rendered.replace(/\{\{system\.from_email\}\}/g, String(system.from_email || 'noreply@ticketwise.com.br'));
+
+      // Cores da empresa
+      if (system.colors) {
+        rendered = rendered.replace(/\{\{system\.colors\.primary\}\}/g, system.colors.primary);
+        rendered = rendered.replace(/\{\{system\.colors\.primaryDark\}\}/g, system.colors.primaryDark);
+        rendered = rendered.replace(/\{\{system\.colors\.secondary\}\}/g, system.colors.secondary);
+        rendered = rendered.replace(/\{\{system\.colors\.accent\}\}/g, system.colors.accent);
+        rendered = rendered.replace(/\{\{system\.colors\.background\}\}/g, system.colors.background);
+        rendered = rendered.replace(/\{\{system\.colors\.text\}\}/g, system.colors.text);
+      }
+
       // Outras propriedades do sistema
       Object.entries(system).forEach(([key, value]) => {
-        if (!['base_url', 'company_name', 'support_email'].includes(key)) { // Já tratados acima
+        if (!['base_url', 'company_name', 'support_email', 'from_name', 'from_email', 'colors'].includes(key)) { // Já tratados acima
           const placeholder = `{{system.${key}}}`;
           rendered = rendered.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value || ''));
         }
@@ -657,13 +700,20 @@ export class EmailNotificationService {
         'new_ticket': 'new_ticket_assigned',
         'ticket_assigned': 'new_ticket_assigned',
         'ticket_reply': 'new_reply_received',
+        'new_reply': 'new_reply_received',
         'status_changed': 'ticket_status_changed',
+        'status_update': 'ticket_status_changed',
         'ticket_resolved': 'ticket_status_changed',
         'ticket_escalated': 'ticket_escalated',
         'ticket_due_soon': 'ticket_due_soon',
         'customer_registered': 'new_customer_registered',
         'user_created': 'new_user_created',
         'system_maintenance': 'system_maintenance',
+        // 🔥 FASE 4.3: Novos tipos de notificação para participantes
+        'ticket_participant_added': 'new_reply_received',
+        'ticket_participant_removed': 'ticket_status_changed',
+        'daily_digest': 'new_ticket_assigned',
+        'weekly_digest': 'new_ticket_assigned',
       };
 
       const settingKey = typeMap[notificationType];
@@ -884,13 +934,16 @@ export class EmailNotificationService {
         }
       }
 
-      console.log(`[📧 EMAIL PROD] ===========================================`);
+                    console.log(`[📧 EMAIL PROD] ===========================================`);
       console.log(`[📧 EMAIL PROD] 📊 RESUMO DA NOTIFICAÇÃO`);
       console.log(`[📧 EMAIL PROD] Ticket: ${ticket.ticket_id}`);
       console.log(`[📧 EMAIL PROD] Departamento: ${ticket.department_id}`);
       console.log(`[📧 EMAIL PROD] Emails enviados: ${emailsSent}`);
       console.log(`[📧 EMAIL PROD] Emails falharam: ${emailsFailed}`);
       console.log(`[📧 EMAIL PROD] ===========================================`);
+
+      // 🔥 NOVO: Notificar participantes (se houver)
+      await this.notifyOtherParticipants(ticketId, 0, 'new_ticket', context);
       
     } catch (error) {
       console.error('Erro ao enviar notificação de novo ticket:', error);
@@ -1110,9 +1163,9 @@ export class EmailNotificationService {
         }
       };
 
-      // 🔥 LÓGICA CORRIGIDA: Se quem respondeu foi o suporte/admin, notificar APENAS o cliente
+      // 🔥 LÓGICA ATUALIZADA FASE 4.1: Se quem respondeu foi o suporte/admin, notificar CLIENTE + PARTICIPANTES
       if (replyUser.role !== 'customer' && ticket.customer_email) {
-        console.log(`[📧 EMAIL PROD] 📧 Atendente respondeu - notificando cliente: ${ticket.customer_email}`);
+        console.log(`[📧 EMAIL PROD] 📧 Atendente respondeu - notificando cliente e participantes`);
         
         // Verificar se o cliente tem conta e configurações
         const [customerUser] = await db
@@ -1158,11 +1211,22 @@ export class EmailNotificationService {
             console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email para cliente (sem conta): ${result.error}`);
           }
         }
+
+        // 🔥 FASE 4.3: Notificar participantes com configurações individuais
+        const participants = await this.getTicketParticipants(ticketId, replyUserId);
+        if (participants.length > 0) {
+          await this.notifyParticipantsWithSettings(
+            participants,
+            'ticket_reply',
+            context,
+            `Há uma nova resposta de atendente no ticket #${ticket.ticket_id}: "${ticket.title}".`
+          );
+        }
       }
 
-      // 🔥 LÓGICA CORRIGIDA: Se quem respondeu foi o cliente, notificar APENAS atendentes do departamento
+      // 🔥 LÓGICA ATUALIZADA FASE 4.1: Se quem respondeu foi o cliente, notificar ATENDENTES + PARTICIPANTES
       if (replyUser.role === 'customer') {
-        console.log(`[📧 EMAIL PROD] 📧 Cliente respondeu - notificando atendentes do departamento ${ticket.department_id}`);
+        console.log(`[📧 EMAIL PROD] 📧 Cliente respondeu - notificando atendentes e participantes do departamento ${ticket.department_id}`);
         
         // 🔥 BUSCAR APENAS atendentes do departamento específico do ticket
         let departmentUsers = [];
@@ -1235,6 +1299,17 @@ export class EmailNotificationService {
           } else {
             console.log(`[📧 EMAIL PROD] 🔕 Atendente ${user.name} não configurado para receber notificações`);
           }
+        }
+
+        // 🔥 FASE 4.3: Notificar participantes com configurações individuais
+        const participants = await this.getTicketParticipants(ticketId, replyUserId);
+        if (participants.length > 0) {
+          await this.notifyParticipantsWithSettings(
+            participants,
+            'ticket_reply',
+            context,
+            `Há uma nova resposta de cliente no ticket #${ticket.ticket_id}: "${ticket.title}".`
+          );
         }
 
         console.log(`[📧 EMAIL PROD] ===========================================`);
@@ -1452,6 +1527,18 @@ export class EmailNotificationService {
         } else {
           console.log(`[📧 EMAIL PROD] 🔕 Atendente ${user.name} não configurado para receber notificações`);
         }
+      }
+
+      // 🔥 FASE 4.3: Notificar participantes com configurações individuais
+      const participants = await this.getTicketParticipants(ticketId, changedByUserId);
+      if (participants.length > 0) {
+        const participantResult = await this.notifyParticipantsWithSettings(
+          participants,
+          'status_changed',
+          context,
+          `O status do ticket #${ticket.ticket_id}: "${ticket.title}" foi alterado de "${oldStatus}" para "${newStatus}".`
+        );
+        console.log(`[📧 EMAIL PROD] 📊 PARTICIPANTES: ${participantResult.sent} enviados, ${participantResult.failed} falharam, ${participantResult.skipped} ignorados`);
       }
 
       console.log(`[📧 EMAIL PROD] ===========================================`);
@@ -2197,6 +2284,764 @@ export class EmailNotificationService {
       console.error('Erro ao verificar tickets próximos do vencimento:', error);
     }
   }
+
+  // === NOVOS MÉTODOS PARA PARTICIPANTES DE TICKETS ===
+
+  /**
+   * Notifica quando um participante é adicionado a um ticket
+   */
+  async notifyTicketParticipantAdded(ticketId: number, participantUserId: number, addedByUserId: number): Promise<void> {
+    try {
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+      console.log(`[📧 EMAIL PROD] 👥 INICIANDO NOTIFICAÇÃO DE PARTICIPANTE ADICIONADO`);
+      console.log(`[📧 EMAIL PROD] Ticket ID: ${ticketId}`);
+      console.log(`[📧 EMAIL PROD] Participante ID: ${participantUserId}`);
+      console.log(`[📧 EMAIL PROD] Adicionado por ID: ${addedByUserId}`);
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+
+      // Buscar dados do ticket
+      const [ticket] = await db
+        .select()
+        .from(tickets)
+        .where(eq(tickets.id, ticketId))
+        .limit(1);
+
+      if (!ticket) {
+        console.log(`[📧 EMAIL PROD] ❌ ERRO: Ticket ${ticketId} não encontrado no banco`);
+        return;
+      }
+
+      // Buscar dados do participante adicionado
+      const [participant] = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.id, participantUserId), eq(users.active, true)))
+        .limit(1);
+
+      if (!participant) {
+        console.log(`[📧 EMAIL PROD] ❌ ERRO: Participante ${participantUserId} não encontrado ou inativo`);
+        return;
+      }
+
+      // Buscar dados de quem adicionou
+      const [addedBy] = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.id, addedByUserId), eq(users.active, true)))
+        .limit(1);
+
+      if (!addedBy) {
+        console.log(`[📧 EMAIL PROD] ❌ ERRO: Usuário ${addedByUserId} não encontrado ou inativo`);
+        return;
+      }
+
+      // Buscar dados do cliente
+      let customer = null;
+      if (ticket.customer_id) {
+        [customer] = await db
+          .select()
+          .from(customers)
+          .where(eq(customers.id, ticket.customer_id))
+          .limit(1);
+      }
+
+      // Obter URL base para a empresa
+      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
+
+      const context: EmailNotificationContext = {
+        ticket,
+        customer: customer || { name: 'Cliente', email: ticket.customer_email },
+        user: participant,
+        official: addedBy,
+        system: {
+          base_url: baseUrl,
+          company_name: 'Sistema de Tickets',
+          support_email: 'suporte@ticketwise.com.br'
+        }
+      };
+
+      // Notificar o participante adicionado
+      console.log(`[📧 EMAIL PROD] 📧 Notificando participante adicionado: ${participant.email}`);
+      
+      const shouldNotify = await this.shouldSendEmailToUser(participant.id, 'ticket_participant_added');
+      if (shouldNotify) {
+        const result = await this.sendEmailNotification(
+          'ticket_participant_added',
+          participant.email,
+          context,
+          ticket.company_id!,
+          participant.role
+        );
+        
+        if (result.success) {
+          console.log(`[📧 EMAIL PROD] ✅ Email enviado com sucesso para participante ${participant.name}`);
+        } else {
+          console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email para participante: ${result.error}`);
+        }
+      } else {
+        console.log(`[📧 EMAIL PROD] 🔕 Participante não configurado para receber notificações`);
+      }
+
+      // 🔥 FASE 4.3: Notificar outros participantes do ticket com configurações individuais
+      const otherParticipants = await this.getTicketParticipants(ticketId, participantUserId);
+      if (otherParticipants.length > 0) {
+        await this.notifyParticipantsWithSettings(
+          otherParticipants,
+          'ticket_participant_added',
+          context,
+          `${participant.name} foi adicionado como participante do ticket #${ticket.ticket_id}: "${ticket.title}" por ${addedBy.name}.`
+        );
+      }
+
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+      console.log(`[📧 EMAIL PROD] ✅ NOTIFICAÇÃO DE PARTICIPANTE ADICIONADO CONCLUÍDA`);
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+
+    } catch (error) {
+      console.error('Erro ao enviar notificação de participante adicionado:', error);
+    }
+  }
+
+  /**
+   * Notifica quando um participante é removido de um ticket
+   */
+  async notifyTicketParticipantRemoved(ticketId: number, participantUserId: number, removedByUserId: number): Promise<void> {
+    try {
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+      console.log(`[📧 EMAIL PROD] 👥 INICIANDO NOTIFICAÇÃO DE PARTICIPANTE REMOVIDO`);
+      console.log(`[📧 EMAIL PROD] Ticket ID: ${ticketId}`);
+      console.log(`[📧 EMAIL PROD] Participante ID: ${participantUserId}`);
+      console.log(`[📧 EMAIL PROD] Removido por ID: ${removedByUserId}`);
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+
+      // Buscar dados do ticket
+      const [ticket] = await db
+        .select()
+        .from(tickets)
+        .where(eq(tickets.id, ticketId))
+        .limit(1);
+
+      if (!ticket) {
+        console.log(`[📧 EMAIL PROD] ❌ ERRO: Ticket ${ticketId} não encontrado no banco`);
+        return;
+      }
+
+      // Buscar dados do participante removido
+      const [participant] = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.id, participantUserId), eq(users.active, true)))
+        .limit(1);
+
+      if (!participant) {
+        console.log(`[📧 EMAIL PROD] ❌ ERRO: Participante ${participantUserId} não encontrado ou inativo`);
+        return;
+      }
+
+      // Buscar dados de quem removeu
+      const [removedBy] = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.id, removedByUserId), eq(users.active, true)))
+        .limit(1);
+
+      if (!removedBy) {
+        console.log(`[📧 EMAIL PROD] ❌ ERRO: Usuário ${removedByUserId} não encontrado ou inativo`);
+        return;
+      }
+
+      // Buscar dados do cliente
+      let customer = null;
+      if (ticket.customer_id) {
+        [customer] = await db
+          .select()
+          .from(customers)
+          .where(eq(customers.id, ticket.customer_id))
+          .limit(1);
+      }
+
+      // Obter URL base para a empresa
+      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
+
+      const context: EmailNotificationContext = {
+        ticket,
+        customer: customer || { name: 'Cliente', email: ticket.customer_email },
+        user: participant,
+        official: removedBy,
+        system: {
+          base_url: baseUrl,
+          company_name: 'Sistema de Tickets',
+          support_email: 'suporte@ticketwise.com.br'
+        }
+      };
+
+      // Notificar o participante removido
+      console.log(`[📧 EMAIL PROD] 📧 Notificando participante removido: ${participant.email}`);
+      
+      const shouldNotify = await this.shouldSendEmailToUser(participant.id, 'ticket_participant_removed');
+      if (shouldNotify) {
+        const result = await this.sendEmailNotification(
+          'ticket_participant_removed',
+          participant.email,
+          context,
+          ticket.company_id!,
+          participant.role
+        );
+        
+        if (result.success) {
+          console.log(`[📧 EMAIL PROD] ✅ Email enviado com sucesso para participante removido ${participant.name}`);
+        } else {
+          console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email para participante removido: ${result.error}`);
+        }
+      } else {
+        console.log(`[📧 EMAIL PROD] 🔕 Participante removido não configurado para receber notificações`);
+      }
+
+      // 🔥 FASE 4.3: Notificar outros participantes do ticket com configurações individuais
+      const otherParticipants = await this.getTicketParticipants(ticketId, participantUserId);
+      if (otherParticipants.length > 0) {
+        await this.notifyParticipantsWithSettings(
+          otherParticipants,
+          'ticket_participant_removed',
+          context,
+          `${participant.name} foi removido como participante do ticket #${ticket.ticket_id}: "${ticket.title}" por ${removedBy.name}.`
+        );
+      }
+
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+      console.log(`[📧 EMAIL PROD] ✅ NOTIFICAÇÃO DE PARTICIPANTE REMOVIDO CONCLUÍDA`);
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+
+    } catch (error) {
+      console.error('Erro ao enviar notificação de participante removido:', error);
+    }
+  }
+
+  /**
+   * Método auxiliar para notificar outros participantes de um ticket
+   */
+  private async notifyOtherParticipants(
+    ticketId: number, 
+    excludeUserId: number, 
+    notificationType: string, 
+    context: EmailNotificationContext
+  ): Promise<void> {
+    try {
+      // Buscar todos os participantes do ticket (exceto o excluído)
+      const participants = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          company_id: users.company_id
+        })
+        .from(users)
+        .innerJoin(ticketParticipants, eq(users.id, ticketParticipants.user_id))
+        .where(and(
+          eq(ticketParticipants.ticket_id, ticketId),
+          eq(users.active, true),
+          ne(users.id, excludeUserId)
+        ));
+
+      console.log(`[📧 EMAIL PROD] 👥 Encontrados ${participants.length} outros participantes para notificar`);
+
+      let emailsSent = 0;
+      let emailsFailed = 0;
+
+      for (const participant of participants) {
+        console.log(`[📧 EMAIL PROD] -------------------------------------------`);
+        console.log(`[📧 EMAIL PROD] 📧 Processando participante: ${participant.name} (${participant.email})`);
+        
+        const shouldNotify = await this.shouldSendEmailToUser(participant.id, notificationType);
+        if (shouldNotify) {
+          console.log(`[📧 EMAIL PROD] ✅ Participante ${participant.name} configurado para receber notificações`);
+          
+          const result = await this.sendEmailNotification(
+            notificationType,
+            participant.email,
+            context,
+            context.ticket?.company_id!,
+            participant.role
+          );
+          
+          if (result.success) {
+            emailsSent++;
+            console.log(`[📧 EMAIL PROD] ✅ Email enviado com sucesso para ${participant.name}`);
+          } else {
+            emailsFailed++;
+            console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email para ${participant.name}: ${result.error}`);
+          }
+        } else {
+          console.log(`[📧 EMAIL PROD] 🔕 Participante ${participant.name} não configurado para receber notificações`);
+        }
+      }
+
+      console.log(`[📧 EMAIL PROD] 📊 RESUMO: ${emailsSent} emails enviados, ${emailsFailed} falharam`);
+
+    } catch (error) {
+      console.error('Erro ao notificar outros participantes:', error);
+    }
+  }
+
+  // 🔥 FASE 4.3: Método auxiliar para buscar participantes de um ticket
+  private async getTicketParticipants(ticketId: number, excludeUserId?: number): Promise<any[]> {
+    try {
+      const participants = await db
+        .select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          role: users.role,
+          company_id: users.company_id
+        })
+        .from(users)
+        .innerJoin(ticketParticipants, eq(users.id, ticketParticipants.user_id))
+        .where(and(
+          eq(ticketParticipants.ticket_id, ticketId),
+          eq(users.active, true),
+          excludeUserId ? ne(users.id, excludeUserId) : undefined
+        ));
+
+      console.log(`[📧 EMAIL PROD] 👥 Encontrados ${participants.length} participantes para notificar`);
+      return participants;
+    } catch (error) {
+      console.error('[📧 EMAIL PROD] ❌ Erro ao buscar participantes:', error);
+      return [];
+    }
+  }
+
+  // 🔥 FASE 4.3: Método auxiliar para notificar participantes com configurações individuais
+  private async notifyParticipantsWithSettings(
+    participants: any[],
+    notificationType: string,
+    context: EmailNotificationContext,
+    customMessage?: string
+  ): Promise<{ sent: number; failed: number; skipped: number }> {
+    let sent = 0;
+    let failed = 0;
+    let skipped = 0;
+
+    for (const participant of participants) {
+      try {
+        console.log(`[📧 EMAIL PROD] -------------------------------------------`);
+        console.log(`[📧 EMAIL PROD] 📧 Processando participante: ${participant.name} (${participant.email})`);
+
+        // Verificar configurações individuais do participante
+        const shouldNotify = await this.shouldSendEmailToUser(participant.id, notificationType);
+        if (!shouldNotify) {
+          console.log(`[📧 EMAIL PROD] 🔕 Participante ${participant.name} não configurado para receber notificações do tipo '${notificationType}'`);
+          skipped++;
+          continue;
+        }
+
+        // Criar contexto personalizado para o participante
+        const participantContext: EmailNotificationContext = {
+          ...context,
+          user: participant,
+          system: {
+            ...context.system,
+            custom_message: customMessage
+          }
+        };
+
+        const result = await this.sendEmailNotification(
+          notificationType,
+          participant.email,
+          participantContext,
+          participant.company_id,
+          participant.role
+        );
+
+        if (result.success) {
+          sent++;
+          console.log(`[📧 EMAIL PROD] ✅ Email enviado com sucesso para ${participant.name}`);
+        } else {
+          failed++;
+          console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email para ${participant.name}: ${result.error}`);
+        }
+      } catch (error) {
+        failed++;
+        console.error(`[📧 EMAIL PROD] ❌ Erro ao processar participante ${participant.name}:`, error);
+      }
+    }
+
+    console.log(`[📧 EMAIL PROD] 📊 RESUMO: ${sent} enviados, ${failed} falharam, ${skipped} ignorados`);
+    return { sent, failed, skipped };
+  }
+
+  // 🔥 FASE 4.3: Método para gerar digest diário de tickets para participantes
+  async generateDailyDigestForParticipants(companyId?: number): Promise<void> {
+    try {
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+      console.log(`[📧 EMAIL PROD] 📅 INICIANDO GERAÇÃO DE DIGEST DIÁRIO`);
+      console.log(`[📧 EMAIL PROD] Empresa ID: ${companyId || 'Todas'}`);
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      // Buscar tickets com atividade nas últimas 24h
+      const activeTickets = await db
+        .select({
+          id: tickets.id,
+          ticket_id: tickets.ticket_id,
+          title: tickets.title,
+          status: tickets.status,
+          priority: tickets.priority,
+          company_id: tickets.company_id,
+          created_at: tickets.created_at,
+          updated_at: tickets.updated_at
+        })
+        .from(tickets)
+        .where(and(
+          companyId ? eq(tickets.company_id, companyId) : undefined,
+          // Tickets criados ou atualizados nas últimas 24h
+          or(
+            gte(tickets.created_at, yesterday),
+            gte(tickets.updated_at, yesterday)
+          )
+        ));
+
+      console.log(`[📧 EMAIL PROD] 📊 Encontrados ${activeTickets.length} tickets ativos nas últimas 24h`);
+
+      // Agrupar participantes por usuário
+      const participantDigests = new Map<number, {
+        user: any;
+        tickets: any[];
+        activityCount: number;
+      }>();
+
+      for (const ticket of activeTickets) {
+        const participants = await this.getTicketParticipants(ticket.id);
+        
+        for (const participant of participants) {
+          if (!participantDigests.has(participant.id)) {
+            participantDigests.set(participant.id, {
+              user: participant,
+              tickets: [],
+              activityCount: 0
+            });
+          }
+          
+          const digest = participantDigests.get(participant.id)!;
+          digest.tickets.push(ticket);
+          digest.activityCount++;
+        }
+      }
+
+      console.log(`[📧 EMAIL PROD] 👥 Gerando digest para ${participantDigests.size} participantes`);
+
+      // Enviar digest para cada participante
+      const digestEntries = Array.from(participantDigests.entries());
+      for (const [userId, digest] of digestEntries) {
+        try {
+          // Verificar se o usuário quer receber digest diário
+          const shouldNotify = await this.shouldSendEmailToUser(userId, 'daily_digest');
+          if (!shouldNotify) {
+            console.log(`[📧 EMAIL PROD] 🔕 Usuário ${digest.user.name} não configurado para receber digest diário`);
+            continue;
+          }
+
+          const context: EmailNotificationContext = {
+            system: {
+              base_url: await this.getBaseUrlForCompany(digest.user.company_id),
+              company_name: 'Ticket Wise',
+              support_email: 'suporte@ticketwise.com.br'
+            },
+            digest: {
+              type: 'daily',
+              date: today,
+              tickets: digest.tickets,
+              activity_count: digest.activityCount
+            }
+          };
+
+          const result = await this.sendEmailNotification(
+            'daily_digest',
+            digest.user.email,
+            context,
+            digest.user.company_id,
+            digest.user.role
+          );
+
+          if (result.success) {
+            console.log(`[📧 EMAIL PROD] ✅ Digest diário enviado para ${digest.user.name}`);
+          } else {
+            console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar digest diário para ${digest.user.name}: ${result.error}`);
+          }
+        } catch (error) {
+          console.error(`[📧 EMAIL PROD] ❌ Erro ao enviar digest diário para usuário ${userId}:`, error);
+        }
+      }
+
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+      console.log(`[📧 EMAIL PROD] ✅ DIGEST DIÁRIO CONCLUÍDO`);
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+
+    } catch (error) {
+      console.error('[📧 EMAIL PROD] ❌ Erro ao gerar digest diário:', error);
+    }
+  }
+
+  // 🔥 FASE 4.3: Método para gerar digest semanal de tickets para participantes
+  async generateWeeklyDigestForParticipants(companyId?: number): Promise<void> {
+    try {
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+      console.log(`[📧 EMAIL PROD] 📅 INICIANDO GERAÇÃO DE DIGEST SEMANAL`);
+      console.log(`[📧 EMAIL PROD] Empresa ID: ${companyId || 'Todas'}`);
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+
+      const today = new Date();
+      const lastWeek = new Date(today);
+      lastWeek.setDate(lastWeek.getDate() - 7);
+
+      // Buscar tickets com atividade na última semana
+      const activeTickets = await db
+        .select({
+          id: tickets.id,
+          ticket_id: tickets.ticket_id,
+          title: tickets.title,
+          status: tickets.status,
+          priority: tickets.priority,
+          company_id: tickets.company_id,
+          created_at: tickets.created_at,
+          updated_at: tickets.updated_at
+        })
+        .from(tickets)
+        .where(and(
+          companyId ? eq(tickets.company_id, companyId) : undefined,
+          // Tickets criados ou atualizados na última semana
+          or(
+            gte(tickets.created_at, lastWeek),
+            gte(tickets.updated_at, lastWeek)
+          )
+        ));
+
+      console.log(`[📧 EMAIL PROD] 📊 Encontrados ${activeTickets.length} tickets ativos na última semana`);
+
+      // Agrupar participantes por usuário
+      const participantDigests = new Map<number, {
+        user: any;
+        tickets: any[];
+        activityCount: number;
+        resolvedCount: number;
+        newCount: number;
+      }>();
+
+      for (const ticket of activeTickets) {
+        const participants = await this.getTicketParticipants(ticket.id);
+        
+        for (const participant of participants) {
+          if (!participantDigests.has(participant.id)) {
+            participantDigests.set(participant.id, {
+              user: participant,
+              tickets: [],
+              activityCount: 0,
+              resolvedCount: 0,
+              newCount: 0
+            });
+          }
+          
+          const digest = participantDigests.get(participant.id)!;
+          digest.tickets.push(ticket);
+          digest.activityCount++;
+          
+          if (ticket.status === 'resolved') {
+            digest.resolvedCount++;
+          } else if (ticket.status === 'new') {
+            digest.newCount++;
+          }
+        }
+      }
+
+      console.log(`[📧 EMAIL PROD] 👥 Gerando digest semanal para ${participantDigests.size} participantes`);
+
+      // Enviar digest para cada participante
+      const weeklyDigestEntries = Array.from(participantDigests.entries());
+      for (const [userId, digest] of weeklyDigestEntries) {
+        try {
+          // Verificar se o usuário quer receber digest semanal
+          const shouldNotify = await this.shouldSendEmailToUser(userId, 'weekly_digest');
+          if (!shouldNotify) {
+            console.log(`[📧 EMAIL PROD] 🔕 Usuário ${digest.user.name} não configurado para receber digest semanal`);
+            continue;
+          }
+
+          const context: EmailNotificationContext = {
+            system: {
+              base_url: await this.getBaseUrlForCompany(digest.user.company_id),
+              company_name: 'Ticket Wise',
+              support_email: 'suporte@ticketwise.com.br'
+            },
+            digest: {
+              type: 'weekly',
+              date: today,
+              tickets: digest.tickets,
+              activity_count: digest.activityCount,
+              resolved_count: digest.resolvedCount,
+              new_count: digest.newCount
+            }
+          };
+
+          const result = await this.sendEmailNotification(
+            'weekly_digest',
+            digest.user.email,
+            context,
+            digest.user.company_id,
+            digest.user.role
+          );
+
+          if (result.success) {
+            console.log(`[📧 EMAIL PROD] ✅ Digest semanal enviado para ${digest.user.name}`);
+          } else {
+            console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar digest semanal para ${digest.user.name}: ${result.error}`);
+          }
+        } catch (error) {
+          console.error(`[📧 EMAIL PROD] ❌ Erro ao enviar digest semanal para usuário ${userId}:`, error);
+        }
+      }
+
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+      console.log(`[📧 EMAIL PROD] ✅ DIGEST SEMANAL CONCLUÍDO`);
+      console.log(`[📧 EMAIL PROD] ===========================================`);
+
+    } catch (error) {
+      console.error('[📧 EMAIL PROD] ❌ Erro ao gerar digest semanal:', error);
+    }
+  }
+
+  // Método auxiliar para obter cores da empresa baseado nas configurações reais
+  private async getCompanyColors(companyId?: number): Promise<{
+    primary: string;
+    primaryDark: string;
+    secondary: string;
+    accent: string;
+    background: string;
+    text: string;
+  }> {
+    try {
+      if (!companyId) {
+        // Cores padrão do Ticket Wise
+        return {
+          primary: '#1c73e8',
+          primaryDark: '#1557b0',
+          secondary: '#f0f0f5',
+          accent: '#e8f4fd',
+          background: '#f4f4f7',
+          text: '#333333'
+        };
+      }
+
+      // Buscar informações da empresa para determinar o tema
+      const company = await db
+        .select()
+        .from(companies)
+        .where(eq(companies.id, companyId))
+        .limit(1);
+
+      if (!company || company.length === 0) {
+        // Cores padrão do Ticket Wise
+        return {
+          primary: '#1c73e8',
+          primaryDark: '#1557b0',
+          secondary: '#f0f0f5',
+          accent: '#e8f4fd',
+          background: '#f4f4f7',
+          text: '#333333'
+        };
+      }
+
+      const companyData = company[0];
+      
+      // Mapeamento de empresas para temas baseado no nome/domínio
+      const getThemeByCompany = (companyName: string): string => {
+        const name = companyName.toLowerCase();
+        
+        if (name.includes('vix') || name.includes('vixbrasil')) {
+          return 'vix';
+        } else if (name.includes('oficina') || name.includes('muda') || name.includes('oficinamuda')) {
+          return 'oficinaMuda';
+        } else {
+          return 'default';
+        }
+      };
+
+      const themeName = getThemeByCompany(companyData.name);
+      
+      // Definir cores baseadas no tema (mesmas do theme-context.tsx)
+      const themes = {
+        default: {
+          primary: '#1c73e8',      // 262 83% 58%
+          primaryDark: '#1557b0',
+          secondary: '#f0f0f5',    // 220 14.3% 95.9%
+          accent: '#e8f4fd',       // 262 83% 96%
+          background: '#f4f4f7',   // 0 0% 98%
+          text: '#333333'          // 224 71.4% 4.1%
+        },
+        vix: {
+          primary: '#e6b800',      // 45 93% 47%
+          primaryDark: '#b38f00',
+          secondary: '#f5f2e6',    // 45 20% 95%
+          accent: '#f0e6cc',       // 45 50% 90%
+          background: '#faf9f2',   // 45 10% 98%
+          text: '#262626'          // 45 20% 15%
+        },
+        oficinaMuda: {
+          primary: '#4a2f1a',      // 15 58% 29%
+          primaryDark: '#3a2515',
+          secondary: '#5a6b4a',    // 86 15% 40%
+          accent: '#e6b800',       // 45 84% 60%
+          background: '#f7f6f2',   // 45 15% 97%
+          text: '#262626'          // 15 45% 15%
+        }
+      };
+
+      return themes[themeName as keyof typeof themes] || themes.default;
+      
+    } catch (error) {
+      console.error('Erro ao obter cores da empresa:', error);
+      // Cores padrão em caso de erro
+      return {
+        primary: '#1c73e8',
+        primaryDark: '#1557b0',
+        secondary: '#f0f0f5',
+        accent: '#e8f4fd',
+        background: '#f4f4f7',
+        text: '#333333'
+      };
+    }
+  }
+
+  // Método auxiliar para obter configurações de email da empresa
+  private async getEmailConfigForCompany(companyId?: number): Promise<{
+    fromName: string;
+    fromEmail: string;
+  }> {
+    try {
+      if (!companyId) {
+        return {
+          fromName: 'Sistema de Tickets',
+          fromEmail: 'noreply@ticketwise.com.br'
+        };
+      }
+      
+      const emailConfig = await emailConfigService.getEmailConfigForFrontend(companyId);
+      
+      return {
+        fromName: emailConfig.from_name || 'Sistema de Tickets',
+        fromEmail: emailConfig.from_email || 'noreply@ticketwise.com.br'
+      };
+    } catch (error) {
+      console.error('Erro ao obter configurações de email da empresa:', error);
+      return {
+        fromName: 'Sistema de Tickets',
+        fromEmail: 'noreply@ticketwise.com.br'
+      };
+    }
+  }
+
 }
 
 export const emailNotificationService = new EmailNotificationService(); 

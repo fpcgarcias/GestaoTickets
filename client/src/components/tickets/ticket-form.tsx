@@ -30,6 +30,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { FileUpload } from './file-upload';
 import { CustomerSearch } from './customer-search';
+import { ParticipantSearch } from './participant-search';
 import { usePriorities, findPriorityByLegacyValue, type NormalizedPriority } from '@/hooks/use-priorities';
 
 // Garante que PRIORITY_LEVELS.LOW etc. sejam tratados como literais específicos.
@@ -47,6 +48,7 @@ const extendedInsertTicketSchema = insertTicketSchema.extend({
   // Prioridade flexível - aceita tanto valores legados quanto IDs de prioridade
   priority: z.string().min(1, "Prioridade é obrigatória"),
   category_id: z.number().optional(), // Para o select de categoria
+  participants: z.array(z.number()).optional(), // Para os participantes selecionados
 });
 
 // Inferir o tipo a partir do schema estendido
@@ -94,6 +96,16 @@ interface Category {
   incident_type_id: number;
 }
 
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  username: string;
+  role: string;
+  active: boolean;
+  company_id?: number;
+}
+
 export const TicketForm = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -103,6 +115,9 @@ export const TicketForm = () => {
   // Estado para gerenciar arquivos pendentes
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+  
+  // Estado para gerenciar participantes selecionados
+  const [selectedParticipants, setSelectedParticipants] = useState<User[]>([]);
 
   // Não precisamos mais buscar todos os clientes antecipadamente
   // O componente CustomerSearch fará a busca conforme necessário
@@ -119,6 +134,7 @@ export const TicketForm = () => {
       department_id: undefined,
       incident_type_id: undefined,
       category_id: undefined,
+      participants: [],
     },
   });
 
@@ -200,6 +216,8 @@ export const TicketForm = () => {
       department_id: data.department_id,
       incident_type_id: data.incident_type_id,
       category_id: data.category_id,
+      // Adicionar participantes se houver
+      participants: data.participants || [],
       // customer_id e company_id serão definidos abaixo ou já estão no data
     };
 
@@ -359,6 +377,31 @@ export const TicketForm = () => {
               
               <FormField
                 control={form.control}
+                name="participants"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Participantes (Opcional)</FormLabel>
+                    <FormControl>
+                      <ParticipantSearch
+                        selectedUsers={selectedParticipants}
+                        onSelectionChange={(users) => {
+                          setSelectedParticipants(users);
+                          field.onChange(users.map(user => user.id));
+                        }}
+                        placeholder="Adicionar participantes..."
+                        disabled={false}
+                        maxParticipants={10}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <FormField
+                control={form.control}
                 name="department_id"
                 render={({ field }) => (
                   <FormItem>
@@ -393,10 +436,6 @@ export const TicketForm = () => {
                   </FormItem>
                 )}
               />
-              
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <FormField
                 control={form.control}
                 name="type"

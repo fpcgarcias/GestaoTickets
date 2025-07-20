@@ -286,6 +286,15 @@ export const ticketAttachments = pgTable("ticket_attachments", {
   deleted_by_id: integer("deleted_by_id").references(() => users.id),
 });
 
+// Tabela para participantes de tickets (usuários que acompanham chamados)
+export const ticketParticipants = pgTable("ticket_participants", {
+  id: serial("id").primaryKey(),
+  ticket_id: integer("ticket_id").references(() => tickets.id, { onDelete: 'cascade' }).notNull(),
+  user_id: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  added_by_id: integer("added_by_id").references(() => users.id),
+  added_at: timestamp("added_at").defaultNow().notNull(),
+});
+
 // Enum para tipos de templates de email
 export const emailTemplateTypeEnum = pgEnum('email_template_type', [
   'new_ticket',           // Novo ticket criado
@@ -297,7 +306,9 @@ export const emailTemplateTypeEnum = pgEnum('email_template_type', [
   'ticket_due_soon',      // Vencimento próximo
   'customer_registered',  // Novo cliente registrado
   'user_created',         // Novo usuário criado
-  'system_maintenance'    // Manutenção do sistema
+  'system_maintenance',   // Manutenção do sistema
+  'ticket_participant_added',    // Participante adicionado ao ticket
+  'ticket_participant_removed'   // Participante removido do ticket
 ]);
 
 // Tabela para templates de email
@@ -474,6 +485,7 @@ export const insertTicketSchema = z.object({
   incident_type_id: z.number().optional(),
   customer_id: z.number().optional(),
   company_id: z.number().optional(),
+  participants: z.array(z.number()).optional(), // IDs dos participantes
 });
 
 // Schema for inserting ticket replies
@@ -578,6 +590,12 @@ export const insertSlaConfigurationSchema = createInsertSchema(slaConfigurations
   updated_at: true,
 });
 
+// Schema for inserting ticket participants
+export const insertTicketParticipantSchema = createInsertSchema(ticketParticipants).omit({
+  id: true,
+  added_at: true,
+});
+
 // Types
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -609,6 +627,7 @@ export type Ticket = typeof tickets.$inferSelect & {
   replies?: TicketReply[];
   incidentType?: IncidentType;
   attachments?: TicketAttachment[];
+  participants?: TicketParticipant[];
   userContext?: 'customer' | 'official' | 'both'; // Contexto do usuário para este ticket
 };
 export type InsertTicket = z.infer<typeof insertTicketSchema>;
@@ -684,6 +703,12 @@ export type SlaConfiguration = typeof slaConfigurations.$inferSelect & {
 };
 export type InsertSlaConfiguration = z.infer<typeof insertSlaConfigurationSchema>;
 
+export type TicketParticipant = typeof ticketParticipants.$inferSelect & {
+  user?: Partial<User>;
+  added_by?: Partial<User>;
+};
+export type InsertTicketParticipant = z.infer<typeof insertTicketParticipantSchema>;
+
 // Relation declarations
 
 // Relações para a tabela de tickets
@@ -699,6 +724,7 @@ export const ticketsRelations = relations(tickets, ({ one, many }) => ({
   replies: many(ticketReplies),
   statusHistory: many(ticketStatusHistory),
   attachments: many(ticketAttachments),
+  participants: many(ticketParticipants),
 }));
 
 // Relações para a tabela de respostas de tickets
@@ -857,5 +883,21 @@ export const slaConfigurationsRelations = relations(slaConfigurations, ({ one })
   priority: one(departmentPriorities, {
     fields: [slaConfigurations.priority_id],
     references: [departmentPriorities.id],
+  }),
+}));
+
+// Relações para a tabela de participantes de tickets
+export const ticketParticipantsRelations = relations(ticketParticipants, ({ one }) => ({
+  ticket: one(tickets, {
+    fields: [ticketParticipants.ticket_id],
+    references: [tickets.id],
+  }),
+  user: one(users, {
+    fields: [ticketParticipants.user_id],
+    references: [users.id],
+  }),
+  added_by: one(users, {
+    fields: [ticketParticipants.added_by_id],
+    references: [users.id],
   }),
 }));

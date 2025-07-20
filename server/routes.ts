@@ -4,7 +4,7 @@ import { createServer, type Server as HttpServer } from "http";
 import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertTicketSchema, insertTicketReplySchema, slaDefinitions, departments as departmentsSchema, userRoleEnum } from "@shared/schema";
+import { insertTicketSchema, insertTicketReplySchema, slaDefinitions, departments as departmentsSchema, userRoleEnum, customers } from "@shared/schema";
 import { eq, desc, asc, isNull, sql, and, ne, or, inArray, ilike, not, type SQLWrapper } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import { users } from "@shared/schema";
@@ -17,6 +17,26 @@ import { emailConfigService, type EmailConfig, type SMTPConfigInput } from './se
 import { emailNotificationService } from './services/email-notification-service';
 import dashboardRouter from './routes/dashboard';
 import logsRouter from './routes/logs';
+import ticketParticipantsRouter from './routes/ticket-participants';
+
+// 🔥 FASE 5.2: Importar middlewares de autorização centralizados
+import { 
+  authRequired, 
+  adminRequired, 
+  companyAdminRequired, 
+  managerRequired, 
+  supervisorRequired, 
+  triageRequired, 
+  viewerRequired, 
+  authorize, 
+  companyAccessRequired, 
+  ticketAccessRequired, 
+  participantManagementRequired, 
+  canAddParticipants, 
+  canRemoveParticipants,
+  departmentAccessRequired,
+  canManageUserRole 
+} from './middleware/authorization';
 
 // === IMPORTS DE SEGURANÇA ===
 import { 
@@ -160,175 +180,8 @@ function validateRequest(schemaToValidate: z.ZodType<any, any>) {
   };
 }
 
-// Middleware para verificar se o usuário está autenticado
-function authRequired(req: Request, res: Response, next: NextFnExpress) {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ message: "Não autenticado" });
-  }
-  next();
-}
-
-// Middleware para verificar se o usuário é admin
-function adminRequired(req: Request, res: Response, next: NextFnExpress) {
-  if (!req.session || !req.session.userId || req.session.userRole !== 'admin') {
-    return res.status(403).json({ message: "Acesso negado: Requer perfil de Administrador" });
-  }
-  next();
-}
-
-// Middleware para verificar se o usuário é company_admin ou admin geral
-function companyAdminRequired(req: Request, res: Response, next: NextFnExpress) {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ message: "Não autenticado" });
-  }
-  
-  const userRole = req.session.userRole;
-  
-  if (!userRole || !['admin', 'company_admin'].includes(userRole)) {
-    return res.status(403).json({ message: "Acesso negado. Apenas administradores podem acessar esta funcionalidade." });
-  }
-  
-  next();
-}
-
-// Middleware para verificar se o usuário é manager
-function managerRequired(req: Request, res: Response, next: NextFnExpress) {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ message: "Não autenticado" });
-  }
-  const userRole = req.session.userRole as string;
-  if (!userRole || !['admin', 'company_admin', 'manager'].includes(userRole)) {
-    return res.status(403).json({ message: "Acesso negado" });
-  }
-  next();
-}
-
-// Middleware para verificar se o usuário é supervisor ou superior
-function supervisorRequired(req: Request, res: Response, next: NextFnExpress) {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ message: "Não autenticado" });
-  }
-  const userRole = req.session.userRole as string;
-  if (!userRole || !['admin', 'company_admin', 'manager', 'supervisor'].includes(userRole)) {
-    return res.status(403).json({ message: "Acesso negado" });
-  }
-  next();
-}
-
-// Middleware para verificar se o usuário é triage ou superior
-function triageRequired(req: Request, res: Response, next: NextFnExpress) {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ message: "Não autenticado" });
-  }
-  const userRole = req.session.userRole as string;
-  if (!userRole || !['admin', 'company_admin', 'manager', 'supervisor', 'support', 'triage'].includes(userRole)) {
-    return res.status(403).json({ message: "Acesso negado" });
-  }
-  next();
-}
-
-// Middleware para verificar se o usuário pode visualizar tickets (todas as roles exceto integration_bot)
-function viewerRequired(req: Request, res: Response, next: NextFnExpress) {
-  if (!req.session || !req.session.userId) {
-    return res.status(401).json({ message: "Não autenticado" });
-  }
-  const userRole = req.session.userRole as string;
-  if (userRole === 'integration_bot') {
-    return res.status(403).json({ message: "Acesso negado" });
-  }
-  next();
-}
-
-// Middleware para verificar se o usuário tem acesso a um departamento específico
-async function departmentAccess(req: Request, res: Response, next: NextFnExpress) {
-  try {
-    if (!req.session || !req.session.userId) {
-      return res.status(401).json({ message: "Não autenticado" });
-    }
-    const userRole = req.session.userRole as string;
-    const userId = req.session.userId;
-
-    if (!userRole) {
-        return res.status(403).json({ message: "Acesso negado - Papel do usuário não definido" });
-    }
-
-    if (['admin', 'company_admin'].includes(userRole)) {
-      return next();
-    }
-
-    if (['manager', 'supervisor', 'support', 'triage'].includes(userRole)) {
-      const departmentId = parseInt(req.params.departmentId || req.body.department_id);
-      
-      if (!departmentId) {
-        return res.status(400).json({ message: "ID do departamento não especificado" });
-      }
-      
-      const [official] = await db
-        .select()
-        .from(schema.officials)
-        .where(eq(schema.officials.user_id, userId))
-        .limit(1);
-        
-      if (!official) {
-        return res.status(403).json({ message: "Acesso negado - Usuário não é um atendente" });
-      }
-      
-      // 🔧 CORREÇÃO: Buscar o nome do departamento pelo ID e depois comparar
-      const [departmentRecord] = await db
-        .select()
-        .from(schema.departments)
-        .where(eq(schema.departments.id, departmentId))
-        .limit(1);
-        
-      if (!departmentRecord) {
-        return res.status(404).json({ message: "Departamento não encontrado" });
-      }
-      
-      const officialDepartments = await db
-        .select()
-        .from(schema.officialDepartments)
-        .where(eq(schema.officialDepartments.official_id, official.id));
-        
-      const hasDepartmentAccess = officialDepartments.some(
-        dept => dept.department_id === departmentId
-      );
-      
-      // 🆕 Se for supervisor, também verificar departamentos dos subordinados
-      if (!hasDepartmentAccess && userRole === 'supervisor') {
-        const subordinates = await db
-          .select()
-          .from(schema.officials)
-          .where(eq(schema.officials.supervisor_id, official.id));
-
-        for (const subordinate of subordinates) {
-          const subordinateDepartments = await db
-            .select()
-            .from(schema.officialDepartments)
-            .where(eq(schema.officialDepartments.official_id, subordinate.id));
-          
-          const subordinateHasAccess = subordinateDepartments.some(
-            dept => dept.department_id === departmentId
-          );
-          
-          if (subordinateHasAccess) {
-            return next(); // Supervisor tem acesso através de subordinado
-          }
-        }
-      }
-      
-      if (!hasDepartmentAccess) {
-        return res.status(403).json({ message: "Acesso negado - Sem permissão para este departamento" });
-      }
-      
-      return next();
-    }
-    
-    return res.status(403).json({ message: "Acesso negado" });
-  } catch (error) {
-    console.error("Erro ao verificar acesso ao departamento:", error);
-    return res.status(500).json({ message: "Erro ao verificar permissões" });
-  }
-}
+// 🔥 FASE 5.2: Middlewares de autorização movidos para arquivo centralizado
+// Ver: server/middleware/authorization.ts
 
 function fixEmailDomain(email: string, source: string): { email: string, wasFixed: boolean } {
   if (!email || !email.includes('@') || !process.env.AD_EMAIL_DOMAIN) {
@@ -355,46 +208,61 @@ function fixEmailDomain(email: string, source: string): { email: string, wasFixe
   return { email, wasFixed: false };
 }
 
-// Middleware para verificar se o usuário tem um dos papéis especificados
-function authorize(allowedRoles: string[]) {
-  return (req: Request, res: Response, next: NextFnExpress) => {
-    if (!req.session || !req.session.userId) {
-      return res.status(401).json({ message: "Não autenticado" });
-    }
-    const userRole = req.session.userRole as string;
-    if (!userRole || !allowedRoles.includes(userRole)) {
-      return res.status(403).json({ message: "Acesso negado" });
-    }
-    next();
-  };
-}
+// 🔥 FASE 5.2: Funções de autorização movidas para arquivo centralizado
+// Ver: server/middleware/authorization.ts
 
-/**
- * Verifica se o usuário pode alterar o role de outro usuário baseado na hierarquia
- */
-function canManageUserRole(currentUserRole: string, targetRole: string): boolean {
-  // Admin pode tudo
-  if (currentUserRole === 'admin') {
-    return true;
+// Função auxiliar para verificar se um usuário pode responder a um ticket
+async function canUserReplyToTicket(
+  userId: number, 
+  userRole: string, 
+  ticketId: number, 
+  userCompanyId?: number
+): Promise<{ canReply: boolean; reason?: string }> {
+  try {
+    // Buscar o ticket
+    const ticket = await storage.getTicket(ticketId, userRole, userCompanyId);
+    if (!ticket) {
+      return { canReply: false, reason: "Ticket não encontrado" };
+    }
+
+    // Verificar se o ticket está resolvido
+    if (ticket.status === 'resolved') {
+      return { canReply: false, reason: "Não é possível responder a tickets resolvidos" };
+    }
+
+    // 🔥 FASE 4.1: Verificar se o usuário é participante do ticket
+    const isParticipant = await storage.isUserTicketParticipant(ticketId, userId);
+    
+    // Se é participante, sempre pode responder
+    if (isParticipant) {
+      return { canReply: true };
+    }
+
+    // Verificar permissões baseadas na role
+    if (userRole === 'admin' || userRole === 'support' || userRole === 'manager' || userRole === 'supervisor') {
+      return { canReply: true };
+    }
+
+    // Para clientes, verificar se é o criador do ticket
+    if (userRole === 'customer') {
+      if (ticket.customer_id) {
+        const [customer] = await db
+          .select()
+          .from(customers)
+          .where(eq(customers.id, ticket.customer_id));
+        
+        if (customer?.user_id === userId) {
+          return { canReply: true };
+        }
+      }
+      return { canReply: false, reason: "Apenas o criador do ticket pode responder" };
+    }
+
+    return { canReply: false, reason: "Permissão insuficiente para responder a este ticket" };
+  } catch (error) {
+    console.error('Erro ao verificar permissões de resposta:', error);
+    return { canReply: false, reason: "Erro interno ao verificar permissões" };
   }
-  
-  // Company_admin pode tudo exceto admin
-  if (currentUserRole === 'company_admin') {
-    return targetRole !== 'admin';
-  }
-  
-  // Manager pode: manager, supervisor, support, customer, viewer, quality, triage
-  if (currentUserRole === 'manager') {
-    return ['manager', 'supervisor', 'support', 'customer', 'viewer', 'quality', 'triage'].includes(targetRole);
-  }
-  
-  // Supervisor pode: supervisor, support, customer, viewer, quality
-  if (currentUserRole === 'supervisor') {
-    return ['supervisor', 'support', 'customer', 'viewer', 'quality'].includes(targetRole);
-  }
-  
-  // Support não pode alterar roles
-  return false;
 }
 
 export async function registerRoutes(app: Express): Promise<HttpServer> {
@@ -1320,6 +1188,30 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           company_id: companyId || undefined // ✅ USAR O COMPANY_ID DO CLIENTE
         });
 
+        // ✅ ADICIONAR PARTICIPANTES SE FORNECIDOS
+        if (ticketData.participants && Array.isArray(ticketData.participants) && ticketData.participants.length > 0) {
+          try {
+            const userId = req.session?.userId;
+            if (!userId) {
+              throw new Error('Usuário não identificado para adicionar participantes');
+            }
+            
+            // Adicionar cada participante individualmente
+            for (const participantId of ticketData.participants) {
+              try {
+                await storage.addTicketParticipant(ticket.id, participantId, userId);
+              } catch (error) {
+                console.error(`[Participantes] Erro ao adicionar participante ${participantId}:`, error);
+                // Continuar com os próximos participantes mesmo se um falhar
+              }
+            }
+            console.log(`[Participantes] ${ticketData.participants.length} participante(s) adicionado(s) ao ticket ${ticket.id}`);
+          } catch (participantError) {
+            console.error('[Participantes] Erro ao adicionar participantes:', participantError);
+            // Erro na adição de participantes não impede a criação do ticket
+          }
+        }
+
         // 🤖 ANÁLISE DE PRIORIDADE COM IA APÓS CRIAR O TICKET (salva histórico automaticamente)
         let aiAnalyzed = false;
         let finalPriorityId: number | null = null;
@@ -1571,6 +1463,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const userRole = req.session?.userRole as string;
       const userCompanyId = req.session?.companyId;
       
+      // 🔥 FASE 4.1: Verificar permissões de resposta para participantes
+      const permissionCheck = await canUserReplyToTicket(userId, userRole, ticketId, userCompanyId);
+      if (!permissionCheck.canReply) {
+        return res.status(403).json({ 
+          message: "Permissão negada", 
+          details: permissionCheck.reason 
+        });
+      }
+      
       // 🚫 BLOQUEAR CUSTOMER DE ALTERAR ATENDENTE VIA REPLY
       if (userRole === 'customer' && req.body.assigned_to_id !== undefined) {
         return res.status(403).json({ 
@@ -1635,6 +1536,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO AO NOTIFICAR RESPOSTA:', emailError);
             console.error('🚨🚨🚨 [PROD EMAIL] Stack:', (emailError as any)?.stack);
           }
+        }
+      }
+
+      // 🔥 FASE 4.2: Se for uma atualização de status, notificar participantes
+      if (statusChanged) {
+        try {
+          await notificationService.notifyStatusChange(ticketId, ticket.status, req.body.status, userId);
+        } catch (notificationError) {
+          console.error('Erro ao enviar notificação WebSocket de mudança de status:', notificationError);
+          // Não falhar a operação por erro de notificação
         }
       }
 
@@ -6214,7 +6125,36 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       const templates = await emailConfigService.getEmailTemplates(companyId, type);
       
-      res.json(templates);
+      // Se for uma requisição para verificar templates faltantes
+      if (req.query.check_missing === 'true') {
+        const allTemplateTypes = [
+          'new_ticket',
+          'ticket_assigned', 
+          'ticket_reply',
+          'status_changed',
+          'ticket_resolved',
+          'ticket_escalated',
+          'ticket_due_soon',
+          'customer_registered',
+          'user_created',
+          'system_maintenance',
+          'ticket_participant_added',
+          'ticket_participant_removed'
+        ];
+        
+        const existingTypes = templates.map(t => t.type);
+        const missingTypes = allTemplateTypes.filter(type => !existingTypes.includes(type));
+        
+        res.json({
+          templates,
+          missing: missingTypes,
+          total_expected: allTemplateTypes.length,
+          total_existing: templates.length,
+          total_missing: missingTypes.length
+        });
+      } else {
+        res.json(templates);
+      }
     } catch (error) {
       console.error('Erro ao buscar templates de email:', error);
       res.status(500).json({ message: "Erro interno ao buscar templates de email" });
@@ -6295,7 +6235,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
 
-  // Criar templates padrão de e-mail
+  // Criar templates padrão de e-mail (modernos)
   router.post("/email-templates/seed-defaults", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
     try {
       const companyId = req.session.companyId;
@@ -6311,72 +6251,325 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(400).json({ message: 'Empresa não encontrada.' });
       }
 
-      // Templates padrão em português
+      // Criar templates modernos (apenas se não existirem)
       const defaultTemplates = [
         {
           name: 'Novo Ticket',
           type: 'new_ticket',
           description: 'Notificação enviada quando um novo ticket é criado',
           subject_template: 'Novo ticket criado: {{ticket.ticket_id}}',
-          html_template: `<h2>Novo Ticket Criado</h2>
-<p><strong>Ticket:</strong> {{ticket.ticket_id}}</p>
-<p><strong>Título:</strong> {{ticket.title}}</p>
-<p><strong>Cliente:</strong> {{customer.name}} ({{customer.email}})</p>
-<p><strong>Prioridade:</strong> {{ticket.priority_text}}</p>
-<p><strong>Descrição:</strong></p>
-<p>{{ticket.description}}</p>
-<hr>
-<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novo Ticket Criado</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER (logo ou nome da empresa) -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO / TÍTULO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Novo Ticket Criado</h2>
+              <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                Um novo ticket foi criado no sistema e requer sua atenção.
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES DO TICKET -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Título:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Cliente:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}} ({{customer.email}})</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Prioridade:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.priority_text}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Status:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.status_text}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <a href="{{ticket.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                Ver Ticket
+              </a>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">
+                Esta é uma mensagem automática — por favor, não responda a este e-mail.
+              </p>
+            </td>
+          </tr>
+
+        </table><!-- /container -->
+      </td>
+    </tr>
+  </table><!-- /wrapper -->
+</body>
+</html>`,
           text_template: `Novo ticket criado: {{ticket.ticket_id}}
 Título: {{ticket.title}}
 Cliente: {{customer.name}} ({{customer.email}})
 Prioridade: {{ticket.priority_text}}
-Descrição: {{ticket.description}}
+Status: {{ticket.status_text}}
 Ver Ticket: {{ticket.link}}`,
           is_active: true,
           is_default: true,
-          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','customer.email','ticket.priority_text','ticket.description','ticket.link'])
+          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','customer.email','ticket.priority_text','ticket.status_text','ticket.link','user.name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text','system.from_name'])
         },
         {
           name: 'Ticket Atribuído',
           type: 'ticket_assigned',
           description: 'Notificação enviada quando um ticket é atribuído a um atendente',
           subject_template: 'Ticket {{ticket.ticket_id}} atribuído a você',
-          html_template: `<h2>Ticket Atribuído</h2>
-<p>Um ticket foi atribuído a você:</p>
-<p><strong>Ticket:</strong> {{ticket.ticket_id}}</p>
-<p><strong>Título:</strong> {{ticket.title}}</p>
-<p><strong>Cliente:</strong> {{customer.name}} ({{customer.email}})</p>
-<p><strong>Prioridade:</strong> {{ticket.priority_text}}</p>
-<p><strong>Descrição:</strong></p>
-<p>{{ticket.description}}</p>
-<hr>
-<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket Atribuído</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Ticket Atribuído</h2>
+              <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                Um ticket foi atribuído a você e requer sua atenção imediata.
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Título:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Cliente:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}} ({{customer.email}})</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Prioridade:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.priority_text}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Status:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.status_text}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- DESCRIÇÃO -->
+          <tr>
+            <td style="padding:0 40px 24px 40px;color:{{system.colors.text}};">
+              <div style="background:{{system.colors.accent}};padding:16px;border-radius:6px;border-left:4px solid {{system.colors.primary}};">
+                <p style="font-size:15px;margin:0;line-height:1.6;">{{ticket.description}}</p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <a href="{{ticket.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;display:inline-block;font-size:14px;">
+                Ver Ticket
+              </a>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">
+                Esta é uma mensagem automática — por favor, não responda a este e-mail.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
           text_template: `Ticket atribuído a você: {{ticket.ticket_id}}
 Título: {{ticket.title}}
 Cliente: {{customer.name}} ({{customer.email}})
 Prioridade: {{ticket.priority_text}}
+Status: {{ticket.status_text}}
 Descrição: {{ticket.description}}
 Ver Ticket: {{ticket.link}}`,
           is_active: true,
           is_default: true,
-          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','customer.email','ticket.priority_text','ticket.description','ticket.link','user.name'])
+          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','customer.email','ticket.priority_text','ticket.status_text','ticket.description','ticket.link','user.name','system.company_name','system.support_email','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
         },
         {
           name: 'Nova Resposta',
           type: 'ticket_reply',
           description: 'Notificação enviada quando há uma nova resposta no ticket',
           subject_template: 'Nova resposta no ticket {{ticket.ticket_id}}',
-          html_template: `<h2>Nova Resposta no Ticket</h2>
-<p><strong>Ticket:</strong> {{ticket.ticket_id}} - {{ticket.title}}</p>
-<p><strong>Respondido por:</strong> {{reply.user.name}}</p>
-<p><strong>Data:</strong> {{reply.created_at_formatted}}</p>
-<p><strong>Mensagem:</strong></p>
-<div style="background: #f5f5f5; padding: 15px; border-left: 4px solid #007bff;">
-  {{reply.message}}
-</div>
-<hr>
-<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nova Resposta no Ticket</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Nova Resposta no Ticket</h2>
+              <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                Uma nova resposta foi adicionada ao ticket {{ticket.ticket_id}}.
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}} - {{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Respondido por:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{reply.user.name}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Data:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{reply.created_at_formatted}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- MENSAGEM -->
+          <tr>
+            <td style="padding:0 40px 24px 40px;color:{{system.colors.text}};">
+              <div style="background:{{system.colors.accent}};padding:16px;border-radius:6px;border-left:4px solid {{system.colors.primary}};">
+                <p style="font-size:15px;margin:0;line-height:1.6;">{{reply.message}}</p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <a href="{{ticket.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;display:inline-block;font-size:14px;">
+                Ver Ticket
+              </a>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">
+                Esta é uma mensagem automática — por favor, não responda a este e-mail.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
           text_template: `Nova resposta no ticket {{ticket.ticket_id}}
 Respondido por: {{reply.user.name}}
 Data: {{reply.created_at_formatted}}
@@ -6384,21 +6577,103 @@ Mensagem: {{reply.message}}
 Ver Ticket: {{ticket.link}}`,
           is_active: true,
           is_default: true,
-          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','reply.user.name','reply.created_at_formatted','reply.message','ticket.link'])
+          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','reply.user.name','reply.created_at_formatted','reply.message','ticket.link','user.name','system.company_name','system.support_email','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
         },
         {
           name: 'Status Alterado',
           type: 'status_changed',
           description: 'Notificação enviada quando o status do ticket é alterado',
           subject_template: 'Ticket {{ticket.ticket_id}}: Status alterado para {{ticket.status_text}}',
-          html_template: `<h2>Status do Ticket Alterado</h2>
-<p><strong>Ticket:</strong> {{ticket.ticket_id}} - {{ticket.title}}</p>
-<p><strong>Status anterior:</strong> {{status_change.old_status_text}}</p>
-<p><strong>Novo status:</strong> {{status_change.new_status_text}}</p>
-<p><strong>Alterado por:</strong> {{status_change.changed_by.name}}</p>
-<p><strong>Data:</strong> {{status_change.created_at_formatted}}</p>
-<hr>
-<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Status do Ticket Alterado</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Status do Ticket Alterado</h2>
+              <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                O status do ticket {{ticket.ticket_id}} foi alterado.
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}} - {{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Status anterior:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{status_change.old_status_text}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Novo status:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{status_change.new_status_text}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Alterado por:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{status_change.changed_by.name}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Data:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{status_change.created_at_formatted}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <a href="{{ticket.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;display:inline-block;font-size:14px;">
+                Ver Ticket
+              </a>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">
+                Esta é uma mensagem automática — por favor, não responda a este e-mail.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
           text_template: `Status do Ticket Alterado
 Ticket: {{ticket.ticket_id}} - {{ticket.title}}
 Status anterior: {{status_change.old_status_text}}
@@ -6408,22 +6683,99 @@ Data: {{status_change.created_at_formatted}}
 Ver Ticket: {{ticket.link}}`,
           is_active: true,
           is_default: true,
-          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','status_change.old_status_text','status_change.new_status_text','status_change.changed_by.name','status_change.created_at_formatted','ticket.link'])
+          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','status_change.old_status_text','status_change.new_status_text','status_change.changed_by.name','status_change.created_at_formatted','ticket.link','user.name','system.company_name','system.support_email','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
         },
         {
           name: 'Ticket Resolvido',
           type: 'ticket_resolved',
           description: 'Notificação enviada quando um ticket é resolvido',
           subject_template: 'Ticket {{ticket.ticket_id}} foi resolvido',
-          html_template: `<h2>Ticket Resolvido</h2>
-<p>Seu ticket foi resolvido com sucesso!</p>
-<p><strong>Ticket:</strong> {{ticket.ticket_id}}</p>
-<p><strong>Título:</strong> {{ticket.title}}</p>
-<p><strong>Resolvido em:</strong> {{ticket.resolved_at_formatted}}</p>
-<p><strong>Resolvido por:</strong> {{user.name}}</p>
-<hr>
-<p>Agradecemos por utilizar nosso sistema de suporte.</p>
-<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket Resolvido</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Ticket Resolvido</h2>
+              <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                Seu ticket foi resolvido com sucesso! Agradecemos por utilizar nosso sistema de suporte.
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Título:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Resolvido em:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.resolved_at_formatted}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Resolvido por:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{user.name}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <a href="{{ticket.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;display:inline-block;font-size:14px;">
+                Ver Ticket
+              </a>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">
+                Esta é uma mensagem automática — por favor, não responda a este e-mail.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
           text_template: `Ticket Resolvido
 Ticket: {{ticket.ticket_id}}
 Título: {{ticket.title}}
@@ -6432,21 +6784,105 @@ Resolvido por: {{user.name}}
 Ver Ticket: {{ticket.link}}`,
           is_active: true,
           is_default: true,
-          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','ticket.resolved_at_formatted','user.name','ticket.link'])
+          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','ticket.resolved_at_formatted','user.name','ticket.link','system.company_name','system.support_email','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
         },
         {
           name: 'Ticket Escalado',
           type: 'ticket_escalated',
           description: 'Notificação enviada quando um ticket é escalado',
           subject_template: 'Ticket {{ticket.ticket_id}} foi escalado',
-          html_template: `<h2>Ticket Escalado</h2>
-<p>O ticket foi escalado para um nível superior de atendimento.</p>
-<p><strong>Ticket:</strong> {{ticket.ticket_id}}</p>
-<p><strong>Título:</strong> {{ticket.title}}</p>
-<p><strong>Prioridade:</strong> {{ticket.priority_text}}</p>
-<p><strong>Motivo:</strong> {{system.message}}</p>
-<hr>
-<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket Escalado</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Ticket Escalado</h2>
+              <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                O ticket foi escalado para um nível superior de atendimento.
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Título:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Prioridade:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.priority_text}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- MOTIVO -->
+          <tr>
+            <td style="padding:0 40px 24px 40px;color:{{system.colors.text}};">
+              <div style="background:#fff3cd;border:1px solid #ffeaa7;border-radius:6px;padding:16px;margin:0;">
+                <p style="font-size:15px;margin:0;color:#856404;line-height:1.6;">
+                  <strong>Motivo da Escalação:</strong><br>
+                  {{system.message}}
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <a href="{{ticket.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;display:inline-block;font-size:14px;">
+                Ver Ticket
+              </a>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">Esta é uma mensagem automática — por favor, não responda a este e-mail.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
           text_template: `Ticket Escalado
 Ticket: {{ticket.ticket_id}}
 Título: {{ticket.title}}
@@ -6462,14 +6898,102 @@ Ver Ticket: {{ticket.link}}`,
           type: 'ticket_due_soon',
           description: 'Notificação enviada quando um ticket está próximo do vencimento',
           subject_template: 'Ticket {{ticket.ticket_id}} próximo do vencimento',
-          html_template: `<h2>Ticket Próximo do Vencimento</h2>
-<p><strong>Atenção:</strong> {{system.message}}</p>
-<p><strong>Ticket:</strong> {{ticket.ticket_id}}</p>
-<p><strong>Título:</strong> {{ticket.title}}</p>
-<p><strong>Cliente:</strong> {{customer.name}}</p>
-<p><strong>Prioridade:</strong> {{ticket.priority_text}}</p>
-<hr>
-<p><a href="{{ticket.link}}">Ver Ticket</a></p>`,
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket Próximo do Vencimento</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Ticket Próximo do Vencimento</h2>
+              <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                Um ticket está próximo do vencimento e requer atenção imediata.
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Título:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Cliente:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Prioridade:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.priority_text}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- AVISO -->
+          <tr>
+            <td style="padding:0 40px 24px 40px;color:{{system.colors.text}};">
+              <div style="background:#fff3cd;border:1px solid #ffeaa7;border-radius:6px;padding:16px;margin:0;">
+                <p style="font-size:15px;margin:0;color:#856404;line-height:1.6;">
+                  <strong>Atenção:</strong><br>
+                  {{system.message}}
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <a href="{{ticket.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;display:inline-block;font-size:14px;">
+                Ver Ticket
+              </a>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">Esta é uma mensagem automática — por favor, não responda a este e-mail.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
           text_template: `Ticket Próximo do Vencimento
 Atenção: {{system.message}}
 Ticket: {{ticket.ticket_id}}
@@ -6486,12 +7010,80 @@ Ver Ticket: {{ticket.link}}`,
           type: 'customer_registered',
           description: 'Notificação enviada quando um novo cliente é registrado',
           subject_template: 'Novo cliente registrado: {{customer.name}}',
-          html_template: `<h2>Novo Cliente Registrado</h2>
-<p>Um novo cliente foi registrado no sistema:</p>
-<p><strong>Nome:</strong> {{customer.name}}</p>
-<p><strong>Email:</strong> {{customer.email}}</p>
-<p><strong>Empresa:</strong> {{customer.company}}</p>
-<p><strong>Telefone:</strong> {{customer.phone}}</p>`,
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novo Cliente Registrado</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Novo Cliente Registrado</h2>
+              <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                Um novo cliente foi registrado no sistema.
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Nome:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Email:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.email}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Empresa:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.company}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Telefone:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.phone}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">Esta é uma mensagem automática — por favor, não responda a este e-mail.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
           text_template: `Novo Cliente Registrado
 Nome: {{customer.name}}
 Email: {{customer.email}}
@@ -6506,11 +7098,76 @@ Telefone: {{customer.phone}}`,
           type: 'user_created',
           description: 'Notificação enviada quando um novo usuário é criado',
           subject_template: 'Novo usuário criado: {{user.name}}',
-          html_template: `<h2>Novo Usuário Criado</h2>
-<p>{{system.message}}</p>
-<p><strong>Nome:</strong> {{user.name}}</p>
-<p><strong>Email:</strong> {{user.email}}</p>
-<p><strong>Função:</strong> {{user.role_text}}</p>`,
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novo Usuário Criado</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Novo Usuário Criado</h2>
+              <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                {{system.message}}
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Nome:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{user.name}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Email:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{user.email}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Função:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{user.role_text}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">Esta é uma mensagem automática — por favor, não responda a este e-mail.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
           text_template: `Novo Usuário Criado
 {{system.message}}
 Nome: {{user.name}}
@@ -6525,38 +7182,453 @@ Função: {{user.role_text}}`,
           type: 'system_maintenance',
           description: 'Notificação enviada para avisar sobre manutenção do sistema',
           subject_template: 'Manutenção Programada do Sistema',
-          html_template: `<h2>Manutenção Programada</h2>
-<p>{{system.message}}</p>
-<p><strong>Início:</strong> {{system.maintenance_start}}</p>
-<p><strong>Término previsto:</strong> {{system.maintenance_end}}</p>
-<p>Durante este período, o sistema poderá ficar indisponível.</p>
-<p>Agradecemos a compreensão.</p>`,
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manutenção Programada</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER (logo ou nome da empresa) -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO / TÍTULO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Manutenção Programada</h2>
+              <p style="font-size:16px;margin:0;line-height:1.6;">
+                {{system.message}}
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES DA MANUTENÇÃO -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Início:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{system.maintenance_start}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Término previsto:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{system.maintenance_end}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- AVISO IMPORTANTE -->
+          <tr>
+            <td style="padding:0 40px 32px 40px;color:{{system.colors.text}};">
+              <div style="background:#fff3cd;border:1px solid #ffeaa7;border-radius:6px;padding:16px;margin:0;">
+                <p style="font-size:15px;margin:0;color:#856404;">
+                  <strong>⚠️ Atenção:</strong> Durante este período, o sistema poderá ficar indisponível.
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- MENSAGEM FINAL -->
+          <tr>
+            <td style="padding:0 40px 32px 40px;color:{{system.colors.text}};">
+              <p style="font-size:16px;margin:0;line-height:1.6;">
+                Agradecemos a compreensão e pedimos desculpas pelos transtornos.
+              </p>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">Esta é uma mensagem automática — por favor, não responda a este e-mail.</p>
+            </td>
+          </tr>
+
+        </table><!-- /container -->
+      </td>
+    </tr>
+  </table><!-- /wrapper -->
+</body>
+</html>`,
           text_template: `Manutenção Programada
 {{system.message}}
+
 Início: {{system.maintenance_start}}
 Término previsto: {{system.maintenance_end}}
-Durante este período, o sistema poderá ficar indisponível.
-Agradecemos a compreensão.`,
+
+⚠️ Atenção: Durante este período, o sistema poderá ficar indisponível.
+
+Agradecemos a compreensão e pedimos desculpas pelos transtornos.
+
+Atenciosamente,
+{{system.from_name}}`,
           is_active: true,
           is_default: true,
-          available_variables: JSON.stringify(['system.message','system.maintenance_start','system.maintenance_end'])
+          available_variables: JSON.stringify(['system.message','system.maintenance_start','system.maintenance_end','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+        },
+        {
+          name: 'Participante Adicionado',
+          type: 'ticket_participant_added',
+          description: 'Notificação enviada quando um participante é adicionado ao ticket',
+          subject_template: 'Você foi adicionado como participante do ticket {{ticket.ticket_id}}',
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Você foi adicionado como participante</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER (logo ou nome da empresa) -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO / TÍTULO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Você foi adicionado como participante!</h2>
+              <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                Você foi adicionado como participante do ticket <strong>{{ticket.ticket_id}}</strong> por {{official.name}}.
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES DO TICKET -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Título:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Status:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.status_text}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Prioridade:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.priority_text}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Criado em:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.created_at_formatted}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Cliente:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}} ({{customer.email}})</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA (link para o ticket) -->
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <a href="{{ticket.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:4px;font-size:15px;font-weight:bold;display:inline-block;">
+                Acompanhar Ticket
+              </a>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">Esta é uma mensagem automática — por favor, não responda a este e-mail.</p>
+            </td>
+          </tr>
+
+        </table><!-- /container -->
+      </td>
+    </tr>
+  </table><!-- /wrapper -->
+</body>
+</html>`,
+          text_template: `Você foi adicionado como participante!
+Olá {{user.name}},
+
+Você foi adicionado como participante do ticket {{ticket.ticket_id}} por {{official.name}}.
+
+Detalhes do Ticket:
+- Título: {{ticket.title}}
+- Status: {{ticket.status_text}}
+- Prioridade: {{ticket.priority_text}}
+- Criado em: {{ticket.created_at_formatted}}
+- Cliente: {{customer.name}} ({{customer.email}})
+
+Para acompanhar este ticket, acesse: {{ticket.link}}
+
+Atenciosamente,
+{{system.from_name}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['user.name','ticket.ticket_id','official.name','ticket.title','ticket.status_text','ticket.priority_text','ticket.created_at_formatted','customer.name','customer.email','ticket.link','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+        },
+        {
+          name: 'Participante Removido',
+          type: 'ticket_participant_removed',
+          description: 'Notificação enviada quando um participante é removido do ticket',
+          subject_template: 'Você foi removido como participante do ticket {{ticket.ticket_id}}',
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Você foi removido do ticket</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER (logo ou nome da empresa) -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO / TÍTULO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Você foi removido como participante</h2>
+              <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                Você foi removido do ticket <strong>{{ticket.ticket_id}}</strong> por {{official.name}}.
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES DO TICKET -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Título:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Status:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.status_text}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Prioridade:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.priority_text}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Cliente:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}} ({{customer.email}})</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA opcional (link para o ticket) -->
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <a href="{{ticket.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:4px;font-size:15px;font-weight:bold;display:inline-block;">
+                Abrir Ticket
+              </a>
+            </td>
+          </tr>
+
+          <!-- AVISO -->
+          <tr>
+            <td style="padding:0 40px 32px 40px;color:{{system.colors.text}};">
+              <div style="background:#fff3cd;border:1px solid #ffeaa7;border-radius:6px;padding:16px;margin:0;">
+                <p style="font-size:15px;margin:0;color:#856404;">
+                  Você não receberá mais notificações sobre este ticket.
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">Esta é uma mensagem automática — por favor, não responda a este e-mail.</p>
+            </td>
+          </tr>
+
+        </table><!-- /container -->
+      </td>
+    </tr>
+  </table><!-- /wrapper -->
+</body>
+</html>`,
+          text_template: `Você foi removido como participante
+Olá {{user.name}},
+
+Você foi removido como participante do ticket {{ticket.ticket_id}} por {{official.name}}.
+
+Detalhes do Ticket:
+- Título: {{ticket.title}}
+- Status: {{ticket.status_text}}
+- Prioridade: {{ticket.priority_text}}
+
+Cliente: {{customer.name}} ({{customer.email}})
+
+Você não receberá mais notificações sobre este ticket.
+
+Atenciosamente,
+{{system.from_name}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['user.name','ticket.ticket_id','official.name','ticket.title','ticket.status_text','ticket.priority_text','customer.name','customer.email','ticket.link','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
         }
       ];
 
-      // Salvar templates padrão
+      // Verificar templates existentes antes de criar
+      const existingTemplates = await emailConfigService.getEmailTemplates(targetCompanyId);
+      const existingTypes = new Set(existingTemplates.map(t => t.type));
+      
+      let created = 0;
+      let skipped = 0;
+      
+      // Salvar apenas templates que não existem
       for (const template of defaultTemplates) {
-        await emailConfigService.saveEmailTemplate({
-          ...template,
-          company_id: targetCompanyId,
-          created_by_id: userId,
-          updated_by_id: userId
-        });
+        if (existingTypes.has(template.type)) {
+          console.log(`Template ${template.type} já existe para empresa ${targetCompanyId}, pulando...`);
+          skipped++;
+          continue;
+        }
+        
+        try {
+          await emailConfigService.saveEmailTemplate({
+            ...template,
+            company_id: targetCompanyId,
+            created_by_id: userId,
+            updated_by_id: userId
+          });
+          created++;
+          console.log(`Template ${template.type} criado com sucesso para empresa ${targetCompanyId}`);
+        } catch (error) {
+          console.error(`Erro ao criar template ${template.type}:`, error);
+          // Continuar com os próximos templates mesmo se um falhar
+        }
       }
 
-      res.json({ success: true, message: 'Templates padrão criados com sucesso' });
+      if (created === 0 && skipped > 0) {
+        res.json({ 
+          success: true, 
+          message: `Todos os templates padrão já existem para esta empresa (${skipped} templates encontrados)`,
+          created,
+          skipped
+        });
+      } else {
+        res.json({ 
+          success: true, 
+          message: `Templates padrão processados com sucesso (${created} criados, ${skipped} já existiam)`,
+          created,
+          skipped
+        });
+      }
     } catch (error) {
       console.error('Erro ao criar templates padrão de e-mail:', error);
       res.status(500).json({ message: "Erro interno ao criar templates padrão de e-mail" });
+    }
+  });
+
+
+
+  // Buscar configurações do sistema (incluindo cores da empresa)
+  router.get("/system-config", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    try {
+      const companyId = req.session.companyId;
+      
+      // Para admin, pode receber company_id via query
+      let targetCompanyId = companyId;
+      if (req.session.userRole === 'admin' && req.query.company_id) {
+        targetCompanyId = parseInt(req.query.company_id as string);
+      }
+      
+      if (!targetCompanyId) {
+        return res.status(400).json({ message: 'Empresa não encontrada.' });
+      }
+
+      // Buscar configurações de cores da empresa
+      const colorSettings = await db
+        .select()
+        .from(schema.systemSettings)
+        .where(
+          and(
+            eq(schema.systemSettings.company_id, targetCompanyId),
+            inArray(schema.systemSettings.key, [
+              'theme_primary',
+              'theme_secondary', 
+              'theme_accent',
+              'theme_background',
+              'theme_text'
+            ])
+          )
+        );
+
+      // Converter para objeto
+      const colors: Record<string, string> = {};
+      colorSettings.forEach(setting => {
+        colors[setting.key] = setting.value;
+      });
+
+      // Buscar outras configurações da empresa
+      const companyName = await getSystemSetting('companyName', 'Sistema de Tickets', targetCompanyId);
+      const fromName = await getSystemSetting('from_name', 'Service Desk - Sistema de Chamados', targetCompanyId);
+      const fromEmail = await getSystemSetting('from_email', 'noreply@empresa.com', targetCompanyId);
+
+      res.json({
+        success: true,
+        data: {
+          colors,
+          company_name: companyName,
+          from_name: fromName,
+          from_email: fromEmail
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao buscar configurações do sistema:', error);
+      res.status(500).json({ message: "Erro interno ao buscar configurações do sistema" });
     }
   });
 
@@ -6880,34 +7952,41 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   // === NOVAS ROTAS PARA COMPANY_ADMIN ===
   
-  // Endpoint para company_admin listar usuários da sua empresa
-  router.get("/company/users", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+  // Endpoint para listar usuários (todos para admin, apenas da empresa para outros)
+  router.get("/company/users", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support', 'customer']), async (req: Request, res: Response) => {
     try {
       const includeInactive = req.query.includeInactive === 'true';
       const companyId = req.session.companyId;
+      const userRole = req.session.userRole;
       
-      if (!companyId) {
-        return res.status(400).json({ message: "Empresa não identificada" });
-      }
-      
-      // Buscar usuários da empresa
+      // Buscar usuários
       const allUsers = includeInactive ? 
         await storage.getAllUsers() : 
         await storage.getActiveUsers();
       
-      // Filtrar por empresa
-      const companyUsers = allUsers.filter(user => user.company_id === companyId);
+      // Filtrar usuários baseado no papel do usuário
+      let filteredUsers;
+      if (userRole === 'admin') {
+        // Admin vê TODOS os usuários do sistema
+        filteredUsers = allUsers;
+      } else {
+        // Outros papéis veem apenas usuários da sua empresa
+        if (!companyId) {
+          return res.status(400).json({ message: "Empresa não identificada" });
+        }
+        filteredUsers = allUsers.filter(user => user.company_id === companyId);
+      }
       
       // Não retornar as senhas
-      const usersWithoutPasswords = companyUsers.map(user => {
+      const usersWithoutPasswords = filteredUsers.map(user => {
         const { password, ...userWithoutPassword } = user;
         return userWithoutPassword;
       });
       
       res.json(usersWithoutPasswords);
     } catch (error) {
-      console.error('Erro ao listar usuários da empresa:', error);
-      res.status(500).json({ message: "Falha ao listar usuários da empresa", error: String(error) });
+      console.error('Erro ao listar usuários:', error);
+      res.status(500).json({ message: "Falha ao listar usuários", error: String(error) });
     }
   });
   
@@ -6959,6 +8038,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   // Registrar router do dashboard
   app.use("/api/tickets", dashboardRouter);
   app.use("/api/logs", logsRouter);
+  app.use("/api/ticket-participants", ticketParticipantsRouter);
   
   app.use("/api", router);
   

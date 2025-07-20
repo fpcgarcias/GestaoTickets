@@ -13,7 +13,10 @@ import {
   systemSettings, type SystemSetting,
   incidentTypes, type IncidentType,
   categories, type Category,
-  companies, departments } from "@shared/schema";
+  companies, departments,
+  ticketParticipants, type TicketParticipant,
+  type InsertTicketParticipant
+} from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike, asc, gte, lte } from "drizzle-orm";
@@ -740,69 +743,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTicket(id: number, userRole?: string, userCompanyId?: number): Promise<Ticket | undefined> {
-    const [result] = await db
-      .select({ // Usar getTableColumns para selecionar explicitamente
-        ticket: getTableColumns(tickets),
-        customer: getTableColumns(customers)
-      })
-      .from(tickets)
-      .leftJoin(customers, eq(customers.id, tickets.customer_id))
-      .where(eq(tickets.id, id));
-    
-    if (!result) return undefined;
-    const ticket = result.ticket; // Separar dados do ticket
-    const customerData = result.customer; // Separar dados do cliente (pode ser null)
-    
+    const ticket = await this.getTicketInternal(id);
+    if (!ticket) return undefined;
 
-    
-    // ADMIN SEMPRE VÊ TUDO - sem exceções!
-    if (userRole === 'admin') {
-
-    } else if (userRole && userCompanyId) {
-      // Apenas para usuários não-admin verificar restrições de empresa
-      const ticketCompanyId = ticket.company_id || customerData?.company_id;
-      
-      if (ticketCompanyId && ticketCompanyId !== userCompanyId) {
-
-        return undefined; // Usuário não pode ver este ticket
+    // Verificar permissões de acesso apenas para usuários não-admin
+    if (userRole && userCompanyId && userRole !== 'admin') {
+      if (ticket.company_id && ticket.company_id !== userCompanyId) {
+        return undefined;
       }
     }
-    
-    let officialData: Official | undefined = undefined;
-    if (ticket.assigned_to_id) { // Verificar null
-      [officialData] = await db
-        .select()
-        .from(officials)
-        .where(eq(officials.id, ticket.assigned_to_id)); // Seguro
-        
-      if (officialData) {
-        const officialDepartmentsData = await db
-          .select()
-          .from(officialDepartments)
-          .where(eq(officialDepartments.official_id, officialData.id));
-          
-        // Buscar nomes dos departamentos pelos IDs
-        const departmentIds = officialDepartmentsData.map((od) => od.department_id);
-        const departmentNames = await Promise.all(
-          departmentIds.map(async (deptId) => {
-            const [dept] = await db.select({ name: departments.name })
-              .from(departments)
-              .where(eq(departments.id, deptId));
-            return dept?.name || `Dept-${deptId}`;
-          })
-        );
-        officialData = { ...officialData, departments: departmentNames };
-      }
-    }
-    
-    const replies = await this.getTicketReplies(ticket.id); // ticket.id é number aqui
-    
-    return {
-      ...ticket,
-      customer: customerData || {}, // Retorna objeto vazio se customerData for nulo/undefined
-      official: officialData, 
-      replies: replies || []
-    } as Ticket; // Cast explícito para Ticket
+
+    // Buscar participantes
+    const participants = await this.getTicketParticipants(id);
+    ticket.participants = participants;
+
+    return ticket;
   }
 
   async getTicketByTicketId(ticketId: string): Promise<Ticket | undefined> {
@@ -1972,5 +1927,135 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  // === MÉTODOS DE PARTICIPANTES DE TICKETS ===
+
+  /**
+   * Adiciona um participante a um ticket
+   */
+  async addTicketParticipant(ticketId: number, userId: number, addedById: number): Promise<TicketParticipant> {
+    // Verificar se o participante já existe
+    const existingParticipant = await this.isUserTicketParticipant(ticketId, userId);
+    if (existingParticipant) {
+      throw new Error('Usuário já é participante deste ticket');
+    }
+
+    const [participant] = await db
+      .insert(ticketParticipants)
+      .values({
+        ticket_id: ticketId,
+        user_id: userId,
+        added_by_id: addedById,
+        added_at: new Date()
+      })
+      .returning();
+
+    if (!participant) {
+      throw new Error('Falha ao adicionar participante');
+    }
+
+    return participant;
+  }
+
+  /**
+   * Remove um participante de um ticket
+   */
+  async removeTicketParticipant(ticketId: number, userId: number): Promise<boolean> {
+    const result = await db
+      .delete(ticketParticipants)
+      .where(
+        and(
+          eq(ticketParticipants.ticket_id, ticketId),
+          eq(ticketParticipants.user_id, userId)
+        )
+      );
+
+    return true;
+  }
+
+  /**
+   * Obtém todos os participantes de um ticket
+   */
+  async getTicketParticipants(ticketId: number): Promise<TicketParticipant[]> {
+    const participants = await db
+      .select()
+      .from(ticketParticipants)
+      .where(eq(ticketParticipants.ticket_id, ticketId))
+      .orderBy(asc(ticketParticipants.added_at));
+
+    // Enriquecer com dados dos usuários
+    const enrichedParticipants: TicketParticipant[] = [];
+    
+    for (const participant of participants) {
+      const user = participant.user_id ? await this.getUser(participant.user_id) : undefined;
+      const addedBy = participant.added_by_id ? await this.getUser(participant.added_by_id) : undefined;
+      
+      enrichedParticipants.push({
+        ...participant,
+        user: user ? {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          avatar_url: user.avatar_url,
+          active: user.active
+        } : undefined,
+        added_by: addedBy ? {
+          id: addedBy.id,
+          username: addedBy.username,
+          email: addedBy.email,
+          name: addedBy.name,
+          role: addedBy.role,
+          avatar_url: addedBy.avatar_url,
+          active: addedBy.active
+        } : undefined
+      });
+    }
+
+    return enrichedParticipants;
+  }
+
+  /**
+   * Verifica se um usuário é participante de um ticket
+   */
+  async isUserTicketParticipant(ticketId: number, userId: number): Promise<boolean> {
+    const [participant] = await db
+      .select()
+      .from(ticketParticipants)
+      .where(
+        and(
+          eq(ticketParticipants.ticket_id, ticketId),
+          eq(ticketParticipants.user_id, userId)
+        )
+      );
+
+    return !!participant;
+  }
+
+  /**
+   * Obtém o histórico de participantes de um ticket
+   */
+  async getTicketParticipantsHistory(ticketId: number): Promise<any[]> {
+    try {
+      // Por enquanto, retornar apenas os participantes atuais como histórico
+      // Em uma implementação futura, isso pode ser expandido para incluir
+      // um log de adições/remoções de participantes
+      const participants = await this.getTicketParticipants(ticketId);
+      
+      return participants.map(p => ({
+        id: p.id,
+        ticket_id: p.ticket_id,
+        user_id: p.user_id,
+        action: 'added' as const,
+        performed_by_id: p.added_by_id,
+        performed_at: p.added_at,
+        user: p.user,
+        performed_by: p.added_by
+      }));
+    } catch (error) {
+      console.error('Erro ao buscar histórico de participantes:', error);
+      throw new Error('Falha ao buscar histórico de participantes');
+    }
+  }
 
 }

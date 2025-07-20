@@ -55,6 +55,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
+import { useTheme } from '@/contexts/theme-context';
 
 // Interfaces
 interface SMTPConfig {
@@ -100,7 +101,9 @@ const EMAIL_TEMPLATE_TYPES = [
   { value: 'ticket_due_soon', label: 'Vencimento Próximo' },
   { value: 'customer_registered', label: 'Cliente Registrado' },
   { value: 'user_created', label: 'Usuário Criado' },
-  { value: 'system_maintenance', label: 'Manutenção do Sistema' }
+  { value: 'system_maintenance', label: 'Manutenção do Sistema' },
+  { value: 'ticket_participant_added', label: 'Participante Adicionado' },
+  { value: 'ticket_participant_removed', label: 'Participante Removido' }
 ];
 
 const PROVIDERS = [
@@ -195,6 +198,15 @@ const AVAILABLE_VARIABLES = {
       { key: 'system.company_name', description: 'Nome da empresa' },
       { key: 'system.support_email', description: 'Email de suporte' },
       { key: 'system.message', description: 'Mensagem do sistema (contexto específico)' },
+      { key: 'system.from_name', description: 'Nome do remetente do email' },
+      { key: 'system.from_email', description: 'Email do remetente' },
+      { key: 'system.maintenance_start', description: 'Data e hora de início da manutenção' },
+      { key: 'system.maintenance_end', description: 'Data e hora de término previsto da manutenção' },
+      { key: 'system.colors.primary', description: 'Cor primária da empresa (para cabeçalhos e botões)' },
+      { key: 'system.colors.secondary', description: 'Cor secundária da empresa (para fundos)' },
+      { key: 'system.colors.accent', description: 'Cor de destaque da empresa (para elementos especiais)' },
+      { key: 'system.colors.background', description: 'Cor de fundo da empresa (para o email)' },
+      { key: 'system.colors.text', description: 'Cor do texto da empresa' },
       { key: 'company_name', description: 'Nome da empresa (compatibilidade)' },
       { key: 'support_email', description: 'Email de suporte (compatibilidade)' },
       { key: 'base_url', description: 'URL base do sistema (compatibilidade)' }
@@ -204,60 +216,83 @@ const AVAILABLE_VARIABLES = {
 
 // Função para obter variáveis por tipo de template
 const getVariablesByTemplateType = (templateType: string): string[] => {
+  // Variáveis de cores dinâmicas que estão disponíveis em todos os templates
+  const colorVariables = [
+    'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 
+    'system.colors.background', 'system.colors.text'
+  ];
+  
+  // Variáveis de sistema que estão disponíveis em todos os templates
+  const systemVariables = [
+    'system.base_url', 'system.company_name', 'system.support_email', 
+    'system.from_name', 'system.from_email'
+  ];
+
   const typeVariables: Record<string, string[]> = {
     new_ticket: [
       'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description', 
       'ticket.priority', 'ticket.priority_text', 'ticket.status', 'ticket.status_text', 'ticket.type', 'ticket.created_at', 'ticket.updated_at',
       'customer.name', 'customer.email', 'customer.company', 'customer.phone',
-      'system.base_url', 'system.company_name', 'system.support_email'
+      ...systemVariables, ...colorVariables
     ],
     ticket_assigned: [
       'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description',
       'ticket.priority', 'ticket.priority_text', 'ticket.status', 'ticket.status_text', 'ticket.type', 'ticket.created_at',
       'customer.name', 'customer.email', 'customer.company', 'customer.phone',
       'user.name', 'user.email', 'user.role', 'user.role_text',
-      'system.base_url', 'system.company_name', 'system.support_email'
+      ...systemVariables, ...colorVariables
     ],
     ticket_reply: [
       'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description', 'ticket.status', 'ticket.status_text',
       'customer.name', 'customer.email', 'customer.company', 'customer.phone',
       'reply.message', 'reply.created_at', 'reply.user.name', 'reply.user.email',
-      'system.base_url', 'system.company_name', 'system.support_email'
+      ...systemVariables, ...colorVariables
     ],
     status_changed: [
       'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description', 'ticket.status', 'ticket.status_text', 'ticket.priority', 'ticket.priority_text',
       'customer.name', 'customer.email', 'customer.company', 'customer.phone',
       'status_change.old_status', 'status_change.new_status', 'status_change.old_status_text', 'status_change.new_status_text', 'status_change.changed_by.name', 'status_change.created_at',
-      'system.base_url', 'system.company_name', 'system.support_email'
+      ...systemVariables, ...colorVariables
     ],
     ticket_resolved: [
       'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description', 'ticket.resolved_at', 'ticket.resolved_at_formatted',
       'customer.name', 'customer.email', 'customer.company', 'customer.phone',
       'user.name', 'user.email', 'user.role', 'user.role_text',
-      'system.base_url', 'system.company_name', 'system.support_email'
+      ...systemVariables, ...colorVariables
     ],
     ticket_escalated: [
       'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description', 'ticket.priority', 'ticket.priority_text',
       'customer.name', 'customer.email', 'customer.company', 'customer.phone',
       'user.name', 'user.email', 'user.role', 'user.role_text',
-      'system.base_url', 'system.company_name', 'system.support_email'
+      ...systemVariables, ...colorVariables
     ],
     ticket_due_soon: [
       'ticket.id', 'ticket.ticket_id', 'ticket.title', 'ticket.description', 'ticket.priority', 'ticket.priority_text',
       'customer.name', 'customer.email', 'customer.company', 'customer.phone',
       'user.name', 'user.email', 'user.role', 'user.role_text',
-      'system.base_url', 'system.company_name', 'system.support_email'
+      ...systemVariables, ...colorVariables
     ],
     customer_registered: [
       'customer.name', 'customer.email', 'customer.company', 'customer.phone',
-      'system.base_url', 'system.company_name', 'system.support_email'
+      ...systemVariables, ...colorVariables
     ],
     user_created: [
       'user.name', 'user.email', 'user.role', 'user.role_text',
-      'system.base_url', 'system.company_name', 'system.support_email'
+      ...systemVariables, ...colorVariables
     ],
     system_maintenance: [
-      'system.base_url', 'system.company_name', 'system.support_email'
+      'system.message', 'system.maintenance_start', 'system.maintenance_end',
+      ...systemVariables, ...colorVariables
+    ],
+    ticket_participant_added: [
+      'user.name', 'ticket.ticket_id', 'official.name', 'ticket.title', 'ticket.status_text', 'ticket.priority_text', 'ticket.created_at_formatted',
+      'customer.name', 'customer.email', 'ticket.link',
+      ...systemVariables, ...colorVariables
+    ],
+    ticket_participant_removed: [
+      'user.name', 'ticket.ticket_id', 'official.name', 'ticket.title', 'ticket.status_text', 'ticket.priority_text',
+      'customer.name', 'customer.email', 'ticket.link',
+      ...systemVariables, ...colorVariables
     ]
   };
 
@@ -267,6 +302,7 @@ const getVariablesByTemplateType = (templateType: string): string[] => {
 export default function EmailSettings() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { themeName } = useTheme();
   
   // Estado para empresa selecionada (apenas para admin)
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>(
@@ -465,6 +501,8 @@ export default function EmailSettings() {
       });
     }
   });
+
+
 
   // Mutation para criar templates padrão
   const createDefaultTemplatesMutation = useMutation({
@@ -721,7 +759,10 @@ export default function EmailSettings() {
     deleteTemplateMutation.mutate(templateId);
   };
 
+
+
   const handleEditTemplate = (template: EmailTemplate) => {
+    console.log('Editando template:', template);
     setSelectedTemplate(template);
     setTemplateForm({
       name: template.name,
@@ -749,8 +790,65 @@ export default function EmailSettings() {
     setIsEditingTemplate(true);
   };
 
+  // Buscar configurações de email
+  const { data: emailConfigData } = useQuery({
+    queryKey: ['/api/email-config', selectedCompanyId],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/email-config");
+      if (!response.ok) {
+        throw new Error('Falha ao carregar configurações de email');
+      }
+      return response.json();
+    }
+  });
+
   // Função para gerar dados de exemplo para preview
   const generateSampleData = (templateType: string) => {
+    // Buscar cores da empresa atual baseado no tema
+    const getCompanyColors = () => {
+      // Definir cores baseadas no tema (mesmas do theme-context.tsx)
+      const themes = {
+        default: {
+          primary: '#1c73e8',      // 262 83% 58%
+          secondary: '#f0f0f5',    // 220 14.3% 95.9%
+          accent: '#e8f4fd',       // 262 83% 96%
+          background: '#f4f4f7',   // 0 0% 98%
+          text: '#333333'          // 224 71.4% 4.1%
+        },
+        vix: {
+          primary: '#e6b800',      // 45 93% 47%
+          secondary: '#f5f2e6',    // 45 20% 95%
+          accent: '#f0e6cc',       // 45 50% 90%
+          background: '#faf9f2',   // 45 10% 98%
+          text: '#262626'          // 45 20% 15%
+        },
+        oficinaMuda: {
+          primary: '#4a2f1a',      // 15 58% 29%
+          secondary: '#5a6b4a',    // 86 15% 40%
+          accent: '#e6b800',       // 45 84% 60%
+          background: '#f7f6f2',   // 45 15% 97%
+          text: '#262626'          // 15 45% 15%
+        }
+      };
+
+      return themes[themeName as keyof typeof themes] || themes.default;
+    };
+
+    const companyColors = getCompanyColors();
+    
+    // Usar nome real da empresa
+    let companyName = 'Sistema de Tickets';
+    if (user?.role === 'admin' && selectedCompanyId) {
+      companyName = companies?.find(c => c.id === selectedCompanyId)?.name || 'Sistema de Tickets';
+    } else if (user?.company?.name) {
+      companyName = user.company.name;
+    }
+    
+    // Usar configurações reais do SMTP
+    const fromName = emailConfigData?.from_name || 'Service Desk - Sistema de Chamados';
+    const fromEmail = emailConfigData?.from_email || 'service.desk@vixbrasil.com';
+
+    // Dados base comuns
     const baseData = {
       ticket: {
         id: 123,
@@ -816,15 +914,27 @@ export default function EmailSettings() {
       },
       system: {
         base_url: 'https://sistema.empresa.com',
-        company_name: 'Sistema de Tickets',
-        support_email: 'suporte@empresa.com',
-        message: 'Mensagem específica do contexto'
+        company_name: companyName,
+        support_email: emailConfigData?.from_email || 'service.desk@vixbrasil.com',
+        message: 'Mensagem específica do contexto',
+        maintenance_start: '',
+        maintenance_end: '',
+        from_name: fromName,
+        from_email: fromEmail,
+        colors: companyColors
       },
       // Variáveis de compatibilidade
-      company_name: 'Sistema de Tickets',
-      support_email: 'suporte@empresa.com',
+      company_name: companyName,
+      support_email: emailConfigData?.from_email || 'service.desk@vixbrasil.com',
       base_url: 'https://sistema.empresa.com'
     };
+
+    // Dados específicos por tipo de template
+    if (templateType === 'system_maintenance') {
+      baseData.system.message = 'Informamos que será realizada uma manutenção programada no sistema para melhorias de performance e segurança. Durante este período, o sistema ficará temporariamente indisponível.';
+      baseData.system.maintenance_start = '01/02/2025 22:00';
+      baseData.system.maintenance_end = '02/02/2025 06:00';
+    }
 
     return baseData;
   };
@@ -842,10 +952,12 @@ export default function EmailSettings() {
       try {
         if (subProp) {
           // Três níveis: {{status_change.changed_by.name}}
-          return data[obj]?.[prop]?.[subProp] || match;
+          const value = data[obj]?.[prop]?.[subProp];
+          return value !== undefined && value !== null ? String(value) : match;
         } else {
           // Dois níveis: {{ticket.title}}
-          return data[obj]?.[prop] || match;
+          const value = data[obj]?.[prop];
+          return value !== undefined && value !== null ? String(value) : match;
         }
       } catch (e) {
         return match;
@@ -855,11 +967,20 @@ export default function EmailSettings() {
     // Substituir variáveis simples como {{company_name}}
     rendered = rendered.replace(/\{\{(\w+)\}\}/g, (match, prop) => {
       try {
-        return data[prop] || match;
+        const value = data[prop];
+        return value !== undefined && value !== null ? String(value) : match;
       } catch (e) {
         return match;
       }
     });
+    
+    // Decodificar entidades HTML comuns
+    rendered = rendered
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
     
     return rendered;
   };
@@ -1045,6 +1166,9 @@ export default function EmailSettings() {
           >
             📋 Documentação de Variáveis
           </Button>
+
+
+
           <Button 
             variant="outline"
             onClick={() => createDefaultTemplatesMutation.mutate()}
@@ -1352,7 +1476,10 @@ export default function EmailSettings() {
                   <div className="mt-1 border rounded-lg bg-white">
                     <div className="p-4 border-b bg-gray-50 rounded-t-lg">
                       <div className="text-sm text-gray-600">
-                        <strong>De:</strong> Sistema de Tickets &lt;noreply@empresa.com&gt;<br/>
+                        <strong>De:</strong> {(() => {
+                          const sampleData = generateSampleData(selectedTemplate.type);
+                          return `${sampleData.system.from_name} <${sampleData.system.from_email}>`;
+                        })()}<br/>
                         <strong>Para:</strong> joao.silva@empresa.com<br/>
                         <strong>Assunto:</strong> {renderTemplateWithSampleData(
                           selectedTemplate.subject_template, 
@@ -1421,9 +1548,9 @@ export default function EmailSettings() {
                               <h4 className="font-medium text-gray-700 mb-2">{info.label}</h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 {categoryVars.map((variable) => (
-                                  <div key={variable} className="bg-white p-2 rounded border">
+                                  <div key={variable.key} className="bg-white p-2 rounded border">
                                     <code className="text-blue-600 font-medium">
-                                      {"{{"}{variable}{"}}"}
+                                      {"{{"}{variable.key}{"}}"}
                                     </code>
                                     <div className="text-gray-600 text-xs mt-1">
                                       {variable.description}
@@ -1450,8 +1577,11 @@ export default function EmailSettings() {
       )}
 
       {/* Dialog para editar/criar template */}
-      <Dialog open={isEditingTemplate} onOpenChange={setIsEditingTemplate}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <Dialog open={isEditingTemplate} onOpenChange={(open) => {
+        console.log('Dialog estado:', open, 'templateForm:', templateForm);
+        setIsEditingTemplate(open);
+      }}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto" style={{ zIndex: 9999 }}>
           <DialogHeader>
             <DialogTitle>
               {selectedTemplate ? 'Editar Template' : 'Novo Template'}
@@ -1513,8 +1643,13 @@ export default function EmailSettings() {
               <Textarea
                 value={templateForm.html_template || ''}
                 onChange={(e) => setTemplateForm(prev => ({ ...prev, html_template: e.target.value }))}
+                onFocus={() => console.log('Campo HTML focado')}
+                onClick={() => console.log('Campo HTML clicado')}
                 placeholder={`Template HTML com variáveis {{ticket.title}}, {{customer.name}}, etc.`}
                 className="h-40 font-mono text-xs"
+                disabled={false}
+                readOnly={false}
+                style={{ pointerEvents: 'auto' }}
               />
               <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
                 💡 Dica: Use variáveis como {"{{"} ticket.title {"}}"}, {"{{"} customer.name {"}}"}, {"{{"} ticket.ticket_id {"}}"}, {"{{"} user.name {"}}"}, etc. 
