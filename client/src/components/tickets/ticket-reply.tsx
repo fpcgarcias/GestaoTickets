@@ -113,11 +113,12 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
         title: "Sucesso!",
         description: "Resposta enviada com sucesso.",
       });
+      navigate('/tickets'); // Navega imediatamente
+      // Os invalidates rodam em background
       queryClient.invalidateQueries({ queryKey: [`/api/tickets/${ticket.id}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/tickets/${ticket.id}/replies`] });
       queryClient.invalidateQueries({ queryKey: [`/api/tickets/${ticket.id}/status-history`] });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
-      navigate('/tickets');
     },
     onError: (error) => {
       toast({

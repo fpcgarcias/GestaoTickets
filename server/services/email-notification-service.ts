@@ -1865,19 +1865,7 @@ export class EmailNotificationService {
 
       if (!customer) return;
 
-      const context: EmailNotificationContext = {
-        customer,
-        system: {
-          base_url: 'https://app.ticketwise.com.br',
-          company_name: 'Sistema de Tickets',
-          support_email: 'suporte@ticketwise.com.br'
-        }
-      };
-
-      // 🔥 CORREÇÃO CRÍTICA: SÓ notificar usuários da MESMA EMPRESA do cliente!
-      console.log(`[📧 EMAIL PROD] 🔍 Buscando usuários para notificar sobre cliente ${customer.name} da empresa ${customer.company_id}`);
-      
-      // Notificar administradores e managers da MESMA EMPRESA
+      // Buscar destinatários (admins, managers, company_admins da empresa)
       const adminUsers = await db
         .select()
         .from(users)
@@ -1906,27 +1894,27 @@ export class EmailNotificationService {
         ));
 
       const allNotifyUsers = [...adminUsers, ...managerUsers, ...companyAdminUsers];
-      
-      console.log(`[📧 EMAIL PROD] 👥 Encontrados ${allNotifyUsers.length} usuários da empresa ${customer.company_id} para notificar:`);
-      allNotifyUsers.forEach(user => {
-        console.log(`[📧 EMAIL PROD] - ${user.name} (${user.email}) - Role: ${user.role} - Empresa: ${user.company_id}`);
-      });
 
-      for (const user of allNotifyUsers) {
-        const shouldNotify = await this.shouldSendEmailToUser(user.id, 'customer_registered');
-        if (shouldNotify) {
-          await this.sendEmailNotification(
-            'customer_registered',
-            user.email,
-            context,
-            customer.company_id!, // 🔥 OBRIGATÓRIO: customer sempre tem company_id
-            user.role // Passar a role do usuário para validação
-          );
-        }
+      for (const notifyUser of allNotifyUsers) {
+        const context: EmailNotificationContext = {
+          customer,
+          user: notifyUser, // Adiciona o destinatário como 'user' para o template
+          system: {
+            base_url: 'https://app.ticketwise.com.br',
+            company_name: 'Sistema de Tickets',
+            support_email: 'suporte@ticketwise.com.br'
+          }
+        };
+        await this.sendEmailNotification(
+          'new_customer_registered',
+          notifyUser.email,
+          context,
+          customer.company_id || undefined,
+          notifyUser.role
+        );
       }
-
     } catch (error) {
-      console.error('Erro ao enviar notificação de novo cliente registrado:', error);
+      console.error('Erro ao notificar novo cliente registrado:', error);
     }
   }
 

@@ -1502,51 +1502,72 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const statusChanged = req.body.status !== ticket.status;
       if (userId) {
         if (statusChanged) {
-          // Só envia notificação de status alterado
-          try {
-            console.log('🚨🚨🚨 [PROD EMAIL] TENTANDO ENVIAR EMAIL DE STATUS ALTERADO');
-            console.log('🚨🚨🚨 [PROD EMAIL] Ticket ID:', ticketId);
-            console.log('🚨🚨🚨 [PROD EMAIL] Status anterior:', ticket.status);
-            console.log('🚨🚨🚨 [PROD EMAIL] Novo status:', req.body.status);
-            
-            await emailNotificationService.notifyStatusChanged(
-              ticketId, 
-              ticket.status, 
-              req.body.status, 
-              userId
-            );
-            
-            console.log('🚨🚨🚨 [PROD EMAIL] ✅ SUCESSO - EMAIL DE STATUS ALTERADO ENVIADO!');
-          } catch (emailError) {
-            console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO AO NOTIFICAR STATUS:', emailError);
-            console.error('🚨🚨🚨 [PROD EMAIL] Stack:', (emailError as any)?.stack);
-          }
+          // 🔥 OTIMIZAÇÃO CRÍTICA: Envio de e-mail fire-and-forget (não bloqueia a resposta)
+          const emailStartTime = Date.now();
+          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+          console.log(`📧 [EMAIL BACKGROUND] 🔄 INICIANDO - Status Alterado`);
+          console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} (ID: ${ticketId})`);
+          console.log(`📧 [EMAIL BACKGROUND] Status: ${ticket.status} → ${req.body.status}`);
+          console.log(`📧 [EMAIL BACKGROUND] Alterado por: ${req.session?.userId} (${req.session?.adUsername || 'N/A'})`);
+          console.log(`📧 [EMAIL BACKGROUND] Timestamp: ${new Date().toLocaleString('pt-BR')}`);
+          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+          
+          // Fire-and-forget: não aguarda o envio dos e-mails
+          emailNotificationService.notifyStatusChanged(
+            ticketId, 
+            ticket.status, 
+            req.body.status, 
+            userId
+          ).then(() => {
+            const emailDuration = Date.now() - emailStartTime;
+            console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+            console.log(`📧 [EMAIL BACKGROUND] ✅ CONCLUÍDO - Status Alterado em ${emailDuration}ms`);
+            console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Todos os e-mails processados`);
+            console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+          }).catch((emailError) => {
+            const emailDuration = Date.now() - emailStartTime;
+            console.error(`📧 [EMAIL BACKGROUND] ========================================`);
+            console.error(`📧 [EMAIL BACKGROUND] ❌ ERRO - Status Alterado após ${emailDuration}ms`);
+            console.error(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Erro:`, emailError.message);
+            console.error(`📧 [EMAIL BACKGROUND] Stack:`, emailError.stack);
+            console.error(`📧 [EMAIL BACKGROUND] ========================================`);
+          });
         } else {
-          // Só envia notificação de resposta
-          try {
-            console.log('🚨🚨🚨 [PROD EMAIL] TENTANDO ENVIAR EMAIL DE NOVA RESPOSTA');
-            console.log('🚨🚨🚨 [PROD EMAIL] Ticket ID:', ticketId);
-            console.log('🚨🚨🚨 [PROD EMAIL] User ID:', userId);
-            console.log('🚨🚨🚨 [PROD EMAIL] Mensagem:', req.body.message.substring(0, 100) + '...');
-            
-            await emailNotificationService.notifyTicketReply(ticketId, userId, req.body.message);
-            
-            console.log('🚨🚨🚨 [PROD EMAIL] ✅ SUCESSO - EMAIL DE NOVA RESPOSTA ENVIADO!');
-          } catch (emailError) {
-            console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO AO NOTIFICAR RESPOSTA:', emailError);
-            console.error('🚨🚨🚨 [PROD EMAIL] Stack:', (emailError as any)?.stack);
-          }
+          // 🔥 OTIMIZAÇÃO CRÍTICA: Envio de e-mail fire-and-forget (não bloqueia a resposta)
+          const emailStartTime = Date.now();
+          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+          console.log(`📧 [EMAIL BACKGROUND] 💬 INICIANDO - Nova Resposta`);
+          console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} (ID: ${ticketId})`);
+          console.log(`📧 [EMAIL BACKGROUND] Respondido por: ${req.session?.userId} (${req.session?.adUsername || 'N/A'})`);
+          console.log(`📧 [EMAIL BACKGROUND] Mensagem: ${req.body.message.substring(0, 100)}...`);
+          console.log(`📧 [EMAIL BACKGROUND] Timestamp: ${new Date().toLocaleString('pt-BR')}`);
+          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+          
+          // Fire-and-forget: não aguarda o envio dos e-mails
+          emailNotificationService.notifyTicketReply(ticketId, userId, req.body.message).then(() => {
+            const emailDuration = Date.now() - emailStartTime;
+            console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+            console.log(`📧 [EMAIL BACKGROUND] ✅ CONCLUÍDO - Nova Resposta em ${emailDuration}ms`);
+            console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Todos os e-mails processados`);
+            console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+          }).catch((emailError) => {
+            const emailDuration = Date.now() - emailStartTime;
+            console.error(`📧 [EMAIL BACKGROUND] ========================================`);
+            console.error(`📧 [EMAIL BACKGROUND] ❌ ERRO - Nova Resposta após ${emailDuration}ms`);
+            console.error(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Erro:`, emailError.message);
+            console.error(`📧 [EMAIL BACKGROUND] Stack:`, emailError.stack);
+            console.error(`📧 [EMAIL BACKGROUND] ========================================`);
+          });
         }
       }
 
-      // 🔥 FASE 4.2: Se for uma atualização de status, notificar participantes
+      // 🔥 FASE 4.2: Se for uma atualização de status, notificar participantes (fire-and-forget)
       if (statusChanged) {
-        try {
-          await notificationService.notifyStatusChange(ticketId, ticket.status, req.body.status, userId);
-        } catch (notificationError) {
+        // Fire-and-forget: não aguarda a notificação WebSocket terminar
+        notificationService.notifyStatusChange(ticketId, ticket.status, req.body.status, userId).catch((notificationError) => {
           console.error('Erro ao enviar notificação WebSocket de mudança de status:', notificationError);
           // Não falhar a operação por erro de notificação
-        }
+        });
       }
 
       // Se for uma atualização de status ou atribuição, notificar
@@ -1598,18 +1619,31 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             return;
           }
 
-          try {
-            console.log('🚨🚨🚨 [PROD EMAIL] TENTANDO ENVIAR EMAIL DE TICKET ATRIBUÍDO (REPLY)');
-            console.log('🚨🚨🚨 [PROD EMAIL] Ticket ID:', ticketId);
-            console.log('🚨🚨🚨 [PROD EMAIL] Atribuído para ID:', req.body.assigned_to_id);
-            
-            await emailNotificationService.notifyTicketAssigned(ticketId, req.body.assigned_to_id);
-            
-            console.log('🚨🚨🚨 [PROD EMAIL] ✅ SUCESSO - EMAIL DE TICKET ATRIBUÍDO ENVIADO!');
-          } catch (emailError) {
-            console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO AO NOTIFICAR ATRIBUIÇÃO:', emailError);
-            console.error('🚨🚨🚨 [PROD EMAIL] Stack:', (emailError as any)?.stack);
-          }
+          // 🔥 OTIMIZAÇÃO CRÍTICA: Envio de e-mail fire-and-forget (não bloqueia a resposta)
+          const emailStartTime = Date.now();
+          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+          console.log(`📧 [EMAIL BACKGROUND] 👤 INICIANDO - Ticket Atribuído`);
+          console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} (ID: ${ticketId})`);
+          console.log(`📧 [EMAIL BACKGROUND] Atribuído para: ${req.body.assigned_to_id}`);
+          console.log(`📧 [EMAIL BACKGROUND] Atribuído por: ${req.session?.userId} (${req.session?.adUsername || 'N/A'})`);
+          console.log(`📧 [EMAIL BACKGROUND] Timestamp: ${new Date().toLocaleString('pt-BR')}`);
+          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+          
+          // Fire-and-forget: não aguarda o envio dos e-mails
+          emailNotificationService.notifyTicketAssigned(ticketId, req.body.assigned_to_id).then(() => {
+            const emailDuration = Date.now() - emailStartTime;
+            console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+            console.log(`📧 [EMAIL BACKGROUND] ✅ CONCLUÍDO - Ticket Atribuído em ${emailDuration}ms`);
+            console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Todos os e-mails processados`);
+            console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+          }).catch((emailError) => {
+            const emailDuration = Date.now() - emailStartTime;
+            console.error(`📧 [EMAIL BACKGROUND] ========================================`);
+            console.error(`📧 [EMAIL BACKGROUND] ❌ ERRO - Ticket Atribuído após ${emailDuration}ms`);
+            console.error(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Erro:`, emailError.message);
+            console.error(`📧 [EMAIL BACKGROUND] Stack:`, emailError.stack);
+            console.error(`📧 [EMAIL BACKGROUND] ========================================`);
+          });
         }
       }
       

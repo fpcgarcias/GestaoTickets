@@ -778,53 +778,127 @@ export class DatabaseStorage implements IStorage {
 
   // Método interno sem controle de empresa para uso em outras funções
   private async getTicketInternal(id: number): Promise<Ticket | undefined> {
+    // 🔥 OTIMIZAÇÃO CRÍTICA: Buscar tudo em uma única query com JOINs
     const [result] = await db
       .select({
-        ticket: getTableColumns(tickets),
-        customer: getTableColumns(customers)
+        // Ticket
+        ticket_id: tickets.id,
+        ticket_ticket_id: tickets.ticket_id,
+        ticket_title: tickets.title,
+        ticket_description: tickets.description,
+        ticket_status: tickets.status,
+        ticket_type: tickets.type,
+        ticket_priority: tickets.priority,
+        ticket_customer_id: tickets.customer_id,
+        ticket_customer_email: tickets.customer_email,
+        ticket_assigned_to_id: tickets.assigned_to_id,
+        ticket_created_at: tickets.created_at,
+        ticket_updated_at: tickets.updated_at,
+        ticket_first_response_at: tickets.first_response_at,
+        ticket_resolved_at: tickets.resolved_at,
+        ticket_sla_breached: tickets.sla_breached,
+        ticket_department_id: tickets.department_id,
+        ticket_incident_type_id: tickets.incident_type_id,
+        ticket_company_id: tickets.company_id,
+        ticket_category_id: tickets.category_id,
+        
+        // Customer
+        customer_id: customers.id,
+        customer_name: customers.name,
+        customer_email: customers.email,
+        customer_phone: customers.phone,
+        customer_company: customers.company,
+        customer_user_id: customers.user_id,
+        customer_avatar_url: customers.avatar_url,
+        customer_created_at: customers.created_at,
+        customer_updated_at: customers.updated_at,
+        customer_company_id: customers.company_id,
+        
+        // Official
+        official_id: officials.id,
+        official_name: officials.name,
+        official_email: officials.email,
+        official_user_id: officials.user_id,
+        official_is_active: officials.is_active,
+        official_avatar_url: officials.avatar_url,
+        official_created_at: officials.created_at,
+        official_updated_at: officials.updated_at,
+        official_company_id: officials.company_id,
+        official_supervisor_id: officials.supervisor_id,
+        official_manager_id: officials.manager_id,
+        official_department_id: officials.department_id,
       })
       .from(tickets)
       .leftJoin(customers, eq(customers.id, tickets.customer_id))
-      .where(eq(tickets.id, id));
+      .leftJoin(officials, eq(officials.id, tickets.assigned_to_id))
+      .where(eq(tickets.id, id))
+      .limit(1);
     
     if (!result) return undefined;
-    const ticket = result.ticket;
-    const customerData = result.customer;
     
-    let officialData: Official | undefined = undefined;
-    if (ticket.assigned_to_id) {
-      [officialData] = await db
-        .select()
-        .from(officials)
-        .where(eq(officials.id, ticket.assigned_to_id));
-        
-      if (officialData) {
-        const officialDepartmentsData = await db
-          .select()
-          .from(officialDepartments)
-          .where(eq(officialDepartments.official_id, officialData.id));
-          
-        // Buscar nomes dos departamentos pelos IDs
-        const departmentIds = officialDepartmentsData.map((od) => od.department_id);
-        const departmentNames = await Promise.all(
-          departmentIds.map(async (deptId) => {
-            const [dept] = await db.select({ name: departments.name })
-              .from(departments)
-              .where(eq(departments.id, deptId));
-            return dept?.name || `Dept-${deptId}`;
-          })
-        );
-        officialData = { ...officialData, departments: departmentNames };
-      }
-    }
+    // Construir o objeto ticket
+    const ticket = {
+      id: result.ticket_id,
+      ticket_id: result.ticket_ticket_id,
+      title: result.ticket_title,
+      description: result.ticket_description,
+      status: result.ticket_status,
+      type: result.ticket_type,
+      priority: result.ticket_priority,
+      customer_id: result.ticket_customer_id,
+      customer_email: result.ticket_customer_email,
+      assigned_to_id: result.ticket_assigned_to_id,
+      created_at: result.ticket_created_at,
+      updated_at: result.ticket_updated_at,
+      first_response_at: result.ticket_first_response_at,
+      resolved_at: result.ticket_resolved_at,
+      sla_breached: result.ticket_sla_breached,
+      department_id: result.ticket_department_id,
+      incident_type_id: result.ticket_incident_type_id,
+      company_id: result.ticket_company_id,
+      category_id: result.ticket_category_id,
+    };
 
-    const replies = await this.getTicketReplies(ticket.id);
+    // Construir o objeto customer se existir
+    const customerData = result.customer_id ? {
+      id: result.customer_id,
+      name: result.customer_name,
+      email: result.customer_email,
+      phone: result.customer_phone,
+      company: result.customer_company,
+      user_id: result.customer_user_id,
+      avatar_url: result.customer_avatar_url,
+      created_at: result.customer_created_at,
+      updated_at: result.customer_updated_at,
+      company_id: result.customer_company_id,
+    } : undefined;
+
+    // Construir o objeto official se existir
+    const officialData = result.official_id ? {
+      id: result.official_id,
+      name: result.official_name,
+      email: result.official_email,
+      user_id: result.official_user_id,
+      is_active: result.official_is_active,
+      avatar_url: result.official_avatar_url,
+      created_at: result.official_created_at,
+      updated_at: result.official_updated_at,
+      company_id: result.official_company_id,
+      supervisor_id: result.official_supervisor_id,
+      manager_id: result.official_manager_id,
+      department_id: result.official_department_id,
+      departments: [], // Não buscar departamentos aqui para não atrasar - só se realmente precisar
+    } : undefined;
+
+    // 🔥 OTIMIZAÇÃO: NÃO buscar replies automaticamente - só quando realmente precisar
+    // Isso evita uma query pesada desnecessária na maioria dos casos
+    const replies: TicketReply[] = [];
     
     return {
       ...ticket,
       customer: customerData || {},
       official: officialData, 
-      replies: replies || []
+      replies: replies
     } as Ticket;
   }
 
@@ -2019,15 +2093,17 @@ export class DatabaseStorage implements IStorage {
    * Verifica se um usuário é participante de um ticket
    */
   async isUserTicketParticipant(ticketId: number, userId: number): Promise<boolean> {
+    // 🔥 OTIMIZAÇÃO: Buscar apenas o ID para verificar existência (mais eficiente)
     const [participant] = await db
-      .select()
+      .select({ id: ticketParticipants.id })
       .from(ticketParticipants)
       .where(
         and(
           eq(ticketParticipants.ticket_id, ticketId),
           eq(ticketParticipants.user_id, userId)
         )
-      );
+      )
+      .limit(1);
 
     return !!participant;
   }
