@@ -13,7 +13,10 @@
           "Melhorias nos layouts dos e-mails de notificação de chamados"
         ],
         "fixed": [
-          "Ajustes nas notificações de chamados por e-mail"
+          "Ajustes nas notificações de chamados por e-mail",
+          "Ajustes na lentidão no envio das respostas dos chamados",
+          "Correção nas notificações de atendentes vinculados aos chamados",
+          "Alterado o período padrão dos filtros de datas para o mês atual nas telas de tickets e dashboard"
         ]
       }
     },
