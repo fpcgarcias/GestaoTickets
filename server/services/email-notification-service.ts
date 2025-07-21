@@ -1163,65 +1163,60 @@ export class EmailNotificationService {
         }
       };
 
-      // 🔥 LÓGICA ATUALIZADA FASE 4.1: Se quem respondeu foi o suporte/admin, notificar CLIENTE + PARTICIPANTES
-      if (replyUser.role !== 'customer' && ticket.customer_email) {
-        console.log(`[📧 EMAIL PROD] 📧 Atendente respondeu - notificando cliente e participantes`);
-        
-        // Verificar se o cliente tem conta e configurações
-        const [customerUser] = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, ticket.customer_email))
-          .limit(1);
-
-        if (customerUser) {
-          console.log(`[📧 EMAIL PROD] ✅ Cliente tem conta no sistema`);
-          const shouldNotify = await this.shouldSendEmailToUser(customerUser.id, 'ticket_reply');
-          if (shouldNotify) {
-            const result = await this.sendEmailNotification(
-              'ticket_reply',
-              ticket.customer_email,
-              context,
-              ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
-              customerUser.role // Passar a role do cliente para validação
-            );
-            
-            if (result.success) {
-              console.log(`[📧 EMAIL PROD] ✅ Email de resposta enviado com sucesso para cliente`);
-            } else {
-              console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email para cliente: ${result.error}`);
+      // NOVA LÓGICA: Se o ticket tem responsável, notificar só ele e o cliente
+      if (ticket.assigned_to_id) {
+        // Se quem respondeu foi o cliente, notificar só o responsável
+        if (replyUser.role === 'customer') {
+          const [assignedUser] = await db
+            .select()
+            .from(users)
+            .where(and(eq(users.id, ticket.assigned_to_id), eq(users.active, true)))
+            .limit(1);
+          if (assignedUser) {
+            const shouldNotify = await this.shouldSendEmailToUser(assignedUser.id, 'ticket_reply');
+            if (shouldNotify) {
+              await this.sendEmailNotification(
+                'ticket_reply',
+                assignedUser.email,
+                context,
+                ticket.company_id!,
+                assignedUser.role
+              );
             }
-          } else {
-            console.log(`[📧 EMAIL PROD] 🔕 Cliente não configurado para receber notificações`);
           }
         } else {
-          console.log(`[📧 EMAIL PROD] ℹ️  Cliente sem conta no sistema - enviando email direto`);
-          // Cliente sem conta, enviar email direto (sempre)
-          const result = await this.sendEmailNotification(
-            'ticket_reply',
-            ticket.customer_email,
-            context,
-            ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
-            'customer' // Role do cliente para validação
-          );
-          
-          if (result.success) {
-            console.log(`[📧 EMAIL PROD] ✅ Email de resposta enviado com sucesso para cliente (sem conta)`);
-          } else {
-            console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email para cliente (sem conta): ${result.error}`);
+          // Se quem respondeu foi o responsável, notificar só o cliente
+          if (ticket.customer_email) {
+            const [customerUser] = await db
+              .select()
+              .from(users)
+              .where(eq(users.email, ticket.customer_email))
+              .limit(1);
+            const shouldNotify = customerUser
+              ? await this.shouldSendEmailToUser(customerUser.id, 'ticket_reply')
+              : true;
+            if (shouldNotify) {
+              await this.sendEmailNotification(
+                'ticket_reply',
+                ticket.customer_email,
+                context,
+                ticket.company_id!,
+                customerUser?.role || 'customer'
+              );
+            }
           }
         }
-
-        // 🔥 FASE 4.3: Notificar participantes com configurações individuais
+        // Notificar participantes normalmente
         const participants = await this.getTicketParticipants(ticketId, replyUserId);
         if (participants.length > 0) {
           await this.notifyParticipantsWithSettings(
             participants,
             'ticket_reply',
             context,
-            `Há uma nova resposta de atendente no ticket #${ticket.ticket_id}: "${ticket.title}".`
+            `Há uma nova resposta no ticket #${ticket.ticket_id}: "${ticket.title}".`
           );
         }
+        return;
       }
 
       // 🔥 LÓGICA ATUALIZADA FASE 4.1: Se quem respondeu foi o cliente, notificar ATENDENTES + PARTICIPANTES
@@ -1417,6 +1412,61 @@ export class EmailNotificationService {
           support_email: 'suporte@ticketwise.com.br'
         }
       };
+
+      // NOVA LÓGICA: Se o ticket tem responsável, notificar só ele (exceto se ele mesmo alterou) e o cliente
+      if (ticket.assigned_to_id) {
+        // Notificar responsável, exceto se ele mesmo alterou
+        if (!changedByUserId || ticket.assigned_to_id !== changedByUserId) {
+          const [assignedUser] = await db
+            .select()
+            .from(users)
+            .where(and(eq(users.id, ticket.assigned_to_id), eq(users.active, true)))
+            .limit(1);
+          if (assignedUser) {
+            const shouldNotify = await this.shouldSendEmailToUser(assignedUser.id, 'status_changed');
+            if (shouldNotify) {
+              await this.sendEmailNotification(
+                'status_changed',
+                assignedUser.email,
+                context,
+                ticket.company_id!,
+                assignedUser.role
+              );
+            }
+          }
+        }
+        // Notificar cliente normalmente
+        if (ticket.customer_email) {
+          const [customerUser] = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, ticket.customer_email))
+            .limit(1);
+          const shouldNotify = customerUser
+            ? await this.shouldSendEmailToUser(customerUser.id, newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed')
+            : true;
+          if (shouldNotify) {
+            await this.sendEmailNotification(
+              newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed',
+              ticket.customer_email,
+              context,
+              ticket.company_id!,
+              customerUser?.role || 'customer'
+            );
+          }
+        }
+        // Notificar participantes normalmente
+        const participants = await this.getTicketParticipants(ticketId, changedByUserId);
+        if (participants.length > 0) {
+          await this.notifyParticipantsWithSettings(
+            participants,
+            'status_changed',
+            context,
+            `O status do ticket #${ticket.ticket_id}: "${ticket.title}" foi alterado de "${oldStatus}" para "${newStatus}".`
+          );
+        }
+        return;
+      }
 
       // 🔥 NOTIFICAR O CLIENTE (sempre que houver email)
       if (ticket.customer_email) {

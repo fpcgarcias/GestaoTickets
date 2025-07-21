@@ -89,7 +89,7 @@ export default function Dashboard() {
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
   
   // Novo filtro de datas igual ao index.tsx
-  const [timeFilter, setTimeFilter] = useState('this-week');
+  const [timeFilter, setTimeFilter] = useState('this-month');
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   const [calendarOpen, setCalendarOpen] = useState(false);
 

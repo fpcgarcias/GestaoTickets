@@ -51,7 +51,7 @@ export default function TicketsIndex() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
-  const [timeFilter, setTimeFilter] = useState('this-week');
+  const [timeFilter, setTimeFilter] = useState('this-month');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
