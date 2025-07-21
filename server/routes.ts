@@ -211,6 +211,25 @@ function fixEmailDomain(email: string, source: string): { email: string, wasFixe
 // 🔥 FASE 5.2: Funções de autorização movidas para arquivo centralizado
 // Ver: server/middleware/authorization.ts
 
+// 🔥 FASE 5.3: Função auxiliar para verificar se usuário customer também é official
+async function isUserAlsoOfficial(userId: number): Promise<boolean> {
+  try {
+    const [official] = await db
+      .select()
+      .from(schema.officials)
+      .where(and(
+        eq(schema.officials.user_id, userId),
+        eq(schema.officials.is_active, true)
+      ))
+      .limit(1);
+    
+    return !!official;
+  } catch (error) {
+    console.error('Erro ao verificar se usuário é também official:', error);
+    return false;
+  }
+}
+
 // Função auxiliar para verificar se um usuário pode responder a um ticket
 async function canUserReplyToTicket(
   userId: number, 
@@ -1046,14 +1065,21 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(404).json({ message: "Ticket não encontrado" });
       }
 
-      // 🚫 BLOQUEAR CUSTOMER DE ALTERAR ATENDENTE
+      // 🚫 BLOQUEAR CUSTOMER DE ALTERAR ATENDENTE (EXCETO SE FOR TAMBÉM OFFICIAL)
       const { assigned_to_id } = req.body;
       
       if (userRole === 'customer' && assigned_to_id !== undefined) {
-        return res.status(403).json({ 
-          message: "Operação não permitida", 
-          details: "Clientes não podem alterar o atendente do ticket." 
-        });
+        // 🔥 FASE 5.3: Verificar se o customer também é official (atendente)
+        const isAlsoOfficial = await isUserAlsoOfficial(req.session?.userId!);
+        
+        if (!isAlsoOfficial) {
+          return res.status(403).json({ 
+            message: "Operação não permitida", 
+            details: "Clientes não podem alterar o atendente do ticket." 
+          });
+        }
+        
+        console.log(`[PERMISSÃO] ✅ Usuário ${req.session?.userId} é customer MAS também é official - operação permitida`);
       }
 
       const updateData: { assigned_to_id?: number | null } = {};
@@ -1071,36 +1097,36 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         if (assigned_to_id === null || typeof assigned_to_id === 'number') {
           // 🔥 VALIDAÇÃO CRÍTICA: Verificar se o atendente é da MESMA EMPRESA do ticket!
           if (assigned_to_id !== null && typeof assigned_to_id === 'number') {
-            // Buscar dados do usuário que será atribuído
-            const [assignedUser] = await db
+            // 🔥 CORREÇÃO: Buscar dados do official que será atribuído
+            const [assignedOfficial] = await db
               .select()
-              .from(users)
-              .where(and(eq(users.id, assigned_to_id), eq(users.active, true)))
+              .from(schema.officials)
+              .where(and(eq(schema.officials.id, assigned_to_id), eq(schema.officials.is_active, true)))
               .limit(1);
 
-            if (!assignedUser) {
+            if (!assignedOfficial) {
               return res.status(400).json({ 
-                message: "Usuário atribuído não encontrado ou inativo",
-                details: `Usuário ID ${assigned_to_id} não existe ou está inativo.`
+                message: "Atendente atribuído não encontrado ou inativo",
+                details: `Official ID ${assigned_to_id} não existe ou está inativo.`
               });
             }
 
             // 🔥 VALIDAÇÃO DE EMPRESA: Ticket e atendente devem ser da mesma empresa!
-            if (existingTicket.company_id && assignedUser.company_id && existingTicket.company_id !== assignedUser.company_id) {
-              console.error(`[🚨 SEGURANÇA] ❌ VIOLAÇÃO: Tentativa de atribuir ticket da empresa ${existingTicket.company_id} para atendente da empresa ${assignedUser.company_id}!`);
+            if (existingTicket.company_id && assignedOfficial.company_id && existingTicket.company_id !== assignedOfficial.company_id) {
+              console.error(`[🚨 SEGURANÇA] ❌ VIOLAÇÃO: Tentativa de atribuir ticket da empresa ${existingTicket.company_id} para atendente da empresa ${assignedOfficial.company_id}!`);
               console.error(`[🚨 SEGURANÇA] ❌ Ticket: ${existingTicket.ticket_id} (${existingTicket.title})`);
-              console.error(`[🚨 SEGURANÇA] ❌ Atendente: ${assignedUser.name} (${assignedUser.email})`);
+              console.error(`[🚨 SEGURANÇA] ❌ Atendente: ${assignedOfficial.name} (${assignedOfficial.email})`);
               
               return res.status(403).json({ 
                 message: "Operação não permitida",
-                details: `Não é possível atribuir um ticket da empresa ${existingTicket.company_id} para um atendente da empresa ${assignedUser.company_id}.`
+                details: `Não é possível atribuir um ticket da empresa ${existingTicket.company_id} para um atendente da empresa ${assignedOfficial.company_id}.`
               });
             }
 
-            // 🔥 VALIDAÇÃO ADICIONAL: Se ticket tem empresa, atendente deve ter empresa (exceto admin)
-            if (existingTicket.company_id && !assignedUser.company_id && assignedUser.role !== 'admin') {
+            // 🔥 VALIDAÇÃO ADICIONAL: Se ticket tem empresa, atendente deve ter empresa
+            if (existingTicket.company_id && !assignedOfficial.company_id) {
               console.error(`[🚨 SEGURANÇA] ❌ VIOLAÇÃO: Atendente sem empresa para ticket com empresa!`);
-              console.error(`[🚨 SEGURANÇA] ❌ Ticket empresa: ${existingTicket.company_id}, Atendente empresa: ${assignedUser.company_id}`);
+              console.error(`[🚨 SEGURANÇA] ❌ Ticket empresa: ${existingTicket.company_id}, Atendente empresa: ${assignedOfficial.company_id}`);
               
               return res.status(403).json({ 
                 message: "Operação não permitida",
@@ -1137,18 +1163,30 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       // 📧 ENVIAR EMAIL PARA MUDANÇA DE ATRIBUIÇÃO
       if (updateData.assigned_to_id && existingTicket.assigned_to_id !== updateData.assigned_to_id) {
-        try {
-          console.log('🚨🚨🚨 [PROD EMAIL] TENTANDO ENVIAR EMAIL DE TICKET ATRIBUÍDO (PATCH)');
-          console.log('🚨🚨🚨 [PROD EMAIL] Ticket ID:', ticket.id);
-          console.log('🚨🚨🚨 [PROD EMAIL] Atribuído para ID:', updateData.assigned_to_id);
-          
-          await emailNotificationService.notifyTicketAssigned(ticket.id, updateData.assigned_to_id);
-          
-          console.log('🚨🚨🚨 [PROD EMAIL] ✅ SUCESSO - EMAIL DE TICKET ATRIBUÍDO ENVIADO!');
-        } catch (emailError) {
-          console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO AO NOTIFICAR ATRIBUIÇÃO:', emailError);
-          console.error('🚨🚨🚨 [PROD EMAIL] Stack:', (emailError as any)?.stack);
-        }
+        // 🔥 OTIMIZAÇÃO CRÍTICA: Envio de e-mail fire-and-forget (não bloqueia a resposta)
+        const emailStartTime = Date.now();
+        console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+        console.log(`📧 [EMAIL BACKGROUND] 👤 INICIANDO - Ticket Atribuído (PATCH)`);
+        console.log(`📧 [EMAIL BACKGROUND] Ticket ID: ${ticket.id}`);
+        console.log(`📧 [EMAIL BACKGROUND] Atribuído para: ${updateData.assigned_to_id}`);
+        console.log(`📧 [EMAIL BACKGROUND] Timestamp: ${new Date().toLocaleString('pt-BR')}`);
+        console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+        
+        // Fire-and-forget: não aguarda o envio dos e-mails
+        emailNotificationService.notifyTicketAssigned(ticket.id, updateData.assigned_to_id).then(() => {
+          const emailDuration = Date.now() - emailStartTime;
+          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+          console.log(`📧 [EMAIL BACKGROUND] ✅ CONCLUÍDO - Ticket Atribuído (PATCH) em ${emailDuration}ms`);
+          console.log(`📧 [EMAIL BACKGROUND] Ticket ID: ${ticket.id} - Todos os e-mails processados`);
+          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+        }).catch((emailError) => {
+          const emailDuration = Date.now() - emailStartTime;
+          console.error(`📧 [EMAIL BACKGROUND] ========================================`);
+          console.error(`📧 [EMAIL BACKGROUND] ❌ ERRO - Ticket Atribuído (PATCH) após ${emailDuration}ms`);
+          console.error(`📧 [EMAIL BACKGROUND] Ticket ID: ${ticket.id} - Erro:`, emailError.message);
+          console.error(`📧 [EMAIL BACKGROUND] Stack:`, emailError.stack);
+          console.error(`📧 [EMAIL BACKGROUND] ========================================`);
+        });
       }
 
       res.json(ticket);
@@ -1388,7 +1426,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           const customer = await storage.getCustomer(customerId);
           
           if (customer) {
-            await emailNotificationService.sendEmailNotification(
+            // 🔥 OTIMIZAÇÃO CRÍTICA: Envio de e-mail fire-and-forget (não bloqueia a resposta)
+            emailNotificationService.sendEmailNotification(
               'new_ticket', 
               customer.email, 
               {
@@ -1413,7 +1452,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
                 }
               },
               companyId || undefined
-            );
+            ).catch((emailError) => {
+              console.error('[Email] Erro ao enviar confirmação para o cliente:', emailError);
+            });
             
 
           }
@@ -1422,20 +1463,31 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         console.error('[Email] Erro ao enviar confirmação para o cliente:', emailError);
       }
       
-      // 📧 ENVIAR EMAIL PARA ADMINS E SUPPORT
-      try {
-        console.log('🚨🚨🚨 [PROD EMAIL] TENTANDO ENVIAR EMAIL DE NOVO TICKET');
-        console.log('🚨🚨🚨 [PROD EMAIL] Ticket ID:', ticket.id);
-        console.log('🚨🚨🚨 [PROD EMAIL] Company ID:', ticket.company_id);
-        console.log('🚨🚨🚨 [PROD EMAIL] Customer Email:', ticket.customer_email);
-        
-        await emailNotificationService.notifyNewTicket(ticket.id);
-        
-        console.log('🚨🚨🚨 [PROD EMAIL] ✅ SUCESSO - EMAIL DE NOVO TICKET ENVIADO!');
-      } catch (emailError) {
-        console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO AO NOTIFICAR NOVO TICKET:', emailError);
-        console.error('🚨🚨🚨 [PROD EMAIL] Stack:', (emailError as any)?.stack);
-      }
+      // 📧 ENVIAR EMAIL PARA ADMINS E SUPPORT (fire-and-forget)
+      const emailStartTime = Date.now();
+      console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+      console.log(`📧 [EMAIL BACKGROUND] 🎫 INICIANDO - Novo Ticket`);
+      console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} (ID: ${ticket.id})`);
+      console.log(`📧 [EMAIL BACKGROUND] Company ID: ${ticket.company_id}`);
+      console.log(`📧 [EMAIL BACKGROUND] Customer Email: ${ticket.customer_email}`);
+      console.log(`📧 [EMAIL BACKGROUND] Timestamp: ${new Date().toLocaleString('pt-BR')}`);
+      console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+      
+      // Fire-and-forget: não aguarda o envio dos e-mails
+      emailNotificationService.notifyNewTicket(ticket.id).then(() => {
+        const emailDuration = Date.now() - emailStartTime;
+        console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+        console.log(`📧 [EMAIL BACKGROUND] ✅ CONCLUÍDO - Novo Ticket em ${emailDuration}ms`);
+        console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Todos os e-mails processados`);
+        console.log(`📧 [EMAIL BACKGROUND] ========================================`);
+      }).catch((emailError) => {
+        const emailDuration = Date.now() - emailStartTime;
+        console.error(`📧 [EMAIL BACKGROUND] ========================================`);
+        console.error(`📧 [EMAIL BACKGROUND] ❌ ERRO - Novo Ticket após ${emailDuration}ms`);
+        console.error(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Erro:`, emailError.message);
+        console.error(`📧 [EMAIL BACKGROUND] Stack:`, emailError.stack);
+        console.error(`📧 [EMAIL BACKGROUND] ========================================`);
+      });
       
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1472,12 +1524,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         });
       }
       
-      // 🚫 BLOQUEAR CUSTOMER DE ALTERAR ATENDENTE VIA REPLY
+      // 🚫 BLOQUEAR CUSTOMER DE ALTERAR ATENDENTE VIA REPLY (EXCETO SE FOR TAMBÉM OFFICIAL)
       if (userRole === 'customer' && req.body.assigned_to_id !== undefined) {
-        return res.status(403).json({ 
-          message: "Operação não permitida", 
-          details: "Clientes não podem alterar o atendente do ticket." 
-        });
+        // 🔥 FASE 5.3: Verificar se o customer também é official (atendente)
+        const isAlsoOfficial = await isUserAlsoOfficial(userId);
+        
+        if (!isAlsoOfficial) {
+          return res.status(403).json({ 
+            message: "Operação não permitida", 
+            details: "Clientes não podem alterar o atendente do ticket." 
+          });
+        }
+        
+        console.log(`[PERMISSÃO] ✅ Usuário ${userId} é customer MAS também é official - operação permitida`);
       }
       
       const ticket = await storage.getTicket(ticketId, userRole, userCompanyId);
@@ -1583,31 +1642,31 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         if (req.body.assigned_to_id !== ticket.assigned_to_id && req.body.assigned_to_id) {
           // 🔥 VALIDAÇÃO CRÍTICA: Verificar se o atendente é da MESMA EMPRESA do ticket!
           try {
-            // Buscar dados do usuário que será atribuído
-            const [assignedUser] = await db
+            // 🔥 CORREÇÃO: Buscar dados do official que será atribuído
+            const [assignedOfficial] = await db
               .select()
-              .from(users)
-              .where(and(eq(users.id, req.body.assigned_to_id), eq(users.active, true)))
+              .from(schema.officials)
+              .where(and(eq(schema.officials.id, req.body.assigned_to_id), eq(schema.officials.is_active, true)))
               .limit(1);
 
-            if (!assignedUser) {
-              console.error(`[🚨 SEGURANÇA] ❌ ERRO: Usuário ${req.body.assigned_to_id} não encontrado ou inativo`);
-              throw new Error(`Usuário ${req.body.assigned_to_id} não encontrado ou inativo`);
+            if (!assignedOfficial) {
+              console.error(`[🚨 SEGURANÇA] ❌ ERRO: Atendente ${req.body.assigned_to_id} não encontrado ou inativo`);
+              throw new Error(`Atendente ${req.body.assigned_to_id} não encontrado ou inativo`);
             }
 
             // 🔥 VALIDAÇÃO DE EMPRESA: Ticket e atendente devem ser da mesma empresa!
-            if (ticket.company_id && assignedUser.company_id && ticket.company_id !== assignedUser.company_id) {
-              console.error(`[🚨 SEGURANÇA] ❌ VIOLAÇÃO: Tentativa de atribuir ticket da empresa ${ticket.company_id} para atendente da empresa ${assignedUser.company_id}!`);
+            if (ticket.company_id && assignedOfficial.company_id && ticket.company_id !== assignedOfficial.company_id) {
+              console.error(`[🚨 SEGURANÇA] ❌ VIOLAÇÃO: Tentativa de atribuir ticket da empresa ${ticket.company_id} para atendente da empresa ${assignedOfficial.company_id}!`);
               console.error(`[🚨 SEGURANÇA] ❌ Ticket: ${ticket.ticket_id} (${ticket.title})`);
-              console.error(`[🚨 SEGURANÇA] ❌ Atendente: ${assignedUser.name} (${assignedUser.email})`);
+              console.error(`[🚨 SEGURANÇA] ❌ Atendente: ${assignedOfficial.name} (${assignedOfficial.email})`);
               
-              throw new Error(`Não é possível atribuir um ticket da empresa ${ticket.company_id} para um atendente da empresa ${assignedUser.company_id}`);
+              throw new Error(`Não é possível atribuir um ticket da empresa ${ticket.company_id} para um atendente da empresa ${assignedOfficial.company_id}`);
             }
 
-            // 🔥 VALIDAÇÃO ADICIONAL: Se ticket tem empresa, atendente deve ter empresa (exceto admin)
-            if (ticket.company_id && !assignedUser.company_id && assignedUser.role !== 'admin') {
+            // 🔥 VALIDAÇÃO ADICIONAL: Se ticket tem empresa, atendente deve ter empresa
+            if (ticket.company_id && !assignedOfficial.company_id) {
               console.error(`[🚨 SEGURANÇA] ❌ VIOLAÇÃO: Atendente sem empresa para ticket com empresa!`);
-              console.error(`[🚨 SEGURANÇA] ❌ Ticket empresa: ${ticket.company_id}, Atendente empresa: ${assignedUser.company_id}`);
+              console.error(`[🚨 SEGURANÇA] ❌ Ticket empresa: ${ticket.company_id}, Atendente empresa: ${assignedOfficial.company_id}`);
               
               throw new Error(`Não é possível atribuir um ticket da empresa ${ticket.company_id} para um atendente sem empresa`);
             }

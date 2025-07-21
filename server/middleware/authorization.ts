@@ -217,30 +217,52 @@ export function participantManagementRequired(req: Request, res: Response, next:
     return next();
   }
   
-  // Para clientes, verificar se é o criador do ticket ou participante
+  // Para clientes, verificar se é o criador do ticket ou participante (ou se é também official)
   if (userRole === 'customer') {
-    storage.getTicket(ticketId, userRole, req.session?.companyId)
-      .then(ticket => {
-        if (!ticket) {
-          return res.status(404).json({ message: "Ticket não encontrado" });
+    // 🔥 FASE 5.3: Verificar se o customer também é official (atendente)
+    db
+      .select()
+      .from(officials)
+      .where(and(
+        eq(officials.user_id, userId),
+        eq(officials.is_active, true)
+      ))
+      .limit(1)
+      .then(([official]) => {
+        if (official) {
+          // Customer que também é official pode gerenciar participantes
+          console.log(`[PERMISSÃO] ✅ Usuário ${userId} é customer MAS também é official - gerenciamento de participantes permitido`);
+          return next();
         }
         
-        const creatorUserId = ticket.customer?.user_id;
-        if (userId === creatorUserId) {
-          return next(); // Criador pode gerenciar participantes
-        }
-        
-        // Verificar se é participante do ticket
-        return storage.isUserTicketParticipant(ticketId, userId)
-          .then(isParticipant => {
-            if (isParticipant) {
-              return next(); // Participante pode gerenciar participantes
+        // Customer normal: verificar se é criador ou participante
+        storage.getTicket(ticketId, userRole, req.session?.companyId)
+          .then(ticket => {
+            if (!ticket) {
+              return res.status(404).json({ message: "Ticket não encontrado" });
             }
-            return res.status(403).json({ message: "Acesso negado: Apenas criadores e participantes podem gerenciar participantes" });
+            
+            const creatorUserId = ticket.customer?.user_id;
+            if (userId === creatorUserId) {
+              return next(); // Criador pode gerenciar participantes
+            }
+            
+            // Verificar se é participante do ticket
+            return storage.isUserTicketParticipant(ticketId, userId)
+              .then(isParticipant => {
+                if (isParticipant) {
+                  return next(); // Participante pode gerenciar participantes
+                }
+                return res.status(403).json({ message: "Acesso negado: Apenas criadores e participantes podem gerenciar participantes" });
+              });
+          })
+          .catch(error => {
+            console.error('Erro ao verificar permissões de participantes:', error);
+            return res.status(500).json({ message: "Erro interno do servidor" });
           });
       })
       .catch(error => {
-        console.error('Erro ao verificar permissões de participantes:', error);
+        console.error('Erro ao verificar se usuário é também official:', error);
         return res.status(500).json({ message: "Erro interno do servidor" });
       });
   } else {
