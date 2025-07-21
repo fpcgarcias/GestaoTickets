@@ -258,7 +258,7 @@ export default function OfficialsIndex() {
                   <TableHead>Email</TableHead>
                   <TableHead>Departamento</TableHead>
                   <TableHead>Supervisor</TableHead>
-                  <TableHead>Manager</TableHead>
+                  <TableHead>Gerente</TableHead>
                   {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
                   <TableHead>Status</TableHead>
                   <TableHead>Tickets Atribuídos</TableHead>

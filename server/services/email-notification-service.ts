@@ -976,46 +976,25 @@ export class EmailNotificationService {
       console.log(`[📧 EMAIL PROD] - Título: ${ticket.title}`);
       console.log(`[📧 EMAIL PROD] - Empresa ID: ${ticket.company_id}`);
 
-      // Buscar dados do atendente atribuído
+      // Buscar dados do atendente atribuído DIRETO DA TABELA OFFICIALS
       const [official] = await db
         .select()
-        .from(users)
-        .where(and(eq(users.id, assignedToId), eq(users.active, true)))
+        .from(officials)
+        .where(and(eq(officials.id, assignedToId), eq(officials.is_active, true)))
         .limit(1);
 
       if (!official) {
-        console.log(`[📧 EMAIL PROD] ❌ ERRO: Atendente ${assignedToId} não encontrado ou inativo`);
+        console.log(`[📧 EMAIL PROD] ❌ ERRO: Atendente (official) ${assignedToId} não encontrado ou inativo`);
         return;
       }
 
-      console.log(`[📧 EMAIL PROD] ✅ Atendente encontrado:`);
+      console.log(`[📧 EMAIL PROD] ✅ Atendente encontrado (official):`);
       console.log(`[📧 EMAIL PROD] - ID: ${official.id}`);
       console.log(`[📧 EMAIL PROD] - Nome: ${official.name}`);
       console.log(`[📧 EMAIL PROD] - Email: ${official.email}`);
-      console.log(`[📧 EMAIL PROD] - Role: ${official.role}`);
       console.log(`[📧 EMAIL PROD] - Empresa ID: ${official.company_id}`);
 
-      // 🔥 VALIDAÇÃO CRÍTICA: Atendente deve ser da MESMA EMPRESA do ticket!
-      if (ticket.company_id && official.company_id && ticket.company_id !== official.company_id) {
-        console.error(`[📧 EMAIL PROD] ❌ ERRO CRÍTICO: VIOLAÇÃO DE SEGURANÇA!`);
-        console.error(`[📧 EMAIL PROD] ❌ Ticket da empresa ${ticket.company_id} foi atribuído para atendente da empresa ${official.company_id}!`);
-        console.error(`[📧 EMAIL PROD] ❌ Ticket: ${ticket.ticket_id} (${ticket.title})`);
-        console.error(`[📧 EMAIL PROD] ❌ Atendente: ${official.name} (${official.email})`);
-        console.error(`[📧 EMAIL PROD] ❌ NENHUM EMAIL SERÁ ENVIADO POR SEGURANÇA!`);
-        return;
-      }
-
-      // 🔥 VALIDAÇÃO ADICIONAL: Se ticket tem empresa, atendente deve ter empresa (exceto admin)
-      if (ticket.company_id && !official.company_id && official.role !== 'admin') {
-        console.error(`[📧 EMAIL PROD] ❌ ERRO CRÍTICO: Atendente sem empresa para ticket com empresa!`);
-        console.error(`[📧 EMAIL PROD] ❌ Ticket empresa: ${ticket.company_id}, Atendente empresa: ${official.company_id}`);
-        console.error(`[📧 EMAIL PROD] ❌ NENHUM EMAIL SERÁ ENVIADO POR SEGURANÇA!`);
-        return;
-      }
-
-      console.log(`[📧 EMAIL PROD] ✅ Validação de empresa: OK - Atendente e ticket são da mesma empresa`);
-
-      // Buscar dados do cliente
+      // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -1023,10 +1002,6 @@ export class EmailNotificationService {
           .from(customers)
           .where(eq(customers.id, ticket.customer_id))
           .limit(1);
-        
-        console.log(`[📧 EMAIL PROD] ✅ Cliente encontrado: ${customer?.name || 'N/A'} (${customer?.email || ticket.customer_email})`);
-      } else {
-        console.log(`[📧 EMAIL PROD] ℹ️  Ticket sem customer_id - usando email: ${ticket.customer_email}`);
       }
 
       // Obter URL base para a empresa
@@ -1036,7 +1011,7 @@ export class EmailNotificationService {
       const context: EmailNotificationContext = {
         ticket,
         customer: customer || { name: 'Cliente', email: ticket.customer_email },
-        user: official,
+        user: official, // agora é o official
         official,
         system: {
           base_url: baseUrl,
@@ -1046,27 +1021,18 @@ export class EmailNotificationService {
       };
 
       // Notificar o atendente atribuído
-      console.log(`[📧 EMAIL PROD] 🔍 Verificando configurações de notificação do atendente...`);
-      const shouldNotify = await this.shouldSendEmailToUser(official.id, 'ticket_assigned');
-      
+      // Aqui, se quiser, pode usar official.id ou official.user_id para preferências, mas o e-mail é sempre official.email
+      const shouldNotify = await this.shouldSendEmailToUser(official.user_id, 'ticket_assigned');
       if (shouldNotify) {
-        console.log(`[📧 EMAIL PROD] ✅ Atendente ${official.name} configurado para receber notificações`);
-        
-        const result = await this.sendEmailNotification(
+        await this.sendEmailNotification(
           'ticket_assigned',
           official.email,
           context,
-          ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
-          official.role // Passar a role do atendente para validação
+          ticket.company_id!,
+          // Se precisar de role, pode buscar na tabela users pelo official.user_id
         );
-        
-        if (result.success) {
-          console.log(`[📧 EMAIL PROD] ✅ Email de atribuição enviado com sucesso para ${official.name}`);
-        } else {
-          console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email de atribuição para ${official.name}: ${result.error}`);
-        }
       } else {
-        console.log(`[📧 EMAIL PROD] 🔕 Atendente ${official.name} não configurado para receber notificações`);
+        console.log(`[📧 EMAIL PROD] 🔕 Atendente (official) ${official.name} não configurado para receber notificações`);
       }
 
       console.log(`[📧 EMAIL PROD] ===========================================`);
@@ -1095,40 +1061,27 @@ export class EmailNotificationService {
         .from(tickets)
         .where(eq(tickets.id, ticketId))
         .limit(1);
-
-      if (!ticket) {
-        console.log(`[📧 EMAIL PROD] ❌ ERRO: Ticket ${ticketId} não encontrado no banco`);
-        return;
-      }
-
-      console.log(`[📧 EMAIL PROD] ✅ Ticket encontrado:`);
-      console.log(`[📧 EMAIL PROD] - ID: ${ticket.id}`);
-      console.log(`[📧 EMAIL PROD] - Número: ${ticket.ticket_id}`);
-      console.log(`[📧 EMAIL PROD] - Título: ${ticket.title}`);
-      console.log(`[📧 EMAIL PROD] - Empresa ID: ${ticket.company_id}`);
-      console.log(`[📧 EMAIL PROD] - Departamento ID: ${ticket.department_id}`);
-      console.log(`[📧 EMAIL PROD] - Email cliente: ${ticket.customer_email}`);
-
+      if (!ticket) return;
       // Buscar dados do usuário que respondeu
-      const [replyUser] = await db
-        .select()
-        .from(users)
-        .where(and(eq(users.id, replyUserId), eq(users.active, true)))
-        .limit(1);
-
-      if (!replyUser) {
-        console.log(`[📧 EMAIL PROD] ❌ ERRO: Usuário ${replyUserId} não encontrado ou inativo`);
-        return;
+      // Se for atendente, buscar em officials; se for cliente, buscar em customers
+      let replyUser = null;
+      if (ticket.assigned_to_id && replyUserId === ticket.assigned_to_id) {
+        // Atendente responsável respondeu
+        [replyUser] = await db
+          .select()
+          .from(officials)
+          .where(and(eq(officials.id, replyUserId), eq(officials.is_active, true)))
+          .limit(1);
+      } else {
+        // Cliente respondeu (ou outro)
+        [replyUser] = await db
+          .select()
+          .from(users)
+          .where(and(eq(users.id, replyUserId), eq(users.active, true)))
+          .limit(1);
       }
-
-      console.log(`[📧 EMAIL PROD] ✅ Usuário que respondeu encontrado:`);
-      console.log(`[📧 EMAIL PROD] - ID: ${replyUser.id}`);
-      console.log(`[📧 EMAIL PROD] - Nome: ${replyUser.name}`);
-      console.log(`[📧 EMAIL PROD] - Email: ${replyUser.email}`);
-      console.log(`[📧 EMAIL PROD] - Role: ${replyUser.role}`);
-      console.log(`[📧 EMAIL PROD] - Empresa ID: ${replyUser.company_id}`);
-
-      // Buscar dados do cliente
+      if (!replyUser) return;
+      // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -1136,14 +1089,10 @@ export class EmailNotificationService {
           .from(customers)
           .where(eq(customers.id, ticket.customer_id))
           .limit(1);
-        
-        console.log(`[📧 EMAIL PROD] ✅ Cliente encontrado: ${customer?.name || 'N/A'} (${customer?.email || ticket.customer_email})`);
-      } else {
-        console.log(`[📧 EMAIL PROD] ℹ️  Ticket sem customer_id - usando email: ${ticket.customer_email}`);
       }
 
       // Obter URL base para a empresa
-      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
+      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id !== null && ticket.company_id !== undefined ? ticket.company_id : undefined);
       console.log(`[📧 EMAIL PROD] ✅ URL base obtida: ${baseUrl}`);
 
       const context: EmailNotificationContext = {
@@ -1167,46 +1116,40 @@ export class EmailNotificationService {
       if (ticket.assigned_to_id) {
         // Se quem respondeu foi o cliente, notificar só o responsável
         if (replyUser.role === 'customer') {
-          const [assignedUser] = await db
+          // Buscar official pelo assigned_to_id
+          const [assignedOfficial] = await db
             .select()
-            .from(users)
-            .where(and(eq(users.id, ticket.assigned_to_id), eq(users.active, true)))
+            .from(officials)
+            .where(and(eq(officials.id, ticket.assigned_to_id), eq(officials.is_active, true)))
             .limit(1);
-          if (assignedUser) {
-            const shouldNotify = await this.shouldSendEmailToUser(assignedUser.id, 'ticket_reply');
+          if (assignedOfficial) {
+            const shouldNotify = assignedOfficial.user_id ? await this.shouldSendEmailToUser(assignedOfficial.user_id, 'ticket_reply') : false;
             if (shouldNotify) {
               await this.sendEmailNotification(
                 'ticket_reply',
-                assignedUser.email,
+                assignedOfficial.email,
                 context,
                 ticket.company_id!,
-                assignedUser.role
+                // Se precisar de role, buscar na tabela users pelo assignedOfficial.user_id
               );
             }
           }
         } else {
           // Se quem respondeu foi o responsável, notificar só o cliente
-          if (ticket.customer_email) {
-            const [customerUser] = await db
-              .select()
-              .from(users)
-              .where(eq(users.email, ticket.customer_email))
-              .limit(1);
-            const shouldNotify = customerUser
-              ? await this.shouldSendEmailToUser(customerUser.id, 'ticket_reply')
-              : true;
+          if (customer) {
+            const shouldNotify = typeof customer.id === 'number' ? await this.shouldSendEmailToUser(customer.id, 'ticket_reply') : false;
             if (shouldNotify) {
               await this.sendEmailNotification(
                 'ticket_reply',
-                ticket.customer_email,
+                customer.email,
                 context,
                 ticket.company_id!,
-                customerUser?.role || 'customer'
+                'customer'
               );
             }
           }
         }
-        // Notificar participantes normalmente
+        // Notificar participantes normalmente (aqui pode ser users)
         const participants = await this.getTicketParticipants(ticketId, replyUserId);
         if (participants.length > 0) {
           await this.notifyParticipantsWithSettings(
@@ -1337,21 +1280,8 @@ export class EmailNotificationService {
         .from(tickets)
         .where(eq(tickets.id, ticketId))
         .limit(1);
-
-      if (!ticket) {
-        console.log(`[📧 EMAIL PROD] ❌ ERRO: Ticket ${ticketId} não encontrado no banco`);
-        return;
-      }
-
-      console.log(`[📧 EMAIL PROD] ✅ Ticket encontrado:`);
-      console.log(`[📧 EMAIL PROD] - ID: ${ticket.id}`);
-      console.log(`[📧 EMAIL PROD] - Número: ${ticket.ticket_id}`);
-      console.log(`[📧 EMAIL PROD] - Título: ${ticket.title}`);
-      console.log(`[📧 EMAIL PROD] - Empresa ID: ${ticket.company_id}`);
-      console.log(`[📧 EMAIL PROD] - Departamento ID: ${ticket.department_id}`);
-      console.log(`[📧 EMAIL PROD] - Email cliente: ${ticket.customer_email}`);
-
-      // Buscar dados do cliente
+      if (!ticket) return;
+      // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -1359,10 +1289,6 @@ export class EmailNotificationService {
           .from(customers)
           .where(eq(customers.id, ticket.customer_id))
           .limit(1);
-        
-        console.log(`[📧 EMAIL PROD] ✅ Cliente encontrado: ${customer?.name || 'N/A'} (${customer?.email || ticket.customer_email})`);
-      } else {
-        console.log(`[📧 EMAIL PROD] ℹ️  Ticket sem customer_id - usando email: ${ticket.customer_email}`);
       }
 
       let changedByUser = null;
@@ -1393,7 +1319,7 @@ export class EmailNotificationService {
       };
 
       // Obter URL base para a empresa
-      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
+      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id !== null && ticket.company_id !== undefined ? ticket.company_id : undefined);
       console.log(`[📧 EMAIL PROD] ✅ URL base obtida: ${baseUrl}`);
 
       const context: EmailNotificationContext = {
@@ -1417,45 +1343,39 @@ export class EmailNotificationService {
       if (ticket.assigned_to_id) {
         // Notificar responsável, exceto se ele mesmo alterou
         if (!changedByUserId || ticket.assigned_to_id !== changedByUserId) {
-          const [assignedUser] = await db
+          // Buscar official pelo assigned_to_id
+          const [assignedOfficial] = await db
             .select()
-            .from(users)
-            .where(and(eq(users.id, ticket.assigned_to_id), eq(users.active, true)))
+            .from(officials)
+            .where(and(eq(officials.id, ticket.assigned_to_id), eq(officials.is_active, true)))
             .limit(1);
-          if (assignedUser) {
-            const shouldNotify = await this.shouldSendEmailToUser(assignedUser.id, 'status_changed');
+          if (assignedOfficial) {
+            const shouldNotify = assignedOfficial.user_id ? await this.shouldSendEmailToUser(assignedOfficial.user_id, 'status_changed') : false;
             if (shouldNotify) {
               await this.sendEmailNotification(
                 'status_changed',
-                assignedUser.email,
+                assignedOfficial.email,
                 context,
                 ticket.company_id!,
-                assignedUser.role
+                // Se precisar de role, buscar na tabela users pelo assignedOfficial.user_id
               );
             }
           }
         }
         // Notificar cliente normalmente
-        if (ticket.customer_email) {
-          const [customerUser] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, ticket.customer_email))
-            .limit(1);
-          const shouldNotify = customerUser
-            ? await this.shouldSendEmailToUser(customerUser.id, newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed')
-            : true;
+        if (customer) {
+          const shouldNotify = await this.shouldSendEmailToUser(customer.id, newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed');
           if (shouldNotify) {
             await this.sendEmailNotification(
               newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed',
-              ticket.customer_email,
+              customer.email,
               context,
               ticket.company_id!,
-              customerUser?.role || 'customer'
+              'customer'
             );
           }
         }
-        // Notificar participantes normalmente
+        // Notificar participantes normalmente (aqui pode ser users)
         const participants = await this.getTicketParticipants(ticketId, changedByUserId);
         if (participants.length > 0) {
           await this.notifyParticipantsWithSettings(
@@ -1620,21 +1540,8 @@ export class EmailNotificationService {
         .from(tickets)
         .where(eq(tickets.id, ticketId))
         .limit(1);
-
-      if (!ticket) {
-        console.log(`[📧 EMAIL PROD] ❌ ERRO: Ticket ${ticketId} não encontrado no banco`);
-        return;
-      }
-
-      console.log(`[📧 EMAIL PROD] ✅ Ticket encontrado:`);
-      console.log(`[📧 EMAIL PROD] - ID: ${ticket.id}`);
-      console.log(`[📧 EMAIL PROD] - Número: ${ticket.ticket_id}`);
-      console.log(`[📧 EMAIL PROD] - Título: ${ticket.title}`);
-      console.log(`[📧 EMAIL PROD] - Empresa ID: ${ticket.company_id}`);
-      console.log(`[📧 EMAIL PROD] - Departamento ID: ${ticket.department_id}`);
-      console.log(`[📧 EMAIL PROD] - Email cliente: ${ticket.customer_email}`);
-
-      // Buscar dados do cliente
+      if (!ticket) return;
+      // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -1642,10 +1549,6 @@ export class EmailNotificationService {
           .from(customers)
           .where(eq(customers.id, ticket.customer_id))
           .limit(1);
-        
-        console.log(`[📧 EMAIL PROD] ✅ Cliente encontrado: ${customer?.name || 'N/A'} (${customer?.email || ticket.customer_email})`);
-      } else {
-        console.log(`[📧 EMAIL PROD] ℹ️  Ticket sem customer_id - usando email: ${ticket.customer_email}`);
       }
 
       let escalatedByUser = null;
@@ -1660,7 +1563,7 @@ export class EmailNotificationService {
       }
 
       // Obter URL base para a empresa
-      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
+      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id !== null && ticket.company_id !== undefined ? ticket.company_id : undefined);
       console.log(`[📧 EMAIL PROD] ✅ URL base obtida: ${baseUrl}`);
 
       const context: EmailNotificationContext = {
@@ -1812,21 +1715,8 @@ export class EmailNotificationService {
         .from(tickets)
         .where(eq(tickets.id, ticketId))
         .limit(1);
-
-      if (!ticket) {
-        console.log(`[📧 EMAIL PROD] ❌ ERRO: Ticket ${ticketId} não encontrado no banco`);
-        return;
-      }
-
-      console.log(`[📧 EMAIL PROD] ✅ Ticket encontrado:`);
-      console.log(`[📧 EMAIL PROD] - ID: ${ticket.id}`);
-      console.log(`[📧 EMAIL PROD] - Número: ${ticket.ticket_id}`);
-      console.log(`[📧 EMAIL PROD] - Título: ${ticket.title}`);
-      console.log(`[📧 EMAIL PROD] - Empresa ID: ${ticket.company_id}`);
-      console.log(`[📧 EMAIL PROD] - Departamento ID: ${ticket.department_id}`);
-      console.log(`[📧 EMAIL PROD] - Atribuído para ID: ${ticket.assigned_to_id || 'N/A'}`);
-
-      // Buscar dados do cliente
+      if (!ticket) return;
+      // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -1834,14 +1724,10 @@ export class EmailNotificationService {
           .from(customers)
           .where(eq(customers.id, ticket.customer_id))
           .limit(1);
-        
-        console.log(`[📧 EMAIL PROD] ✅ Cliente encontrado: ${customer?.name || 'N/A'} (${customer?.email || ticket.customer_email})`);
-      } else {
-        console.log(`[📧 EMAIL PROD] ℹ️  Ticket sem customer_id - usando email: ${ticket.customer_email}`);
       }
 
       // Obter URL base para a empresa
-      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
+      const baseUrl = await this.getBaseUrlForCompany(ticket.company_id !== null && ticket.company_id !== undefined ? ticket.company_id : undefined);
       console.log(`[📧 EMAIL PROD] ✅ URL base obtida: ${baseUrl}`);
 
       const context: EmailNotificationContext = {
@@ -1856,47 +1742,24 @@ export class EmailNotificationService {
 
       // 🔥 NOTIFICAR O ATENDENTE ATRIBUÍDO (se houver)
       if (ticket.assigned_to_id) {
-        console.log(`[📧 EMAIL PROD] 📧 Notificando atendente atribuído ID: ${ticket.assigned_to_id}`);
-        
+        // Buscar official pelo assigned_to_id
         const [assignedOfficial] = await db
           .select()
-          .from(users)
-          .where(and(eq(users.id, ticket.assigned_to_id), eq(users.active, true)))
+          .from(officials)
+          .where(and(eq(officials.id, ticket.assigned_to_id), eq(officials.is_active, true)))
           .limit(1);
-
         if (assignedOfficial) {
-          console.log(`[📧 EMAIL PROD] ✅ Atendente atribuído encontrado: ${assignedOfficial.name} (${assignedOfficial.email})`);
-          
-          // 🔥 VALIDAÇÃO CRÍTICA: Atendente deve ser da MESMA EMPRESA do ticket!
-          if (ticket.company_id && assignedOfficial.company_id && ticket.company_id !== assignedOfficial.company_id) {
-            console.error(`[📧 EMAIL PROD] ❌ ERRO CRÍTICO: VIOLAÇÃO DE SEGURANÇA!`);
-            console.error(`[📧 EMAIL PROD] ❌ Ticket da empresa ${ticket.company_id} atribuído para atendente da empresa ${assignedOfficial.company_id}!`);
-            console.error(`[📧 EMAIL PROD] ❌ NENHUM EMAIL SERÁ ENVIADO POR SEGURANÇA!`);
-          } else {
-            const shouldNotify = await this.shouldSendEmailToUser(assignedOfficial.id, 'ticket_due_soon');
-            if (shouldNotify) {
-              const result = await this.sendEmailNotification(
-                'ticket_due_soon',
-                assignedOfficial.email,
-                context,
-                ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
-                assignedOfficial.role // Passar a role do atendente para validação
-              );
-              
-              if (result.success) {
-                console.log(`[📧 EMAIL PROD] ✅ Email de vencimento enviado com sucesso para atendente atribuído`);
-              } else {
-                console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email de vencimento para atendente atribuído: ${result.error}`);
-              }
-            } else {
-              console.log(`[📧 EMAIL PROD] 🔕 Atendente atribuído não configurado para receber notificações`);
-            }
+          const shouldNotify = assignedOfficial.user_id ? await this.shouldSendEmailToUser(assignedOfficial.user_id, 'ticket_due_soon') : false;
+          if (shouldNotify) {
+            await this.sendEmailNotification(
+              'ticket_due_soon',
+              assignedOfficial.email,
+              context,
+              ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
+              // Se precisar de role, buscar na tabela users pelo assignedOfficial.user_id
+            );
           }
-        } else {
-          console.log(`[📧 EMAIL PROD] ⚠️  Atendente atribuído ${ticket.assigned_to_id} não encontrado ou inativo`);
         }
-      } else {
-        console.log(`[📧 EMAIL PROD] ℹ️  Ticket sem atendente atribuído`);
       }
 
       // 🔥 NOTIFICAR ATENDENTES DO DEPARTAMENTO (exceto o atribuído)
