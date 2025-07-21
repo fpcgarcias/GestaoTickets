@@ -384,6 +384,10 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                     title: "Arquivo anexado",
                     description: `${attachment.original_filename} foi anexado com sucesso.`,
                   });
+                  // Invalidar query dos anexos para recarregar a lista
+                  queryClient.invalidateQueries({ 
+                    queryKey: [`/api/tickets/${ticket.id}/attachments`] 
+                  });
                 }}
                 onUploadError={(error) => {
                   console.error('Erro no upload:', error);

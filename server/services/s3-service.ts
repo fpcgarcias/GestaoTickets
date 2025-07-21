@@ -17,7 +17,7 @@ const s3Client = new S3Client({
 const BUCKET_NAME = process.env.WASABI_BUCKET_NAME || 'gestao-tickets-anexos';
 const URL_EXPIRATION = parseInt(process.env.FILE_URL_EXPIRATION || '3600'); // 1 hora
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE || '10485760'); // 10MB
-const ALLOWED_FILE_TYPES = (process.env.ALLOWED_FILE_TYPES || 'pdf,doc,docx,txt,jpg,jpeg,png,gif,zip,rar').split(',');
+const ALLOWED_FILE_TYPES = (process.env.ALLOWED_FILE_TYPES || 'pdf,doc,docx,txt,rtf,xls,xlsx,csv,ppt,pptx,sql,db,sqlite,jpg,jpeg,png,gif,bmp,tiff,svg,webp,zip,rar,7z,tar,gz,json,xml,yaml,yml,log,ini,cfg,conf,exe,msi,deb,rpm,mp4,avi,mov,wmv,flv,webm,mp3,wav,flac,aac').split(',');
 
 // Interface para o resultado do upload
 export interface UploadResult {
@@ -63,6 +63,20 @@ class S3Service {
   }
 
   /**
+   * Sanitiza nomes de arquivos removendo acentos, espaços e caracteres especiais
+   */
+  sanitizeFileName(name: string): string {
+    return name
+      .normalize('NFD') // Normalizar acentos
+      .replace(/[\u0300-\u036f]/g, '') // Remover diacríticos
+      .replace(/ç/g, 'c').replace(/Ç/g, 'C') // Cedilha
+      .replace(/[^a-zA-Z0-9\-_\.]/g, '_') // Substituir tudo que não for letra, número, - _ . por _
+      .replace(/_{2,}/g, '_') // Múltiplos _ por um só
+      .replace(/^_+|_+$/g, '') // Remover _ do início/fim
+      .substring(0, 80); // Limitar tamanho
+  }
+
+  /**
    * Gera uma chave única para o arquivo no S3
    */
   generateS3Key(originalFilename: string, ticketId: number, userId: number): string {
@@ -72,11 +86,12 @@ class S3Service {
     const baseName = path.basename(originalFilename, extension);
     
     // Sanitizar nome do arquivo
-    const sanitizedBaseName = baseName
-      .replace(/[^a-zA-Z0-9-_]/g, '_')
-      .substring(0, 50);
+    const sanitizedBaseName = this.sanitizeFileName(baseName);
+    const sanitizedExtension = this.sanitizeFileName(extension);
 
-    return `tickets/${ticketId}/attachments/${userId}/${timestamp}_${randomId}_${sanitizedBaseName}${extension}`;
+    const s3Key = `tickets/${ticketId}/attachments/${userId}/${timestamp}_${randomId}_${sanitizedBaseName}${sanitizedExtension}`;
+    
+    return s3Key;
   }
 
   /**
@@ -89,11 +104,10 @@ class S3Service {
       throw new Error(validation.error);
     }
 
-    // Gerar chave S3
+    // Gerar chave S3 e nome sanitizado
     const s3Key = this.generateS3Key(file.originalName, ticketId, userId);
-    
-    // Gerar nome do arquivo (sem caracteres especiais)
     const filename = path.basename(s3Key);
+    const sanitizedOriginalName = this.sanitizeFileName(file.originalName);
 
     try {
       // Comando de upload
@@ -103,7 +117,7 @@ class S3Service {
         Body: file.buffer,
         ContentType: file.mimeType,
         Metadata: {
-          'original-filename': file.originalName,
+          'original-filename': sanitizedOriginalName,
           'ticket-id': ticketId.toString(),
           'uploaded-by': userId.toString(),
           'upload-timestamp': Date.now().toString(),
@@ -117,13 +131,13 @@ class S3Service {
         s3Key,
         bucket: BUCKET_NAME,
         filename,
-        originalFilename: file.originalName,
+        originalFilename: sanitizedOriginalName,
         fileSize: file.size,
         mimeType: file.mimeType,
       };
 
     } catch (error) {
-      console.error('Erro ao fazer upload do arquivo:', error);
+      console.error(`[S3] ❌ Erro no upload:`, error);
       throw new Error('Falha ao fazer upload do arquivo. Tente novamente.');
     }
   }
@@ -169,20 +183,42 @@ class S3Service {
   /**
    * Verifica se as configurações do S3/Wasabi estão válidas
    */
-  async testConnection(): Promise<{ success: boolean; error?: string }> {
+  async testConnection(): Promise<{ success: boolean; error?: string; diagnostics?: any }> {
     try {
-      // Tentar fazer um pequeno upload de teste
+      // Configurações básicas
+      const config = {
+        accessKey: process.env.WASABI_ACCESS_KEY_ID ? 'Configurado' : 'AUSENTE',
+        secretKey: process.env.WASABI_SECRET_ACCESS_KEY ? 'Configurado' : 'AUSENTE',
+        region: process.env.WASABI_REGION || 'us-east-1',
+        endpoint: process.env.WASABI_ENDPOINT || 'https://s3.wasabisys.com',
+        bucket: BUCKET_NAME,
+        timestamp: new Date().toISOString()
+      };
+
+      // Upload de teste
       const testKey = `test/connection-test-${Date.now()}.txt`;
-      const testContent = 'teste de conexão';
+      const testContent = 'teste de conexão - sistema de tickets';
       
       const uploadCommand = new PutObjectCommand({
         Bucket: BUCKET_NAME,
         Key: testKey,
         Body: Buffer.from(testContent),
         ContentType: 'text/plain',
+        Metadata: {
+          'test': 'connection',
+          'timestamp': Date.now().toString()
+        }
       });
 
       await s3Client.send(uploadCommand);
+
+      // Verificar se o arquivo foi salvo
+      const downloadCommand = new GetObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: testKey,
+      });
+
+      await s3Client.send(downloadCommand);
 
       // Remover arquivo de teste
       const deleteCommand = new DeleteObjectCommand({
@@ -191,13 +227,61 @@ class S3Service {
       });
 
       await s3Client.send(deleteCommand);
-
-      return { success: true };
+      
+      return { 
+        success: true, 
+        diagnostics: {
+          ...config,
+          testCompleted: true,
+          operationsSuccessful: ['upload', 'download', 'delete']
+        }
+      };
     } catch (error) {
-      console.error('Erro ao testar conexão S3:', error);
+      const diagnostics = {
+        accessKey: process.env.WASABI_ACCESS_KEY_ID ? 'Configurado' : 'AUSENTE',
+        secretKey: process.env.WASABI_SECRET_ACCESS_KEY ? 'Configurado' : 'AUSENTE',
+        region: process.env.WASABI_REGION || 'us-east-1',
+        endpoint: process.env.WASABI_ENDPOINT || 'https://s3.wasabisys.com',
+        bucket: BUCKET_NAME,
+        errorType: error instanceof Error ? error.constructor.name : 'Unknown',
+        errorMessage: error instanceof Error ? error.message : 'Erro desconhecido',
+        timestamp: new Date().toISOString(),
+        possibleCauses: [] as string[]
+      };
+
+      // Diagnóstico específico para diferentes tipos de erro
+      if (error instanceof Error && error.message.includes('SignatureDoesNotMatch')) {
+        diagnostics.possibleCauses = [
+          'Credenciais AWS/Wasabi incorretas ou expiradas',
+          'Relógio do servidor desalinhado (verificar fuso horário)',
+          'Endpoint Wasabi incorreto',
+          'Região configurada incorretamente',
+          'Bucket não existe ou sem permissões'
+        ];
+      } else if (error instanceof Error && error.message.includes('NoSuchBucket')) {
+        diagnostics.possibleCauses = [
+          'Bucket não existe',
+          'Nome do bucket incorreto',
+          'Bucket em região diferente'
+        ];
+      } else if (error instanceof Error && error.message.includes('AccessDenied')) {
+        diagnostics.possibleCauses = [
+          'Credenciais sem permissões suficientes',
+          'Política do bucket restritiva',
+          'Credenciais incorretas'
+        ];
+      } else {
+        diagnostics.possibleCauses = [
+          'Problema de conectividade de rede',
+          'Endpoint Wasabi inacessível',
+          'Configurações de proxy/firewall'
+        ];
+      }
+
       return { 
         success: false, 
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
+        diagnostics
       };
     }
   }

@@ -81,8 +81,24 @@ export function FileUpload({
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Erro no upload');
+        let errorMessage = 'Erro inesperado ao enviar o arquivo. Tente novamente ou envie para o suporte.';
+        const text = await response.text();
+        try {
+          const errorData = JSON.parse(text);
+          if (errorData && errorData.message) {
+            errorMessage = errorData.message;
+          }
+        } catch (jsonErr) {
+          // Se não for JSON, pode ser HTML ou texto
+          if (text && text.includes('Tipo de arquivo não permitido')) {
+            errorMessage = 'Tipo de arquivo não permitido. Verifique a extensão e tente novamente.';
+          } else if (text && text.includes('Payload Too Large')) {
+            errorMessage = 'Arquivo muito grande. O tamanho máximo permitido foi excedido.';
+          } else {
+            errorMessage = 'Erro inesperado ao enviar o arquivo. Tente novamente ou envie para o suporte.';
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       const attachment = await response.json();

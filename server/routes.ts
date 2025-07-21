@@ -5840,7 +5840,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       fileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760'), // 10MB padrão
     },
     fileFilter: (req, file, cb) => {
-      const allowedTypes = (process.env.ALLOWED_FILE_TYPES || 'pdf,doc,docx,txt,jpg,jpeg,png,gif,zip,rar').split(',');
+      const allowedTypes = (process.env.ALLOWED_FILE_TYPES || 'pdf,doc,docx,txt,rtf,xls,xlsx,csv,ppt,pptx,sql,db,sqlite,jpg,jpeg,png,gif,bmp,tiff,svg,webp,zip,rar,7z,tar,gz,json,xml,yaml,yml,log,ini,cfg,conf,exe,msi,deb,rpm,mp4,avi,mov,wmv,flv,webm,mp3,wav,flac,aac').split(',');
       const extension = file.originalname.split('.').pop()?.toLowerCase();
       
       if (extension && allowedTypes.includes(extension)) {

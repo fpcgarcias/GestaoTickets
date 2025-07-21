@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { TicketAttachment } from '@shared/schema';
+import { useQuery } from '@tanstack/react-query';
 
 // Usar o tipo do schema
 type Attachment = TicketAttachment;
@@ -16,47 +17,33 @@ interface AttachmentsListProps {
   showUploader?: boolean;
 }
 
-export function AttachmentsList({ 
+const AttachmentsList = React.forwardRef(function AttachmentsList({ 
   ticketId, 
   attachments: initialAttachments, 
   onAttachmentsChange,
   showUploader = false 
-}: AttachmentsListProps) {
-  const [attachments, setAttachments] = useState<Attachment[]>(initialAttachments || []);
-  const [loading, setLoading] = useState(!initialAttachments);
+}: AttachmentsListProps, ref) {
   const [downloadingIds, setDownloadingIds] = useState<Set<number>>(new Set());
   const { toast } = useToast();
 
-  // Buscar anexos se não foram fornecidos
-  useEffect(() => {
-    if (!initialAttachments) {
-      fetchAttachments();
-    }
-  }, [ticketId, initialAttachments]);
-
-  const fetchAttachments = async () => {
-    try {
-      setLoading(true);
+  // Usar React Query para buscar anexos
+  const { data: attachments = [], isLoading: loading, refetch: fetchAttachments } = useQuery<Attachment[]>({
+    queryKey: [`/api/tickets/${ticketId}/attachments`],
+    queryFn: async (): Promise<Attachment[]> => {
       const response = await fetch(`/api/tickets/${ticketId}/attachments`);
-      
       if (!response.ok) {
         throw new Error('Erro ao buscar anexos');
       }
-
       const data = await response.json();
-      setAttachments(data);
       onAttachmentsChange?.(data);
-    } catch (error) {
-      console.error('Erro ao buscar anexos:', error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar os anexos",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+      return data;
+    },
+    initialData: initialAttachments,
+    staleTime: 30000, // 30 segundos
+  });
+
+  // Expor refetch para uso externo (se necessário)
+  React.useImperativeHandle(ref, () => ({ fetchAttachments }), [fetchAttachments]);
 
   const getFileIcon = (mimeType: string, filename: string) => {
     const extension = filename.split('.').pop()?.toLowerCase();
@@ -138,11 +125,6 @@ export function AttachmentsList({
         return newSet;
       });
     }
-  };
-
-  const handleNewAttachment = (newAttachment: Attachment) => {
-    setAttachments(prev => [newAttachment, ...prev]);
-    onAttachmentsChange?.([newAttachment, ...attachments]);
   };
 
   if (loading) {
@@ -237,4 +219,6 @@ export function AttachmentsList({
       )}
     </div>
   );
-} 
+});
+
+export { AttachmentsList }; 
