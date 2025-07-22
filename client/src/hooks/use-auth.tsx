@@ -58,18 +58,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   useEffect(() => {
-    if (data) {
-      setUser(data as User);
-      if ((data as User).company) {
-        setCompany((data as User).company as Company);
+    // Só considerar inicialização completa quando a query não estiver mais carregando
+    if (!isQueryLoading) {
+      if (data) {
+        setUser(data as User);
+        if ((data as User).company) {
+          setCompany((data as User).company as Company);
+        }
+        setError(null);
+      } else if (queryError) {
+        setUser(null);
+        setCompany(null);
+        setError(queryError as Error);
       }
-      setError(null);
-    } else if (queryError) {
-      setUser(null);
-      setCompany(null);
-      setError(queryError as Error);
+      setIsInitializing(false);
     }
-    setIsInitializing(false);
   }, [data, queryError, isQueryLoading]);
 
   const login = async (username: string, password: string) => {
@@ -127,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const value = {
     user,
     company,
-    isLoading: isInitializing,
+    isLoading: isInitializing || isQueryLoading,
     error,
     login,
     logout,
