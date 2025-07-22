@@ -6,18 +6,18 @@
       "version": "1.0.22",
       "date": "2025-07-20",
       "title": "Correções de bugs.",
-      "type": "update.",
+      "type": "update",
       "changes": {
         "improved": [
           "Implementada função de adicionar participantes do ticket.",
-          "Melhorias nos layouts dos e-mails de notificação de chamados"
+          "Melhorias nos layouts dos e-mails de notificação de chamados."
         ],
         "fixed": [
           "Ajustes nas notificações de chamados por e-mail.",
           "Ajustes na lentidão no envio das respostas dos chamados.",
           "Correção nas notificações de atendentes vinculados aos chamados.",
           "Alterado o período padrão dos filtros de datas para o mês atual nas telas de tickets e dashboard.",
-          "Correção nos envios de arquivos para o S3"
+          "Correção nos envios de arquivos para o S3."
         ]
       }
     },
@@ -25,10 +25,10 @@
       "version": "1.0.21",
       "date": "2025-07-18",
       "title": "Correções de bugs.",
-      "type": "bugfix.",
+      "type": "bugfix",
       "changes": {
         "fixed": [
-          "Correção no filtro de atendentes na tela de tickets"
+          "Correção no filtro de atendentes na tela de tickets."
         ]
       }
     },
@@ -36,7 +36,7 @@
       "version": "1.0.20",
       "date": "2025-07-16",
       "title": "Mehorias de performance e correções de bugs.",
-      "type": "update.",
+      "type": "update",
       "changes": {
         "improved": [
           "Melhoria de performance na tela de tickets.",
@@ -47,7 +47,7 @@
           "Melhoria de performance na tela de SLA.",
           "Melhoria de performance na tela de dashboard.",
           "Melhoria de performance na tela de notificações.",
-          "Adição de novos formatos de arquivos para anexos de chamados"
+          "Adição de novos formatos de arquivos para anexos de chamados."
         ],
         "fixed": [
           "Correção de permissão nas respostas de tickets.",
@@ -56,7 +56,7 @@
           "Aceerto dos cálculos de SLA no dashboard para seguir as regras de SLA.",
           "Acerto dos filtros de tickets para clientes, exibindo apenas os próprios chamados.",
           "Melhorias nas estatísticas de performance.",
-          "Checkbox de ocultar tickets resolvidos fica fixo na tela de tickets"          
+          "Checkbox de ocultar tickets resolvidos fica fixo na tela de tickets."
         ]
       }
     },
@@ -64,14 +64,14 @@
       "version": "1.0.19",
       "date": "2025-07-08",
       "title": "Implementação de novas funcionalidades.",
-      "type": "update.",
+      "type": "update",
       "changes": {
         "new": [
-          "Implementação do filtro de chamados com status diferente de resolvido"
+          "Implementação do filtro de chamados com status diferente de resolvido."
         ],
         "fixed": [
           "Ajuste clientes pela ordem alfabética na tela de clientes.",
-          "Ajuste dos atendentes pela ordem alfabética na tela de atendentes"
+          "Ajuste dos atendentes pela ordem alfabética na tela de atendentes."
         ]
       }
     },
@@ -79,7 +79,7 @@
       "version": "1.0.18",
       "date": "2025-07-04",
       "title": "Implementação de novas funcionalidades.",
-      "type": "feature.",
+      "type": "feature",
       "changes": {
         "new": [
           "Implementação da tela de prioridades, adicionando prioridades personalizadas por departamento.",
@@ -87,7 +87,7 @@
           "Implementação de novo sistema de SLA, adicionando SLA personalizado por departamento.",
           "Implementação de tela com dashboard de SLA, mostrando o SLA de cada departamento.",
           "Implementação de análise de prioridade pela IA por departamento, usando prompts personalizados para cada departamento.",
-          "Adicionado novo widget com a quantidade de chamados outros status, ajustando a conta de total de chamados"
+          "Adicionado novo widget com a quantidade de chamados outros status, ajustando a conta de total de chamados."
         ],
         "fixed": [
           "Ajuste do dashboard corrigindo o widget de chamados por prioridade, puxando o novo padrão implementado.",
@@ -109,15 +109,15 @@
       "version": "1.0.17",
       "date": "2025-06-23",
       "title": "Implementação de novas funcionalidades.",
-      "type": "update.",
+      "type": "update",
       "changes": {
         "new": [
           "Implementação de filtro de atendentes no dashboard.",
           "Implementação de widgets de tempo médio de primeiro atendimento e tempo médio de resolução de chamados.",
-          "Implantação do filtro de datas no dashboard"
+          "Implantação do filtro de datas no dashboard."
         ],
         "fixed": [
-          "Ajuste no cálculo do SLA, descontando o período em que o ticket estava pendente"
+          "Ajuste no cálculo do SLA, descontando o período em que o ticket estava pendente."
         ]
       }
     },
@@ -125,12 +125,12 @@
       "version": "1.0.16",
       "date": "2025-06-16",
       "title": "Correções de bugs.",
-      "type": "bugfix.",
+      "type": "bugfix",
       "changes": {
         "fixed": [
           "Correção da conexão com o websocket usando nginx.",
           "Correção do histórico de chamados exibindo as alterações de prioridade alteradas pela IA.",
-          "Correção na análise de prioridade pela IA  "
+          "Correção na análise de prioridade pela IA."
         ]
       }
     },
@@ -138,13 +138,13 @@
       "version": "1.0.15",
       "date": "2025-06-12",
       "title": "Adição de novas funcionalidades.",
-      "type": "update.",
+      "type": "update",
       "changes": {
         "new": [
-          "Implementação de novas funcionalidades de gerenciamento de chamados"
+          "Implementação de novas funcionalidades de gerenciamento de chamados."
         ],
         "fixed": [
-          "Correção no filtro de datas na tela de chamados"
+          "Correção no filtro de datas na tela de chamados."
         ]
       }
     },
@@ -152,25 +152,25 @@
       "version": "1.0.14",
       "date": "2025-06-12",
       "title": "Melhorias de Performance e Usabilidade.",
-      "type": "update.",
+      "type": "update",
       "changes": {
         "new": [
           "Sistema de notificações em tempo real mais rápido.",
           "Interface do dashboard otimizada para carregamento mais ágil.",
           "Filtros avançados na lista de chamados.",
-          "Melhoria na busca de chamados por texto"
+          "Melhoria na busca de chamados por texto."
         ],
         "improved": [
           "Tempo de resposta do sistema reduzido em até 75%.",
           "Carregamento de páginas mais rápido.",
           "Interface mais responsiva em dispositivos móveis.",
-          "Estabilidade geral do sistema aprimorada"
+          "Estabilidade geral do sistema aprimorada."
         ],
         "fixed": [
           "Correção de problemas de sincronização em tempo real.",
           "Resolução de lentidão em listas com muitos registros.",
           "Correção de bugs na exibição de gráficos do dashboard.",
-          "Melhoria na precisão dos filtros de data"
+          "Melhoria na precisão dos filtros de data."
         ]
       }
     },
@@ -178,16 +178,16 @@
       "version": "1.0.13",
       "date": "2025-06-08",
       "title": "Gestão de Empresas Aprimorada.",
-      "type": "feature.",
+      "type": "feature",
       "changes": {
         "new": [
           "Visualização de empresa associada a cada usuário.",
           "Melhor organização multi-empresa.",
-          "Filtros por empresa para administradores"
+          "Filtros por empresa para administradores."
         ],
         "improved": [
           "Interface de gerenciamento de usuários mais clara.",
-          "Identificação visual de usuários globais vs empresariais"
+          "Identificação visual de usuários globais vs empresariais."
         ]
       }
     },
@@ -195,17 +195,17 @@
       "version": "1.0.12",
       "date": "2025-06-03",
       "title": "Sistema de Tipos de Chamado.",
-      "type": "feature.",
+      "type": "feature",
       "changes": {
         "new": [
           "Gestão completa de tipos de chamado.",
           "Ativação/desativação de tipos específicos.",
           "Categorização por departamentos.",
-          "Descrições detalhadas para cada tipo"
+          "Descrições detalhadas para cada tipo."
         ],
         "improved": [
           "Processo de abertura de chamados mais organizado.",
-          "Melhor direcionamento para equipes especializadas"
+          "Melhor direcionamento para equipes especializadas."
         ]
       }
     },
@@ -213,16 +213,16 @@
       "version": "1.0.11",
       "date": "2025-05-28",
       "title": "Departamentos e Organização.",
-      "type": "feature.",
+      "type": "feature",
       "changes": {
         "new": [
           "Sistema completo de departamentos.",
           "Atribuição automática por especialidade.",
-          "Configuração flexível de estrutura organizacional"
+          "Configuração flexível de estrutura organizacional."
         ],
         "improved": [
           "Roteamento inteligente de chamados.",
-          "Visibilidade clara de responsabilidades"
+          "Visibilidade clara de responsabilidades."
         ]
       }
     },
@@ -230,17 +230,17 @@
       "version": "1.0.10",
       "date": "2025-05-22",
       "title": "Comunicação e Histórico.",
-      "type": "feature.",
+      "type": "feature",
       "changes": {
         "new": [
           "Sistema de respostas aprimorado.",
           "Histórico completo de interações.",
           "Notificações de novas mensagens.",
-          "Anexos em chamados e respostas"
+          "Anexos em chamados e respostas."
         ],
         "improved": [
           "Interface de comunicação mais intuitiva.",
-          "Melhor organização do histórico de chamados"
+          "Melhor organização do histórico de chamados."
         ]
       }
     },
@@ -248,17 +248,17 @@
       "version": "1.0.9",
       "date": "2025-05-15",
       "title": "Dashboard e Métricas.",
-      "type": "feature.",
+      "type": "feature",
       "changes": {
         "new": [
           "Dashboard completo com gráficos.",
           "Métricas por status e prioridade.",
           "Visão geral de chamados recentes.",
-          "Indicadores de performance"
+          "Indicadores de performance."
         ],
         "improved": [
           "Visualização mais clara dos dados.",
-          "Gráficos interativos e informativos"
+          "Gráficos interativos e informativos."
         ]
       }
     },
@@ -266,16 +266,16 @@
       "version": "1.0.8",
       "date": "2025-05-08",
       "title": "Sistema de Prioridades.",
-      "type": "feature.",
+      "type": "feature",
       "changes": {
         "new": [
           "Níveis de prioridade: Baixa, Média, Alta, Crítica.",
           "Indicadores visuais por prioridade.",
-          "Ordenação automática por urgência"
+          "Ordenação automática por urgência."
         ],
         "improved": [
           "Melhor gestão de urgências.",
-          "Priorização inteligente de atendimentos"
+          "Priorização inteligente de atendimentos."
         ]
       }
     },
@@ -283,16 +283,16 @@
       "version": "1.0.7",
       "date": "2025-05-01",
       "title": "Gestão de Status.",
-      "type": "feature.",
+      "type": "feature",
       "changes": {
         "new": [
           "Status Novo, Em Andamento e Resolvido.",
           "Transições automáticas de status.",
-          "Histórico de mudanças de status"
+          "Histórico de mudanças de status."
         ],
         "improved": [
           "Acompanhamento mais claro do progresso.",
-          "Transparência no fluxo de atendimento"
+          "Transparência no fluxo de atendimento."
         ]
       }
     },
@@ -300,16 +300,16 @@
       "version": "1.0.6",
       "date": "2025-04-25",
       "title": "Notificações em Tempo Real.",
-      "type": "feature.",
+      "type": "feature",
       "changes": {
         "new": [
           "Notificações instantâneas para novos chamados.",
           "Avisos de mudanças de status.",
-          "Alertas de novas respostas"
+          "Alertas de novas respostas."
         ],
         "improved": [
           "Comunicação mais ágil entre usuários e equipe.",
-          "Redução no tempo de resposta"
+          "Redução no tempo de resposta."
         ]
       }
     },
@@ -317,16 +317,16 @@
       "version": "1.0.5",
       "date": "2025-04-20",
       "title": "Gestão de Usuários.",
-      "type": "feature.",
+      "type": "feature",
       "changes": {
         "new": [
           "Perfis de usuário personalizáveis.",
           "Configurações individuais.",
-          "Gerenciamento de informações pessoais"
+          "Gerenciamento de informações pessoais."
         ],
         "improved": [
           "Experiência personalizada para cada usuário.",
-          "Melhor controle de dados pessoais"
+          "Melhor controle de dados pessoais."
         ]
       }
     },
@@ -334,16 +334,16 @@
       "version": "1.0.4",
       "date": "2025-04-16",
       "title": "Sistema de Filtros.",
-      "type": "feature.",
+      "type": "feature",
       "changes": {
         "new": [
           "Filtros por status, prioridade e data.",
           "Busca avançada por título e descrição.",
-          "Filtros salvos para consultas frequentes"
+          "Filtros salvos para consultas frequentes."
         ],
         "improved": [
           "Localização mais rápida de chamados específicos.",
-          "Melhor organização da lista de chamados"
+          "Melhor organização da lista de chamados."
         ]
       }
     },
@@ -351,16 +351,16 @@
       "version": "1.0.3",
       "date": "2025-04-12",
       "title": "Interface Responsiva.",
-      "type": "improvement.",
+      "type": "improvement",
       "changes": {
         "improved": [
           "Otimização para dispositivos móveis.",
           "Interface adaptável a diferentes tamanhos de tela.",
-          "Melhor experiência em tablets e smartphones"
+          "Melhor experiência em tablets e smartphones."
         ],
         "fixed": [
           "Correção de problemas de layout em telas pequenas.",
-          "Ajustes na navegação móvel"
+          "Ajustes na navegação móvel."
         ]
       }
     },
@@ -368,17 +368,17 @@
       "version": "1.0.2",
       "date": "2025-04-08",
       "title": "Correções de Estabilidade.",
-      "type": "bugfix.",
+      "type": "bugfix",
       "changes": {
         "fixed": [
           "Correção de erros na criação de chamados.",
           "Resolução de problemas de carregamento.",
           "Melhoria na estabilidade da conexão.",
-          "Correção de bugs na exibição de dados"
+          "Correção de bugs na exibição de dados."
         ],
         "improved": [
           "Performance geral do sistema.",
-          "Confiabilidade das operações"
+          "Confiabilidade das operações."
         ]
       }
     },
@@ -386,16 +386,16 @@
       "version": "1.0.1",
       "date": "2025-04-05",
       "title": "Primeiras Melhorias.",
-      "type": "improvement.",
+      "type": "improvement",
       "changes": {
         "improved": [
           "Interface de usuário mais intuitiva.",
           "Melhorias na usabilidade geral.",
-          "Otimizações de performance"
+          "Otimizações de performance."
         ],
         "fixed": [
           "Correções menores de interface.",
-          "Ajustes na responsividade"
+          "Ajustes na responsividade."
         ]
       }
     },
@@ -403,7 +403,7 @@
       "version": "1.0.0",
       "date": "2025-04-01",
       "title": "Lançamento Inicial.",
-      "type": "major.",
+      "type": "major",
       "changes": {
         "new": [
           "Sistema completo de gestão de chamados.",
@@ -411,7 +411,7 @@
           "Dashboard com visão geral.",
           "Sistema de autenticação seguro.",
           "Gestão de clientes e atendentes.",
-          "Comunicação entre usuários e suporte"
+          "Comunicação entre usuários e suporte."
         ]
       }
     }
