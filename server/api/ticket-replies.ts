@@ -38,7 +38,7 @@ async function canUserReplyToTicket(
     }
 
     // 🔥 OTIMIZAÇÃO: Verificar se o usuário é participante usando EXISTS (muito mais rápido)
-    if (userRole !== 'admin' && userRole !== 'support' && userRole !== 'manager' && userRole !== 'supervisor') {
+    if (userRole !== 'admin' && userRole !== 'support' && userRole !== 'manager' && userRole !== 'supervisor' && userRole !== 'company_admin') {
       const [isParticipantResult] = await db
         .select({ exists: exists(
           db.select().from(ticketParticipants)
@@ -58,7 +58,7 @@ async function canUserReplyToTicket(
     }
 
     // Verificar permissões baseadas na role
-    if (userRole === 'admin' || userRole === 'support' || userRole === 'manager' || userRole === 'supervisor') {
+    if (userRole === 'admin' || userRole === 'support' || userRole === 'manager' || userRole === 'supervisor' || userRole === 'company_admin') {
       return { canReply: true };
     }
 

@@ -43,10 +43,16 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   
-  // Determinar se o usuário é cliente NESTE TICKET específico
-  const isCustomerForThisTicket = user?.role === 'customer' || ticket.userContext === 'customer';
-  const canModifyStatus = !isCustomerForThisTicket;
-  const canModifyAssignment = !isCustomerForThisTicket;
+  // 🔥 CORREÇÃO: Determinar se o usuário é cliente NESTE TICKET específico
+  // Só é cliente se o role for 'customer' E for o criador do ticket
+  // Atendentes (company_admin, admin, manager, supervisor, support) NUNCA são clientes
+  const isCustomerForThisTicket = user?.role === 'customer' && 
+    ticket.customer?.user_id && user?.id && ticket.customer.user_id === user.id;
+  
+  // 🔥 CORREÇÃO: Permissões baseadas no ROLE do usuário, não no contexto do ticket
+  // Apenas usuários com role 'customer' não podem modificar status e atendente
+  const canModifyStatus = user?.role !== 'customer';
+  const canModifyAssignment = user?.role !== 'customer';
   
   // Buscar a lista de atendentes disponíveis (apenas para não-clientes)
   const { data: officialsResponse, isLoading: isLoadingOfficials } = useQuery({

@@ -72,8 +72,11 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
   // Buscar prioridades do departamento para obter informações adicionais
   const { data: priorities = [] } = usePriorities(departmentId || undefined);
   
-  // Determinar se o usuário é cliente NESTE TICKET específico
-  const isCustomerForThisTicket = user?.role === 'customer' || ticket.userContext === 'customer';
+  // 🔥 CORREÇÃO: Determinar se o usuário é cliente NESTE TICKET específico
+  // Só é cliente se o role for 'customer' E for o criador do ticket
+  // Atendentes (company_admin, admin, manager, supervisor, support) NUNCA são clientes
+  const isCustomerForThisTicket = user?.role === 'customer' && 
+    ticket.customer?.user_id && user?.id && ticket.customer.user_id === user.id;
   
   const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
     queryKey: ['/api/officials', departmentId],

@@ -258,7 +258,7 @@ async function canUserReplyToTicket(
     }
 
     // Verificar permissões baseadas na role
-    if (userRole === 'admin' || userRole === 'support' || userRole === 'manager' || userRole === 'supervisor') {
+    if (userRole === 'admin' || userRole === 'support' || userRole === 'manager' || userRole === 'supervisor' || userRole === 'company_admin') {
       return { canReply: true };
     }
 
