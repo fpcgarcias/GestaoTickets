@@ -206,7 +206,11 @@ export class AiService {
 
 ${priorityList}
 
-IMPORTANTE: Responda APENAS com o nome exato de uma das prioridades (${priorityNames}), sem pontuação adicional.`;
+IMPORTANTE: Responda EXATAMENTE no formato:
+<PRIORIDADE>nome_da_prioridade</PRIORIDADE>
+<JUSTIFICATIVA>explicação detalhada da análise baseada no conteúdo do ticket</JUSTIFICATIVA>
+
+Use apenas as prioridades: ${priorityNames}`;
 
     // Ajustar user prompt template se não estiver personalizado
     const adjustedUserPrompt = config.user_prompt_template.includes('{titulo}') 
@@ -215,9 +219,11 @@ IMPORTANTE: Responda APENAS com o nome exato de uma das prioridades (${priorityN
 
 Descrição: {descricao}
 
-Analise este ticket e determine sua prioridade considerando as diretrizes específicas do departamento. Responda APENAS com uma das seguintes opções: ${priorityNames}
+Analise este ticket e determine sua prioridade considerando as diretrizes específicas do departamento. Responda no formato:
+<PRIORIDADE>nome_da_prioridade</PRIORIDADE>
+<JUSTIFICATIVA>explicação detalhada da análise</JUSTIFICATIVA>
 
-Prioridade:`;
+Use apenas as prioridades: ${priorityNames}`;
 
     return {
       ...config,

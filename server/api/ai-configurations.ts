@@ -237,15 +237,21 @@ export async function testAiConfiguration(req: Request, res: Response) {
 
 Prioridades disponíveis: ${priorityList}
 
-IMPORTANTE: Responda APENAS com o nome exato de uma das prioridades (${priorityNames}), sem pontuação adicional.`;
+IMPORTANTE: Responda EXATAMENTE no formato:
+<PRIORIDADE>nome_da_prioridade</PRIORIDADE>
+<JUSTIFICATIVA>explicação detalhada da análise baseada no conteúdo do ticket</JUSTIFICATIVA>
+
+Use apenas as prioridades disponíveis: ${priorityNames}`;
 
             adjustedUserPrompt = `Título: {titulo}
 
 Descrição: {descricao}
 
-Analise este ticket e determine sua prioridade considerando as diretrizes específicas do departamento. Responda APENAS com uma das seguintes opções: ${priorityNames}
+Analise este ticket e determine sua prioridade considerando as diretrizes específicas do departamento. Responda no formato:
+<PRIORIDADE>nome_da_prioridade</PRIORIDADE>
+<JUSTIFICATIVA>explicação detalhada da análise</JUSTIFICATIVA>
 
-Prioridade:`;
+Use apenas as prioridades: ${priorityNames}`;
           }
         }
       } catch (error) {
@@ -254,8 +260,8 @@ Prioridade:`;
     }
 
     // Usar prompts padrão se não foram ajustados
-    const finalSystemPrompt = adjustedSystemPrompt || "Você é um assistente que analisa tickets de suporte e determina a prioridade. Responda apenas com: BAIXA, MEDIA, ALTA ou CRITICA";
-    const finalUserPrompt = adjustedUserPrompt || "Título: {titulo}\nDescrição: {descricao}\n\nQual a prioridade deste ticket?";
+    const finalSystemPrompt = adjustedSystemPrompt || "Você é um assistente que analisa tickets de suporte e determina a prioridade. Responda no formato:\n<PRIORIDADE>BAIXA</PRIORIDADE>\n<JUSTIFICATIVA>explicação da análise</JUSTIFICATIVA>\n\nUse apenas: BAIXA, MEDIA, ALTA ou CRITICA";
+    const finalUserPrompt = adjustedUserPrompt || "Título: {titulo}\nDescrição: {descricao}\n\nQual a prioridade deste ticket? Responda no formato:\n<PRIORIDADE>prioridade</PRIORIDADE>\n<JUSTIFICATIVA>justificativa</JUSTIFICATIVA>";
 
     // Criar configuração temporária para teste
     const testConfig: schema.AiConfiguration = {

@@ -70,8 +70,8 @@ export class OpenAiProvider implements AiProviderInterface {
         };
       }
 
-      // Extrair prioridade da resposta (suporta português e inglês)
-      const extractedPriority = this.extractPriority(aiResponse);
+      // Extrair prioridade e justificativa da resposta usando tags
+      const { priority: extractedPriority, justification } = this.extractPriorityAndJustification(aiResponse);
       
       if (!extractedPriority) {
         console.log(`[AI DEBUG] Resposta da IA não reconhecida: "${aiResponse}"`);
@@ -87,13 +87,6 @@ export class OpenAiProvider implements AiProviderInterface {
           }
         };
       }
-      
-      // Extrair justificativa (texto após "justificativa:" ou similar)
-      const justificationMatch = aiResponse.match(/justificativa[:\s]+(.*?)(?:\n|$)/i) ||
-                                aiResponse.match(/razão[:\s]+(.*?)(?:\n|$)/i) ||
-                                aiResponse.match(/porque[:\s]+(.*?)(?:\n|$)/i);
-      
-      const justification = justificationMatch?.[1]?.trim() || 'Análise baseada no conteúdo do ticket';
       
       // Calcular confiança baseada na clareza da resposta
       let confidence = 0.8;
@@ -125,6 +118,54 @@ export class OpenAiProvider implements AiProviderInterface {
       
       throw error;
     }
+  }
+
+  /**
+   * Extrai a prioridade e justificativa da resposta da IA usando tags estruturadas
+   */
+  private extractPriorityAndJustification(response: string): { priority: string | null; justification: string } {
+    console.log(`[AI DEBUG] Tentando extrair prioridade e justificativa de: "${response}"`);
+    
+    // Tentar extrair usando tags estruturadas primeiro
+    const priorityMatch = response.match(/<PRIORIDADE>(.*?)<\/PRIORIDADE>/i);
+    const justificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*?)<\/JUSTIFICATIVA>/i);
+    
+    if (priorityMatch) {
+      const extractedPriority = priorityMatch[1].trim();
+      const justification = justificationMatch?.[1]?.trim() || 'Análise baseada no conteúdo do ticket';
+      
+      console.log(`[AI DEBUG] Extraído via tags - Prioridade: "${extractedPriority}", Justificativa: "${justification}"`);
+      
+      return {
+        priority: extractedPriority,
+        justification: justification
+      };
+    }
+    
+    // Fallback: tentar extrair apenas prioridade (método antigo) - APENAS se não encontrou tags
+    const extractedPriority = this.extractPriority(response);
+    
+    if (extractedPriority) {
+      // Tentar extrair justificativa usando métodos antigos
+      const justificationMatch = response.match(/justificativa[:\s]+(.*?)(?:\n|$)/i) ||
+                                response.match(/razão[:\s]+(.*?)(?:\n|$)/i) ||
+                                response.match(/porque[:\s]+(.*?)(?:\n|$)/i);
+      
+      const justification = justificationMatch?.[1]?.trim() || 'Análise baseada no conteúdo do ticket';
+      
+      console.log(`[AI DEBUG] Extraído via fallback - Prioridade: "${extractedPriority}", Justificativa: "${justification}"`);
+      
+      return {
+        priority: extractedPriority,
+        justification: justification
+      };
+    }
+    
+    console.log('[AI DEBUG] Nenhuma prioridade reconhecida');
+    return {
+      priority: null,
+      justification: 'Análise baseada no conteúdo do ticket'
+    };
   }
 
   /**

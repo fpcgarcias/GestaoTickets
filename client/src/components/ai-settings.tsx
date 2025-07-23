@@ -143,12 +143,18 @@ MEDIUM: Problemas que causam inconveniência mas têm soluções alternativas, f
 
 LOW: Dúvidas simples, solicitações de treinamento, melhorias estéticas, configurações pessoais, problemas que não impedem o trabalho.
 
-ATENÇÃO: Responda APENAS com uma das palavras exatas: critical, high, medium ou low (sempre em minúsculas e em inglês).`,
+IMPORTANTE: Responda EXATAMENTE no formato:
+<PRIORIDADE>nome_da_prioridade</PRIORIDADE>
+<JUSTIFICATIVA>explicação detalhada da análise baseada no conteúdo do ticket</JUSTIFICATIVA>
+
+Use apenas: critical, high, medium ou low (sempre em minúsculas e em inglês).`,
   user: `Título: {titulo}
 
 Descrição: {descricao}
 
-Prioridade:`
+Analise este ticket e determine sua prioridade. Responda no formato:
+<PRIORIDADE>prioridade</PRIORIDADE>
+<JUSTIFICATIVA>justificativa</JUSTIFICATIVA>`
 };
 
 // Modelos disponíveis atualizados em Dezembro 2024
@@ -413,8 +419,14 @@ function DepartmentAiConfiguration() {
   // Estados
   const [configurations, setConfigurations] = useState<AiConfiguration[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTestLoading, setIsTestLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingConfig, setEditingConfig] = useState<AiConfiguration | null>(null);
+  const [testResult, setTestResult] = useState<any>(null);
+  const [testData, setTestData] = useState({
+    test_title: "Sistema de email não está funcionando",
+    test_description: "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
+  });
   const [formData, setFormData] = useState({
     name: '',
     provider: 'openai' as 'openai' | 'google' | 'anthropic',
@@ -591,6 +603,77 @@ function DepartmentAiConfiguration() {
     });
   };
 
+  const handleTest = async () => {
+    if (!formData.api_key) {
+      toast({
+        title: "Erro",
+        description: "API Key é obrigatória para teste",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsTestLoading(true);
+    setTestResult(null);
+
+    try {
+      const testPayload = {
+        provider: formData.provider,
+        model: formData.model,
+        api_key: formData.api_key,
+        api_endpoint: formData.api_endpoint,
+        system_prompt: formData.system_prompt || DEFAULT_PROMPTS.system,
+        user_prompt_template: formData.user_prompt_template || DEFAULT_PROMPTS.user,
+        temperature: formData.temperature,
+        max_tokens: formData.max_tokens,
+        timeout_seconds: formData.timeout_seconds,
+        max_retries: formData.max_retries,
+        department_id: formData.department_id,
+        test_title: testData.test_title || "Sistema de email não está funcionando",
+        test_description: testData.test_description || "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
+      };
+
+      const response = await fetch('/api/ai-configurations/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testPayload),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Falha no teste');
+      }
+
+      if (result.success) {
+        setTestResult(result.result);
+        toast({
+          title: "Sucesso",
+          description: "Teste executado com sucesso!"
+        });
+      } else {
+        throw new Error(result.error || result.message || 'Teste falhou');
+      }
+
+    } catch (error: any) {
+      console.error('Erro no teste da configuração:', error);
+      toast({
+        title: "Erro no teste",
+        description: error.message,
+        variant: "destructive"
+      });
+      setTestResult({
+        priority: 'medium',
+        justification: `Erro no teste: ${error.message}`,
+        confidence: 0,
+        usedFallback: true,
+        processingTimeMs: 0
+      });
+    } finally {
+      setIsTestLoading(false);
+    }
+  };
+
   if (isLoading) {
     return <div>Carregando configurações...</div>;
   }
@@ -645,7 +728,7 @@ function DepartmentAiConfiguration() {
           resetForm();
         }
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>
               {editingConfig ? 'Editar' : 'Nova'} Configuração de IA
@@ -892,6 +975,70 @@ function DepartmentAiConfiguration() {
                   onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_default: checked }))}
                 />
                 <Label htmlFor="is_default">Padrão p/ Departamento</Label>
+              </div>
+            </div>
+
+            {/* Seção de teste */}
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-3">Testar Configuração</h4>
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="test-title">Título do Teste</Label>
+                  <Input
+                    id="test-title"
+                    value={testData.test_title}
+                    onChange={(e) => setTestData(prev => ({ ...prev, test_title: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="test-description">Descrição do Teste</Label>
+                  <Textarea
+                    id="test-description"
+                    value={testData.test_description}
+                    onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
+                    rows={3}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleTest}
+                  disabled={isTestLoading || !formData.api_key}
+                >
+                  {isTestLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Testando...
+                    </>
+                  ) : (
+                    <>
+                      <TestTube className="mr-2 h-4 w-4" />
+                      Testar
+                    </>
+                  )}
+                </Button>
+                
+                {testResult && (
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                    <h5 className="font-medium mb-2">Resultado do Teste:</h5>
+                    <div className="text-sm space-y-2">
+                      <div><strong>Prioridade:</strong> {testResult.priority}</div>
+                      {testResult.justification && (
+                        <div>
+                          <strong>Justificativa:</strong>
+                          <div className="mt-1 p-2 bg-white border rounded text-gray-700">
+                            {testResult.justification}
+                          </div>
+                        </div>
+                      )}
+                      <div><strong>Tempo:</strong> {testResult.processingTimeMs}ms</div>
+                      <div><strong>Fallback:</strong> {testResult.usedFallback ? 'Sim' : 'Não'}</div>
+                      {testResult.confidence && (
+                        <div><strong>Confiança:</strong> {(testResult.confidence * 100).toFixed(1)}%</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1242,7 +1389,7 @@ function AdminAiConfiguration() {
                   Nova Configuração
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Nova Configuração de IA</DialogTitle>
                   <DialogDescription>
@@ -1307,7 +1454,7 @@ function AdminAiConfiguration() {
           resetForm();
         }
       }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Configuração de IA</DialogTitle>
             <DialogDescription>
@@ -1656,10 +1803,15 @@ function ConfigurationForm({
           {testResult && (
             <div className="mt-3 p-3 bg-gray-50 rounded-lg">
               <h5 className="font-medium mb-2">Resultado do Teste:</h5>
-              <div className="text-sm space-y-1">
-                <div><strong>Prioridade:</strong> {testResult.priority.toUpperCase()}</div>
+              <div className="text-sm space-y-2">
+                                      <div><strong>Prioridade:</strong> {testResult.priority}</div>
                 {testResult.justification && (
-                  <div><strong>Justificativa:</strong> {testResult.justification}</div>
+                  <div>
+                    <strong>Justificativa:</strong>
+                    <div className="mt-1 p-2 bg-white border rounded text-gray-700">
+                      {testResult.justification}
+                    </div>
+                  </div>
                 )}
                 <div><strong>Tempo:</strong> {testResult.processingTimeMs}ms</div>
                 <div><strong>Fallback:</strong> {testResult.usedFallback ? 'Sim' : 'Não'}</div>

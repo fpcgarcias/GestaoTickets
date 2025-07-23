@@ -480,7 +480,7 @@ export const insertTicketSchema = z.object({
   description: z.string().min(10, "A descrição deve ter pelo menos 10 caracteres"),
   customer_email: z.string().email("Endereço de email inválido"),
   type: z.string().min(1, "O tipo de chamado é obrigatório"),
-  priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
+  priority: z.string().optional(),
   department_id: z.number().optional(),
   incident_type_id: z.number().optional(),
   customer_id: z.number().optional(),

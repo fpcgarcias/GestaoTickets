@@ -949,7 +949,7 @@ export class DatabaseStorage implements IStorage {
         ...ticketData,
         ticket_id: ticketId,
         status: ticketStatusEnum.enumValues[0], // Definir status inicial explicitamente se necessário
-        priority: ticketData.priority || 'MÉDIA', // Definir prioridade padrão em português
+        priority: ticketData.priority || null, // Não definir prioridade padrão - deixar a IA definir
         // Garantir que department_id, incident_type_id, customer_id e company_id são números ou null
         department_id: ticketData.department_id ? Number(ticketData.department_id) : null,
         incident_type_id: ticketData.incident_type_id ? Number(ticketData.incident_type_id) : null,

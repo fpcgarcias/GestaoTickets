@@ -6,6 +6,7 @@ import { ArrowLeft } from 'lucide-react';
 import { TicketDetail } from '@/components/tickets/ticket-detail';
 import { TicketReplyForm } from '@/components/tickets/ticket-reply';
 import { TicketHistory } from '@/components/tickets/ticket-history';
+import AiAnalysisHistory from '@/components/tickets/ai-analysis-history';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Ticket } from '@shared/schema';
 
@@ -46,6 +47,7 @@ export default function TicketDetailPage() {
             <TicketReplyForm ticket={ticket} />
           )}
           <TicketHistory ticketId={ticketId} />
+          <AiAnalysisHistory ticketId={ticketId} />
         </div>
       ) : null}
     </div>

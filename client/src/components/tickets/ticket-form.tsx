@@ -54,22 +54,7 @@ const extendedInsertTicketSchema = insertTicketSchema.extend({
 // Inferir o tipo a partir do schema estendido
 type ExtendedInsertTicket = z.infer<typeof extendedInsertTicketSchema>;
 
-// Função helper para converter prioridade para submissão
-function convertPriorityForSubmission(priorityValue: string, priorities: NormalizedPriority[]): 'low' | 'medium' | 'high' | 'critical' {
-  // Se for um valor legado, retornar diretamente
-  if (['low', 'medium', 'high', 'critical'].includes(priorityValue)) {
-    return priorityValue as 'low' | 'medium' | 'high' | 'critical';
-  }
-  
-  // Se for um ID de prioridade customizada, encontrar o valor legado correspondente
-  const priority = priorities.find(p => p.value === priorityValue);
-  if (priority?.legacyValue) {
-    return priority.legacyValue as 'low' | 'medium' | 'high' | 'critical';
-  }
-  
-  // Fallback para medium
-  return 'medium';
-}
+
 
 // Definir tipos para os dados buscados
 interface Customer {
@@ -130,7 +115,7 @@ export const TicketForm = () => {
       customer_email: '',
       customerId: undefined,
       type: '',
-      priority: 'medium', // Valor padrão como string
+      priority: undefined, // Não definir prioridade padrão - deixar a IA definir
       department_id: undefined,
       incident_type_id: undefined,
       category_id: undefined,
@@ -204,15 +189,12 @@ export const TicketForm = () => {
   });
 
   const onSubmit = (data: ExtendedInsertTicket) => {
-    // Converter prioridade para valor legado se necessário
-    const priorityToSend = convertPriorityForSubmission(data.priority, priorities);
-    
     let ticketDataToSend: any = {
       title: data.title,
       description: data.description,
       customer_email: data.customer_email,
       type: data.type,
-      priority: priorityToSend,
+      priority: data.priority, // Enviar a prioridade exatamente como está (sem conversão)
       department_id: data.department_id,
       incident_type_id: data.incident_type_id,
       category_id: data.category_id,
