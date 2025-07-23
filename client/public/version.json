@@ -17,7 +17,8 @@
           "Ajustes na lentidão no envio das respostas dos chamados.",
           "Correção nas notificações de atendentes vinculados aos chamados.",
           "Alterado o período padrão dos filtros de datas para o mês atual nas telas de tickets e dashboard.",
-          "Correção nos envios de arquivos para o S3."
+          "Correção nos envios de arquivos para o S3.",
+          "Correção em permissões nas telas de tickets e respostas."
         ]
       }
     },
