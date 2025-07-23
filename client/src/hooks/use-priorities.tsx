@@ -82,18 +82,15 @@ export function usePriorities(departmentId?: number) {
       
       const response = await fetch(`/api/departments/${departmentId}/priorities`);
       if (!response.ok) {
-        // Se não conseguir carregar prioridades customizadas, retorna prioridades padrão para customers
-        if (user?.role === 'customer') {
-          return DEFAULT_LEGACY_PRIORITIES;
-        }
-        throw new Error('Erro ao carregar prioridades');
+        // NÃO usar fallback hardcoded - se não consegue carregar, retornar lista vazia
+        return [];
       }
       
       const result = await response.json();
       
-      // Se usar prioridades padrão do sistema, mapear para formato normalizado
+      // Se não há prioridades configuradas, retornar lista vazia
       if (result.data?.isDefault || !result.data?.priorities?.length) {
-        return DEFAULT_LEGACY_PRIORITIES;
+        return [];
       }
       
       // Converter prioridades customizadas para formato normalizado
@@ -122,9 +119,8 @@ export function useAllPriorities() {
   return useQuery({
     queryKey: ['all-priorities', user?.companyId],
     queryFn: async () => {
-      // Por enquanto, retornar prioridades padrão
-      // TODO: Implementar endpoint para buscar todas as prioridades da empresa
-      return DEFAULT_LEGACY_PRIORITIES;
+      // NÃO usar prioridades hardcoded - retornar lista vazia até implementar endpoint
+      return [];
     },
     staleTime: 5 * 60 * 1000,
   });

@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Plus, 
   Loader2, 
@@ -24,7 +26,15 @@ import {
   EyeOff,
   Bot,
   Settings,
-  Lightbulb
+  Lightbulb,
+  Save,
+  X,
+  CheckCircle,
+  AlertTriangle,
+  Key,
+  Globe,
+  Server,
+  Edit3
 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -48,6 +58,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
 // Interface para configuração de IA
@@ -56,8 +67,6 @@ interface AiConfiguration {
   name: string;
   provider: 'openai' | 'google' | 'anthropic';
   model: string;
-  api_key: string;
-  api_endpoint?: string;
   system_prompt: string;
   user_prompt_template: string;
   department_id?: number | null;
@@ -87,8 +96,6 @@ interface FormData {
   name: string;
   provider: 'openai' | 'google' | 'anthropic';
   model: string;
-  api_key: string;
-  api_endpoint: string;
   system_prompt: string;
   user_prompt_template: string;
   department_id: number | null;
@@ -118,6 +125,21 @@ interface Department {
   id: number;
   name: string;
   description?: string;
+}
+
+interface AiProvider {
+  name: string;
+  model: string;
+  endpoint: string;
+  token: string;
+  isActive?: boolean;
+}
+
+interface TestProviderResult {
+  success: boolean;
+  message: string;
+  response?: any;
+  error?: string;
 }
 
 const AI_PROVIDERS = [
@@ -224,24 +246,15 @@ const modelOptions: Record<string, string[]> = {
   ]
 };
 
-// Componente para company_admin gerenciar o toggle de uso de IA
-function AiUsageToggle() {
-  const { toast } = useToast();
-  const { user } = useAuth();
+interface AiUsageToggleProps {
+  usageSettings?: AiUsageSettings;
+  isLoading: boolean;
+  refetch: () => void;
+}
 
-  // Buscar configurações de uso de IA
-  const { data: usageSettings, isLoading, refetch } = useQuery<AiUsageSettings>({
-    queryKey: ["/api/settings/ai-usage"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/settings/ai-usage");
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha ao buscar configurações de IA');
-      }
-      return response.json();
-    },
-    enabled: user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor',
-  });
+// Componente para company_admin gerenciar o toggle de uso de IA
+function AiUsageToggle({ usageSettings, isLoading, refetch }: AiUsageToggleProps) {
+  const { toast } = useToast();
 
   // Mutação para atualizar configurações de uso
   const updateUsageMutation = useMutation({
@@ -258,7 +271,7 @@ function AiUsageToggle() {
         title: "Sucesso",
         description: "Configurações de IA atualizadas com sucesso!",
       });
-      refetch();
+      refetch(); // Chama a função refetch passada por props
     },
     onError: (error: any) => {
       toast({
@@ -360,14 +373,28 @@ function AiUsageToggle() {
 
 // Componente principal - agora diferencia entre admin e company_admin
 export default function AiSettings() {
-  const { data: user } = useQuery({
-    queryKey: ['auth', 'me'],
-    queryFn: async () => {
-      const response = await fetch('/api/auth/me');
-      if (!response.ok) throw new Error('Não autenticado');
-      return response.json();
-    },
-  });
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center p-8">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+          <span>Carregando...</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-muted-foreground">Acesso não autorizado.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Admin vê configuração completa global, company_admin, manager e supervisor veem toggle + configuração por departamento
   if (user?.role === 'admin') {
@@ -387,27 +414,139 @@ export default function AiSettings() {
 
 // Componente para company_admin, manager, supervisor - toggle + configuração por departamento
 function CompanyAiConfiguration() {
-  return (
-    <div className="space-y-6">
-      {/* Toggle de uso da IA */}
-      <AiUsageToggle />
+  const { user, isLoading: isAuthLoading } = useAuth();
+
+  // Garantir que o usuário está completamente carregado antes de fazer a query
+  const shouldFetch = !isAuthLoading && 
+                     !!user && 
+                     !!user.id && 
+                     (user.role === 'company_admin' || user.role === 'manager' || user.role === 'supervisor');
+
+  // Log para debug
+  React.useEffect(() => {
+    console.log('CompanyAiConfiguration - shouldFetch:', shouldFetch, {
+      isAuthLoading,
+      hasUser: !!user,
+      userId: user?.id,
+      userRole: user?.role
+    });
+  }, [shouldFetch, isAuthLoading, user]);
+
+  // Buscar configurações de uso de IA uma única vez
+  const { data: usageSettings, isLoading: isUsageSettingsLoading, refetch } = useQuery<AiUsageSettings>({
+    queryKey: ["/api/settings/ai-usage"],
+    queryFn: async () => {
+      // Double check antes de fazer a requisição
+      if (!user || !user.id) {
+        return { ai_permission_granted: false, ai_usage_enabled: false };
+      }
       
-      {/* Configurações de IA por departamento */}
+      try {
+        const response = await apiRequest("GET", "/api/settings/ai-usage");
+        if (!response.ok) {
+          // Não jogue erro para 401, apenas retorne null ou um objeto padrão
+          if (response.status === 401) {
+            console.warn('Usuário não autenticado ao buscar configurações de IA');
+            return { ai_permission_granted: false, ai_usage_enabled: false };
+          }
+          if (response.status === 403) {
+            // Empresa não tem permissão
+            const data = await response.json();
+            return { 
+              ai_permission_granted: false, 
+              ai_usage_enabled: false,
+              message: data.message 
+            };
+          }
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Falha ao buscar configurações de IA');
+        }
+        return response.json();
+      } catch (error) {
+        console.error('Erro ao buscar configurações de IA:', error);
+        return { ai_permission_granted: false, ai_usage_enabled: false };
+      }
+    },
+    enabled: shouldFetch,
+    staleTime: 5 * 60 * 1000, // 5 minutos
+    gcTime: 10 * 60 * 1000, // 10 minutos
+    retry: false, // Desabilitar retry automático para evitar loops
+    refetchOnWindowFocus: false, // Evitar refetch automático no foco da janela
+  });
+
+  if (isAuthLoading || isUsageSettingsLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center p-8">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+          <span>Carregando configurações...</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Verificar se a empresa tem permissão para usar IA
+  if (!usageSettings?.ai_permission_granted) {
+    return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5" />
-            Configurações de IA por Departamento
+            <Brain className="h-6 w-6" />
+            Configurações de IA
           </CardTitle>
           <CardDescription>
-            Configure prompts específicos para análise de IA por departamento
+            Análise inteligente de prioridades usando Inteligência Artificial
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <DepartmentAiConfiguration />
+          <div className="flex items-center justify-center p-8 text-center">
+            <div className="space-y-4">
+              <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto" />
+              <div>
+                <p className="text-lg font-medium">Recurso não disponível</p>
+                <p className="text-muted-foreground mt-2">
+                  Sua empresa não possui permissão para usar recursos de IA. 
+                  Entre em contato com o administrador do sistema para solicitar acesso.
+                </p>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Toggle de uso da IA */}
+      <AiUsageToggle usageSettings={usageSettings} isLoading={isUsageSettingsLoading} refetch={refetch} />
+      
+      {/* Configurações de IA por departamento */}
+      <DepartmentAiConfigurationWrapper />
     </div>
+  );
+}
+
+// Wrapper que verifica permissões antes de mostrar configurações por departamento
+function DepartmentAiConfigurationWrapper() {
+  const { user } = useAuth();
+
+  // Este componente agora só é renderizado quando há permissão
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Bot className="h-5 w-5" />
+          Configurações de IA por Departamento
+        </CardTitle>
+        <CardDescription>
+          Configure prompts específicos para análise de IA por departamento
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <DepartmentAiConfiguration />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -427,18 +566,17 @@ function DepartmentAiConfiguration() {
     test_title: "Sistema de email não está funcionando",
     test_description: "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
   });
+  const [availableProviders, setAvailableProviders] = useState<AiProvider[]>([]);
   const [formData, setFormData] = useState({
     name: '',
     provider: 'openai' as 'openai' | 'google' | 'anthropic',
     model: 'gpt-4o',
-    api_key: '',
-    api_endpoint: '',
     system_prompt: '',
     user_prompt_template: '',
     department_id: null as number | null,
     company_id: user?.company?.id || null,
     temperature: '0.1',
-    max_tokens: 100,
+    max_tokens: 500,
     timeout_seconds: 30,
     max_retries: 3,
     fallback_priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
@@ -463,9 +601,21 @@ function DepartmentAiConfiguration() {
     }
   };
 
+  // Buscar provedores disponíveis
+  const fetchAvailableProviders = async () => {
+    try {
+      const response = await apiRequest('GET', '/api/ai-configurations/providers');
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableProviders(data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar provedores disponíveis:', error);
+    }
+  };
+
   // Buscar departamentos
-  const { data: departmentsData } = useQuery<{departments: Department[]}>({
-    queryKey: ["/api/departments"],
+  const { data: departmentsData } = useQuery<{departments: Department[]}>({    queryKey: ["/api/departments"],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/departments');
       if (!response.ok) throw new Error('Erro ao buscar departamentos');
@@ -477,6 +627,7 @@ function DepartmentAiConfiguration() {
 
   useEffect(() => {
     fetchConfigurations();
+    fetchAvailableProviders();
   }, []);
 
   const resetForm = () => {
@@ -484,8 +635,6 @@ function DepartmentAiConfiguration() {
       name: '',
       provider: 'openai',
       model: 'gpt-4o',
-      api_key: '',
-      api_endpoint: '',
       system_prompt: '',
       user_prompt_template: '',
       department_id: null,
@@ -565,10 +714,10 @@ function DepartmentAiConfiguration() {
   });
 
   const handleSubmit = () => {
-    if (!formData.name || !formData.api_key) {
+    if (!formData.name) {
       toast({
         title: "Erro",
-        description: "Nome e API Key são obrigatórios",
+        description: "Nome da configuração é obrigatório",
         variant: "destructive"
       });
       return;
@@ -598,8 +747,6 @@ function DepartmentAiConfiguration() {
       name: config.name || '',
       provider: config.provider,
       model: config.model || 'gpt-4o',
-      api_key: config.api_key || '',
-      api_endpoint: config.api_endpoint || '',
       system_prompt: decodeHtml(config.system_prompt || ''),
       user_prompt_template: decodeHtml(config.user_prompt_template || ''),
       department_id: config.department_id || null,
@@ -615,15 +762,6 @@ function DepartmentAiConfiguration() {
   };
 
   const handleTest = async () => {
-    if (!formData.api_key) {
-      toast({
-        title: "Erro",
-        description: "API Key é obrigatória para teste",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setIsTestLoading(true);
     setTestResult(null);
 
@@ -631,10 +769,8 @@ function DepartmentAiConfiguration() {
       const testPayload = {
         provider: formData.provider,
         model: formData.model,
-        api_key: formData.api_key,
-        api_endpoint: formData.api_endpoint,
-        system_prompt: formData.system_prompt || DEFAULT_PROMPTS.system,
-        user_prompt_template: formData.user_prompt_template || DEFAULT_PROMPTS.user,
+        system_prompt: formData.system_prompt,
+        user_prompt_template: formData.user_prompt_template,
         temperature: formData.temperature,
         max_tokens: formData.max_tokens,
         timeout_seconds: formData.timeout_seconds,
@@ -794,7 +930,7 @@ function DepartmentAiConfiguration() {
                   onValueChange={(v) => setFormData(prev => ({ 
                     ...prev, 
                     provider: v as any,
-                    model: modelOptions[v]?.[0] || 'gpt-4o' // Reset model when provider changes
+                    model: modelOptions[v as keyof typeof modelOptions]?.[0] || 'gpt-4o' // Reset model when provider changes
                   }))}
                 >
                   <SelectTrigger>
@@ -825,29 +961,6 @@ function DepartmentAiConfiguration() {
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
-
-            {/* API Key e Endpoint */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="api_key">API Key *</Label>
-                <Input
-                  id="api_key"
-                  type="password"
-                  value={formData.api_key}
-                  onChange={(e) => setFormData(prev => ({ ...prev, api_key: e.target.value }))}
-                  placeholder="Sua chave da API..."
-                />
-              </div>
-              <div>
-                <Label htmlFor="api_endpoint">API Endpoint (opcional)</Label>
-                <Input
-                  id="api_endpoint"
-                  value={formData.api_endpoint}
-                  onChange={(e) => setFormData(prev => ({ ...prev, api_endpoint: e.target.value }))}
-                  placeholder="https://api.openai.com/v1 (padrão)"
-                />
               </div>
             </div>
 
@@ -1014,7 +1127,7 @@ function DepartmentAiConfiguration() {
                   type="button"
                   variant="outline"
                   onClick={handleTest}
-                  disabled={isTestLoading || !formData.api_key}
+                  disabled={isTestLoading}
                 >
                   {isTestLoading ? (
                     <>
@@ -1091,7 +1204,6 @@ function AdminAiConfiguration() {
   const [showForm, setShowForm] = useState(false);
   const [editingConfig, setEditingConfig] = useState<AiConfiguration | null>(null);
   const [deleteConfig, setDeleteConfig] = useState<AiConfiguration | null>(null);
-  const [showApiKey, setShowApiKey] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   const [testData, setTestData] = useState({
     test_title: "Sistema de email não está funcionando",
@@ -1103,8 +1215,6 @@ function AdminAiConfiguration() {
     name: '',
     provider: 'openai' as 'openai' | 'google' | 'anthropic',
     model: 'gpt-4o',
-    api_key: '',
-    api_endpoint: '',
     system_prompt: '',
     user_prompt_template: '',
     department_id: null as number | null,
@@ -1118,11 +1228,34 @@ function AdminAiConfiguration() {
     is_default: false
   });
 
+  // Estados para administração de provedores
+  const [providers, setProviders] = useState<AiProvider[]>([]);
+  const [availableProviders, setAvailableProviders] = useState<AiProvider[]>([]);
+  const [isLoadingProviders, setIsLoadingProviders] = useState(false);
+  const [showAddProviderDialog, setShowAddProviderDialog] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<AiProvider | null>(null);
+  const [deletingProvider, setDeletingProvider] = useState<AiProvider | null>(null);
+  const [testProviderResult, setTestProviderResult] = useState<TestProviderResult | null>(null);
+  const [showToken, setShowToken] = useState<Record<string, boolean>>({});
+  const [providerFormData, setProviderFormData] = useState({
+    name: '',
+    model: '',
+    endpoint: '',
+    token: ''
+  });
+
+  // Estado para filtro de empresas (apenas para admin)
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
+
   // Buscar configurações de IA
   const fetchConfigurations = async () => {
     setIsLoading(true);
     try {
-      const response = await apiRequest('GET', '/api/ai-configurations');
+      let url = '/api/ai-configurations';
+      if (user?.role === 'admin' && selectedCompanyId) {
+        url += `?company_id=${selectedCompanyId}`;
+      }
+      const response = await apiRequest('GET', url);
       if (response.ok) {
         const data = await response.json();
         setConfigurations(data);
@@ -1134,17 +1267,87 @@ function AdminAiConfiguration() {
     }
   };
 
+  // Buscar provedores de IA
+  const fetchProviders = async () => {
+    setIsLoadingProviders(true);
+    try {
+      const response = await apiRequest('GET', '/api/ai-configurations/admin/providers');
+      if (response.ok) {
+        const data = await response.json();
+        setProviders(data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar provedores:', error);
+    } finally {
+      setIsLoadingProviders(false);
+    }
+  };
+
+  // Buscar provedores disponíveis
+  const fetchAvailableProviders = async () => {
+    try {
+      const response = await apiRequest('GET', '/api/ai-configurations/providers');
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableProviders(data);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar provedores disponíveis:', error);
+    }
+  };
+
   // Buscar departamentos
   const { data: departmentsData } = useQuery<{departments: Department[]}>({
-    queryKey: ["/api/departments"],
+    queryKey: ["/api/departments", selectedCompanyId],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/departments');
+      let url = '/api/departments?active_only=true';
+      if (user?.role === 'admin' && selectedCompanyId) {
+        url += `&company_id=${selectedCompanyId}`;
+      }
+      const response = await apiRequest('GET', url);
       if (!response.ok) throw new Error('Erro ao buscar departamentos');
       return response.json();
     }
   });
 
+  // Buscar empresas (apenas para admin)
+  const { data: companies = [] } = useQuery<any[]>({
+    queryKey: ['/api/companies'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/companies');
+      if (!response.ok) throw new Error('Erro ao buscar empresas');
+      return response.json();
+    },
+    enabled: user?.role === 'admin',
+  });
+
   const departments = departmentsData?.departments || [];
+
+  // Carregar dados na montagem do componente
+  useEffect(() => {
+    fetchConfigurations();
+    fetchProviders();
+    fetchAvailableProviders();
+  }, [selectedCompanyId]); // Recarregar quando empresa selecionada mudar
+
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      provider: 'openai',
+      model: 'gpt-4o',
+      system_prompt: '',
+      user_prompt_template: '',
+      department_id: null,
+      company_id: null,
+      temperature: '0.1',
+      max_tokens: 100,
+      timeout_seconds: 30,
+      max_retries: 3,
+      fallback_priority: 'medium',
+      is_active: true,
+      is_default: false,
+    });
+  };
 
   const createMutation = useMutation({
     mutationFn: async (data: Omit<FormData, 'id'>) => {
@@ -1238,28 +1441,176 @@ function AdminAiConfiguration() {
     },
   });
 
+  // Mutations para provedores
+  const updateProvidersMutation = useMutation({
+    mutationFn: async (providers: AiProvider[]) => {
+      const response = await apiRequest("PUT", "/api/ai-configurations/admin/providers", {
+        providers
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: 'Falha ao atualizar provedores' }));
+        throw new Error(errorBody.message);
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      fetchProviders();
+      toast({
+        title: "Sucesso",
+        description: "Provedores atualizados com sucesso!",
+        variant: "default"
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+
+  const testProviderMutation = useMutation({
+    mutationFn: async (provider: AiProvider) => {
+      const response = await apiRequest("POST", "/api/ai-configurations/test", {
+        provider: provider.name,
+        model: provider.model,
+        test_title: "Teste de conectividade",
+        test_description: "Verificando se o provedor está funcionando corretamente."
+      });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({ message: 'Falha ao testar provedor' }));
+        throw new Error(errorBody.message);
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setTestProviderResult({
+        success: true,
+        message: "Provedor testado com sucesso!",
+        response: data
+      });
+      toast({
+        title: "Sucesso",
+        description: "Provedor testado com sucesso!",
+        variant: "default"
+      });
+    },
+    onError: (error: Error) => {
+      setTestProviderResult({
+        success: false,
+        message: "Falha ao testar provedor",
+        error: error.message
+      });
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive"
+      });
+    },
+  });
+
   const isLoading_action = createMutation.isPending || updateMutation.isPending;
 
-  const resetForm = () => {
-    setFormData({
+  const resetProviderForm = () => {
+    setProviderFormData({
       name: '',
-      provider: 'openai',
-      model: 'gpt-4o',
-      api_key: '',
-      api_endpoint: '',
-      system_prompt: '',
-      user_prompt_template: '',
-      department_id: null,
-      company_id: null,
-      temperature: '0.1',
-      max_tokens: 100,
-      timeout_seconds: 30,
-      max_retries: 3,
-      fallback_priority: 'medium',
-      is_active: true,
-      is_default: false,
+      model: '',
+      endpoint: '',
+      token: ''
     });
-    setShowApiKey(false);
+  };
+
+  const handleAddProvider = () => {
+    if (!providerFormData.name || !providerFormData.model || !providerFormData.token) {
+      toast({
+        title: "Erro",
+        description: "Nome, modelo e token são obrigatórios",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const newProvider: AiProvider = {
+      name: providerFormData.name,
+      model: providerFormData.model,
+      endpoint: providerFormData.endpoint || '',
+      token: providerFormData.token
+    };
+
+    const updatedProviders = [...providers, newProvider];
+    updateProvidersMutation.mutate(updatedProviders);
+    setShowAddProviderDialog(false);
+    resetProviderForm();
+  };
+
+  const handleEditProvider = () => {
+    if (!editingProvider || !providerFormData.name || !providerFormData.model || !providerFormData.token) {
+      toast({
+        title: "Erro",
+        description: "Nome, modelo e token são obrigatórios",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const updatedProviders = providers.map(provider => 
+      provider.name === editingProvider.name 
+        ? {
+            ...provider,
+            name: providerFormData.name,
+            model: providerFormData.model,
+            endpoint: providerFormData.endpoint,
+            token: providerFormData.token
+          }
+        : provider
+    );
+
+    updateProvidersMutation.mutate(updatedProviders);
+    setEditingProvider(null);
+    resetProviderForm();
+  };
+
+  const handleDeleteProvider = () => {
+    if (!deletingProvider) return;
+
+    const updatedProviders = providers.filter(provider => provider.name !== deletingProvider.name);
+    updateProvidersMutation.mutate(updatedProviders);
+    setDeletingProvider(null);
+  };
+
+  const handleTestProvider = async (provider: AiProvider) => {
+    try {
+      await testProviderMutation.mutateAsync(provider);
+    } catch (error) {
+      // Erro já tratado na mutation
+    }
+  };
+
+  const openEditProviderDialog = (provider: AiProvider) => {
+    setProviderFormData({
+      name: provider.name,
+      model: provider.model,
+      endpoint: provider.endpoint,
+      token: provider.token
+    });
+    setEditingProvider(provider);
+  };
+
+  const toggleTokenVisibility = (providerName: string) => {
+    setShowToken(prev => ({
+      ...prev,
+      [providerName]: !prev[providerName]
+    }));
+  };
+
+  const getDefaultEndpoint = (providerName: string) => {
+    const endpoints = {
+      openai: 'https://api.openai.com/v1',
+      anthropic: 'https://api.anthropic.com',
+      google: 'https://generativelanguage.googleapis.com'
+    };
+    return endpoints[providerName as keyof typeof endpoints] || '';
   };
 
   // Função para decodificar caracteres HTML
@@ -1279,8 +1630,6 @@ function AdminAiConfiguration() {
       name: config.name || '',
       provider: config.provider,
       model: config.model || 'gpt-4o',
-      api_key: config.api_key || '',
-      api_endpoint: config.api_endpoint || '',
       system_prompt: decodeHtml(config.system_prompt || ''),
       user_prompt_template: decodeHtml(config.user_prompt_template || ''),
       department_id: config.department_id || null,
@@ -1293,19 +1642,18 @@ function AdminAiConfiguration() {
       is_active: config.is_active !== undefined ? config.is_active : true,
       is_default: config.is_default !== undefined ? config.is_default : false,
     });
-    setShowApiKey(false);
   };
 
   const handleSubmit = () => {
-    if (!formData.name || !formData.api_key) {
+    if (!formData.name || !formData.provider || !formData.model) {
       toast({
         title: "Erro",
-        description: "Nome e API Key são obrigatórios",
+        description: "Nome, provedor e modelo são obrigatórios",
         variant: "destructive"
       });
       return;
     }
-    
+
     if (editingConfig) {
       updateMutation.mutate({ id: editingConfig.id, data: formData });
     } else {
@@ -1314,160 +1662,356 @@ function AdminAiConfiguration() {
   };
 
   const handleTest = async () => {
-    if (!formData.api_key) {
+    if (!testData.test_title || !testData.test_description) {
       toast({
         title: "Erro",
-        description: "API Key é obrigatória para teste",
+        description: "Título e descrição do teste são obrigatórios",
         variant: "destructive"
       });
       return;
     }
 
     setIsTestLoading(true);
-    setTestResult(null);
-
     try {
-      const testPayload = {
+      const response = await apiRequest('POST', '/api/ai-configurations/test', {
+        test_title: testData.test_title,
+        test_description: testData.test_description,
         provider: formData.provider,
         model: formData.model,
-        api_key: formData.api_key,
-        api_endpoint: formData.api_endpoint,
-        system_prompt: formData.system_prompt || DEFAULT_PROMPTS.system,
-        user_prompt_template: formData.user_prompt_template || DEFAULT_PROMPTS.user,
-        temperature: formData.temperature,
+        system_prompt: formData.system_prompt,
+        user_prompt_template: formData.user_prompt_template,
+        temperature: parseFloat(formData.temperature),
         max_tokens: formData.max_tokens,
         timeout_seconds: formData.timeout_seconds,
         max_retries: formData.max_retries,
-        test_title: testData.test_title || "Sistema de email não está funcionando",
-        test_description: testData.test_description || "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
-      };
-
-      const response = await fetch('/api/ai-configurations/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(testPayload),
+        fallback_priority: formData.fallback_priority
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || result.message || 'Falha no teste');
-      }
-
-      if (result.success) {
-        setTestResult(result.result);
+      if (response.ok) {
+        const result = await response.json();
+        setTestResult(result);
         toast({
           title: "Sucesso",
-          description: "Teste executado com sucesso!"
+          description: "Teste executado com sucesso!",
+          variant: "default"
         });
       } else {
-        throw new Error(result.error || result.message || 'Teste falhou');
+        const error = await response.json();
+        throw new Error(error.message || 'Falha ao executar teste');
       }
-
     } catch (error: any) {
-      console.error('Erro no teste da configuração:', error);
+      console.error('Erro ao testar configuração:', error);
       toast({
-        title: "Erro no teste",
-        description: error.message,
+        title: "Erro",
+        description: error.message || 'Falha ao executar teste',
         variant: "destructive"
-      });
-      setTestResult({
-        priority: 'medium',
-        justification: `Erro no teste: ${error.message}`,
-        confidence: 0,
-        usedFallback: true,
-        processingTimeMs: 0
       });
     } finally {
       setIsTestLoading(false);
     }
   };
 
-  const maskApiKey = (key: string | null | undefined) => {
-    if (!key || key.length <= 8) return '••••••••';
-    return key.substring(0, 4) + '••••••••' + key.substring(key.length - 4);
-  };
-
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5" />
-            Configurações de IA
-          </CardTitle>
-          <CardDescription>
-            Configure provedores de IA para análise automática de prioridade de tickets
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Botão para adicionar nova configuração */}
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-medium">Configurações Ativas</h3>
-            <Dialog open={showForm} onOpenChange={setShowForm}>
-              <DialogTrigger asChild>
-                <Button onClick={resetForm}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nova Configuração
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Nova Configuração de IA</DialogTitle>
-                  <DialogDescription>
-                    Configure um novo provedor de IA para análise de tickets
-                  </DialogDescription>
-                </DialogHeader>
-                {/* Formulário será renderizado aqui */}
-                <ConfigurationForm 
-                  formData={formData}
-                  setFormData={setFormData}
-                  onSubmit={handleSubmit}
-                  onTest={handleTest}
-                  testResult={testResult}
-                  testData={testData}
-                  setTestData={setTestData}
-                  isLoading={isLoading_action}
-                  isTestLoading={isTestLoading}
-                  showApiKey={showApiKey}
-                  setShowApiKey={setShowApiKey}
-                  departments={departments}
-                />
-              </DialogContent>
-            </Dialog>
-          </div>
 
-          {/* Lista de configurações */}
-          {isLoading ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <span className="ml-2">Carregando configurações...</span>
-            </div>
-          ) : configurations.length === 0 ? (
-            <div className="text-center p-8 border border-dashed rounded-lg">
-              <Brain className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma configuração encontrada</h3>
-              <p className="text-gray-500 mb-4">Crie sua primeira configuração de IA para começar.</p>
-              <Button onClick={() => setShowForm(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Criar Configuração
-              </Button>
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              {configurations.map((config) => (
-                <ConfigurationCard
-                  key={config.id}
-                  config={config}
-                  onEdit={openEditDialog}
-                  onDelete={deleteMutation.mutate}
-                  maskApiKey={maskApiKey}
-                />
-              ))}
-            </div>
+
+      <Tabs defaultValue="configurations" className="space-y-4">
+        <TabsList className="w-full justify-start border-b rounded-none bg-transparent mb-6">
+          <TabsTrigger value="configurations" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+            Configurações de IA
+          </TabsTrigger>
+          <TabsTrigger value="providers" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+            Provedores
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="configurations" className="space-y-4">
+          {/* Configurações de IA */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-5 w-5" />
+                    Configurações de IA
+                  </CardTitle>
+                  <CardDescription>
+                    Gerencie as configurações de IA por departamento
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-4">
+                  {/* Filtro de Empresas para Admin */}
+                  {user?.role === 'admin' && (
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={selectedCompanyId?.toString() || "all"}
+                        onValueChange={(value) => {
+                          setSelectedCompanyId(value === "all" ? null : parseInt(value));
+                        }}
+                      >
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="Filtrar por empresa" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">🏢 Todas as Empresas</SelectItem>
+                          {companies.map((company) => (
+                            <SelectItem key={company.id} value={company.id.toString()}>
+                              🏢 {company.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <Button onClick={() => setShowForm(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nova Configuração
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="animate-pulse">
+                      <div className="h-24 bg-gray-200 rounded"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : configurations.length === 0 ? (
+                <div className="text-center py-8">
+                  <Brain className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Nenhuma configuração encontrada</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {user?.role === 'admin' && selectedCompanyId 
+                      ? 'Nenhuma configuração encontrada para a empresa selecionada'
+                      : 'Crie sua primeira configuração de IA para começar'
+                    }
+                  </p>
+                  <Button onClick={() => setShowForm(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Criar Primeira Configuração
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {configurations.map((config) => (
+                    <ConfigurationCard
+                      key={config.id}
+                      config={config}
+                      onEdit={openEditDialog}
+                      onDelete={(id) => setDeleteConfig(configurations.find(c => c.id === id) || null)}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Resultado do Teste */}
+          {testResult && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TestTube className="h-5 w-5" />
+                  Resultado do Teste
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={testResult.priority === 'critical' ? 'destructive' : 
+                                   testResult.priority === 'high' ? 'default' : 
+                                   testResult.priority === 'medium' ? 'secondary' : 'outline'}>
+                      {testResult.priority.toUpperCase()}
+                    </Badge>
+                    {testResult.usedFallback && (
+                      <Badge variant="outline">Fallback</Badge>
+                    )}
+                    <span className="text-sm text-muted-foreground">
+                      {testResult.processingTimeMs}ms
+                    </span>
+                  </div>
+                  {testResult.justification && (
+                    <div>
+                      <h4 className="font-medium mb-2">Justificativa:</h4>
+                      <p className="text-sm text-muted-foreground">{testResult.justification}</p>
+                    </div>
+                  )}
+                  {testResult.confidence && (
+                    <div>
+                      <h4 className="font-medium mb-2">Confiança:</h4>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full" 
+                          style={{ width: `${testResult.confidence * 100}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {Math.round(testResult.confidence * 100)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
+
+        <TabsContent value="providers" className="space-y-4">
+          {/* Provedores de IA */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Provedores Configurados
+                  </CardTitle>
+                  <CardDescription>
+                    Gerencie os provedores de IA disponíveis para as empresas
+                  </CardDescription>
+                </div>
+                <Button onClick={() => setShowAddProviderDialog(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar Provedor
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoadingProviders ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="animate-pulse">
+                      <div className="h-16 bg-gray-200 rounded"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : providers.length === 0 ? (
+                <div className="text-center py-8">
+                  <Brain className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Nenhum provedor configurado</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Adicione provedores de IA para que as empresas possam utilizá-los
+                  </p>
+                  <Button onClick={() => setShowAddProviderDialog(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar Primeiro Provedor
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {providers.map((provider) => (
+                    <Card key={provider.name} className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="font-semibold text-lg">{provider.name}</h3>
+                            <Badge variant="outline">{provider.model}</Badge>
+                            {provider.token && (
+                              <Badge variant="secondary" className="flex items-center gap-1">
+                                <Key className="h-3 w-3" />
+                                Token Configurado
+                              </Badge>
+                            )}
+                          </div>
+                          {provider.endpoint && (
+                            <p className="text-sm text-muted-foreground">
+                              Endpoint: {provider.endpoint}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleTestProvider(provider)}
+                            disabled={testProviderMutation.isPending}
+                          >
+                            {testProviderMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <TestTube className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditProviderDialog(provider)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setDeletingProvider(provider)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Tem certeza que deseja excluir o provedor "{provider.name}"? 
+                                  Esta ação não pode ser desfeita e pode afetar as configurações das empresas.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={handleDeleteProvider}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Resultado do Teste de Provedor */}
+          {testProviderResult && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  {testProviderResult.success ? (
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-red-600" />
+                  )}
+                  Resultado do Teste
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`p-4 rounded-lg ${
+                  testProviderResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+                }`}>
+                  <p className="font-medium mb-2">{testProviderResult.message}</p>
+                  {testProviderResult.error && (
+                    <p className="text-sm text-red-600">{testProviderResult.error}</p>
+                  )}
+                  {testProviderResult.response && (
+                    <pre className="text-xs bg-muted p-2 rounded mt-2 overflow-auto">
+                      {JSON.stringify(testProviderResult.response, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Dialog de edição */}
       <Dialog open={editingConfig !== null} onOpenChange={(open) => {
@@ -1493,11 +2037,170 @@ function AdminAiConfiguration() {
             setTestData={setTestData}
             isLoading={isLoading_action}
             isTestLoading={isTestLoading}
-            showApiKey={showApiKey}
-            setShowApiKey={setShowApiKey}
-            isEditing={true}
             departments={departments}
+            availableProviders={availableProviders}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para criar nova configuração */}
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nova Configuração de IA</DialogTitle>
+            <DialogDescription>
+              Configure um novo provedor de IA para análise de tickets
+            </DialogDescription>
+          </DialogHeader>
+          <ConfigurationForm 
+            formData={formData}
+            setFormData={setFormData}
+            onSubmit={handleSubmit}
+            onTest={handleTest}
+            testResult={testResult}
+            testData={testData}
+            setTestData={setTestData}
+            isLoading={isLoading_action}
+            isTestLoading={isTestLoading}
+            departments={departments}
+            availableProviders={availableProviders}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para Adicionar/Editar Provedor */}
+      <Dialog open={showAddProviderDialog || !!editingProvider} onOpenChange={(open) => {
+        if (!open) {
+          setShowAddProviderDialog(false);
+          setEditingProvider(null);
+          resetProviderForm();
+        }
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {editingProvider ? <Edit3 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
+              {editingProvider ? 'Editar Provedor' : 'Adicionar Provedor'}
+            </DialogTitle>
+            <DialogDescription>
+              Configure um novo provedor de IA com suas credenciais e parâmetros
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="provider-name">Nome do Provedor *</Label>
+                <Select
+                  value={providerFormData.name}
+                  onValueChange={(value) => {
+                    setProviderFormData(prev => ({ 
+                      ...prev, 
+                      name: value,
+                      model: modelOptions[value]?.[0] || '',
+                      endpoint: getDefaultEndpoint(value)
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um provedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AI_PROVIDERS.map(provider => (
+                      <SelectItem key={provider.value} value={provider.value}>
+                        {provider.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="provider-model">Modelo *</Label>
+                <Select
+                  value={providerFormData.model}
+                  onValueChange={(value) => setProviderFormData(prev => ({ ...prev, model: value }))}
+                  disabled={!providerFormData.name}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um modelo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(modelOptions[providerFormData.name] || []).map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="provider-endpoint">Endpoint (Opcional)</Label>
+              <Input
+                id="provider-endpoint"
+                value={providerFormData.endpoint}
+                onChange={(e) => setProviderFormData(prev => ({ ...prev, endpoint: e.target.value }))}
+                placeholder={getDefaultEndpoint(providerFormData.name) || "https://api.exemplo.com"}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Deixe em branco para usar o endpoint padrão do provedor
+              </p>
+            </div>
+            
+            <div>
+              <Label htmlFor="provider-token">Token de API *</Label>
+              <div className="relative">
+                <Input
+                  id="provider-token"
+                  type={showToken[providerFormData.name] ? "text" : "password"}
+                  value={providerFormData.token}
+                  onChange={(e) => setProviderFormData(prev => ({ ...prev, token: e.target.value }))}
+                  placeholder="sk-... ou chave de API"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => toggleTokenVisibility(providerFormData.name)}
+                >
+                  {showToken[providerFormData.name] ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Token de autenticação para acessar a API do provedor
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddProviderDialog(false);
+                setEditingProvider(null);
+                resetProviderForm();
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={editingProvider ? handleEditProvider : handleAddProvider}
+              disabled={updateProvidersMutation.isPending}
+            >
+              {updateProvidersMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              {editingProvider ? 'Salvar Alterações' : 'Adicionar Provedor'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -1515,10 +2218,9 @@ interface ConfigurationFormProps {
   setTestData: React.Dispatch<React.SetStateAction<TestData>>;
   isLoading: boolean;
   isTestLoading: boolean;
-  showApiKey: boolean;
-  setShowApiKey: React.Dispatch<React.SetStateAction<boolean>>;
   isEditing?: boolean;
   departments?: Department[];
+  availableProviders?: AiProvider[];
 }
 
 function ConfigurationForm({ 
@@ -1531,11 +2233,26 @@ function ConfigurationForm({
   setTestData,
   isLoading, 
   isTestLoading,
-  showApiKey,
-  setShowApiKey,
   isEditing = false,
-  departments = []
+  departments = [],
+  availableProviders = []
 }: ConfigurationFormProps) {
+  
+  // Criar mapeamento de provedores e modelos disponíveis
+  const configuredProviders = availableProviders.reduce((acc, provider) => {
+    if (!acc[provider.name]) {
+      acc[provider.name] = [];
+    }
+    if (!acc[provider.name].includes(provider.model)) {
+      acc[provider.name].push(provider.model);
+    }
+    return acc;
+  }, {} as Record<string, string[]>);
+  
+  const providerOptions = Object.keys(configuredProviders).map(name => ({
+    value: name,
+    label: AI_PROVIDERS.find(p => p.value === name)?.label || name
+  }));
   return (
     <div className="space-y-4">
       {/* Nome */}
@@ -1558,18 +2275,24 @@ function ConfigurationForm({
             onValueChange={(v) => setFormData(prev => ({ 
               ...prev, 
               provider: v as any,
-              model: DEFAULT_MODELS[v as keyof typeof DEFAULT_MODELS]?.[0] || ''
+              model: configuredProviders[v]?.[0] || ''
             }))}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Selecione um provedor" />
             </SelectTrigger>
             <SelectContent>
-              {AI_PROVIDERS.map(provider => (
-                <SelectItem key={provider.value} value={provider.value}>
-                  {provider.label}
+              {providerOptions.length > 0 ? (
+                providerOptions.map(provider => (
+                  <SelectItem key={provider.value} value={provider.value}>
+                    {provider.label}
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="" disabled>
+                  Nenhum provedor configurado
                 </SelectItem>
-              ))}
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -1579,58 +2302,26 @@ function ConfigurationForm({
           <Select 
             value={formData.model} 
             onValueChange={(v) => setFormData(prev => ({ ...prev, model: v }))}
+            disabled={!formData.provider || !configuredProviders[formData.provider]}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Selecione um modelo" />
             </SelectTrigger>
             <SelectContent>
-              {modelOptions[formData.provider]?.map(model => (
-                <SelectItem key={model} value={model}>
-                  {model}
+              {configuredProviders[formData.provider]?.length > 0 ? (
+                configuredProviders[formData.provider].map(model => (
+                  <SelectItem key={model} value={model}>
+                    {model}
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="" disabled>
+                  {formData.provider ? 'Nenhum modelo configurado' : 'Selecione um provedor primeiro'}
                 </SelectItem>
-              ))}
+              )}
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      {/* API Key */}
-      <div>
-        <Label htmlFor="api-key">API Key</Label>
-        <div className="relative">
-          <Input
-            id="api-key"
-            type={showApiKey ? "text" : "password"}
-            value={formData.api_key}
-            onChange={(e) => setFormData(prev => ({ ...prev, api_key: e.target.value }))}
-            placeholder="Sua API Key"
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="absolute right-0 top-0 h-full px-3"
-            onClick={() => setShowApiKey(!showApiKey)}
-          >
-            {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </Button>
-        </div>
-      </div>
-
-      {/* Endpoint (opcional) */}
-      <div>
-        <Label htmlFor="api-endpoint">Endpoint da API (opcional)</Label>
-        <Input
-          id="api-endpoint"
-          value={formData.api_endpoint}
-          onChange={(e) => setFormData(prev => ({ ...prev, api_endpoint: e.target.value }))}
-          placeholder={
-            formData.provider === 'openai' ? 'https://api.openai.com/v1' :
-            formData.provider === 'google' ? 'https://generativelanguage.googleapis.com/v1beta' :
-            formData.provider === 'anthropic' ? 'https://api.anthropic.com/v1' :
-            'Endpoint personalizado da API'
-          }
-        />
       </div>
 
       {/* Prompts */}
@@ -1807,7 +2498,7 @@ function ConfigurationForm({
             type="button"
             variant="outline"
             onClick={onTest}
-            disabled={isTestLoading || !formData.api_key}
+            disabled={isTestLoading}
           >
             {isTestLoading ? (
               <>
@@ -1876,13 +2567,11 @@ function ConfigurationForm({
 function ConfigurationCard({ 
   config, 
   onEdit, 
-  onDelete, 
-  maskApiKey 
+  onDelete
 }: { 
   config: AiConfiguration; 
   onEdit: (config: AiConfiguration) => void; 
   onDelete: (id: number) => void; 
-  maskApiKey: (key: string | null | undefined) => string; 
 }) {
   return (
     <Card className={`relative ${config.is_default ? 'ring-2 ring-blue-500' : ''}`}>
@@ -1909,15 +2598,14 @@ function ConfigurationCard({
                 Padrão
               </span>
             )}
-            <div className={`w-2 h-2 rounded-full ${config.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
+            <div className={`
+              w-2 h-2 rounded-full ${config.is_active ? 'bg-green-500' : 'bg-gray-400'}
+            `} />
           </div>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
         <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <span className="font-medium">API Key:</span> {maskApiKey(config.api_key)}
-          </div>
           <div>
             <span className="font-medium">Temperatura:</span> {config.temperature}
           </div>
@@ -1957,4 +2645,4 @@ function ConfigurationCard({
       </CardContent>
     </Card>
   );
-} 
+}

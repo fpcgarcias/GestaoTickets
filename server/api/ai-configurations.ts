@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { eq, desc, and, ne, sql, count, isNull, or } from "drizzle-orm";
+import { eq, desc, and, ne, sql, count, isNull, or, like } from "drizzle-orm";
 import * as schema from "../../shared/schema";
 import { db } from "../db";
 import { AiService } from "../services/ai-service";
@@ -7,18 +7,32 @@ import { AiService } from "../services/ai-service";
 // GET /api/ai-configurations - Listar todas as configurações de IA (globais e por departamento)
 export async function getAiConfigurations(req: Request, res: Response) {
   try {
-    const { department_id } = req.query;
+    const { department_id, analysis_type, company_id } = req.query;
     const userRole = req.session?.userRole;
     const userCompanyId = req.session?.companyId;
 
+    // Verificar se a empresa tem permissão para usar IA (exceto para admin)
+    if (userRole !== 'admin' && userCompanyId) {
+      const [company] = await db
+        .select({ ai_permission: schema.companies.ai_permission })
+        .from(schema.companies)
+        .where(eq(schema.companies.id, userCompanyId))
+        .limit(1);
+
+      if (!company?.ai_permission) {
+        return res.status(403).json({ 
+          message: "Sua empresa não tem permissão para usar recursos de IA",
+          ai_permission: false
+        });
+      }
+    }
     let baseQuery = db
       .select({
-        id: schema.aiConfigurations.id,
-        name: schema.aiConfigurations.name,
-        provider: schema.aiConfigurations.provider,
-        model: schema.aiConfigurations.model,
-        api_key: schema.aiConfigurations.api_key,
-        api_endpoint: schema.aiConfigurations.api_endpoint,
+            id: schema.aiConfigurations.id,
+    name: schema.aiConfigurations.name,
+    provider: schema.aiConfigurations.provider,
+    model: schema.aiConfigurations.model,
+    api_endpoint: schema.aiConfigurations.api_endpoint,
         system_prompt: schema.aiConfigurations.system_prompt,
         user_prompt_template: schema.aiConfigurations.user_prompt_template,
         department_id: schema.aiConfigurations.department_id,
@@ -30,6 +44,7 @@ export async function getAiConfigurations(req: Request, res: Response) {
         timeout_seconds: schema.aiConfigurations.timeout_seconds,
         max_retries: schema.aiConfigurations.max_retries,
         fallback_priority: schema.aiConfigurations.fallback_priority,
+        analysis_type: schema.aiConfigurations.analysis_type,
         created_at: schema.aiConfigurations.created_at,
         updated_at: schema.aiConfigurations.updated_at,
         created_by_name: schema.users.name,
@@ -38,20 +53,17 @@ export async function getAiConfigurations(req: Request, res: Response) {
       .from(schema.aiConfigurations)
       .leftJoin(schema.users, eq(schema.aiConfigurations.created_by_id, schema.users.id))
       .leftJoin(schema.departments, eq(schema.aiConfigurations.department_id, schema.departments.id));
-
     // Construir condições de filtro
     let whereConditions: any[] = [];
-
-    // Filtrar por empresa (exceto para admin)
-    if (userRole !== 'admin' && userCompanyId) {
-      // Para usuários não-admin: mostrar apenas configurações da sua empresa
+    
+    // Filtro por empresa
+    if (userRole === 'admin' && company_id) {
+      // Admin pode filtrar por qualquer empresa
+      whereConditions.push(eq(schema.aiConfigurations.company_id, parseInt(company_id as string)));
+    } else if (userRole !== 'admin' && userCompanyId) {
+      // Usuários não-admin só veem configurações da própria empresa
       whereConditions.push(eq(schema.aiConfigurations.company_id, userCompanyId));
-    } else if (userRole === 'admin') {
-      // Para admin: mostrar todas as configurações (globais e específicas de empresas)
-      // Sem filtro de empresa
     }
-
-    // Filtrar por departamento se especificado
     if (department_id) {
       if (department_id === 'global') {
         whereConditions.push(isNull(schema.aiConfigurations.department_id));
@@ -59,8 +71,9 @@ export async function getAiConfigurations(req: Request, res: Response) {
         whereConditions.push(eq(schema.aiConfigurations.department_id, parseInt(department_id as string)));
       }
     }
-
-    // Aplicar filtros
+    if (analysis_type) {
+      whereConditions.push(eq(schema.aiConfigurations.analysis_type, String(analysis_type)));
+    }
     let configurations;
     if (whereConditions.length > 0) {
       configurations = await baseQuery
@@ -70,7 +83,6 @@ export async function getAiConfigurations(req: Request, res: Response) {
       configurations = await baseQuery
         .orderBy(desc(schema.aiConfigurations.created_at));
     }
-
     res.json(configurations);
   } catch (error) {
     console.error('Erro ao buscar configurações de IA:', error);
@@ -84,12 +96,10 @@ export async function createAiConfiguration(req: Request, res: Response) {
     const userId = req.session.userId;
     const userRole = req.session?.userRole;
     const userCompanyId = req.session?.companyId;
-
     const {
       name,
       provider,
       model,
-      api_key,
       api_endpoint,
       system_prompt,
       user_prompt_template,
@@ -101,29 +111,47 @@ export async function createAiConfiguration(req: Request, res: Response) {
       fallback_priority,
       is_active,
       is_default,
+      analysis_type,
     } = req.body;
-
-    if (!name || !provider || !model || !api_key || !system_prompt || !user_prompt_template) {
+    if (!name || !provider || !model || !system_prompt || !user_prompt_template || !analysis_type) {
       return res.status(400).json({ 
-        message: "Campos obrigatórios: name, provider, model, api_key, system_prompt, user_prompt_template" 
+        message: "Campos obrigatórios: name, provider, model, system_prompt, user_prompt_template, analysis_type" 
       });
     }
 
-    // OBRIGATÓRIO: Configuração deve ter department_id
+    // Verificar se o provedor e modelo estão disponíveis no system_settings
+    const [providerSetting] = await db
+      .select({ value: schema.systemSettings.value })
+      .from(schema.systemSettings)
+      .where(eq(schema.systemSettings.key, `ai_${provider}_provider`))
+      .limit(1);
+
+    if (!providerSetting) {
+      return res.status(400).json({ 
+        message: `Provedor ${provider} não está configurado no sistema. Entre em contato com o administrador.` 
+      });
+    }
+
+    const [modelSetting] = await db
+      .select({ value: schema.systemSettings.value })
+      .from(schema.systemSettings)
+      .where(eq(schema.systemSettings.key, `ai_${provider}_model`))
+      .limit(1);
+
+    if (!modelSetting || modelSetting.value !== model) {
+      return res.status(400).json({ 
+        message: `Modelo ${model} não está disponível para o provedor ${provider}. Entre em contato com o administrador.` 
+      });
+    }
     if (!department_id) {
       return res.status(400).json({ 
         message: "Campo obrigatório: department_id. Cada configuração deve ser específica de um departamento." 
       });
     }
-
-    // Definir company_id baseado no papel do usuário
     let targetCompanyId: number | null = null;
     if (userRole === 'admin') {
-      // Admin pode criar configurações globais (company_id: null) ou para empresas específicas
-      // Se não especificar company_id no body, será global
       targetCompanyId = req.body.company_id || null;
     } else {
-      // Usuários não-admin só podem criar configurações para sua própria empresa
       if (!userCompanyId) {
         return res.status(400).json({ 
           message: "Usuário deve estar associado a uma empresa para criar configurações de IA" 
@@ -131,8 +159,6 @@ export async function createAiConfiguration(req: Request, res: Response) {
       }
       targetCompanyId = userCompanyId;
     }
-
-    // Se for definida como padrão, desativar outras configurações padrão do mesmo departamento e empresa
     if (is_default) {
       await db
         .update(schema.aiConfigurations)
@@ -140,37 +166,35 @@ export async function createAiConfiguration(req: Request, res: Response) {
         .where(
           and(
             eq(schema.aiConfigurations.department_id, department_id),
+            eq(schema.aiConfigurations.analysis_type, analysis_type),
             targetCompanyId ? eq(schema.aiConfigurations.company_id, targetCompanyId) : isNull(schema.aiConfigurations.company_id),
             eq(schema.aiConfigurations.is_default, true)
           )
         );
     }
-
-    // Criar nova configuração
     const [newConfiguration] = await db
       .insert(schema.aiConfigurations)
       .values({
         name,
         provider,
         model,
-        api_key,
         api_endpoint,
         system_prompt,
         user_prompt_template,
         department_id,
         company_id: targetCompanyId,
-        temperature: temperature || '0.1',
-        max_tokens: max_tokens || 100,
-        timeout_seconds: timeout_seconds || 30,
-        max_retries: max_retries || 3,
-        fallback_priority: fallback_priority || 'medium',
+        temperature: temperature,
+      max_tokens: max_tokens,
+      timeout_seconds: timeout_seconds,
+      max_retries: max_retries,
+      fallback_priority: fallback_priority,
         is_active: is_active !== undefined ? is_active : true,
         is_default: is_default || false,
         created_by_id: userId,
         updated_by_id: userId,
+        analysis_type,
       })
       .returning();
-
     res.status(201).json(newConfiguration);
   } catch (error) {
     console.error('Erro ao criar configuração de IA:', error);
@@ -184,92 +208,46 @@ export async function testAiConfiguration(req: Request, res: Response) {
     const {
       provider = "openai",
       model = "gpt-4o",
-      api_key,
       system_prompt,
       user_prompt_template,
       department_id,
+      analysis_type = 'priority',
       test_title = "Sistema de email não está funcionando",
       test_description = "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
     } = req.body;
-
-    if (!api_key) {
+    
+    const userRole = req.session?.userRole;
+    const userCompanyId = req.session?.companyId;
+    
+    if (!analysis_type) {
       return res.status(400).json({ 
-        message: "Campo obrigatório: api_key" 
+        message: "Campo obrigatório: analysis_type" 
       });
     }
-
-    // Se department_id for fornecido, buscar as prioridades específicas do departamento
-    let adjustedSystemPrompt = system_prompt;
-    let adjustedUserPrompt = user_prompt_template;
-
+    let testCompanyId: number | null = null;
+    
     if (department_id) {
       try {
-        // Buscar empresa do departamento
         const [department] = await db
           .select({ company_id: schema.departments.company_id })
           .from(schema.departments)
           .where(eq(schema.departments.id, department_id))
           .limit(1);
-
         if (department?.company_id) {
-          // Buscar prioridades específicas do departamento
-          const priorities = await db
-            .select()
-            .from(schema.departmentPriorities)
-            .where(
-              and(
-                eq(schema.departmentPriorities.company_id, department.company_id),
-                eq(schema.departmentPriorities.department_id, department_id),
-                eq(schema.departmentPriorities.is_active, true)
-              )
-            )
-            .orderBy(schema.departmentPriorities.weight);
-
-          if (priorities.length > 0) {
-            // Ajustar prompts para usar as prioridades específicas do departamento
-            const priorityList = priorities
-              .map(p => `${p.name}: Peso ${p.weight}`)
-              .join(', ');
-
-            const priorityNames = priorities.map(p => p.name).join(', ');
-
-            adjustedSystemPrompt = `Você é um assistente especializado em análise de prioridade de tickets de suporte técnico. Analise o título e descrição do ticket e determine a prioridade apropriada baseada nas prioridades específicas deste departamento:
-
-Prioridades disponíveis: ${priorityList}
-
-IMPORTANTE: Responda EXATAMENTE no formato:
-<PRIORIDADE>nome_da_prioridade</PRIORIDADE>
-<JUSTIFICATIVA>explicação detalhada da análise baseada no conteúdo do ticket</JUSTIFICATIVA>
-
-Use apenas as prioridades disponíveis: ${priorityNames}`;
-
-            adjustedUserPrompt = `Título: {titulo}
-
-Descrição: {descricao}
-
-Analise este ticket e determine sua prioridade considerando as diretrizes específicas do departamento. Responda no formato:
-<PRIORIDADE>nome_da_prioridade</PRIORIDADE>
-<JUSTIFICATIVA>explicação detalhada da análise</JUSTIFICATIVA>
-
-Use apenas as prioridades: ${priorityNames}`;
-          }
+          testCompanyId = department.company_id;
         }
       } catch (error) {
-        console.warn('Erro ao buscar prioridades do departamento para teste:', error);
+        console.warn('Erro ao buscar departamento para teste:', error);
       }
     }
-
-    // Usar prompts padrão se não foram ajustados
-    const finalSystemPrompt = adjustedSystemPrompt || "Você é um assistente que analisa tickets de suporte e determina a prioridade. Responda no formato:\n<PRIORIDADE>BAIXA</PRIORIDADE>\n<JUSTIFICATIVA>explicação da análise</JUSTIFICATIVA>\n\nUse apenas: BAIXA, MEDIA, ALTA ou CRITICA";
-    const finalUserPrompt = adjustedUserPrompt || "Título: {titulo}\nDescrição: {descricao}\n\nQual a prioridade deste ticket? Responda no formato:\n<PRIORIDADE>prioridade</PRIORIDADE>\n<JUSTIFICATIVA>justificativa</JUSTIFICATIVA>";
-
-    // Criar configuração temporária para teste
+    
+    const finalSystemPrompt = system_prompt;
+    const finalUserPrompt = user_prompt_template;
     const testConfig: schema.AiConfiguration = {
       id: 0,
       name: "Teste",
       provider: provider as any,
       model,
-      api_key,
       api_endpoint: null,
       system_prompt: finalSystemPrompt,
       user_prompt_template: finalUserPrompt,
@@ -286,12 +264,14 @@ Use apenas as prioridades: ${priorityNames}`;
       updated_at: new Date(),
       created_by_id: null,
       updated_by_id: null,
+      analysis_type,
     };
-
-    // Testar configuração
+    
     const aiService = new AiService();
-    const result = await aiService.testConfiguration(testConfig, test_title, test_description);
-
+    // Para admin, usar o companyId da sessão ou null para token global
+    const forceCompanyId = userRole === 'admin' ? (testCompanyId || userCompanyId || null) : testCompanyId;
+    const result = await aiService.testConfiguration(testConfig, test_title, test_description, forceCompanyId);
+    
     res.json({
       success: true,
       result,
@@ -318,27 +298,21 @@ export async function updateAiConfiguration(req: Request, res: Response) {
     const userId = req.session.userId;
     const userRole = req.session?.userRole;
     const userCompanyId = req.session?.companyId;
-
     if (isNaN(configurationId)) {
       return res.status(400).json({ message: "ID de configuração inválido" });
     }
-
-    // Verificar se a configuração existe
     const [existingConfig] = await db
       .select()
       .from(schema.aiConfigurations)
       .where(eq(schema.aiConfigurations.id, configurationId))
       .limit(1);
-
     if (!existingConfig) {
       return res.status(404).json({ message: "Configuração não encontrada" });
     }
-
     const {
       name,
       provider,
       model,
-      api_key,
       api_endpoint,
       system_prompt,
       user_prompt_template,
@@ -350,25 +324,48 @@ export async function updateAiConfiguration(req: Request, res: Response) {
       fallback_priority,
       is_active,
       is_default,
+      analysis_type,
     } = req.body;
-
-    // OBRIGATÓRIO: Configuração deve ter department_id
     const targetDepartmentId = department_id !== undefined ? department_id : existingConfig.department_id;
-    if (!targetDepartmentId) {
+    const targetAnalysisType = analysis_type !== undefined ? analysis_type : existingConfig.analysis_type;
+    if (!targetDepartmentId || !targetAnalysisType) {
       return res.status(400).json({ 
-        message: "Campo obrigatório: department_id. Cada configuração deve ser específica de um departamento." 
+        message: "Campos obrigatórios: department_id, analysis_type. Cada configuração deve ser específica de um departamento e tipo de análise." 
       });
     }
 
-    // Definir company_id baseado no papel do usuário
+    // Verificar se o provedor e modelo estão disponíveis no system_settings
+    if (provider && model) {
+      const [providerSetting] = await db
+        .select({ value: schema.systemSettings.value })
+        .from(schema.systemSettings)
+        .where(eq(schema.systemSettings.key, `ai_${provider}_provider`))
+        .limit(1);
+
+      if (!providerSetting) {
+        return res.status(400).json({ 
+          message: `Provedor ${provider} não está configurado no sistema. Entre em contato com o administrador.` 
+        });
+      }
+
+      const [modelSetting] = await db
+        .select({ value: schema.systemSettings.value })
+        .from(schema.systemSettings)
+        .where(eq(schema.systemSettings.key, `ai_${provider}_model`))
+        .limit(1);
+
+      if (!modelSetting || modelSetting.value !== model) {
+        return res.status(400).json({ 
+          message: `Modelo ${model} não está disponível para o provedor ${provider}. Entre em contato com o administrador.` 
+        });
+      }
+    }
     let targetCompanyId: number | null = existingConfig.company_id;
     if (userRole === 'admin') {
-      // Admin pode alterar company_id (ou deixar como null para global)
       if (req.body.company_id !== undefined) {
         targetCompanyId = req.body.company_id;
       }
     } else {
-      // Usuários não-admin só podem editar configurações da sua própria empresa
       if (existingConfig.company_id !== userCompanyId) {
         return res.status(403).json({ 
           message: "Você não pode editar configurações de outras empresas" 
@@ -376,8 +373,6 @@ export async function updateAiConfiguration(req: Request, res: Response) {
       }
       targetCompanyId = userCompanyId;
     }
-
-    // Se for definida como padrão, desativar outras configurações padrão do mesmo departamento e empresa
     if (is_default && !existingConfig.is_default) {
       await db
         .update(schema.aiConfigurations)
@@ -385,21 +380,19 @@ export async function updateAiConfiguration(req: Request, res: Response) {
         .where(
           and(
             eq(schema.aiConfigurations.department_id, targetDepartmentId),
+            eq(schema.aiConfigurations.analysis_type, targetAnalysisType),
             targetCompanyId ? eq(schema.aiConfigurations.company_id, targetCompanyId) : isNull(schema.aiConfigurations.company_id),
             eq(schema.aiConfigurations.is_default, true),
             ne(schema.aiConfigurations.id, configurationId)
           )
         );
     }
-
-    // Atualizar configuração
     const [updatedConfiguration] = await db
       .update(schema.aiConfigurations)
       .set({
         name,
         provider,
         model,
-        api_key,
         api_endpoint,
         system_prompt,
         user_prompt_template,
@@ -414,14 +407,268 @@ export async function updateAiConfiguration(req: Request, res: Response) {
         is_default,
         updated_at: new Date(),
         updated_by_id: userId,
+        analysis_type: targetAnalysisType,
       })
       .where(eq(schema.aiConfigurations.id, configurationId))
       .returning();
-
     res.json(updatedConfiguration);
   } catch (error) {
     console.error('Erro ao atualizar configuração de IA:', error);
     res.status(500).json({ message: "Falha ao atualizar configuração de IA", error: String(error) });
+  }
+}
+
+// GET /api/ai-configurations/providers - Buscar provedores e modelos disponíveis
+export async function getAiProviders(req: Request, res: Response) {
+  try {
+    const userRole = req.session?.userRole;
+    const userCompanyId = req.session?.companyId;
+
+    // Verificar se a empresa tem permissão para usar IA (exceto para admin)
+    if (userRole !== 'admin' && userCompanyId) {
+      const [company] = await db
+        .select({ ai_permission: schema.companies.ai_permission })
+        .from(schema.companies)
+        .where(eq(schema.companies.id, userCompanyId))
+        .limit(1);
+
+      if (!company?.ai_permission) {
+        return res.status(403).json({ 
+          message: "Sua empresa não tem permissão para usar recursos de IA",
+          ai_permission: false
+        });
+      }
+    }
+
+    // Buscar provedores e modelos disponíveis no system_settings
+    const providers = await db
+      .select({ key: schema.systemSettings.key, value: schema.systemSettings.value })
+      .from(schema.systemSettings)
+      .where(
+        or(
+          like(schema.systemSettings.key, 'ai_%_provider'),
+          like(schema.systemSettings.key, 'ai_%_model'),
+          like(schema.systemSettings.key, 'ai_%_endpoint')
+        )
+      );
+
+    // Organizar os dados por provedor
+    const providersData: Record<string, any> = {};
+    
+    providers.forEach(provider => {
+      const key = provider.key;
+      if (key.startsWith('ai_') && key.endsWith('_provider')) {
+        const providerName = key.replace('ai_', '').replace('_provider', '');
+        if (!providersData[providerName]) {
+          providersData[providerName] = {};
+        }
+        providersData[providerName].name = provider.value;
+        providersData[providerName].key = providerName; // Chave para usar no frontend
+      } else if (key.startsWith('ai_') && key.endsWith('_model')) {
+        const providerName = key.replace('ai_', '').replace('_model', '');
+        if (!providersData[providerName]) {
+          providersData[providerName] = {};
+        }
+        providersData[providerName].model = provider.value;
+      } else if (key.startsWith('ai_') && key.endsWith('_endpoint')) {
+        const providerName = key.replace('ai_', '').replace('_endpoint', '');
+        if (!providersData[providerName]) {
+          providersData[providerName] = {};
+        }
+        providersData[providerName].endpoint = provider.value;
+      }
+    });
+
+    // Retornar apenas provedores que têm nome e modelo configurados
+    const availableProviders = Object.values(providersData).filter(
+      (provider: any) => provider.name && provider.model
+    );
+
+    res.json(availableProviders);
+  } catch (error) {
+    console.error('Erro ao buscar provedores de IA:', error);
+    res.status(500).json({ message: "Falha ao buscar provedores de IA", error: String(error) });
+  }
+}
+
+// GET /api/ai-configurations/admin/providers - Buscar todos os provedores e tokens (apenas admin)
+export async function getAiProvidersAdmin(req: Request, res: Response) {
+  try {
+    const userRole = req.session?.userRole;
+
+    if (userRole !== 'admin') {
+      return res.status(403).json({ message: "Acesso negado. Apenas administradores podem acessar esta funcionalidade." });
+    }
+
+    // Buscar todos os provedores, modelos, endpoints e tokens
+    const settings = await db
+      .select({ key: schema.systemSettings.key, value: schema.systemSettings.value })
+      .from(schema.systemSettings)
+      .where(
+        or(
+          like(schema.systemSettings.key, 'ai_%_provider'),
+          like(schema.systemSettings.key, 'ai_%_model'),
+          like(schema.systemSettings.key, 'ai_%_endpoint'),
+          like(schema.systemSettings.key, 'ai_%_token')
+        )
+      );
+
+    // Organizar os dados por provedor
+    const providersData: Record<string, any> = {};
+    
+    settings.forEach(setting => {
+      const key = setting.key;
+      if (key.startsWith('ai_') && key.endsWith('_provider')) {
+        const providerName = key.replace('ai_', '').replace('_provider', '');
+        if (!providersData[providerName]) {
+          providersData[providerName] = {};
+        }
+        providersData[providerName].name = setting.value;
+      } else if (key.startsWith('ai_') && key.endsWith('_model')) {
+        const providerName = key.replace('ai_', '').replace('_model', '');
+        if (!providersData[providerName]) {
+          providersData[providerName] = {};
+        }
+        providersData[providerName].model = setting.value;
+      } else if (key.startsWith('ai_') && key.endsWith('_endpoint')) {
+        const providerName = key.replace('ai_', '').replace('_endpoint', '');
+        if (!providersData[providerName]) {
+          providersData[providerName] = {};
+        }
+        providersData[providerName].endpoint = setting.value;
+      } else if (key.startsWith('ai_') && key.endsWith('_token')) {
+        const providerName = key.replace('ai_', '').replace('_token', '');
+        if (!providersData[providerName]) {
+          providersData[providerName] = {};
+        }
+        providersData[providerName].token = setting.value;
+      }
+    });
+
+    res.json(Object.values(providersData));
+  } catch (error) {
+    console.error('Erro ao buscar provedores de IA (admin):', error);
+    res.status(500).json({ message: "Falha ao buscar provedores de IA", error: String(error) });
+  }
+}
+
+// PUT /api/ai-configurations/admin/providers - Atualizar provedores e tokens (apenas admin)
+export async function updateAiProvidersAdmin(req: Request, res: Response) {
+  try {
+    const userRole = req.session?.userRole;
+
+    if (userRole !== 'admin') {
+      return res.status(403).json({ message: "Acesso negado. Apenas administradores podem acessar esta funcionalidade." });
+    }
+
+    const { providers } = req.body;
+
+    if (!providers || !Array.isArray(providers)) {
+      return res.status(400).json({ message: "Dados inválidos. Esperado array de provedores." });
+    }
+
+    // Atualizar cada provedor
+    for (const provider of providers) {
+      const { name, model, endpoint, token } = provider;
+      
+      if (name) {
+        await saveSystemSetting(`ai_${name}_provider`, name);
+      }
+      if (model) {
+        await saveSystemSetting(`ai_${name}_model`, model);
+      }
+      if (endpoint) {
+        await saveSystemSetting(`ai_${name}_endpoint`, endpoint);
+      }
+      if (token) {
+        await saveSystemSetting(`ai_${name}_token`, token);
+      }
+    }
+
+    res.json({ message: "Provedores atualizados com sucesso" });
+  } catch (error) {
+    console.error('Erro ao atualizar provedores de IA:', error);
+    res.status(500).json({ message: "Falha ao atualizar provedores de IA", error: String(error) });
+  }
+}
+
+// GET /api/ai-configurations/admin/companies - Listar empresas com permissões de IA (apenas admin)
+export async function getAiCompanies(req: Request, res: Response) {
+  try {
+    const userRole = req.session?.userRole;
+
+    if (userRole !== 'admin') {
+      return res.status(403).json({ message: "Acesso negado. Apenas administradores podem acessar esta funcionalidade." });
+    }
+
+    // Buscar todas as empresas com suas permissões de IA
+    const companies = await db
+      .select({
+        id: schema.companies.id,
+        name: schema.companies.name,
+        email: schema.companies.email,
+        ai_permission: schema.companies.ai_permission,
+        created_at: schema.companies.created_at
+      })
+      .from(schema.companies)
+      .orderBy(schema.companies.name);
+
+    res.json(companies);
+  } catch (error) {
+    console.error('Erro ao buscar empresas:', error);
+    res.status(500).json({ message: "Falha ao buscar empresas", error: String(error) });
+  }
+}
+
+// PUT /api/ai-configurations/admin/companies/:id/permission - Atualizar permissão de IA de uma empresa
+export async function updateAiCompanyPermission(req: Request, res: Response) {
+  try {
+    const userRole = req.session?.userRole;
+    const companyId = parseInt(req.params.id);
+    const { ai_permission } = req.body;
+
+    if (userRole !== 'admin') {
+      return res.status(403).json({ message: "Acesso negado. Apenas administradores podem acessar esta funcionalidade." });
+    }
+
+    if (isNaN(companyId)) {
+      return res.status(400).json({ message: "ID da empresa inválido" });
+    }
+
+    if (typeof ai_permission !== 'boolean') {
+      return res.status(400).json({ message: "Campo ai_permission deve ser um boolean" });
+    }
+
+    // Atualizar permissão da empresa
+    await db
+      .update(schema.companies)
+      .set({ ai_permission, updated_at: new Date() })
+      .where(eq(schema.companies.id, companyId));
+
+    res.json({ message: "Permissão de IA atualizada com sucesso" });
+  } catch (error) {
+    console.error('Erro ao atualizar permissão de IA da empresa:', error);
+    res.status(500).json({ message: "Falha ao atualizar permissão de IA", error: String(error) });
+  }
+}
+
+// Função auxiliar para salvar configurações do sistema
+async function saveSystemSetting(key: string, value: string): Promise<void> {
+  const [existing] = await db
+    .select()
+    .from(schema.systemSettings)
+    .where(eq(schema.systemSettings.key, key))
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(schema.systemSettings)
+      .set({ value, updated_at: new Date() })
+      .where(eq(schema.systemSettings.key, key));
+  } else {
+    await db
+      .insert(schema.systemSettings)
+      .values({ key, value });
   }
 }
 
@@ -455,4 +702,4 @@ export async function deleteAiConfiguration(req: Request, res: Response) {
     console.error('Erro ao deletar configuração de IA:', error);
     res.status(500).json({ message: "Falha ao deletar configuração de IA", error: String(error) });
   }
-} 
+}

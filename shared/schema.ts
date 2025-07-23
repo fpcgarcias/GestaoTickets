@@ -346,7 +346,6 @@ export const aiConfigurations = pgTable("ai_configurations", {
   name: text("name").notNull(), // Nome da configuração (ex: "Análise de Prioridade")
   provider: aiProviderEnum("provider").notNull(),
   model: text("model").notNull(), // gpt-4, gemini-pro, claude-3-sonnet, etc
-  api_key: text("api_key").notNull(),
   api_endpoint: text("api_endpoint"), // Para Azure ou endpoints customizados
   
   // Configurações do prompt
@@ -367,6 +366,9 @@ export const aiConfigurations = pgTable("ai_configurations", {
   
   // Departamento específico (NULL = configuração global)
   department_id: integer("department_id").references(() => departments.id, { onDelete: "cascade" }),
+  
+  // Tipo de análise (priority, reopen, etc)
+  analysis_type: text("analysis_type").notNull(),
   
   // Status
   is_active: boolean("is_active").default(true).notNull(),
@@ -408,6 +410,9 @@ export const aiAnalysisHistory = pgTable("ai_analysis_history", {
   
   // Multi-tenant
   company_id: integer("company_id").references(() => companies.id),
+  
+  // Tipo de análise (priority, reopen, etc)
+  analysis_type: text("analysis_type").notNull(),
   
   // Timestamp
   created_at: timestamp("created_at").defaultNow().notNull(),

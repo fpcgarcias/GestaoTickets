@@ -73,7 +73,12 @@ import {
   createAiConfiguration, 
   updateAiConfiguration, 
   deleteAiConfiguration, 
-  testAiConfiguration 
+  testAiConfiguration,
+  getAiProviders,
+  getAiProvidersAdmin,
+  updateAiProvidersAdmin,
+  getAiCompanies,
+  updateAiCompanyPermission
 } from './api/ai-configurations';
 
 // Importar funções de permissões de empresa
@@ -84,6 +89,12 @@ import {
   getAiUsageSettings,
   updateAiUsageSettings
 } from './api/company-permissions';
+
+// Rota para configurações de uso de IA
+const settingsRouter = express.Router();
+settingsRouter.get('/ai-usage', authRequired, companyAdminRequired, getAiUsageSettings);
+settingsRouter.put('/ai-usage', authRequired, companyAdminRequired, updateAiUsageSettings);
+
 
 // Importar funções do novo serviço de SLA
 import { resolveSLA, getCacheStats, preloadCache, cleanCache } from './api/sla-resolver';
@@ -7954,6 +7965,17 @@ Atenciosamente,
   
   // Listar configurações de IA
   router.get("/ai-configurations", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), getAiConfigurations);
+  
+  // Buscar provedores e modelos disponíveis
+  router.get("/ai-configurations/providers", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), getAiProviders);
+  
+  // Endpoints de admin para gerenciar provedores e tokens
+  router.get("/ai-configurations/admin/providers", authRequired, authorize(['admin']), getAiProvidersAdmin);
+  router.put("/ai-configurations/admin/providers", authRequired, authorize(['admin']), updateAiProvidersAdmin);
+  
+  // Endpoints de admin para gerenciar permissões de IA das empresas
+  router.get("/ai-configurations/admin/companies", authRequired, authorize(['admin']), getAiCompanies);
+  router.put("/ai-configurations/admin/companies/:id/permission", authRequired, authorize(['admin']), updateAiCompanyPermission);
   
   // Criar nova configuração de IA
   router.post("/ai-configurations", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), createAiConfiguration);

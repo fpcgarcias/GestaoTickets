@@ -4,6 +4,7 @@ import { tickets, ticketReplies, ticketStatusHistory, customers, ticketParticipa
 import { insertTicketReplySchema } from "@shared/schema";
 import { Request, Response } from "express";
 import { storage } from "../storage";
+import { AiService } from "../services/ai-service";
 
 // Função auxiliar para verificar se um usuário pode responder a um ticket
 async function canUserReplyToTicket(
@@ -99,6 +100,7 @@ export async function POST(req: Request, res: Response) {
         assigned_to_id: tickets.assigned_to_id,
         customer_id: tickets.customer_id,
         company_id: tickets.company_id,
+        department_id: tickets.department_id, // ADICIONADO
         first_response_at: tickets.first_response_at,
         customer_user_id: customers.user_id,
       })
@@ -115,6 +117,25 @@ export async function POST(req: Request, res: Response) {
       return res.status(404).json({ error: "Ticket não encontrado" });
     }
 
+    // Verificar se o usuário é participante do ticket
+    let isUserParticipant = false;
+    try {
+      const isParticipant = await db
+        .select({ exists: exists(
+          db.select().from(ticketParticipants)
+            .where(and(
+              eq(ticketParticipants.ticket_id, ticketId),
+              eq(ticketParticipants.user_id, sessionUserId)
+            ))
+        )})
+        .from(tickets)
+        .where(eq(tickets.id, ticketId))
+        .limit(1);
+      isUserParticipant = isParticipant[0]?.exists;
+    } catch (err) {
+      isUserParticipant = false;
+    }
+
     // 🔥 FASE 4.1: Verificar permissões de resposta para participantes
     const sessionUserId = req.session.userId;
     const userRole = req.session.userRole;
@@ -129,6 +150,40 @@ export async function POST(req: Request, res: Response) {
         details: permissionCheck.reason 
       });
     }
+
+    // --- INÍCIO LÓGICA DE REABERTURA AUTOMÁTICA ---
+    let shouldReopenByAI = false;
+    let aiReopenResult: any = null;
+    // Acionar IA se:
+    // - status atual do ticket for 'waiting_customer'
+    // - usuário for o criador OU participante
+    if (
+      ticket.status === 'waiting_customer' &&
+      (
+        (userRole === 'customer' && ticket.customer_user_id === sessionUserId) ||
+        isUserParticipant
+      )
+    ) {
+      try {
+        const aiService = new AiService();
+        const departmentId = typeof ticket.department_id === 'number' ? ticket.department_id : 0;
+        const companyId = typeof ticket.company_id === 'number' ? ticket.company_id : 0;
+        const aiResult = await aiService.analyzeTicketReopen(
+          ticketId,
+          companyId,
+          departmentId,
+          String(validatedData.message),
+          db
+        );
+        aiReopenResult = aiResult;
+        if (aiResult.shouldReopen) {
+          shouldReopenByAI = true;
+        }
+      } catch (err) {
+        console.error('[AI] Erro ao analisar reabertura automática:', err);
+      }
+    }
+    // --- FIM LÓGICA DE REABERTURA AUTOMÁTICA ---
 
     // Estruturar os dados da resposta
     const replyData = {
@@ -147,7 +202,12 @@ export async function POST(req: Request, res: Response) {
     console.timeEnd('[PERF] Inserir resposta');
 
     // Verificar se o status do ticket mudou
-    const statusChanged = req.body.statusChanged && ticket.status !== validatedData.status;
+    let statusChanged = req.body.statusChanged && ticket.status !== validatedData.status;
+    // Se IA decidir reabrir, forçar mudança de status para 'reopened'
+    if (shouldReopenByAI) {
+      statusChanged = true;
+      validatedData.status = 'reopened';
+    }
     if (statusChanged) {
       console.time('[PERF] Inserir histórico');
       // Registrar a mudança de status no histórico
@@ -169,6 +229,9 @@ export async function POST(req: Request, res: Response) {
       }
       if (validatedData.status === 'ongoing' && !ticket.first_response_at) {
         updateData.first_response_at = new Date();
+      }
+      if (validatedData.status === 'reopened') {
+        updateData.reopened_at = new Date();
       }
       console.time('[PERF] Atualizar ticket');
       await db

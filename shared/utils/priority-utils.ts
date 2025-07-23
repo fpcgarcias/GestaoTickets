@@ -83,24 +83,12 @@ export function getDepartmentPriorities(
     };
   }
 
-  console.log('Nenhuma prioridade customizada encontrada, usando fallback');
-  // Fallback: criar prioridades padrão virtuais
-  const defaultPriorities: DepartmentPriority[] = DEFAULT_PRIORITIES.map(priority => ({
-    id: -priority.weight, // ID negativo para indicar que é virtual
-    company_id: companyId,
-    department_id: departmentId,
-    name: priority.name,
-    weight: priority.weight,
-    color: priority.color,
-    is_active: true,
-    created_at: new Date(),
-    updated_at: new Date(),
-  }));
-
+  console.log('Nenhuma prioridade customizada encontrada, retornando lista vazia');
+  // NÃO criar prioridades padrão hardcoded - retornar lista vazia
   return {
-    priorities: defaultPriorities,
+    priorities: [],
     isDefault: true,
-    source: 'default'
+    source: 'none'
   };
 }
 

@@ -5,7 +5,8 @@ export class GoogleProvider implements AiProviderInterface {
   async analyze(
     title: string,
     description: string,
-    config: AiConfiguration
+    config: AiConfiguration,
+    apiToken: string
   ): Promise<AiAnalysisResult> {
     const startTime = Date.now();
 
@@ -24,7 +25,7 @@ export class GoogleProvider implements AiProviderInterface {
         `https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent`;
       
       // Fazer a requisição para o Google Gemini
-      const response = await fetch(`${endpoint}?key=${config.api_key}`, {
+      const response = await fetch(`${endpoint}?key=${apiToken}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -36,13 +37,13 @@ export class GoogleProvider implements AiProviderInterface {
             }]
           }],
           generationConfig: {
-            temperature: parseFloat(config.temperature || '0.1'),
-            maxOutputTokens: config.max_tokens || 100,
+            temperature: parseFloat(config.temperature),
+            maxOutputTokens: config.max_tokens,
             topK: 1,
             topP: 0.8,
           }
         }),
-        signal: AbortSignal.timeout((config.timeout_seconds || 30) * 1000)
+        signal: AbortSignal.timeout(config.timeout_seconds * 1000)
       });
 
       if (!response.ok) {
@@ -54,12 +55,14 @@ export class GoogleProvider implements AiProviderInterface {
 
       const data = await response.json();
       
+
+      
       // Extrair a resposta
       const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
       
       if (!aiResponse) {
         return {
-          priority: config.fallback_priority || 'MÉDIA',
+          priority: config.fallback_priority,
           confidence: 0,
           justification: 'Resposta vazia da IA',
           usedFallback: true,
@@ -75,7 +78,6 @@ export class GoogleProvider implements AiProviderInterface {
       const { priority: extractedPriority, justification } = this.extractPriorityAndJustification(aiResponse);
       
       if (!extractedPriority) {
-        console.log(`[AI DEBUG] Resposta da IA não reconhecida: "${aiResponse}"`);
         return {
           priority: config.fallback_priority || 'MÉDIA',
           confidence: 0.2,
@@ -95,8 +97,6 @@ export class GoogleProvider implements AiProviderInterface {
         confidence = 0.6;
       }
 
-      console.log(`[AI DEBUG] Prioridade extraída: "${extractedPriority}"`);
-      
       return {
         priority: extractedPriority,
         confidence,
@@ -125,17 +125,27 @@ export class GoogleProvider implements AiProviderInterface {
    * Extrai a prioridade e justificativa da resposta da IA usando tags estruturadas
    */
   private extractPriorityAndJustification(response: string): { priority: string | null; justification: string } {
-    console.log(`[AI DEBUG] Tentando extrair prioridade e justificativa de: "${response}"`);
-    
     // Tentar extrair usando tags estruturadas primeiro
     const priorityMatch = response.match(/<PRIORIDADE>(.*?)<\/PRIORIDADE>/i);
     const justificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*?)<\/JUSTIFICATIVA>/i);
     
     if (priorityMatch) {
       const extractedPriority = priorityMatch[1].trim();
-      const justification = justificationMatch?.[1]?.trim() || 'Análise baseada no conteúdo do ticket';
+      let justification: string;
       
-      console.log(`[AI DEBUG] Extraído via tags - Prioridade: "${extractedPriority}", Justificativa: "${justification}"`);
+      if (justificationMatch?.[1]?.trim()) {
+        // Se encontrou a tag JUSTIFICATIVA completa, usar o conteúdo dela
+        justification = justificationMatch[1].trim();
+      } else {
+        // Tentar extrair justificativa mesmo sem tag de fechamento
+        const openJustificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*)/i);
+        if (openJustificationMatch?.[1]?.trim()) {
+          justification = openJustificationMatch[1].trim();
+        } else {
+          // Se não encontrou nenhuma justificativa, usar mensagem padrão
+          justification = 'Análise baseada no conteúdo do ticket';
+        }
+      }
       
       return {
         priority: extractedPriority,
@@ -154,15 +164,12 @@ export class GoogleProvider implements AiProviderInterface {
       
       const justification = justificationMatch?.[1]?.trim() || 'Análise baseada no conteúdo do ticket';
       
-      console.log(`[AI DEBUG] Extraído via fallback - Prioridade: "${extractedPriority}", Justificativa: "${justification}"`);
-      
       return {
         priority: extractedPriority,
         justification: justification
       };
     }
     
-    console.log('[AI DEBUG] Nenhuma prioridade reconhecida');
     return {
       priority: null,
       justification: 'Análise baseada no conteúdo do ticket'
@@ -175,65 +182,50 @@ export class GoogleProvider implements AiProviderInterface {
   private extractPriority(response: string): string | null {
     const normalizedResponse = response.toLowerCase().trim();
     
-    console.log(`[AI DEBUG] Tentando extrair prioridade de: "${response}"`);
-    
     // Priorizar palavras exatas em português (MAIÚSCULAS) - formato preferido
     if (response.includes('CRÍTICA') || response.includes('CRITICA')) {
-      console.log('[AI DEBUG] Encontrou: CRÍTICA');
       return 'CRÍTICA';
     }
     if (response.includes('ALTA')) {
-      console.log('[AI DEBUG] Encontrou: ALTA');
       return 'ALTA';
     }
     if (response.includes('MÉDIA') || response.includes('MEDIA')) {
-      console.log('[AI DEBUG] Encontrou: MÉDIA');
       return 'MÉDIA';
     }
     if (response.includes('BAIXA')) {
-      console.log('[AI DEBUG] Encontrou: BAIXA');
       return 'BAIXA';
     }
 
     // Fallback: procurar em minúsculas (português)
     if (normalizedResponse.includes('crítica') || normalizedResponse.includes('critica')) {
-      console.log('[AI DEBUG] Encontrou: crítica (convertendo para CRÍTICA)');
       return 'CRÍTICA';
     }
     if (normalizedResponse.includes('alta')) {
-      console.log('[AI DEBUG] Encontrou: alta (convertendo para ALTA)');
       return 'ALTA';
     }
     if (normalizedResponse.includes('média') || normalizedResponse.includes('media')) {
-      console.log('[AI DEBUG] Encontrou: média (convertendo para MÉDIA)');
       return 'MÉDIA';
     }
     if (normalizedResponse.includes('baixa')) {
-      console.log('[AI DEBUG] Encontrou: baixa (convertendo para BAIXA)');
       return 'BAIXA';
     }
 
     // Fallback: inglês (para compatibilidade)
     if (normalizedResponse.includes('critical')) {
-      console.log('[AI DEBUG] Encontrou: critical (convertendo para CRÍTICA)');
       return 'CRÍTICA';
     }
     if (normalizedResponse.includes('high')) {
-      console.log('[AI DEBUG] Encontrou: high (convertendo para ALTA)');
       return 'ALTA';
     }
     if (normalizedResponse.includes('medium')) {
-      console.log('[AI DEBUG] Encontrou: medium (convertendo para MÉDIA)');
       return 'MÉDIA';
     }
     if (normalizedResponse.includes('low')) {
-      console.log('[AI DEBUG] Encontrou: low (convertendo para BAIXA)');
       return 'BAIXA';
     }
 
     // Se não encontrou nada específico, tentar extrair apenas a primeira palavra
     const firstWord = normalizedResponse.split(/\s+/)[0];
-    console.log(`[AI DEBUG] Primeira palavra: "${firstWord}"`);
     
     switch (firstWord) {
       case 'crítica':
@@ -251,8 +243,7 @@ export class GoogleProvider implements AiProviderInterface {
       case 'low':
         return 'BAIXA';
       default:
-        console.log(`[AI DEBUG] Não conseguiu extrair prioridade de: "${response}"`);
         return null;
     }
   }
-} 
+}

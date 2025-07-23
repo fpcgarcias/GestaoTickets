@@ -50,6 +50,21 @@ export const ticketSchema = Joi.object({
 
 // === SANITIZAÇÃO DE HTML ===
 export const sanitizeHtml = (req: Request, res: Response, next: NextFunction) => {
+  // Pular sanitização para rotas de configuração de IA para preservar prompts personalizados
+  const aiConfigRoutes = [
+    '/api/ai-configurations',
+    '/api/ai-configurations/test'
+  ];
+  
+  const shouldSkipSanitization = aiConfigRoutes.some(route => 
+    req.path === route || req.path.startsWith(route + '/')
+  );
+  
+  if (shouldSkipSanitization) {
+    console.log(`[Security] Pulando sanitização HTML para rota de IA: ${req.path}`);
+    return next();
+  }
+  
   const sanitizeValue = (value: any): any => {
     if (typeof value === 'string') {
       return xss(value);
@@ -353,4 +368,4 @@ function checkSuspiciousRequest(req: Request): {
     severity,
     reasons
   };
-} 
+}
