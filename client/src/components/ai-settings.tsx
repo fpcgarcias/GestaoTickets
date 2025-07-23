@@ -34,7 +34,9 @@ import {
   Key,
   Globe,
   Server,
-  Edit3
+  Edit3,
+  Target,
+  RotateCcw
 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -78,6 +80,7 @@ interface AiConfiguration {
   fallback_priority: 'low' | 'medium' | 'high' | 'critical';
   is_active: boolean;
   is_default: boolean;
+  analysis_type: 'priority' | 'reopen';
   created_at: string;
   updated_at: string;
   created_by_name?: string;
@@ -107,11 +110,15 @@ interface FormData {
   fallback_priority: 'low' | 'medium' | 'high' | 'critical';
   is_active: boolean;
   is_default: boolean;
+  analysis_type: 'priority' | 'reopen';
 }
 
 interface TestData {
   test_title: string;
   test_description: string;
+  tempo_espera?: string;
+  prioridade_atual?: string;
+  ultima_interacao?: string;
 }
 
 // Interface para configurações de uso de IA
@@ -155,7 +162,8 @@ const DEFAULT_MODELS = {
 };
 
 const DEFAULT_PROMPTS = {
-  system: `Você é um assistente especializado em análise de prioridade de tickets de suporte técnico. Analise o título e descrição do ticket e determine a prioridade apropriada baseada nos seguintes critérios:
+  priority: {
+    system: `Você é um assistente especializado em análise de prioridade de tickets de suporte técnico. Analise o título e descrição do ticket e determine a prioridade apropriada baseada nos seguintes critérios:
 
 CRITICAL: Sistemas completamente fora do ar, falhas de segurança críticas, perda de dados, problemas que afetam múltiplos usuários imediatamente e impedem operações essenciais.
 
@@ -170,13 +178,49 @@ IMPORTANTE: Responda EXATAMENTE no formato:
 <JUSTIFICATIVA>explicação detalhada da análise baseada no conteúdo do ticket</JUSTIFICATIVA>
 
 Use apenas: critical, high, medium ou low (sempre em minúsculas e em inglês).`,
-  user: `Título: {titulo}
+    user: `Título: {titulo}
 
 Descrição: {descricao}
 
 Analise este ticket e determine sua prioridade. Responda no formato:
 <PRIORIDADE>prioridade</PRIORIDADE>
 <JUSTIFICATIVA>justificativa</JUSTIFICATIVA>`
+  },
+  reopen: {
+    system: `Você é um assistente especializado em análise de tickets de suporte que estão aguardando resposta do cliente (status wait_customer). Sua função é determinar se um ticket deve ser reaberto automaticamente baseado no tempo de espera e critérios específicos.
+
+Analise as seguintes informações:
+- Tempo desde a última interação
+- Prioridade do ticket
+- Tipo de problema
+- Histórico de interações
+- Contexto do departamento
+
+Critérios para reabertura:
+- CRITICAL/HIGH: Reabrir após 24-48h sem resposta
+- MEDIUM: Reabrir após 72h-1 semana sem resposta  
+- LOW: Reabrir após 1-2 semanas sem resposta
+- Considerar urgência do problema
+- Verificar se é um problema recorrente
+- Avaliar impacto no negócio
+
+IMPORTANTE: Responda EXATAMENTE no formato:
+<ACAO>reabrir|manter_aguardando</ACAO>
+<JUSTIFICATIVA>explicação detalhada da decisão baseada nos critérios</JUSTIFICATIVA>
+<NOVA_PRIORIDADE>critical|high|medium|low</NOVA_PRIORIDADE>`,
+    user: `Título: {titulo}
+
+Descrição: {descricao}
+
+Tempo aguardando: {tempo_espera}
+Prioridade atual: {prioridade_atual}
+Última interação: {ultima_interacao}
+
+Analise se este ticket deve ser reaberto. Responda no formato:
+<ACAO>acao</ACAO>
+<JUSTIFICATIVA>justificativa</JUSTIFICATIVA>
+<NOVA_PRIORIDADE>prioridade</NOVA_PRIORIDADE>`
+  }
 };
 
 // Modelos disponíveis atualizados em Dezembro 2024
@@ -564,7 +608,10 @@ function DepartmentAiConfiguration() {
   const [testResult, setTestResult] = useState<any>(null);
   const [testData, setTestData] = useState({
     test_title: "Sistema de email não está funcionando",
-    test_description: "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
+    test_description: "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe.",
+    tempo_espera: "",
+    prioridade_atual: "",
+    ultima_interacao: ""
   });
   const [availableProviders, setAvailableProviders] = useState<AiProvider[]>([]);
   const [formData, setFormData] = useState({
@@ -581,14 +628,21 @@ function DepartmentAiConfiguration() {
     max_retries: 3,
     fallback_priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
     is_active: true,
-    is_default: false
+    is_default: false,
+    analysis_type: 'priority' as 'priority' | 'reopen'
   });
 
+  const [selectedAnalysisType, setSelectedAnalysisType] = useState<'priority' | 'reopen'>('priority');
+
   // Buscar configurações de IA (backend já filtra por empresa)
-  const fetchConfigurations = async () => {
+  const fetchConfigurations = async (analysisType?: 'priority' | 'reopen') => {
     setIsLoading(true);
     try {
-      const response = await apiRequest('GET', '/api/ai-configurations');
+      const params = new URLSearchParams();
+      if (analysisType) {
+        params.append('analysis_type', analysisType);
+      }
+      const response = await apiRequest('GET', `/api/ai-configurations?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         // Backend já retorna apenas as configurações da empresa do usuário
@@ -626,6 +680,11 @@ function DepartmentAiConfiguration() {
   const departments = departmentsData?.departments || [];
 
   useEffect(() => {
+    fetchConfigurations(selectedAnalysisType);
+    fetchAvailableProviders();
+  }, [selectedAnalysisType]);
+
+  useEffect(() => {
     fetchConfigurations();
     fetchAvailableProviders();
   }, []);
@@ -646,6 +705,7 @@ function DepartmentAiConfiguration() {
       fallback_priority: 'medium',
       is_active: true,
       is_default: false,
+      analysis_type: selectedAnalysisType,
     });
   };
 
@@ -665,7 +725,7 @@ function DepartmentAiConfiguration() {
     onSuccess: () => {
       setShowForm(false);
       resetForm();
-      fetchConfigurations();
+      fetchConfigurations(selectedAnalysisType);
       toast({
         title: "Sucesso",
         description: "Configuração criada com sucesso!",
@@ -697,7 +757,7 @@ function DepartmentAiConfiguration() {
     onSuccess: () => {
       setEditingConfig(null);
       resetForm();
-      fetchConfigurations();
+      fetchConfigurations(selectedAnalysisType);
       toast({
         title: "Sucesso",
         description: "Configuração atualizada com sucesso!",
@@ -758,6 +818,7 @@ function DepartmentAiConfiguration() {
       fallback_priority: config.fallback_priority || 'medium',
       is_active: config.is_active !== undefined ? config.is_active : true,
       is_default: config.is_default !== undefined ? config.is_default : false,
+      analysis_type: config.analysis_type || 'priority',
     });
   };
 
@@ -827,14 +888,34 @@ function DepartmentAiConfiguration() {
 
   return (
     <div className="space-y-4">
+      {/* Abas para tipos de análise */}
+      <Tabs value={selectedAnalysisType} onValueChange={(value) => {
+        const analysisType = value as 'priority' | 'reopen';
+        setSelectedAnalysisType(analysisType);
+        fetchConfigurations(analysisType);
+      }} className="w-full">
+        <TabsList className="w-full justify-start border-b rounded-none bg-transparent mb-6">
+          <TabsTrigger value="priority" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+            <Target className="mr-2 h-4 w-4" />
+            Análise de Prioridade
+          </TabsTrigger>
+          <TabsTrigger value="reopen" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Análise de Reabertura
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Botão para adicionar nova configuração */}
-      <Button 
-        onClick={() => setShowForm(true)}
-        className="w-full"
-      >
-        <Plus className="h-4 w-4 mr-2" />
-        Nova Configuração por Departamento
-      </Button>
+      <div className="flex justify-end mb-4">
+        <Button 
+          onClick={() => setShowForm(true)}
+          size="sm"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Nova Configuração
+        </Button>
+      </div>
 
       {/* Lista de configurações existentes */}
       {configurations.length > 0 ? (
@@ -878,17 +959,17 @@ function DepartmentAiConfiguration() {
         <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>
-              {editingConfig ? 'Editar' : 'Nova'} Configuração de IA
+              {editingConfig ? 'Editar' : 'Nova'} Configuração de IA - {formData.analysis_type === 'priority' ? 'Prioridade' : 'Reabertura'}
             </DialogTitle>
             <DialogDescription>
-              Configure os prompts específicos para análise de IA deste departamento
+              Configure os prompts específicos para análise de {formData.analysis_type === 'priority' ? 'prioridade' : 'reabertura'} deste departamento
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto px-1">
             <div className="space-y-4 pb-6">
-            {/* Nome e Departamento */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Nome, Departamento e Tipo de Análise */}
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="name">Nome da Configuração</Label>
                 <Input
@@ -916,6 +997,24 @@ function DepartmentAiConfiguration() {
                         {dept.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="analysis_type">Tipo de Análise *</Label>
+                <Select 
+                  value={formData.analysis_type} 
+                  onValueChange={(v) => setFormData(prev => ({ 
+                    ...prev, 
+                    analysis_type: v as 'priority' | 'reopen'
+                  }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="priority">Análise de Prioridade</SelectItem>
+                    <SelectItem value="reopen">Análise de Reabertura</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -974,7 +1073,10 @@ function DepartmentAiConfiguration() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setFormData(prev => ({ ...prev, system_prompt: DEFAULT_PROMPTS.system }))}
+                    onClick={() => setFormData(prev => ({ 
+                      ...prev, 
+                      system_prompt: DEFAULT_PROMPTS[formData.analysis_type]?.system || DEFAULT_PROMPTS.priority.system 
+                    }))}
                   >
                     <Lightbulb className="h-4 w-4 mr-1" />
                     Usar Padrão
@@ -997,7 +1099,10 @@ function DepartmentAiConfiguration() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setFormData(prev => ({ ...prev, user_prompt_template: DEFAULT_PROMPTS.user }))}
+                    onClick={() => setFormData(prev => ({ 
+                      ...prev, 
+                      user_prompt_template: DEFAULT_PROMPTS[formData.analysis_type]?.user || DEFAULT_PROMPTS.priority.user 
+                    }))}
                   >
                     <Lightbulb className="h-4 w-4 mr-1" />
                     Usar Padrão
@@ -1011,7 +1116,11 @@ function DepartmentAiConfiguration() {
                   rows={3}
                 />
                 <p className="text-sm text-muted-foreground mt-1">
-                  Use <code>{"{titulo}"}</code> e <code>{"{descricao}"}</code> como variáveis que serão substituídas.
+                  {formData.analysis_type === 'priority' ? (
+                    <>Use <code>{"{titulo}"}</code> e <code>{"{descricao}"}</code> como variáveis que serão substituídas.</>
+                  ) : (
+                    <>Use <code>{"{titulo}"}</code>, <code>{"{descricao}"}</code>, <code>{"{tempo_espera}"}</code>, <code>{"{prioridade_atual}"}</code> e <code>{"{ultima_interacao}"}</code> como variáveis.</>
+                  )}
                 </p>
               </div>
             </div>
@@ -1104,7 +1213,7 @@ function DepartmentAiConfiguration() {
 
             {/* Seção de teste */}
             <div className="border-t pt-4">
-              <h4 className="font-medium mb-3">Testar Configuração</h4>
+              <h4 className="font-medium mb-3">Testar Configuração - {formData.analysis_type === 'priority' ? 'Prioridade' : 'Reabertura'}</h4>
               <div className="space-y-3">
                 <div>
                   <Label htmlFor="test-title">Título do Teste</Label>
@@ -1123,6 +1232,39 @@ function DepartmentAiConfiguration() {
                     rows={3}
                   />
                 </div>
+                {formData.analysis_type === 'reopen' && (
+                  <>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label htmlFor="test-tempo-espera">Tempo Aguardando</Label>
+                        <Input
+                          id="test-tempo-espera"
+                          value={testData.tempo_espera || '3 dias'}
+                          onChange={(e) => setTestData(prev => ({ ...prev, tempo_espera: e.target.value }))}
+                          placeholder="Ex: 3 dias, 1 semana"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="test-prioridade-atual">Prioridade Atual</Label>
+                        <Input
+                          id="test-prioridade-atual"
+                          value={testData.prioridade_atual || 'medium'}
+                          onChange={(e) => setTestData(prev => ({ ...prev, prioridade_atual: e.target.value }))}
+                          placeholder="Ex: high, medium, low"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="test-ultima-interacao">Última Interação</Label>
+                        <Input
+                          id="test-ultima-interacao"
+                          value={testData.ultima_interacao || 'Solicitação de informações adicionais'}
+                          onChange={(e) => setTestData(prev => ({ ...prev, ultima_interacao: e.target.value }))}
+                          placeholder="Ex: Resposta do cliente"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
                 <Button
                   type="button"
                   variant="outline"
@@ -1225,8 +1367,12 @@ function AdminAiConfiguration() {
     max_retries: 3,
     fallback_priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
     is_active: true,
-    is_default: false
+    is_default: false,
+    analysis_type: 'priority' as 'priority' | 'reopen'
   });
+
+  // Estado para controlar o tipo de análise selecionado
+  const [selectedAnalysisType, setSelectedAnalysisType] = useState<'priority' | 'reopen'>('priority');
 
   // Estados para administração de provedores
   const [providers, setProviders] = useState<AiProvider[]>([]);
@@ -1248,13 +1394,24 @@ function AdminAiConfiguration() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
 
   // Buscar configurações de IA
-  const fetchConfigurations = async () => {
+  const fetchConfigurations = async (analysisType?: 'priority' | 'reopen') => {
     setIsLoading(true);
     try {
       let url = '/api/ai-configurations';
+      const params = new URLSearchParams();
+      
       if (user?.role === 'admin' && selectedCompanyId) {
-        url += `?company_id=${selectedCompanyId}`;
+        params.append('company_id', selectedCompanyId.toString());
       }
+      
+      if (analysisType) {
+        params.append('analysis_type', analysisType);
+      }
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
+      }
+      
       const response = await apiRequest('GET', url);
       if (response.ok) {
         const data = await response.json();
@@ -1325,10 +1482,10 @@ function AdminAiConfiguration() {
 
   // Carregar dados na montagem do componente
   useEffect(() => {
-    fetchConfigurations();
+    fetchConfigurations(selectedAnalysisType);
     fetchProviders();
     fetchAvailableProviders();
-  }, [selectedCompanyId]); // Recarregar quando empresa selecionada mudar
+  }, [selectedCompanyId, selectedAnalysisType]); // Recarregar quando empresa selecionada ou tipo de análise mudar
 
   const resetForm = () => {
     setFormData({
@@ -1346,6 +1503,7 @@ function AdminAiConfiguration() {
       fallback_priority: 'medium',
       is_active: true,
       is_default: false,
+      analysis_type: selectedAnalysisType,
     });
   };
 
@@ -1365,7 +1523,7 @@ function AdminAiConfiguration() {
     onSuccess: () => {
       setShowForm(false);
       resetForm();
-      fetchConfigurations();
+      fetchConfigurations(selectedAnalysisType);
       toast({
         title: "Sucesso",
         description: "Configuração criada com sucesso!",
@@ -1397,7 +1555,7 @@ function AdminAiConfiguration() {
     onSuccess: () => {
       setEditingConfig(null);
       resetForm();
-      fetchConfigurations();
+      fetchConfigurations(selectedAnalysisType);
       toast({
         title: "Sucesso",
         description: "Configuração atualizada com sucesso!",
@@ -1425,7 +1583,7 @@ function AdminAiConfiguration() {
       return response.json();
     },
     onSuccess: () => {
-      fetchConfigurations();
+      fetchConfigurations(selectedAnalysisType);
       toast({
         title: "Sucesso",
         description: "Configuração deletada com sucesso!",
@@ -1641,6 +1799,7 @@ function AdminAiConfiguration() {
       fallback_priority: config.fallback_priority || 'medium',
       is_active: config.is_active !== undefined ? config.is_active : true,
       is_default: config.is_default !== undefined ? config.is_default : false,
+      analysis_type: config.analysis_type || 'priority',
     });
   };
 
@@ -1763,12 +1922,26 @@ function AdminAiConfiguration() {
                       </Select>
                     </div>
                   )}
-                  <Button onClick={() => setShowForm(true)}>
+                  <Button onClick={() => setShowForm(true)} size="sm">
                     <Plus className="h-4 w-4 mr-2" />
                     Nova Configuração
                   </Button>
                 </div>
               </div>
+              
+              {/* Abas para tipos de análise */}
+              <Tabs value={selectedAnalysisType} onValueChange={(value) => setSelectedAnalysisType(value as 'priority' | 'reopen')} className="w-full">
+                <TabsList className="w-full justify-start border-b rounded-none bg-transparent mb-6">
+                  <TabsTrigger value="priority" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+                    <Target className="mr-2 h-4 w-4" />
+                    Análise de Prioridade
+                  </TabsTrigger>
+                  <TabsTrigger value="reopen" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Análise de Reabertura
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </CardHeader>
             <CardContent>
               {isLoading ? (
