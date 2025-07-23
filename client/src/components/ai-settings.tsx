@@ -581,6 +581,17 @@ function DepartmentAiConfiguration() {
     }
   };
 
+  // Função para decodificar caracteres HTML
+  const decodeHtml = (text: string): string => {
+    if (!text) return text;
+    return text
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+  };
+
   const openEditDialog = (config: AiConfiguration) => {
     setEditingConfig(config);
     setFormData({
@@ -589,8 +600,8 @@ function DepartmentAiConfiguration() {
       model: config.model || 'gpt-4o',
       api_key: config.api_key || '',
       api_endpoint: config.api_endpoint || '',
-      system_prompt: config.system_prompt || '',
-      user_prompt_template: config.user_prompt_template || '',
+      system_prompt: decodeHtml(config.system_prompt || ''),
+      user_prompt_template: decodeHtml(config.user_prompt_template || ''),
       department_id: config.department_id || null,
       company_id: config.company_id || user?.company?.id || null,
       temperature: config.temperature || '0.1',
@@ -1251,6 +1262,17 @@ function AdminAiConfiguration() {
     setShowApiKey(false);
   };
 
+  // Função para decodificar caracteres HTML
+  const decodeHtml = (text: string): string => {
+    if (!text) return text;
+    return text
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+  };
+
   const openEditDialog = (config: AiConfiguration) => {
     setEditingConfig(config);
     setFormData({
@@ -1259,8 +1281,8 @@ function AdminAiConfiguration() {
       model: config.model || 'gpt-4o',
       api_key: config.api_key || '',
       api_endpoint: config.api_endpoint || '',
-      system_prompt: config.system_prompt || '',
-      user_prompt_template: config.user_prompt_template || '',
+      system_prompt: decodeHtml(config.system_prompt || ''),
+      user_prompt_template: decodeHtml(config.user_prompt_template || ''),
       department_id: config.department_id || null,
       company_id: config.company_id || null,
       temperature: config.temperature || '0.1',
