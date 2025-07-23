@@ -77,9 +77,8 @@ const getPriorityColor = (priority: string) => {
 export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) {
   const { user } = useAuth();
   
-  // Verificar se o usuário tem permissão para ver a análise de IA
-  const allowedRoles = ['support', 'supervisor', 'manager', 'company_admin', 'admin'];
-  const hasPermission = allowedRoles.includes(user!.role);
+  // Verificar se o usuário é customer (para ocultar campos técnicos)
+  const isCustomer = user!.role === 'customer';
   
   const { data: aiHistory, isLoading, error } = useQuery<AiAnalysisHistoryItem[]>({
     queryKey: [`/api/tickets/${ticketId}/ai-analysis-history`],
@@ -90,13 +89,8 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
       }
       return response.json();
     },
-    enabled: !!ticketId && hasPermission, // Só buscar se tiver permissão
+    enabled: !!ticketId, // Buscar para todos os usuários
   });
-
-  // Se não tem permissão, não renderizar nada
-  if (!hasPermission) {
-    return null;
-  }
 
   if (isLoading) {
     return (
@@ -203,22 +197,24 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
                 </div>
               )}
 
-              {/* Informações técnicas */}
-              <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                <div>
-                  <span className="font-medium">Provedor:</span> {item.provider}
+              {/* Informações técnicas - ocultar para customers */}
+              {!isCustomer && (
+                <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                  <div>
+                    <span className="font-medium">Provedor:</span> {item.provider}
+                  </div>
+                  <div>
+                    <span className="font-medium">Modelo:</span> {item.model}
+                  </div>
+                  <div>
+                    <span className="font-medium">Configuração:</span> {item.config_name || 'N/A'}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Zap className="h-4 w-4" />
+                    <span>{item.processing_time_ms}ms</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-medium">Modelo:</span> {item.model}
-                </div>
-                <div>
-                  <span className="font-medium">Configuração:</span> {item.config_name || 'N/A'}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Zap className="h-4 w-4" />
-                  <span>{item.processing_time_ms}ms</span>
-                </div>
-              </div>
+              )}
             </div>
           ))}
         </div>
