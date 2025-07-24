@@ -222,7 +222,7 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                       {statusChange.user.role === 'integration_bot' ? '🤖' : statusChange.user.name?.charAt(0) || "U"}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="font-semibold text-sm text-orange-700">{statusChange.user.name}</span>
+                                     <span className="font-semibold text-sm text-purple-700">{statusChange.user.name}</span>
                   <span className="text-sm text-gray-500">alterou o status de</span>
                 </>
               ) : (
@@ -244,7 +244,7 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
               </Badge>
               
               {statusChange.user?.role && ['integration_bot', 'quality', 'triage', 'admin'].includes(statusChange.user.role) && (
-                <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200 ml-2">
+                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 ml-2">
                   {translateUserRole(statusChange.user.role)}
                 </Badge>
               )}

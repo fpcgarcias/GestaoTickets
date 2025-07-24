@@ -16,6 +16,7 @@ interface AiAnalysisHistoryItem {
   status: 'success' | 'error' | 'timeout' | 'fallback';
   created_at: string;
   config_name: string;
+  analysis_type: string;
 }
 
 interface AiAnalysisHistoryProps {
@@ -71,6 +72,28 @@ const getPriorityColor = (priority: string) => {
       return 'bg-green-100 text-green-800';
     default:
       return 'bg-gray-100 text-gray-800';
+  }
+};
+
+const getAnalysisTypeColor = (type: string) => {
+  switch (type) {
+    case 'priority':
+      return 'bg-blue-100 text-blue-800';
+    case 'reopen':
+      return 'bg-blue-100 text-blue-800';
+    default:
+      return 'bg-gray-100 text-gray-800';
+  }
+};
+
+const getAnalysisTypeText = (type: string) => {
+  switch (type) {
+    case 'priority':
+      return 'Prioridade';
+    case 'reopen':
+      return 'Reabertura';
+    default:
+      return type;
   }
 };
 
@@ -172,6 +195,9 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
                   <span className="text-sm font-medium">
                     {getStatusText(item.status)}
                   </span>
+                  <Badge className={getAnalysisTypeColor(item.analysis_type)}>
+                    {getAnalysisTypeText(item.analysis_type)}
+                  </Badge>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <Clock className="h-4 w-4" />
@@ -179,9 +205,11 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
                 </div>
               </div>
 
-              {/* Prioridade sugerida */}
+              {/* Resultado da análise */}
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Prioridade sugerida:</span>
+                <span className="text-sm font-medium">
+                  {item.analysis_type === 'priority' ? 'Prioridade sugerida:' : 'Ação sugerida:'}
+                </span>
                 <Badge className={getPriorityColor(item.suggested_priority)}>
                   {item.suggested_priority}
                 </Badge>

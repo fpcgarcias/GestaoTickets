@@ -270,17 +270,32 @@ export async function testAiConfiguration(req: Request, res: Response) {
     const aiService = new AiService();
     // Para admin, usar o companyId da sessão ou null para token global
     const forceCompanyId = userRole === 'admin' ? (testCompanyId || userCompanyId || null) : testCompanyId;
-    const result = await aiService.testConfiguration(testConfig, test_title, test_description, forceCompanyId);
     
-    res.json({
-      success: true,
-      result,
-      message: "Teste executado com sucesso",
-      used_prompts: {
-        system_prompt: finalSystemPrompt,
-        user_prompt: finalUserPrompt
-      }
-    });
+    // Para análise de reabertura, usar apenas a descrição como mensagem do cliente
+    if (analysis_type === 'reopen') {
+      const result = await aiService.testConfiguration(testConfig, '', test_description, forceCompanyId);
+      res.json({
+        success: true,
+        result,
+        message: "Teste executado com sucesso",
+        used_prompts: {
+          system_prompt: finalSystemPrompt,
+          user_prompt: finalUserPrompt
+        }
+      });
+    } else {
+      // Para análise de prioridade, usar título e descrição
+      const result = await aiService.testConfiguration(testConfig, test_title, test_description, forceCompanyId);
+      res.json({
+        success: true,
+        result,
+        message: "Teste executado com sucesso",
+        used_prompts: {
+          system_prompt: finalSystemPrompt,
+          user_prompt: finalUserPrompt
+        }
+      });
+    }
   } catch (error: any) {
     console.error('Erro ao testar configuração de IA:', error);
     res.status(500).json({ 

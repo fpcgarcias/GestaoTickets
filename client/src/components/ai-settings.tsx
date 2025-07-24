@@ -116,9 +116,6 @@ interface FormData {
 interface TestData {
   test_title: string;
   test_description: string;
-  tempo_espera?: string;
-  prioridade_atual?: string;
-  ultima_interacao?: string;
 }
 
 // Interface para configurações de uso de IA
@@ -149,17 +146,9 @@ interface TestProviderResult {
   error?: string;
 }
 
-const AI_PROVIDERS = [
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'google', label: 'Google (Gemini)' },
-  { value: 'anthropic', label: 'Anthropic (Claude)' },
-];
+// AI_PROVIDERS removido - agora usa dados dinâmicos do banco
 
-const DEFAULT_MODELS = {
-  openai: ['gpt-4', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-  google: ['gemini-pro', 'gemini-pro-vision'],
-  anthropic: ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'],
-};
+// DEFAULT_MODELS removido - agora usa dados dinâmicos do banco
 
 const DEFAULT_PROMPTS = {
   priority: {
@@ -187,107 +176,54 @@ Analise este ticket e determine sua prioridade. Responda no formato:
 <JUSTIFICATIVA>justificativa</JUSTIFICATIVA>`
   },
   reopen: {
-    system: `Você é um assistente especializado em análise de tickets de suporte que estão aguardando resposta do cliente (status wait_customer). Sua função é determinar se um ticket deve ser reaberto automaticamente baseado no tempo de espera e critérios específicos.
+    system: `Você é um assistente especializado em análise de respostas de clientes para tickets em status wait_customer. Sua única função é determinar se a resposta do cliente indica que:
 
-Analise as seguintes informações:
-- Tempo desde a última interação
-- Prioridade do ticket
-- Tipo de problema
-- Histórico de interações
-- Contexto do departamento
+1. O problema foi RESOLVIDO (manter status wait_customer)
+2. O problema ainda PERSISTE (reabrir ticket para status ongoing)
 
-Critérios para reabertura:
-- CRITICAL/HIGH: Reabrir após 24-48h sem resposta
-- MEDIUM: Reabrir após 72h-1 semana sem resposta  
-- LOW: Reabrir após 1-2 semanas sem resposta
-- Considerar urgência do problema
-- Verificar se é um problema recorrente
-- Avaliar impacto no negócio
+Analise APENAS o conteúdo da mensagem do cliente.
+
+Indicadores de problema RESOLVIDO:
+- Cliente confirma que o problema foi solucionado
+- Cliente agradece pela solução
+- Cliente indica que tudo está funcionando
+- Cliente confirma que pode fechar o ticket
+- Mensagens de satisfação ou confirmação positiva
+
+Indicadores de problema PERSISTENTE:
+- Cliente relata que o problema continua
+- Cliente descreve novos sintomas relacionados
+- Cliente solicita mais ajuda
+- Cliente indica que a solução não funcionou
+- Cliente faz novas perguntas sobre o mesmo problema
 
 IMPORTANTE: Responda EXATAMENTE no formato:
-<ACAO>reabrir|manter_aguardando</ACAO>
-<JUSTIFICATIVA>explicação detalhada da decisão baseada nos critérios</JUSTIFICATIVA>
-<NOVA_PRIORIDADE>critical|high|medium|low</NOVA_PRIORIDADE>`,
-    user: `Título: {titulo}
+<ACAO>manter_aguardando|reabrir</ACAO>
+<JUSTIFICATIVA>explicação baseada na análise da resposta do cliente</JUSTIFICATIVA>`,
+    user: `Resposta do Cliente:
+{mensagem_cliente}
 
-Descrição: {descricao}
-
-Tempo aguardando: {tempo_espera}
-Prioridade atual: {prioridade_atual}
-Última interação: {ultima_interacao}
-
-Analise se este ticket deve ser reaberto. Responda no formato:
+Analise se esta resposta indica que o problema foi resolvido ou ainda persiste. Responda no formato:
 <ACAO>acao</ACAO>
-<JUSTIFICATIVA>justificativa</JUSTIFICATIVA>
-<NOVA_PRIORIDADE>prioridade</NOVA_PRIORIDADE>`
+<JUSTIFICATIVA>justificativa</JUSTIFICATIVA>`
   }
 };
 
 // Modelos disponíveis atualizados em Dezembro 2024
 // OpenAI: GPT-4o (mais recente), GPT-4o-mini (mais eficiente), GPT-4 Turbo, GPT-4, GPT-3.5 Turbo
 // Google: Gemini 1.5 Pro, Gemini 1.5 Flash, Gemini 1.0 Pro  
-// Anthropic: Claude 3.5 Sonnet, Claude 3.5 Haiku, Claude 3 Opus, Claude 3 Sonnet, Claude 3 Haiku
-const modelOptions: Record<string, string[]> = {
-  openai: [
-    'gpt-4.1',
-    'gpt-4.1-2025-04-14',
-    'gpt-4.1-mini',
-    'gpt-4.1-mini-2025-04-14',
-    'gpt-4.1-nano',
-    'gpt-4.1-nano-2025-04-14',
-    'gpt-4.5-preview',
-    'gpt-4.5-preview-2025-02-27',
-    'gpt-4o',
-    'gpt-4o-2024-08-06',
-    'gpt-4o-audio-preview',
-    'gpt-4o-audio-preview-2024-12-17',
-    'gpt-4o-realtime-preview',
-    'gpt-4o-realtime-preview-2024-12-17',
-    'gpt-4o-mini',
-    'gpt-4o-mini-2024-07-18',
-    'gpt-4o-mini-audio-preview',
-    'gpt-4o-mini-audio-preview-2024-12-17',
-    'gpt-4o-mini-realtime-preview',
-    'gpt-4o-mini-realtime-preview-2024-12-17',
-    'o1',
-    'o1-2024-12-17',
-    'o1-pro',
-    'o1-pro-2025-03-19',
-    'o3',
-    'o3-2025-04-16',
-    'o4-mini',
-    'o4-mini-2025-04-16',
-    'o3-mini',
-    'o3-mini-2025-01-31',
-    'o1-mini',
-    'o1-mini-2024-09-12',
-    'codex-mini-latest'
-  ],
-  google: [
-    'gemini-2.5-flash-preview-05-20',
-    'gemini-2.5-pro-preview-05-06',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-preview-image-generation',
-    'gemini-2.0-flash-lite',
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-1.5-pro'
-  ],
-  anthropic: [
-    'claude-opus-4-20250514',
-    'claude-sonnet-4-20250514',
-    'claude-3-7-sonnet-20250219',
-    'claude-3-7-sonnet-latest',
-    'claude-3-5-haiku-20241022',
-    'claude-3-5-haiku-latest',
-    'claude-3-5-sonnet-20241022',
-    'claude-3-5-sonnet-latest',
-    'claude-3-5-sonnet-20240620',
-    'claude-3-opus-20240229',
-    'claude-3-opus-latest',
-    'claude-3-sonnet-20240229',
-    'claude-3-haiku-20240307'
-  ]
+// Função para obter modelos disponíveis baseado nos provedores configurados no banco
+const getAvailableModels = (providerName: string, availableProviders: AiProvider[]): string[] => {
+  const provider = availableProviders.find(p => p.name === providerName);
+  return provider ? [provider.model] : [];
+};
+
+// Função para obter provedores disponíveis como opções de select
+const getAvailableProviderOptions = (availableProviders: AiProvider[]) => {
+  return availableProviders.map(provider => ({
+    key: provider.name,
+    name: provider.name
+  }));
 };
 
 interface AiUsageToggleProps {
@@ -608,10 +544,7 @@ function DepartmentAiConfiguration() {
   const [testResult, setTestResult] = useState<any>(null);
   const [testData, setTestData] = useState({
     test_title: "Sistema de email não está funcionando",
-    test_description: "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe.",
-    tempo_espera: "",
-    prioridade_atual: "",
-    ultima_interacao: ""
+    test_description: "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
   });
   const [availableProviders, setAvailableProviders] = useState<AiProvider[]>([]);
   const [formData, setFormData] = useState({
@@ -689,6 +622,11 @@ function DepartmentAiConfiguration() {
     fetchAvailableProviders();
   }, []);
 
+  // Sincronizar formData.analysis_type com selectedAnalysisType
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, analysis_type: selectedAnalysisType }));
+  }, [selectedAnalysisType]);
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -707,6 +645,17 @@ function DepartmentAiConfiguration() {
       is_default: false,
       analysis_type: selectedAnalysisType,
     });
+  };
+
+  const openNewConfigDialog = () => {
+    resetForm();
+    setFormData(prev => ({
+      ...prev,
+      analysis_type: selectedAnalysisType,
+      system_prompt: DEFAULT_PROMPTS[selectedAnalysisType]?.system || DEFAULT_PROMPTS.priority.system,
+      user_prompt_template: DEFAULT_PROMPTS[selectedAnalysisType]?.user || DEFAULT_PROMPTS.priority.user
+    }));
+    setShowForm(true);
   };
 
   const createMutation = useMutation({
@@ -837,6 +786,7 @@ function DepartmentAiConfiguration() {
         timeout_seconds: formData.timeout_seconds,
         max_retries: formData.max_retries,
         department_id: formData.department_id,
+        analysis_type: formData.analysis_type,
         test_title: testData.test_title || "Sistema de email não está funcionando",
         test_description: testData.test_description || "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
       };
@@ -909,7 +859,7 @@ function DepartmentAiConfiguration() {
       {/* Botão para adicionar nova configuração */}
       <div className="flex justify-end mb-4">
         <Button 
-          onClick={() => setShowForm(true)}
+          onClick={openNewConfigDialog}
           size="sm"
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -1026,19 +976,24 @@ function DepartmentAiConfiguration() {
                 <Label htmlFor="provider">Provedor</Label>
                 <Select 
                   value={formData.provider} 
-                  onValueChange={(v) => setFormData(prev => ({ 
-                    ...prev, 
-                    provider: v as any,
-                    model: modelOptions[v as keyof typeof modelOptions]?.[0] || 'gpt-4o' // Reset model when provider changes
-                  }))}
+                  onValueChange={(v) => {
+                    const availableModels = getAvailableModels(v, availableProviders);
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      provider: v as any,
+                      model: availableModels[0] || '' // Reset model when provider changes
+                    }));
+                  }}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Selecione um provedor" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                    <SelectItem value="google">Google (Gemini)</SelectItem>
-                    <SelectItem value="anthropic">Anthropic (Claude)</SelectItem>
+                    {getAvailableProviderOptions(availableProviders).map((provider) => (
+                      <SelectItem key={provider.key} value={provider.key}>
+                        {provider.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1050,10 +1005,10 @@ function DepartmentAiConfiguration() {
                   onValueChange={(v) => setFormData(prev => ({ ...prev, model: v }))}
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Selecione um modelo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(modelOptions[formData.provider] || []).map((model) => (
+                    {getAvailableModels(formData.provider, availableProviders).map((model) => (
                       <SelectItem key={model} value={model}>
                         {model}
                       </SelectItem>
@@ -1112,14 +1067,16 @@ function DepartmentAiConfiguration() {
                   id="user_prompt_template"
                   value={formData.user_prompt_template}
                   onChange={(e) => setFormData(prev => ({ ...prev, user_prompt_template: e.target.value }))}
-                  placeholder="Template para análise. Use {titulo} e {descricao} como variáveis..."
+                  placeholder={formData.analysis_type === 'priority' 
+                    ? "Template para análise. Use {titulo} e {descricao} como variáveis..."
+                    : "Template para análise de reabertura. Use {mensagem_cliente} como variável..."}
                   rows={3}
                 />
                 <p className="text-sm text-muted-foreground mt-1">
                   {formData.analysis_type === 'priority' ? (
                     <>Use <code>{"{titulo}"}</code> e <code>{"{descricao}"}</code> como variáveis que serão substituídas.</>
                   ) : (
-                    <>Use <code>{"{titulo}"}</code>, <code>{"{descricao}"}</code>, <code>{"{tempo_espera}"}</code>, <code>{"{prioridade_atual}"}</code> e <code>{"{ultima_interacao}"}</code> como variáveis.</>
+                    <>Use <code>{"{mensagem_cliente}"}</code> como variável para análise de reabertura.</>
                   )}
                 </p>
               </div>
@@ -1175,24 +1132,26 @@ function DepartmentAiConfiguration() {
             </div>
 
             {/* Prioridade de Fallback e Status */}
-            <div className="grid grid-cols-3 gap-4 items-end">
-              <div>
-                <Label htmlFor="fallback_priority">Prioridade de Fallback</Label>
-                <Select 
-                  value={formData.fallback_priority} 
-                  onValueChange={(v) => setFormData(prev => ({ ...prev, fallback_priority: v as any }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Baixa</SelectItem>
-                    <SelectItem value="medium">Média</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
-                    <SelectItem value="critical">Crítica</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className={`grid gap-4 items-end ${formData.analysis_type === 'reopen' ? 'grid-cols-2' : 'grid-cols-3'}`}>
+              {formData.analysis_type === 'priority' && (
+                <div>
+                  <Label htmlFor="fallback_priority">Prioridade de Fallback</Label>
+                  <Select 
+                    value={formData.fallback_priority} 
+                    onValueChange={(v) => setFormData(prev => ({ ...prev, fallback_priority: v as any }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Baixa</SelectItem>
+                      <SelectItem value="medium">Média</SelectItem>
+                      <SelectItem value="high">Alta</SelectItem>
+                      <SelectItem value="critical">Crítica</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex items-center space-x-2">
                 <Switch
                   id="is_active"
@@ -1215,56 +1174,39 @@ function DepartmentAiConfiguration() {
             <div className="border-t pt-4">
               <h4 className="font-medium mb-3">Testar Configuração - {formData.analysis_type === 'priority' ? 'Prioridade' : 'Reabertura'}</h4>
               <div className="space-y-3">
-                <div>
-                  <Label htmlFor="test-title">Título do Teste</Label>
-                  <Input
-                    id="test-title"
-                    value={testData.test_title}
-                    onChange={(e) => setTestData(prev => ({ ...prev, test_title: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="test-description">Descrição do Teste</Label>
-                  <Textarea
-                    id="test-description"
-                    value={testData.test_description}
-                    onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
-                    rows={3}
-                  />
-                </div>
-                {formData.analysis_type === 'reopen' && (
+                {formData.analysis_type === 'priority' ? (
                   <>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <Label htmlFor="test-tempo-espera">Tempo Aguardando</Label>
-                        <Input
-                          id="test-tempo-espera"
-                          value={testData.tempo_espera || '3 dias'}
-                          onChange={(e) => setTestData(prev => ({ ...prev, tempo_espera: e.target.value }))}
-                          placeholder="Ex: 3 dias, 1 semana"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="test-prioridade-atual">Prioridade Atual</Label>
-                        <Input
-                          id="test-prioridade-atual"
-                          value={testData.prioridade_atual || 'medium'}
-                          onChange={(e) => setTestData(prev => ({ ...prev, prioridade_atual: e.target.value }))}
-                          placeholder="Ex: high, medium, low"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="test-ultima-interacao">Última Interação</Label>
-                        <Input
-                          id="test-ultima-interacao"
-                          value={testData.ultima_interacao || 'Solicitação de informações adicionais'}
-                          onChange={(e) => setTestData(prev => ({ ...prev, ultima_interacao: e.target.value }))}
-                          placeholder="Ex: Resposta do cliente"
-                        />
-                      </div>
+                    <div>
+                      <Label htmlFor="test-title">Título do Teste</Label>
+                      <Input
+                        id="test-title"
+                        value={testData.test_title}
+                        onChange={(e) => setTestData(prev => ({ ...prev, test_title: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="test-description">Descrição do Teste</Label>
+                      <Textarea
+                        id="test-description"
+                        value={testData.test_description}
+                        onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
+                        rows={3}
+                      />
                     </div>
                   </>
+                ) : (
+                  <div>
+                    <Label htmlFor="test-client-message">Mensagem do Cliente</Label>
+                    <Textarea
+                      id="test-client-message"
+                      value={testData.test_description}
+                      onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
+                      placeholder="Digite a mensagem do cliente para testar a análise de reabertura..."
+                      rows={4}
+                    />
+                  </div>
                 )}
+
                 <Button
                   type="button"
                   variant="outline"
@@ -1288,7 +1230,7 @@ function DepartmentAiConfiguration() {
                   <div className="mt-3 p-3 bg-gray-50 rounded-lg">
                     <h5 className="font-medium mb-2">Resultado do Teste:</h5>
                     <div className="text-sm space-y-2">
-                      <div><strong>Prioridade:</strong> {testResult.priority}</div>
+                      <div><strong>{formData.analysis_type === 'reopen' ? 'Ação' : 'Prioridade'}:</strong> {testResult.priority}</div>
                       {testResult.justification && (
                         <div>
                           <strong>Justificativa:</strong>
@@ -1480,12 +1422,22 @@ function AdminAiConfiguration() {
 
   const departments = departmentsData?.departments || [];
 
+  // Sincronizar formData.analysis_type com selectedAnalysisType
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, analysis_type: selectedAnalysisType }));
+  }, [selectedAnalysisType]);
+
   // Carregar dados na montagem do componente
   useEffect(() => {
     fetchConfigurations(selectedAnalysisType);
     fetchProviders();
     fetchAvailableProviders();
   }, [selectedCompanyId, selectedAnalysisType]); // Recarregar quando empresa selecionada ou tipo de análise mudar
+
+  // Sincronizar formData.analysis_type com selectedAnalysisType
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, analysis_type: selectedAnalysisType }));
+  }, [selectedAnalysisType]);
 
   const resetForm = () => {
     setFormData({
@@ -1505,6 +1457,17 @@ function AdminAiConfiguration() {
       is_default: false,
       analysis_type: selectedAnalysisType,
     });
+  };
+
+  const openNewConfigDialog = () => {
+    resetForm();
+    setFormData(prev => ({
+      ...prev,
+      analysis_type: selectedAnalysisType,
+      system_prompt: DEFAULT_PROMPTS[selectedAnalysisType]?.system || DEFAULT_PROMPTS.priority.system,
+      user_prompt_template: DEFAULT_PROMPTS[selectedAnalysisType]?.user || DEFAULT_PROMPTS.priority.user
+    }));
+    setShowForm(true);
   };
 
   const createMutation = useMutation({
@@ -1821,20 +1784,30 @@ function AdminAiConfiguration() {
   };
 
   const handleTest = async () => {
-    if (!testData.test_title || !testData.test_description) {
-      toast({
-        title: "Erro",
-        description: "Título e descrição do teste são obrigatórios",
-        variant: "destructive"
-      });
-      return;
+    // Validação baseada no tipo de análise
+    if (formData.analysis_type === 'priority') {
+      if (!testData.test_title || !testData.test_description) {
+        toast({
+          title: "Erro",
+          description: "Título e descrição do teste são obrigatórios",
+          variant: "destructive"
+        });
+        return;
+      }
+    } else {
+      if (!testData.test_description) {
+        toast({
+          title: "Erro",
+          description: "Mensagem do cliente é obrigatória",
+          variant: "destructive"
+        });
+        return;
+      }
     }
 
     setIsTestLoading(true);
     try {
-      const response = await apiRequest('POST', '/api/ai-configurations/test', {
-        test_title: testData.test_title,
-        test_description: testData.test_description,
+      const testPayload = {
         provider: formData.provider,
         model: formData.model,
         system_prompt: formData.system_prompt,
@@ -1843,8 +1816,17 @@ function AdminAiConfiguration() {
         max_tokens: formData.max_tokens,
         timeout_seconds: formData.timeout_seconds,
         max_retries: formData.max_retries,
-        fallback_priority: formData.fallback_priority
-      });
+        analysis_type: formData.analysis_type,
+        ...(formData.analysis_type === 'priority' ? {
+          test_title: testData.test_title,
+          test_description: testData.test_description,
+          fallback_priority: formData.fallback_priority
+        } : {
+          test_description: testData.test_description // Para reabertura, apenas a mensagem do cliente
+        })
+      };
+
+      const response = await apiRequest('POST', '/api/ai-configurations/test', testPayload);
 
       if (response.ok) {
         const result = await response.json();
@@ -1869,6 +1851,20 @@ function AdminAiConfiguration() {
       setIsTestLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (selectedAnalysisType === 'priority') {
+      setTestData({
+        test_title: 'Sistema de email não está funcionando',
+        test_description: 'Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe.'
+      });
+    } else if (selectedAnalysisType === 'reopen') {
+      setTestData({
+        test_title: 'Solicitação de reabertura',
+        test_description: 'Solicito a reabertura deste chamado, pois o problema voltou a ocorrer e ainda não foi resolvido.'
+      });
+    }
+  }, [selectedAnalysisType]);
 
   return (
     <div className="space-y-6">
@@ -1922,7 +1918,7 @@ function AdminAiConfiguration() {
                       </Select>
                     </div>
                   )}
-                  <Button onClick={() => setShowForm(true)} size="sm">
+                  <Button onClick={openNewConfigDialog} size="sm">
                     <Plus className="h-4 w-4 mr-2" />
                     Nova Configuração
                   </Button>
@@ -1962,7 +1958,7 @@ function AdminAiConfiguration() {
                       : 'Crie sua primeira configuração de IA para começar'
                     }
                   </p>
-                  <Button onClick={() => setShowForm(true)}>
+                  <Button onClick={openNewConfigDialog}>
                     <Plus className="h-4 w-4 mr-2" />
                     Criar Primeira Configuração
                   </Button>
@@ -1994,9 +1990,13 @@ function AdminAiConfiguration() {
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
-                    <Badge variant={testResult.priority === 'critical' ? 'destructive' : 
-                                   testResult.priority === 'high' ? 'default' : 
-                                   testResult.priority === 'medium' ? 'secondary' : 'outline'}>
+                    <Badge variant={
+                      selectedAnalysisType === 'reopen' 
+                        ? (testResult.priority?.toLowerCase().includes('persist') ? 'destructive' : 'secondary')
+                        : (testResult.priority === 'critical' ? 'destructive' : 
+                           testResult.priority === 'high' ? 'default' : 
+                           testResult.priority === 'medium' ? 'secondary' : 'outline')
+                    }>
                       {testResult.priority.toUpperCase()}
                     </Badge>
                     {testResult.usedFallback && (
@@ -2270,7 +2270,7 @@ function AdminAiConfiguration() {
                     setProviderFormData(prev => ({ 
                       ...prev, 
                       name: value,
-                      model: modelOptions[value]?.[0] || '',
+                      model: getAvailableModels(value, availableProviders)[0] || '',
                       endpoint: getDefaultEndpoint(value)
                     }));
                   }}
@@ -2279,9 +2279,9 @@ function AdminAiConfiguration() {
                     <SelectValue placeholder="Selecione um provedor" />
                   </SelectTrigger>
                   <SelectContent>
-                    {AI_PROVIDERS.map(provider => (
-                      <SelectItem key={provider.value} value={provider.value}>
-                        {provider.label}
+                    {getAvailableProviderOptions(availableProviders).map(provider => (
+                      <SelectItem key={provider.key} value={provider.key}>
+                        {provider.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -2298,7 +2298,7 @@ function AdminAiConfiguration() {
                     <SelectValue placeholder="Selecione um modelo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(modelOptions[providerFormData.name] || []).map((model) => (
+                    {getAvailableModels(providerFormData.name, availableProviders).map((model) => (
                       <SelectItem key={model} value={model}>
                         {model}
                       </SelectItem>
@@ -2424,7 +2424,7 @@ function ConfigurationForm({
   
   const providerOptions = Object.keys(configuredProviders).map(name => ({
     value: name,
-    label: AI_PROVIDERS.find(p => p.value === name)?.label || name
+    label: name
   }));
   return (
     <div className="space-y-4">
@@ -2517,7 +2517,9 @@ function ConfigurationForm({
           onChange={(e) => setFormData(prev => ({ ...prev, user_prompt_template: e.target.value }))}
           rows={4}
           className="text-sm"
-          placeholder="Use {titulo} e {descricao} como placeholders"
+          placeholder={formData.analysis_type === 'priority' 
+            ? "Use {titulo} e {descricao} como placeholders"
+            : "Use {mensagem_cliente} como placeholder"}
         />
       </div>
 
@@ -2650,23 +2652,38 @@ function ConfigurationForm({
       <div className="border-t pt-4">
         <h4 className="font-medium mb-3">Testar Configuração</h4>
         <div className="space-y-3">
-          <div>
-            <Label htmlFor="test-title">Título do Teste</Label>
-            <Input
-              id="test-title"
-              value={testData.test_title}
-              onChange={(e) => setTestData(prev => ({ ...prev, test_title: e.target.value }))}
-            />
-          </div>
-          <div>
-            <Label htmlFor="test-description">Descrição do Teste</Label>
-            <Textarea
-              id="test-description"
-              value={testData.test_description}
-              onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
-              rows={3}
-            />
-          </div>
+          {formData.analysis_type === 'priority' ? (
+            <>
+              <div>
+                <Label htmlFor="test-title">Título do Teste</Label>
+                <Input
+                  id="test-title"
+                  value={testData.test_title}
+                  onChange={(e) => setTestData(prev => ({ ...prev, test_title: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="test-description">Descrição do Teste</Label>
+                <Textarea
+                  id="test-description"
+                  value={testData.test_description}
+                  onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
+                  rows={3}
+                />
+              </div>
+            </>
+          ) : (
+            <div>
+              <Label htmlFor="test-description">Mensagem do Cliente</Label>
+              <Textarea
+                id="test-description"
+                value={testData.test_description}
+                onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
+                rows={3}
+                placeholder="Digite a mensagem do cliente para testar a análise de reabertura..."
+              />
+            </div>
+          )}
           <Button
             type="button"
             variant="outline"
@@ -2690,7 +2707,7 @@ function ConfigurationForm({
             <div className="mt-3 p-3 bg-gray-50 rounded-lg">
               <h5 className="font-medium mb-2">Resultado do Teste:</h5>
               <div className="text-sm space-y-2">
-                                      <div><strong>Prioridade:</strong> {testResult.priority}</div>
+                <div><strong>{formData.analysis_type === 'reopen' ? 'Ação' : 'Prioridade'}:</strong> {testResult.priority}</div>
                 {testResult.justification && (
                   <div>
                     <strong>Justificativa:</strong>
@@ -2755,7 +2772,7 @@ function ConfigurationCard({
             <div>
               <CardTitle className="text-lg">{config.name}</CardTitle>
               <CardDescription>
-                {AI_PROVIDERS.find(p => p.value === config.provider)?.label} - {config.model}
+                {config.provider} - {config.model}
                 {config.department_name && (
                   <span className="ml-2 text-blue-600">• {config.department_name}</span>
                 )}

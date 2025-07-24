@@ -5,7 +5,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
 import { z } from "zod";
 import { insertTicketSchema, insertTicketReplySchema, slaDefinitions, departments as departmentsSchema, userRoleEnum, customers } from "@shared/schema";
-import { eq, desc, asc, isNull, sql, and, ne, or, inArray, ilike, not, type SQLWrapper } from "drizzle-orm";
+import { eq, desc, asc, isNull, sql, and, ne, or, inArray, ilike, not, type SQLWrapper, gte, lte } from "drizzle-orm";
 import * as schema from "@shared/schema";
 import { users } from "@shared/schema";
 import { db } from "./db";
@@ -1088,6 +1088,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           status: schema.aiAnalysisHistory.status,
           created_at: schema.aiAnalysisHistory.created_at,
           config_name: schema.aiConfigurations.name,
+          analysis_type: schema.aiAnalysisHistory.analysis_type,
         })
         .from(schema.aiAnalysisHistory)
         .leftJoin(schema.aiConfigurations, eq(schema.aiAnalysisHistory.ai_configuration_id, schema.aiConfigurations.id))
@@ -1098,6 +1099,114 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     } catch (error) {
       console.error('Erro ao buscar histórico de análise de IA:', error);
       res.status(500).json({ message: "Falha ao buscar histórico de análise de IA", error: String(error) });
+    }
+  });
+
+  // Rota para auditoria de análises de IA (com filtros)
+  router.get("/ai-analysis-audit", authRequired, async (req: Request, res: Response) => {
+    try {
+      const userRole = req.session?.userRole;
+      const userCompanyId = req.session?.companyId;
+
+      // Apenas admin e company_admin podem acessar auditoria
+      if (userRole !== 'admin' && userRole !== 'company_admin') {
+        return res.status(403).json({ message: "Acesso negado. Apenas administradores podem acessar a auditoria." });
+      }
+
+      const {
+        page = '1',
+        limit = '50',
+        analysis_type,
+        status,
+        provider,
+        start_date,
+        end_date,
+        ticket_id,
+        company_id
+      } = req.query;
+
+      const pageNum = parseInt(page as string) || 1;
+      const limitNum = parseInt(limit as string) || 50;
+      const offset = (pageNum - 1) * limitNum;
+
+      // Construir condições de filtro
+      const conditions = [];
+
+      // Filtro por empresa (admin pode ver todas, company_admin apenas sua empresa)
+      if (userRole === 'admin' && company_id) {
+        conditions.push(eq(schema.aiAnalysisHistory.company_id, parseInt(company_id as string)));
+      } else if (userRole === 'company_admin') {
+        conditions.push(eq(schema.aiAnalysisHistory.company_id, userCompanyId!));
+      }
+
+      // Filtros opcionais
+      if (analysis_type) {
+        conditions.push(eq(schema.aiAnalysisHistory.analysis_type, analysis_type as string));
+      }
+      if (status && ['success', 'error', 'timeout', 'fallback'].includes(status as string)) {
+        conditions.push(eq(schema.aiAnalysisHistory.status, status as 'success' | 'error' | 'timeout' | 'fallback'));
+      }
+      if (provider && ['openai', 'google', 'anthropic'].includes(provider as string)) {
+        conditions.push(eq(schema.aiAnalysisHistory.provider, provider as 'openai' | 'google' | 'anthropic'));
+      }
+      if (ticket_id) {
+        conditions.push(eq(schema.aiAnalysisHistory.ticket_id, parseInt(ticket_id as string)));
+      }
+      if (start_date) {
+        conditions.push(gte(schema.aiAnalysisHistory.created_at, new Date(start_date as string)));
+      }
+      if (end_date) {
+        conditions.push(lte(schema.aiAnalysisHistory.created_at, new Date(end_date as string)));
+      }
+
+      // Buscar total de registros
+      const totalQuery = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(schema.aiAnalysisHistory)
+        .where(conditions.length > 0 ? and(...conditions) : undefined);
+
+      const total = totalQuery[0]?.count || 0;
+
+      // Buscar dados paginados
+      const aiHistory = await db
+        .select({
+          id: schema.aiAnalysisHistory.id,
+          ticket_id: schema.aiAnalysisHistory.ticket_id,
+          suggested_priority: schema.aiAnalysisHistory.suggested_priority,
+          ai_justification: schema.aiAnalysisHistory.ai_justification,
+          provider: schema.aiAnalysisHistory.provider,
+          model: schema.aiAnalysisHistory.model,
+          processing_time_ms: schema.aiAnalysisHistory.processing_time_ms,
+          status: schema.aiAnalysisHistory.status,
+          created_at: schema.aiAnalysisHistory.created_at,
+          analysis_type: schema.aiAnalysisHistory.analysis_type,
+          config_name: schema.aiConfigurations.name,
+          ticket_title: schema.tickets.title,
+          company_name: schema.companies.name,
+        })
+        .from(schema.aiAnalysisHistory)
+        .leftJoin(schema.aiConfigurations, eq(schema.aiAnalysisHistory.ai_configuration_id, schema.aiConfigurations.id))
+        .leftJoin(schema.tickets, eq(schema.aiAnalysisHistory.ticket_id, schema.tickets.id))
+        .leftJoin(schema.companies, eq(schema.aiAnalysisHistory.company_id, schema.companies.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(schema.aiAnalysisHistory.created_at))
+        .limit(limitNum)
+        .offset(offset);
+
+      res.json({
+        data: aiHistory,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+          hasNext: pageNum * limitNum < total,
+          hasPrev: pageNum > 1,
+        }
+      });
+    } catch (error) {
+      console.error('Erro ao buscar auditoria de análises de IA:', error);
+      res.status(500).json({ message: "Falha ao buscar auditoria de análises de IA", error: String(error) });
     }
   });
   
@@ -1561,214 +1670,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
   });
   
+    // Rota para criar respostas de tickets com análise de IA
   router.post("/ticket-replies", authRequired, validateRequest(insertTicketReplySchema), async (req: Request, res: Response) => {
     try {
-      const ticketId = req.body.ticket_id;
-      const userId = req.session?.userId;
-      
-      if (!userId) {
-        return res.status(401).json({ message: "Usuário não identificado" });
-      }
-      
-      // Verificar acesso
-      const userRole = req.session?.userRole as string;
-      const userCompanyId = req.session?.companyId;
-      
-      // 🔥 FASE 4.1: Verificar permissões de resposta para participantes
-      const permissionCheck = await canUserReplyToTicket(userId, userRole, ticketId, userCompanyId);
-      if (!permissionCheck.canReply) {
-        return res.status(403).json({ 
-          message: "Permissão negada", 
-          details: permissionCheck.reason 
-        });
-      }
-      
-      // 🚫 BLOQUEAR CUSTOMER DE ALTERAR ATENDENTE VIA REPLY (EXCETO SE FOR TAMBÉM OFFICIAL)
-      if (userRole === 'customer' && req.body.assigned_to_id !== undefined) {
-        // 🔥 FASE 5.3: Verificar se o customer também é official (atendente)
-        const isAlsoOfficial = await isUserAlsoOfficial(userId);
-        
-        if (!isAlsoOfficial) {
-          return res.status(403).json({ 
-            message: "Operação não permitida", 
-            details: "Clientes não podem alterar o atendente do ticket." 
-          });
-        }
-        
-        console.log(`[PERMISSÃO] ✅ Usuário ${userId} é customer MAS também é official - operação permitida`);
-      }
-      
-      const ticket = await storage.getTicket(ticketId, userRole, userCompanyId);
-      if (!ticket) {
-        return res.status(404).json({ message: "Ticket não encontrado" });
-      }
-      
-      // Dados finais para o storage
-      const replyDataWithUser = {
-        ...req.body,
-        user_id: userId
-      };
-      
-      const reply = await storage.createTicketReply(replyDataWithUser);
-      
-      // Enviar notificação após salvar a resposta
-      if (userId) {
-        await notificationService.notifyNewReply(ticketId, userId);
-      }
-      
-      // 📧 ENVIAR EMAIL DE NOTIFICAÇÃO PARA NOVA RESPOSTA OU STATUS
-      const statusChanged = req.body.status !== ticket.status;
-      if (userId) {
-        if (statusChanged) {
-          // 🔥 OTIMIZAÇÃO CRÍTICA: Envio de e-mail fire-and-forget (não bloqueia a resposta)
-          const emailStartTime = Date.now();
-          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
-          console.log(`📧 [EMAIL BACKGROUND] 🔄 INICIANDO - Status Alterado`);
-          console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} (ID: ${ticketId})`);
-          console.log(`📧 [EMAIL BACKGROUND] Status: ${ticket.status} → ${req.body.status}`);
-          console.log(`📧 [EMAIL BACKGROUND] Alterado por: ${req.session?.userId} (${req.session?.adUsername || 'N/A'})`);
-          console.log(`📧 [EMAIL BACKGROUND] Timestamp: ${new Date().toLocaleString('pt-BR')}`);
-          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
-          
-          // Fire-and-forget: não aguarda o envio dos e-mails
-          emailNotificationService.notifyStatusChanged(
-            ticketId, 
-            ticket.status, 
-            req.body.status, 
-            userId
-          ).then(() => {
-            const emailDuration = Date.now() - emailStartTime;
-            console.log(`📧 [EMAIL BACKGROUND] ========================================`);
-            console.log(`📧 [EMAIL BACKGROUND] ✅ CONCLUÍDO - Status Alterado em ${emailDuration}ms`);
-            console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Todos os e-mails processados`);
-            console.log(`📧 [EMAIL BACKGROUND] ========================================`);
-          }).catch((emailError) => {
-            const emailDuration = Date.now() - emailStartTime;
-            console.error(`📧 [EMAIL BACKGROUND] ========================================`);
-            console.error(`📧 [EMAIL BACKGROUND] ❌ ERRO - Status Alterado após ${emailDuration}ms`);
-            console.error(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Erro:`, emailError.message);
-            console.error(`📧 [EMAIL BACKGROUND] Stack:`, emailError.stack);
-            console.error(`📧 [EMAIL BACKGROUND] ========================================`);
-          });
-        } else {
-          // 🔥 OTIMIZAÇÃO CRÍTICA: Envio de e-mail fire-and-forget (não bloqueia a resposta)
-          const emailStartTime = Date.now();
-          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
-          console.log(`📧 [EMAIL BACKGROUND] 💬 INICIANDO - Nova Resposta`);
-          console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} (ID: ${ticketId})`);
-          console.log(`📧 [EMAIL BACKGROUND] Respondido por: ${req.session?.userId} (${req.session?.adUsername || 'N/A'})`);
-          console.log(`📧 [EMAIL BACKGROUND] Mensagem: ${req.body.message.substring(0, 100)}...`);
-          console.log(`📧 [EMAIL BACKGROUND] Timestamp: ${new Date().toLocaleString('pt-BR')}`);
-          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
-          
-          // Fire-and-forget: não aguarda o envio dos e-mails
-          emailNotificationService.notifyTicketReply(ticketId, userId, req.body.message).then(() => {
-            const emailDuration = Date.now() - emailStartTime;
-            console.log(`📧 [EMAIL BACKGROUND] ========================================`);
-            console.log(`📧 [EMAIL BACKGROUND] ✅ CONCLUÍDO - Nova Resposta em ${emailDuration}ms`);
-            console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Todos os e-mails processados`);
-            console.log(`📧 [EMAIL BACKGROUND] ========================================`);
-          }).catch((emailError) => {
-            const emailDuration = Date.now() - emailStartTime;
-            console.error(`📧 [EMAIL BACKGROUND] ========================================`);
-            console.error(`📧 [EMAIL BACKGROUND] ❌ ERRO - Nova Resposta após ${emailDuration}ms`);
-            console.error(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Erro:`, emailError.message);
-            console.error(`📧 [EMAIL BACKGROUND] Stack:`, emailError.stack);
-            console.error(`📧 [EMAIL BACKGROUND] ========================================`);
-          });
-        }
-      }
-
-      // 🔥 FASE 4.2: Se for uma atualização de status, notificar participantes (fire-and-forget)
-      if (statusChanged) {
-        // Fire-and-forget: não aguarda a notificação WebSocket terminar
-        notificationService.notifyStatusChange(ticketId, ticket.status, req.body.status, userId).catch((notificationError) => {
-          console.error('Erro ao enviar notificação WebSocket de mudança de status:', notificationError);
-          // Não falhar a operação por erro de notificação
-        });
-      }
-
-      // Se for uma atualização de status ou atribuição, notificar
-      if (statusChanged || req.body.assigned_to_id !== ticket.assigned_to_id) {
-        notificationService.sendNotificationToAll({
-          type: 'status_changed',
-          ticketId: ticket.id,
-          title: `Ticket Atualizado: ${ticket.title}`,
-          message: `O status ou atribuição do ticket ${ticket.ticket_id} foi atualizado.`,
-          timestamp: new Date()
-        });
-        // 📧 ENVIAR EMAIL PARA ATRIBUIÇÃO
-        if (req.body.assigned_to_id !== ticket.assigned_to_id && req.body.assigned_to_id) {
-          // 🔥 VALIDAÇÃO CRÍTICA: Verificar se o atendente é da MESMA EMPRESA do ticket!
-          try {
-            // 🔥 CORREÇÃO: Buscar dados do official que será atribuído
-            const [assignedOfficial] = await db
-              .select()
-              .from(schema.officials)
-              .where(and(eq(schema.officials.id, req.body.assigned_to_id), eq(schema.officials.is_active, true)))
-              .limit(1);
-
-            if (!assignedOfficial) {
-              console.error(`[🚨 SEGURANÇA] ❌ ERRO: Atendente ${req.body.assigned_to_id} não encontrado ou inativo`);
-              throw new Error(`Atendente ${req.body.assigned_to_id} não encontrado ou inativo`);
-            }
-
-            // 🔥 VALIDAÇÃO DE EMPRESA: Ticket e atendente devem ser da mesma empresa!
-            if (ticket.company_id && assignedOfficial.company_id && ticket.company_id !== assignedOfficial.company_id) {
-              console.error(`[🚨 SEGURANÇA] ❌ VIOLAÇÃO: Tentativa de atribuir ticket da empresa ${ticket.company_id} para atendente da empresa ${assignedOfficial.company_id}!`);
-              console.error(`[🚨 SEGURANÇA] ❌ Ticket: ${ticket.ticket_id} (${ticket.title})`);
-              console.error(`[🚨 SEGURANÇA] ❌ Atendente: ${assignedOfficial.name} (${assignedOfficial.email})`);
-              
-              throw new Error(`Não é possível atribuir um ticket da empresa ${ticket.company_id} para um atendente da empresa ${assignedOfficial.company_id}`);
-            }
-
-            // 🔥 VALIDAÇÃO ADICIONAL: Se ticket tem empresa, atendente deve ter empresa
-            if (ticket.company_id && !assignedOfficial.company_id) {
-              console.error(`[🚨 SEGURANÇA] ❌ VIOLAÇÃO: Atendente sem empresa para ticket com empresa!`);
-              console.error(`[🚨 SEGURANÇA] ❌ Ticket empresa: ${ticket.company_id}, Atendente empresa: ${assignedOfficial.company_id}`);
-              
-              throw new Error(`Não é possível atribuir um ticket da empresa ${ticket.company_id} para um atendente sem empresa`);
-            }
-
-            console.log(`[✅ SEGURANÇA] Validação de empresa: OK - Ticket e atendente são da mesma empresa`);
-          } catch (validationError) {
-            console.error('🚨🚨🚨 [PROD EMAIL] ❌ ERRO DE VALIDAÇÃO:', validationError);
-            // Não enviar email se a validação falhar
-            return;
-          }
-
-          // 🔥 OTIMIZAÇÃO CRÍTICA: Envio de e-mail fire-and-forget (não bloqueia a resposta)
-          const emailStartTime = Date.now();
-          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
-          console.log(`📧 [EMAIL BACKGROUND] 👤 INICIANDO - Ticket Atribuído`);
-          console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} (ID: ${ticketId})`);
-          console.log(`📧 [EMAIL BACKGROUND] Atribuído para: ${req.body.assigned_to_id}`);
-          console.log(`📧 [EMAIL BACKGROUND] Atribuído por: ${req.session?.userId} (${req.session?.adUsername || 'N/A'})`);
-          console.log(`📧 [EMAIL BACKGROUND] Timestamp: ${new Date().toLocaleString('pt-BR')}`);
-          console.log(`📧 [EMAIL BACKGROUND] ========================================`);
-          
-          // Fire-and-forget: não aguarda o envio dos e-mails
-          emailNotificationService.notifyTicketAssigned(ticketId, req.body.assigned_to_id).then(() => {
-            const emailDuration = Date.now() - emailStartTime;
-            console.log(`📧 [EMAIL BACKGROUND] ========================================`);
-            console.log(`📧 [EMAIL BACKGROUND] ✅ CONCLUÍDO - Ticket Atribuído em ${emailDuration}ms`);
-            console.log(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Todos os e-mails processados`);
-            console.log(`📧 [EMAIL BACKGROUND] ========================================`);
-          }).catch((emailError) => {
-            const emailDuration = Date.now() - emailStartTime;
-            console.error(`📧 [EMAIL BACKGROUND] ========================================`);
-            console.error(`📧 [EMAIL BACKGROUND] ❌ ERRO - Ticket Atribuído após ${emailDuration}ms`);
-            console.error(`📧 [EMAIL BACKGROUND] Ticket: #${ticket.ticket_id} - Erro:`, emailError.message);
-            console.error(`📧 [EMAIL BACKGROUND] Stack:`, emailError.stack);
-            console.error(`📧 [EMAIL BACKGROUND] ========================================`);
-          });
-        }
-      }
-      
-      res.status(201).json(reply);
+      // Importar a função correta que contém a análise de IA
+      const { POST: ticketRepliesHandler } = await import('./api/ticket-replies');
+      return await ticketRepliesHandler(req, res);
     } catch (error) {
-      console.error('Erro ao criar resposta de ticket:', error);
-      res.status(500).json({ message: "Falha ao criar resposta de ticket", error: String(error) });
+      console.error('Erro ao processar resposta de ticket:', error);
+      return res.status(500).json({ error: "Erro interno do servidor" });
     }
   });
   

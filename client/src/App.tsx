@@ -33,6 +33,7 @@ import PermissionsPage from "@/pages/permissions";
 import Changelog from "@/pages/changelog";
 import PerformanceDashboard from "@/pages/performance-dashboard";
 import LogsPage from "@/pages/logs";
+import AiAuditPage from "@/pages/ai-audit";
 
 function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -169,6 +170,12 @@ function AppContent() {
       <ProtectedRoute path="/logs" component={() => (
         <MainLayout>
           <LogsPage />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/ai-audit" component={() => (
+        <MainLayout>
+          <AiAuditPage />
         </MainLayout>
       )} />
       

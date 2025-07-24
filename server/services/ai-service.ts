@@ -321,11 +321,25 @@ export class AiService {
     message: string,
     dbInstance: any = null
   ): Promise<{ shouldReopen: boolean, aiResult: any, usedFallback: boolean }> {
-    const db = dbInstance || require('../db').db;
+    const database = dbInstance || require('../db').db;
     const startTime = Date.now();
     try {
+      // Verificar se o ticket existe (sem buscar dados desnecessários)
+      const [ticket] = await database
+        .select({
+          id: schema.tickets.id,
+          status: schema.tickets.status
+        })
+        .from(schema.tickets)
+        .where(eq(schema.tickets.id, ticketId))
+        .limit(1);
+
+      if (!ticket) {
+        return { shouldReopen: false, aiResult: { justification: 'Ticket não encontrado' }, usedFallback: true };
+      }
+
       // Buscar configuração de IA para reabertura
-      const config = await this.getActiveAiConfiguration(companyId, departmentId, 'reopen', db);
+      const config = await this.getActiveAiConfiguration(companyId, departmentId, 'reopen', database);
       if (!config) {
         // Fallback: não reabrir
         await this.saveAnalysisHistory(
@@ -366,13 +380,13 @@ export class AiService {
             processingTimeMs: Date.now() - startTime
           },
           'fallback',
-          db,
+          database,
           'Nenhuma configuração de IA para reabertura'
         );
         return { shouldReopen: false, aiResult: { justification: 'Fallback: Nenhuma configuração de IA para reabertura' }, usedFallback: true };
       }
       // Buscar token do system_settings
-      const apiToken = await this.getApiToken(config.provider, companyId, dbInstance);
+      const apiToken = await this.getApiToken(config.provider, companyId, database);
       
       if (!apiToken) {
         console.error(`[AI] Token não encontrado para provedor ${config.provider}`);
@@ -384,14 +398,20 @@ export class AiService {
       if (!provider) {
         return { shouldReopen: false, aiResult: { justification: 'Provedor de IA não disponível' }, usedFallback: true };
       }
+      
+      // Para análise de reabertura, enviar APENAS a mensagem do cliente
+      // Não precisamos do título nem descrição do ticket original
+      
       // Chamar IA
       const aiResult = await provider.analyze('', message, config, apiToken);
-      // Espera-se que a IA retorne algo como 'reabrir' ou 'não reabrir' (ou similar)
+      // Para análise de reabertura, a IA retorna ACAO no campo priority
       let shouldReopen = false;
       let aiDecision = (aiResult.priority || '').toLowerCase();
-      if (aiDecision.includes('reabrir') || aiDecision.includes('abrir') || aiDecision.includes('sim')) {
+      
+      // Verificar se deve reabrir baseado na ação retornada
+      if (aiDecision.includes('reabrir') || aiDecision.includes('persists') || aiDecision.includes('persist')) {
         shouldReopen = true;
-      } else if (aiDecision.includes('não') || aiDecision.includes('nao')) {
+      } else if (aiDecision.includes('manter') || aiDecision.includes('resolved') || aiDecision.includes('resolve')) {
         shouldReopen = false;
       } else {
         // Se ambíguo, por segurança não reabrir

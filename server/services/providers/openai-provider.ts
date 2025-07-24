@@ -13,9 +13,15 @@ export class OpenAiProvider implements AiProviderInterface {
     try {
       // Preparar o prompt
       const systemPrompt = config.system_prompt;
-      const userPrompt = config.user_prompt_template
+      let userPrompt = config.user_prompt_template
         .replace('{titulo}', title)
         .replace('{descricao}', description);
+      
+      // Para análise de reabertura, usar apenas a mensagem do cliente
+      if (config.analysis_type === 'reopen') {
+        userPrompt = config.user_prompt_template
+          .replace('{mensagem_cliente}', description);
+      }
 
       // Configurar o endpoint
       const endpoint = config.api_endpoint || 'https://api.openai.com/v1/chat/completions';
@@ -60,6 +66,21 @@ export class OpenAiProvider implements AiProviderInterface {
       const aiResponse = data.choices[0]?.message?.content?.trim() || '';
       
       if (!aiResponse) {
+        // Para análise de reabertura, não usar fallback de prioridade
+        if (config.analysis_type === 'reopen') {
+          return {
+            priority: 'erro_resposta_vazia',
+            confidence: 0,
+            justification: 'Resposta vazia da IA para análise de reabertura',
+            usedFallback: true,
+            processingTimeMs: Date.now() - startTime,
+            tokensUsed: {
+              request: data.usage?.prompt_tokens || 0,
+              response: data.usage?.completion_tokens || 0,
+            }
+          };
+        }
+        
         return {
           priority: config.fallback_priority,
           confidence: 0,
@@ -74,9 +95,24 @@ export class OpenAiProvider implements AiProviderInterface {
       }
 
       // Extrair prioridade e justificativa da resposta usando tags
-      const { priority: extractedPriority, justification } = this.extractPriorityAndJustification(aiResponse);
+      const { priority: extractedPriority, justification } = this.extractPriorityAndJustification(aiResponse, config);
       
       if (!extractedPriority) {
+        // Para análise de reabertura, não usar fallback de prioridade
+        if (config.analysis_type === 'reopen') {
+          return {
+            priority: 'erro_extracao',
+            confidence: 0,
+            justification: `Não foi possível extrair ACAO da resposta: "${aiResponse}"`,
+            usedFallback: true,
+            processingTimeMs: Date.now() - startTime,
+            tokensUsed: {
+              request: data.usage?.prompt_tokens || 0,
+              response: data.usage?.completion_tokens || 0,
+            }
+          };
+        }
+        
         return {
           priority: config.fallback_priority,
           confidence: 0.2,
@@ -123,13 +159,45 @@ export class OpenAiProvider implements AiProviderInterface {
   /**
    * Extrai a prioridade e justificativa da resposta da IA usando tags estruturadas
    */
-  private extractPriorityAndJustification(response: string): { priority: string | null; justification: string } {
+  private extractPriorityAndJustification(response: string, config?: any): { priority: string | null; justification: string } {
     
+    // Para análise de reabertura, usar função específica
+    if (config?.analysis_type === 'reopen') {
+      return this.extractReopenActionAndJustification(response);
+    }
+    
+    // Para análise de prioridade, usar função específica
+    return this.extractPriorityAnalysis(response);
+  }
+
+  /**
+   * Extrai AÇÃO e JUSTIFICATIVA para análise de reabertura
+   */
+  private extractReopenActionAndJustification(response: string): { priority: string | null; justification: string } {
+    const acaoMatch = response.match(/<ACAO>(.*?)<\/ACAO>/i);
+    const justificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*?)<\/JUSTIFICATIVA>/i);
+    
+    if (acaoMatch && justificationMatch) {
+      return {
+        priority: acaoMatch[1].trim(), // Usar ACAO como "priority" para compatibilidade
+        justification: justificationMatch[1].trim()
+      };
+    }
+    
+    // Se não encontrou as tags, retornar erro
+    return {
+      priority: null,
+      justification: `Não foi possível extrair ACAO e JUSTIFICATIVA da resposta: "${response}"`
+    };
+  }
+
+  /**
+   * Extrai PRIORIDADE e JUSTIFICATIVA para análise de prioridade
+   */
+  private extractPriorityAnalysis(response: string): { priority: string | null; justification: string } {
     // Tentar extrair usando tags estruturadas primeiro
     const priorityMatch = response.match(/<PRIORIDADE>(.*?)<\/PRIORIDADE>/i);
     const justificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*?)<\/JUSTIFICATIVA>/i);
-    
-
     
     if (priorityMatch) {
       const extractedPriority = priorityMatch[1].trim();
@@ -157,6 +225,7 @@ export class OpenAiProvider implements AiProviderInterface {
     
     // Fallback: tentar extrair apenas prioridade (método antigo) - APENAS se não encontrou tags
     const extractedPriority = this.extractPriority(response);
+
     
     if (extractedPriority) {
       // Tentar extrair justificativa usando métodos antigos
