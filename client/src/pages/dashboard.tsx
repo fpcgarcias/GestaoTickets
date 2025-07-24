@@ -84,6 +84,12 @@ function toBrasiliaISOString(date: Date, endOfDay = false) {
   return local.toISOString();
 }
 
+// Função utilitária para normalizar prioridade (primeira letra maiúscula, resto minúsculo)
+function normalizarPrioridade(prioridade: string) {
+  if (!prioridade) return '';
+  return prioridade.charAt(0).toUpperCase() + prioridade.slice(1).toLowerCase();
+}
+
 export default function Dashboard() {
   const { user, isLoading: isLoadingAuth } = useAuth();
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
@@ -234,14 +240,16 @@ export default function Dashboard() {
   // Filtrar dados para o gráfico (apenas status com valor > 0)
   const statusDataForChart = statusData.filter(item => item.value > 0);
 
-  // Processar dados de prioridade - usar apenas capitalização simples
-  const priorityData = Object.entries(ticketStats.byPriority)
-    .map(([priority, count]) => {
-      return {
-        name: priority.charAt(0).toUpperCase() + priority.slice(1).toLowerCase(),
-        Qtde: Number(count ?? 0)
-      };
-    })
+  // Processar dados de prioridade - agrupar case-insensitive e exibir padronizado
+  const prioridadeMap: Record<string, { name: string; Qtde: number }> = {};
+  Object.entries(ticketStats.byPriority).forEach(([priority, count]) => {
+    const key = normalizarPrioridade(priority);
+    if (!prioridadeMap[key]) {
+      prioridadeMap[key] = { name: key, Qtde: 0 };
+    }
+    prioridadeMap[key].Qtde += Number(count ?? 0);
+  });
+  const priorityData = Object.values(prioridadeMap)
     .filter(item => item.Qtde > 0)
     .sort((a, b) => b.Qtde - a.Qtde);
 
