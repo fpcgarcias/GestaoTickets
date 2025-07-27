@@ -160,6 +160,7 @@ export async function createAiConfiguration(req: Request, res: Response) {
       targetCompanyId = userCompanyId;
     }
     if (is_default) {
+      // Desativar configurações padrão existentes para o mesmo departamento e tipo de análise
       await db
         .update(schema.aiConfigurations)
         .set({ is_default: false, updated_at: new Date() })
@@ -172,6 +173,7 @@ export async function createAiConfiguration(req: Request, res: Response) {
           )
         );
     }
+
     const [newConfiguration] = await db
       .insert(schema.aiConfigurations)
       .values({

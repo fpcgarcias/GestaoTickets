@@ -233,6 +233,17 @@
 	},
 	{
 		"schema" : "public",
+		"table_name" : "ai_analysis_history",
+		"column_name" : "analysis_type",
+		"data_type" : "character varying(32)",
+		"is_nullable" : "NO",
+		"column_default" : null,
+		"is_primary_key" : "",
+		"is_foreign_key" : "",
+		"indexes" : null
+	},
+	{
+		"schema" : "public",
 		"table_name" : "ai_configurations",
 		"column_name" : "id",
 		"data_type" : "integer",
@@ -268,17 +279,6 @@
 		"schema" : "public",
 		"table_name" : "ai_configurations",
 		"column_name" : "model",
-		"data_type" : "text",
-		"is_nullable" : "NO",
-		"column_default" : null,
-		"is_primary_key" : "",
-		"is_foreign_key" : "",
-		"indexes" : null
-	},
-	{
-		"schema" : "public",
-		"table_name" : "ai_configurations",
-		"column_name" : "api_key",
 		"data_type" : "text",
 		"is_nullable" : "NO",
 		"column_default" : null,
@@ -372,7 +372,7 @@
 		"column_default" : "true",
 		"is_primary_key" : "",
 		"is_foreign_key" : "",
-		"indexes" : "idx_ai_configurations_active"
+		"indexes" : "idx_ai_configurations_active, idx_ai_configurations_unique"
 	},
 	{
 		"schema" : "public",
@@ -438,7 +438,7 @@
 		"column_default" : null,
 		"is_primary_key" : "",
 		"is_foreign_key" : "YES",
-		"indexes" : "idx_ai_configurations_department, idx_ai_configurations_company_dept"
+		"indexes" : "idx_ai_configurations_department, idx_ai_configurations_company_dept, idx_ai_configurations_unique"
 	},
 	{
 		"schema" : "public",
@@ -460,7 +460,18 @@
 		"column_default" : null,
 		"is_primary_key" : "",
 		"is_foreign_key" : "YES",
-		"indexes" : "idx_ai_configurations_company_id, idx_ai_configurations_company_dept"
+		"indexes" : "idx_ai_configurations_company_id, idx_ai_configurations_company_dept, idx_ai_configurations_unique"
+	},
+	{
+		"schema" : "public",
+		"table_name" : "ai_configurations",
+		"column_name" : "analysis_type",
+		"data_type" : "character varying(32)",
+		"is_nullable" : "NO",
+		"column_default" : null,
+		"is_primary_key" : "",
+		"is_foreign_key" : "",
+		"indexes" : "idx_ai_configurations_unique"
 	},
 	{
 		"schema" : "public",
@@ -1868,6 +1879,61 @@
 		"column_default" : null,
 		"is_primary_key" : "",
 		"is_foreign_key" : "YES",
+		"indexes" : null
+	},
+	{
+		"schema" : "public",
+		"table_name" : "ticket_participants",
+		"column_name" : "id",
+		"data_type" : "integer",
+		"is_nullable" : "NO",
+		"column_default" : "nextval('ticket_participants_id_seq'::regclass)",
+		"is_primary_key" : "YES",
+		"is_foreign_key" : "",
+		"indexes" : null
+	},
+	{
+		"schema" : "public",
+		"table_name" : "ticket_participants",
+		"column_name" : "ticket_id",
+		"data_type" : "integer",
+		"is_nullable" : "YES",
+		"column_default" : null,
+		"is_primary_key" : "",
+		"is_foreign_key" : "YES",
+		"indexes" : "ticket_participants_ticket_id_user_id_key, idx_ticket_participants_ticket_id, idx_ticket_participants_ticket_user"
+	},
+	{
+		"schema" : "public",
+		"table_name" : "ticket_participants",
+		"column_name" : "user_id",
+		"data_type" : "integer",
+		"is_nullable" : "YES",
+		"column_default" : null,
+		"is_primary_key" : "",
+		"is_foreign_key" : "YES",
+		"indexes" : "ticket_participants_ticket_id_user_id_key, idx_ticket_participants_user_id, idx_ticket_participants_ticket_user"
+	},
+	{
+		"schema" : "public",
+		"table_name" : "ticket_participants",
+		"column_name" : "added_by_id",
+		"data_type" : "integer",
+		"is_nullable" : "YES",
+		"column_default" : null,
+		"is_primary_key" : "",
+		"is_foreign_key" : "YES",
+		"indexes" : "idx_ticket_participants_added_by_id"
+	},
+	{
+		"schema" : "public",
+		"table_name" : "ticket_participants",
+		"column_name" : "added_at",
+		"data_type" : "timestamp without time zone",
+		"is_nullable" : "NO",
+		"column_default" : "now()",
+		"is_primary_key" : "",
+		"is_foreign_key" : "",
 		"indexes" : null
 	},
 	{
