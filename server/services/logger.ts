@@ -1,5 +1,6 @@
 import winston from 'winston';
 import path from 'path';
+import 'winston-daily-rotate-file';
 
 // Configurar formato personalizado
 const customFormat = winston.format.combine(
@@ -69,14 +70,38 @@ export const logger = winston.createLogger({
 export const performanceLogger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
-    winston.format.timestamp(),
+    winston.format.timestamp({
+      format: 'YYYY-MM-DD HH:mm:ss'
+    }),
+    winston.format.errors({ stack: true }),
     winston.format.json()
   ),
   transports: [
+    // Usar DailyRotateFile para rotação automática
+    new winston.transports.DailyRotateFile({
+      filename: path.join(process.cwd(), 'logs', 'performance-%DATE%.log'),
+      datePattern: 'YYYY-MM-DD',
+      maxSize: '10m', // 10MB por arquivo
+      maxFiles: '14d', // Manter 14 dias de logs
+      zippedArchive: true, // Comprimir arquivos antigos
+      format: winston.format.combine(
+        winston.format.timestamp({
+          format: 'YYYY-MM-DD HH:mm:ss'
+        }),
+        winston.format.json()
+      )
+    }),
+    // Manter um arquivo performance.log sempre atual
     new winston.transports.File({
       filename: path.join(process.cwd(), 'logs', 'performance.log'),
-      maxsize: 5242880,
-      maxFiles: 3
+      maxsize: 5242880, // 5MB
+      maxFiles: 1, // Apenas 1 arquivo
+      format: winston.format.combine(
+        winston.format.timestamp({
+          format: 'YYYY-MM-DD HH:mm:ss'
+        }),
+        winston.format.json()
+      )
     })
   ]
 });

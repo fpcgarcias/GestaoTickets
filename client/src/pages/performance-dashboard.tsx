@@ -7,6 +7,32 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Info } from 'lucide-react';
 
+// Função para formatar uptime de forma legível
+const formatUptime = (seconds: number): string => {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+  
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  
+  if (remainingHours === 0) {
+    return `${days}d`;
+  }
+  
+  return `${days}d ${remainingHours}h`;
+};
+
 interface PerformanceStats {
   stats: {
     totalRequests: number;
@@ -106,9 +132,9 @@ export default function PerformanceDashboard() {
         </Card>
         <Card className="bg-purple-500/90 text-white">
           <CardHeader>
-            <CardTitle>Uptime (s)</CardTitle>
+            <CardTitle>Uptime</CardTitle>
           </CardHeader>
-          <CardContent className="text-3xl font-bold">{systemInfo.uptime}</CardContent>
+          <CardContent className="text-3xl font-bold">{formatUptime(systemInfo.uptime)}</CardContent>
         </Card>
         <Card className="bg-neutral-700 text-white">
           <CardHeader>
@@ -300,7 +326,7 @@ export default function PerformanceDashboard() {
       </div>
       {/* Info do sistema */}
       <div className="text-xs text-neutral-500 text-center mt-8">
-        Node.js {systemInfo.nodeVersion} | Plataforma: {systemInfo.platform} | Uptime: {systemInfo.uptime}s | Memória: {(systemInfo.memory.heapUsed / 1024 / 1024).toFixed(2)} MB
+        Node.js {systemInfo.nodeVersion} | Plataforma: {systemInfo.platform} | Uptime: {formatUptime(systemInfo.uptime)} | Memória: {(systemInfo.memory.heapUsed / 1024 / 1024).toFixed(2)} MB
       </div>
     </div>
   );
