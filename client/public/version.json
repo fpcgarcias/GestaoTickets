@@ -1,7 +1,24 @@
 {
-  "current": "1.0.22",
-  "releaseDate": "2025-07-20",
+  "current": "1.0.23",
+  "releaseDate": "2025-07-25",
   "versions": [
+    {
+      "version": "1.0.23",
+      "date": "2025-07-25",
+      "title": "Análise de Reabertura de Chamados por IA.",
+      "type": "feature",
+      "changes": {
+        "new": [
+          "Implementação de análise de reabertura de chamados por IA.",
+          "Dashboard de autoridade das análises de IA (prioridade e reabertura).",
+          "Exibição das análises de IA na tela de detalhamento do chamado para atendentes e clientes."
+        ],
+        "improved": [
+          "Melhor acompanhamento das análises de IA por parte dos usuários.",
+          "Interface aprimorada para visualização das análises de prioridade e reabertura."
+        ]
+      }
+    },
     {
       "version": "1.0.22",
       "date": "2025-07-20",
