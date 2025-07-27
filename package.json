@@ -10,7 +10,7 @@
     "build:prod": "NODE_ENV=production vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/server.js",
     "start": "tsx server/index.ts",
     "start:prod": "node dist/server.js",
-    "build:prod": "npm run build && npm run start:prod",
+    "build:start:prod": "npm run build && npm run start:prod",
     "migrate": "tsx server/migrate.ts",
     "migrate:up": "tsx server/cli-migrations.ts up",
     "migrate:down": "tsx server/cli-migrations.ts down",

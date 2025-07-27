@@ -121,12 +121,7 @@ export default defineConfig({
             return 'vendor';
           }
         },
-        chunkFileNames: (chunkInfo: any) => {
-          const facadeModuleId = chunkInfo.facadeModuleId
-            ? chunkInfo.facadeModuleId.split('/').pop()?.replace(/\.[^.]*$/, '')
-            : 'chunk';
-          return `js/${facadeModuleId}-[hash].js`;
-        },
+        chunkFileNames: 'js/[name]-[hash].js',
         assetFileNames: (assetInfo: any) => {
           const info = assetInfo.name?.split('.') || [];
           const ext = info[info.length - 1];
