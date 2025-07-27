@@ -60,67 +60,7 @@ export default defineConfig({
         warn(warning);
       },
       output: {
-        manualChunks: (id: string) => {
-          // React e React DOM
-          if (id.includes('react') && (id.includes('react-dom') || id.includes('react/') || id.includes('react-dom/'))) {
-            return 'react-vendor';
-          }
-          
-          // Radix UI components
-          if (id.includes('@radix-ui/')) {
-            return 'radix-ui';
-          }
-          
-          // TanStack Query
-          if (id.includes('@tanstack/')) {
-            return 'tanstack-query';
-          }
-          
-          // Form libraries
-          if (id.includes('react-hook-form') || id.includes('@hookform/') || id.includes('zod')) {
-            return 'form-libs';
-          }
-          
-          // Charts
-          if (id.includes('recharts')) {
-            return 'charts';
-          }
-          
-          // Date utilities
-          if (id.includes('date-fns')) {
-            return 'date-utils';
-          }
-          
-          // UI utilities
-          if (id.includes('clsx') || id.includes('tailwind-merge') || id.includes('class-variance-authority')) {
-            return 'ui-utils';
-          }
-          
-          // Icons
-          if (id.includes('lucide-react') || id.includes('react-icons')) {
-            return 'icons';
-          }
-          
-          // Animation libraries
-          if (id.includes('framer-motion') || id.includes('tailwindcss-animate')) {
-            return 'animations';
-          }
-          
-          // Wouter (routing)
-          if (id.includes('wouter')) {
-            return 'router';
-          }
-          
-          // AWS SDK
-          if (id.includes('@aws-sdk/')) {
-            return 'aws-sdk';
-          }
-          
-          // Node modules que não são específicos
-          if (id.includes('node_modules') && !id.includes('@radix-ui/') && !id.includes('@tanstack/') && !id.includes('react') && !id.includes('@aws-sdk/')) {
-            return 'vendor';
-          }
-        },
+        manualChunks: undefined, // Deixar o Vite fazer code splitting automático
         chunkFileNames: 'js/[name]-[hash].js',
         assetFileNames: (assetInfo: any) => {
           const info = assetInfo.name?.split('.') || [];
@@ -174,7 +114,9 @@ export default defineConfig({
       'date-fns',
       'recharts',
       'wouter',
-      'lucide-react'
+      'lucide-react',
+      'clsx',
+      'tailwind-merge'
     ],
     exclude: [
       '@aws-sdk/client-s3',
