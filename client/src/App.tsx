@@ -1,25 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
-import Dashboard from "@/pages/dashboard";
-import TicketsIndex from "@/pages/tickets/index";
-import NewTicket from "@/pages/tickets/new";
-import TicketDetail from "@/pages/tickets/[id]";
-import UsersIndex from "@/pages/users/index";
-import OfficialsIndex from "@/pages/officials/index";
-import ClientsIndex from "@/pages/clients/index";
-import CompaniesIndex from "@/pages/companies/index";
-import DepartmentManagement from "@/pages/DepartmentManagement";
-import TicketTypeManagement from "@/pages/TicketTypeManagement";
-import CategoryManagement from "@/pages/CategoryManagement";
-import Settings from "@/pages/settings";
-import PrioritySettings from "@/pages/priority-settings";
-import SLAConfigurations from "@/pages/sla-configurations";
-import SLADashboardPage from "@/pages/sla-dashboard";
 import AuthPage from "@/pages/auth-page";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -29,11 +14,37 @@ import { WebSocketProvider } from "./contexts/websocket-context";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/hooks/use-auth";
 import { useSystemSettings } from "@/hooks/use-system-settings";
-import PermissionsPage from "@/pages/permissions";
-import Changelog from "@/pages/changelog";
-import PerformanceDashboard from "@/pages/performance-dashboard";
-import LogsPage from "@/pages/logs";
-import AiAuditPage from "@/pages/ai-audit";
+
+// Lazy loading das páginas principais
+const Dashboard = lazy(() => import("@/pages/dashboard"));
+const TicketsIndex = lazy(() => import("@/pages/tickets/index"));
+const NewTicket = lazy(() => import("@/pages/tickets/new"));
+const TicketDetail = lazy(() => import("@/pages/tickets/[id]"));
+const UsersIndex = lazy(() => import("@/pages/users/index"));
+const OfficialsIndex = lazy(() => import("@/pages/officials/index"));
+const ClientsIndex = lazy(() => import("@/pages/clients/index"));
+const CompaniesIndex = lazy(() => import("@/pages/companies/index"));
+const DepartmentManagement = lazy(() => import("@/pages/DepartmentManagement"));
+const TicketTypeManagement = lazy(() => import("@/pages/TicketTypeManagement"));
+const CategoryManagement = lazy(() => import("@/pages/CategoryManagement"));
+const Settings = lazy(() => import("@/pages/settings"));
+const PrioritySettings = lazy(() => import("@/pages/priority-settings"));
+const SLAConfigurations = lazy(() => import("@/pages/sla-configurations"));
+const SLADashboardPage = lazy(() => import("@/pages/sla-dashboard"));
+const PermissionsPage = lazy(() => import("@/pages/permissions"));
+const Changelog = lazy(() => import("@/pages/changelog"));
+const PerformanceDashboard = lazy(() => import("@/pages/performance-dashboard"));
+const LogsPage = lazy(() => import("@/pages/logs"));
+const AiAuditPage = lazy(() => import("@/pages/ai-audit"));
+
+// Componente de loading para as páginas lazy
+function PageLoading() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    </div>
+  );
+}
 
 function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -44,7 +55,9 @@ function MainLayout({ children }: { children: React.ReactNode }) {
       <div className="flex-1 flex flex-col">
         <Header />
         <div className="flex-1 overflow-auto p-6 bg-neutral-50 pb-20 md:pb-6">
-          {children}
+          <Suspense fallback={<PageLoading />}>
+            {children}
+          </Suspense>
         </div>
       </div>
     </div>

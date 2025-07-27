@@ -13,14 +13,6 @@ export default defineConfig({
       }
     }),
     runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer(),
-          ),
-        ]
-      : []),
   ],
   resolve: {
     alias: {
@@ -37,9 +29,9 @@ export default defineConfig({
     target: 'es2020',
     minify: 'esbuild',
     sourcemap: process.env.NODE_ENV !== 'production',
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 800, // Reduzido de 1000 para 800
     rollupOptions: {
-      onwarn(warning, warn) {
+      onwarn(warning: any, warn: any) {
         // Suprimir warnings específicos do Zod relacionados a comentários mal formatados
         if (
           warning.code === 'UNRECOGNIZED_COMMENT' && 
@@ -68,28 +60,74 @@ export default defineConfig({
         warn(warning);
       },
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          ui: [
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-select',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-toast',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-accordion'
-          ],
-          charts: ['recharts'],
-          forms: ['react-hook-form', '@hookform/resolvers', 'zod'],
-          query: ['@tanstack/react-query'],
-          utils: ['date-fns', 'clsx', 'tailwind-merge']
+        manualChunks: (id: string) => {
+          // React e React DOM
+          if (id.includes('react') && (id.includes('react-dom') || id.includes('react/') || id.includes('react-dom/'))) {
+            return 'react-vendor';
+          }
+          
+          // Radix UI components
+          if (id.includes('@radix-ui/')) {
+            return 'radix-ui';
+          }
+          
+          // TanStack Query
+          if (id.includes('@tanstack/')) {
+            return 'tanstack-query';
+          }
+          
+          // Form libraries
+          if (id.includes('react-hook-form') || id.includes('@hookform/') || id.includes('zod')) {
+            return 'form-libs';
+          }
+          
+          // Charts
+          if (id.includes('recharts')) {
+            return 'charts';
+          }
+          
+          // Date utilities
+          if (id.includes('date-fns')) {
+            return 'date-utils';
+          }
+          
+          // UI utilities
+          if (id.includes('clsx') || id.includes('tailwind-merge') || id.includes('class-variance-authority')) {
+            return 'ui-utils';
+          }
+          
+          // Icons
+          if (id.includes('lucide-react') || id.includes('react-icons')) {
+            return 'icons';
+          }
+          
+          // Animation libraries
+          if (id.includes('framer-motion') || id.includes('tailwindcss-animate')) {
+            return 'animations';
+          }
+          
+          // Wouter (routing)
+          if (id.includes('wouter')) {
+            return 'router';
+          }
+          
+          // AWS SDK
+          if (id.includes('@aws-sdk/')) {
+            return 'aws-sdk';
+          }
+          
+          // Node modules que não são específicos
+          if (id.includes('node_modules') && !id.includes('@radix-ui/') && !id.includes('@tanstack/') && !id.includes('react') && !id.includes('@aws-sdk/')) {
+            return 'vendor';
+          }
         },
-        chunkFileNames: (chunkInfo) => {
+        chunkFileNames: (chunkInfo: any) => {
           const facadeModuleId = chunkInfo.facadeModuleId
             ? chunkInfo.facadeModuleId.split('/').pop()?.replace(/\.[^.]*$/, '')
             : 'chunk';
           return `js/${facadeModuleId}-[hash].js`;
         },
-        assetFileNames: (assetInfo) => {
+        assetFileNames: (assetInfo: any) => {
           const info = assetInfo.name?.split('.') || [];
           const ext = info[info.length - 1];
           if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(ext || '')) {
@@ -105,7 +143,7 @@ export default defineConfig({
       treeshake: {
         moduleSideEffects: false
       },
-      external: (id) => {
+      external: (id: string) => {
         // Não bundlar dependências do Node.js no build do cliente
         return id.startsWith('node:') || id.startsWith('fs') || id.startsWith('path');
       }
@@ -139,9 +177,14 @@ export default defineConfig({
       '@tanstack/react-query',
       'react-hook-form',
       'date-fns',
-      'recharts'
+      'recharts',
+      'wouter',
+      'lucide-react'
     ],
-    exclude: [],
+    exclude: [
+      '@aws-sdk/client-s3',
+      '@aws-sdk/s3-request-presigner'
+    ],
     force: process.env.NODE_ENV === 'development'
   },
   preview: {
