@@ -10,6 +10,9 @@ import { fileURLToPath } from 'url';
 import { migrate } from './migrate';
 import { runMigrations } from './migration-runner';
 
+// Importar connect-pg-simple para sessões em produção
+import pgSimple from 'connect-pg-simple';
+
 // === IMPORTS DE SEGURANÇA ===
 import helmet from "helmet";
 import cors from "cors";
@@ -164,8 +167,35 @@ const notificationService = {
 // Inicializar serviço
 notificationService.initialize();
 
+// Configurar store de sessão baseado no ambiente
+let sessionStore;
+if (process.env.NODE_ENV === 'production') {
+  try {
+    // Em produção, usar PostgreSQL para armazenar sessões
+    const PostgresStore = pgSimple(session);
+    sessionStore = new PostgresStore({
+      conObject: {
+        connectionString: process.env.DATABASE_URL,
+        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      },
+      tableName: 'user_sessions', // Usar a tabela existente
+      createTableIfMissing: false, // Não criar tabela automaticamente
+    });
+    console.log('🔧 Session store: PostgreSQL (produção) - usando tabela user_sessions');
+  } catch (error) {
+    console.error('❌ Erro ao configurar PostgreSQL session store:', error);
+    console.log('⚠️  Fallback para MemoryStore (não recomendado para produção)');
+    sessionStore = undefined; // Fallback para MemoryStore
+  }
+} else {
+  // Em desenvolvimento, usar MemoryStore
+  sessionStore = undefined; // Usar MemoryStore padrão
+  console.log('🔧 Session store: MemoryStore (desenvolvimento)');
+}
+
 // Configurar a sessão com configurações seguras
 app.use(session({
+  store: sessionStore,
   secret: process.env.SESSION_SECRET || generateSecret(),
   resave: false,
   saveUninitialized: false,
