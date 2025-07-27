@@ -203,7 +203,9 @@ app.use(session({
   cookie: {
     secure: process.env.NODE_ENV === 'production', // HTTPS apenas em produção
     httpOnly: true, // Previne acesso via JavaScript
-    maxAge: 24 * 60 * 60 * 1000, // 1 dia
+    // Ajuste de timezone: Neon salva em UTC, mas usuários estão em UTC-3
+    // maxAge: 21h = 24h efetivas no horário local do Brasil
+    maxAge: 21 * 60 * 60 * 1000, // 21 horas (efetivamente 24h no horário local UTC-3)
     sameSite: 'strict' // Proteção CSRF
   }
 }));
