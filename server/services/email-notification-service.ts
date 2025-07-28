@@ -914,10 +914,16 @@ export class EmailNotificationService {
         if (shouldNotify) {
           console.log(`[📧 EMAIL PROD] ✅ Usuário ${user.name} configurado para receber notificações`);
           
+          // 🔥 CORREÇÃO CRÍTICA: Criar contexto personalizado para cada usuário
+          const personalizedContext: EmailNotificationContext = {
+            ...context,
+            user: user // Adicionar dados do usuário específico
+          };
+          
           const result = await this.sendEmailNotification(
             'new_ticket',
             user.email,
-            context,
+            personalizedContext,
             ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
             user.role // Passar a role do usuário para validação
           );
@@ -1022,7 +1028,7 @@ export class EmailNotificationService {
 
       // Notificar o atendente atribuído
       // Aqui, se quiser, pode usar official.id ou official.user_id para preferências, mas o e-mail é sempre official.email
-      const shouldNotify = await this.shouldSendEmailToUser(official.user_id, 'ticket_assigned');
+      const shouldNotify = await this.shouldSendEmailToUser(official.user_id || 0, 'ticket_assigned');
       if (shouldNotify) {
         await this.sendEmailNotification(
           'ticket_assigned',
@@ -1115,7 +1121,7 @@ export class EmailNotificationService {
       // NOVA LÓGICA: Se o ticket tem responsável, notificar só ele e o cliente
       if (ticket.assigned_to_id) {
         // Se quem respondeu foi o cliente, notificar só o responsável
-        if (replyUser.role === 'customer') {
+        if ('role' in replyUser && replyUser.role === 'customer') {
           // Buscar official pelo assigned_to_id
           const [assignedOfficial] = await db
             .select()
@@ -1163,7 +1169,7 @@ export class EmailNotificationService {
       }
 
       // 🔥 LÓGICA ATUALIZADA FASE 4.1: Se quem respondeu foi o cliente, notificar ATENDENTES + PARTICIPANTES
-      if (replyUser.role === 'customer') {
+      if ('role' in replyUser && replyUser.role === 'customer') {
         console.log(`[📧 EMAIL PROD] 📧 Cliente respondeu - notificando atendentes e participantes do departamento ${ticket.department_id}`);
         
         // 🔥 BUSCAR APENAS atendentes do departamento específico do ticket
@@ -1479,10 +1485,16 @@ export class EmailNotificationService {
         if (shouldNotify) {
           console.log(`[📧 EMAIL PROD] ✅ Atendente ${user.name} configurado para receber notificações`);
           
+          // 🔥 CORREÇÃO CRÍTICA: Criar contexto personalizado para cada usuário
+          const personalizedContext: EmailNotificationContext = {
+            ...context,
+            user: user // Adicionar dados do usuário específico
+          };
+          
           const result = await this.sendEmailNotification(
             'status_changed',
             user.email,
-            context,
+            personalizedContext,
             ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
             user.role // Passar a role do atendente para validação
           );
