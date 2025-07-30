@@ -18,6 +18,7 @@ import { emailNotificationService } from './services/email-notification-service'
 import dashboardRouter from './routes/dashboard';
 import logsRouter from './routes/logs';
 import ticketParticipantsRouter from './routes/ticket-participants';
+import reportsRouter from './routes/reports';
 
 // 🔥 FASE 5.2: Importar middlewares de autorização centralizados
 import { 
@@ -3385,6 +3386,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           
           const userWithCompany = {
             ...user,
+            company_id: req.session.companyId, // Adicionar company_id explicitamente
             company: { // Apenas campos existentes no schema.companies + nome configurado
               id: companyData.id,
               name: configuredCompanyName, // 🎯 SEMPRE DAS CONFIGURAÇÕES
@@ -8112,6 +8114,9 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   app.use("/api/tickets", dashboardRouter);
   app.use("/api/logs", logsRouter);
   app.use("/api/ticket-participants", ticketParticipantsRouter);
+  
+  // Registrar rotas de relatórios
+  app.use("/api/reports", reportsRouter);
   
   app.use("/api", router);
   

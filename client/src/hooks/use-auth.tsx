@@ -21,6 +21,7 @@ interface User {
   avatarUrl?: string;
   initials?: string;
   companyId?: number;
+  company_id?: number;
   company?: Company;
 }
 

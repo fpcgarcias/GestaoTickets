@@ -21,8 +21,9 @@ import {
   BarChart3,
   Grid3X3,
   FileText,
-  Brain
-} from 'lucide-react';
+  Brain,
+  PieChart
+} from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -67,6 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     { href: "/clients", icon: <Users size={20} />, label: "Clientes", roles: ['admin', 'support', 'company_admin', 'manager', 'supervisor'] },
     { href: "/users", icon: <Users size={20} />, label: "Usuários", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes", roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support'] },
+    { href: "/reports", icon: <PieChart size={20} />, label: "Relatórios", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/companies", icon: <Building2 size={20} />, label: "Empresas", roles: ['admin'] },
     { href: "/permissions", icon: <Shield size={20} />, label: "Permissões", roles: ['admin'] },
     { href: "/departments", icon: <FolderIcon size={20} />, label: "Departamentos", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },

@@ -36,6 +36,8 @@ const Changelog = lazy(() => import("@/pages/changelog"));
 const PerformanceDashboard = lazy(() => import("@/pages/performance-dashboard"));
 const LogsPage = lazy(() => import("@/pages/logs"));
 const AiAuditPage = lazy(() => import("@/pages/ai-audit"));
+const ReportsIndex = lazy(() => import("@/pages/reports/index"));
+const TicketReports = lazy(() => import("@/pages/reports/TicketReports"));
 
 // Componente de loading para as páginas lazy
 function PageLoading() {
@@ -113,6 +115,17 @@ function AppContent() {
           <OfficialsIndex />
         </MainLayout>
       )} />
+
+      <ProtectedRoute path="/reports" component={() => (
+                  <MainLayout>
+                    <ReportsIndex />
+                  </MainLayout>
+                )} />
+                <ProtectedRoute path="/reports/tickets" component={() => (
+                  <MainLayout>
+                    <TicketReports />
+                  </MainLayout>
+                )} />
       
       <ProtectedRoute path="/companies" component={() => (
         <MainLayout>
