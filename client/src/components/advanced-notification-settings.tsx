@@ -48,6 +48,13 @@ const AdvancedNotificationSettings: React.FC = () => {
   const [escalateTicketId, setEscalateTicketId] = useState('');
   const [escalateReason, setEscalateReason] = useState('');
 
+  // Função para determinar se está no horário permitido (6h às 21h)
+  const isWithinAllowedHours = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    return hour >= 6 && hour < 21;
+  };
+
   // Query para verificar status do scheduler
   const { data: schedulerStatus, refetch: refetchStatus } = useQuery<SchedulerStatus>({
     queryKey: ['scheduler-status'],
@@ -58,7 +65,8 @@ const AdvancedNotificationSettings: React.FC = () => {
       }
       return response.json();
     },
-    refetchInterval: 10000, // Atualizar a cada 10 segundos
+    // Atualizar apenas entre 6h e 21h (horário comercial)
+    refetchInterval: isWithinAllowedHours() ? 10000 : false,
   });
 
   // Mutations para controle do scheduler

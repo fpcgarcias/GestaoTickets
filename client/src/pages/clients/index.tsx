@@ -47,6 +47,13 @@ export default function ClientsIndex() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const { user } = useAuth();
+
+  // Função para determinar se está no horário permitido (6h às 21h)
+  const isWithinAllowedHours = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    return hour >= 6 && hour < 21;
+  };
   
   const { data: clientsResponse, isLoading } = useQuery({
     queryKey: ['/api/customers', includeInactive ? 'all' : 'active', currentPage, searchQuery, selectedCompanyId],
@@ -63,7 +70,8 @@ export default function ClientsIndex() {
       if (!res.ok) throw new Error('Erro ao carregar clientes');
       return res.json();
     },
-    refetchInterval: 30000, // Atualiza a cada 30 segundos
+    // Atualizar apenas entre 6h e 21h (horário comercial)
+    refetchInterval: isWithinAllowedHours() ? 30000 : false,
   });
 
   // Buscar empresas apenas para admin
@@ -75,7 +83,8 @@ export default function ClientsIndex() {
       return res.json();
     },
     enabled: user?.role === 'admin',
-    refetchInterval: 30000,
+    // Atualizar apenas entre 6h e 21h (horário comercial)
+    refetchInterval: isWithinAllowedHours() ? 30000 : false,
   });
 
   const clients = clientsResponse?.data || [];

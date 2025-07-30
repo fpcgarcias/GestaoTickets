@@ -87,6 +87,13 @@ interface SLADashboardProps {
 export function SLADashboard({ className }: SLADashboardProps) {
   const { user } = useAuth();
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+
+  // Função para determinar se está no horário permitido (6h às 21h)
+  const isWithinAllowedHours = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    return hour >= 6 && hour < 21;
+  };
   const [showMissingConfigsModal, setShowMissingConfigsModal] = useState(false);
 
   // Buscar departamentos disponíveis
@@ -117,7 +124,8 @@ export function SLADashboard({ className }: SLADashboardProps) {
       return res.json();
     },
     enabled: !!user,
-    refetchInterval: 60000, // Atualizar a cada minuto
+    // Atualizar apenas entre 6h e 21h (horário comercial)
+    refetchInterval: isWithinAllowedHours() ? 60000 : false,
   });
 
   const handleDepartmentFilter = (value: string) => {

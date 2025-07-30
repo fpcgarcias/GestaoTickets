@@ -63,6 +63,13 @@ export default function UsersIndex() {
   const [editUsername, setEditUsername] = useState('');
   const [editRole, setEditRole] = useState('');
 
+  // Função para determinar se está no horário permitido (6h às 21h)
+  const isWithinAllowedHours = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    return hour >= 6 && hour < 21;
+  };
+
   // Abrir gerenciador de status
   const handleStatusChange = (user: any) => {
     setSelectedUser(user);
@@ -117,7 +124,8 @@ export default function UsersIndex() {
       if (!res.ok) throw new Error('Erro ao carregar usuários');
       return res.json();
     },
-    refetchInterval: 30000, // Atualiza a cada 30 segundos
+    // Atualizar apenas entre 6h e 21h (horário comercial)
+    refetchInterval: isWithinAllowedHours() ? 30000 : false,
   });
 
   // Buscar empresas apenas para admin
@@ -129,7 +137,8 @@ export default function UsersIndex() {
       return res.json();
     },
     enabled: user?.role === 'admin',
-    refetchInterval: 30000,
+    // Atualizar apenas entre 6h e 21h (horário comercial)
+    refetchInterval: isWithinAllowedHours() ? 30000 : false,
   });
 
   const users = usersResponse?.data || [];

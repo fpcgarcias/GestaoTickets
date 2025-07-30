@@ -211,6 +211,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch dashboard metrics');
       return response.json();
     },
+    // Atualizar apenas entre 6h e 21h (horário comercial)
     refetchInterval: isWithinAllowedHours() ? 60000 : false,
     refetchIntervalInBackground: false,
   });

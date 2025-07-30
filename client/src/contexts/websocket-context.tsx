@@ -37,8 +37,17 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
+  // Função para determinar se está no horário permitido (6h às 21h)
+  const isWithinAllowedHours = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    return hour >= 6 && hour < 21;
+  };
+
   useEffect(() => {
-    if (!isAuthenticated || !user) {
+    // Não conectar WebSocket fora do horário comercial (21h às 6h)
+    // Isso evita que o banco de dados fique ativo durante a noite
+    if (!isAuthenticated || !user || !isWithinAllowedHours()) {
       if (socket) {
         socket.close();
         setSocket(null);
@@ -66,8 +75,14 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     newSocket.onclose = (event) => {
       setConnected(false);
       setSocket(null);
-      if (event.code !== 1000 && isAuthenticated) {
-        setTimeout(() => {}, 3000);
+      // Não reconectar automaticamente fora do horário comercial
+      if (event.code !== 1000 && isAuthenticated && isWithinAllowedHours()) {
+        setTimeout(() => {
+          // Reconectar apenas se ainda estiver no horário comercial
+          if (isWithinAllowedHours()) {
+            // A reconexão será feita pelo useEffect principal
+          }
+        }, 3000);
       }
     };
 
@@ -137,6 +152,22 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     };
   }, [isAuthenticated, user, toast]);
+
+  // Monitorar mudanças de horário para desconectar WebSocket fora do horário comercial
+  useEffect(() => {
+    const checkBusinessHours = () => {
+      if (!isWithinAllowedHours() && socket) {
+        socket.close();
+        setSocket(null);
+        setConnected(false);
+      }
+    };
+
+    // Verificar a cada minuto se ainda está no horário comercial
+    const interval = setInterval(checkBusinessHours, 60000);
+    
+    return () => clearInterval(interval);
+  }, [socket]);
 
   const markAllAsRead = () => {
     setUnreadCount(0);
