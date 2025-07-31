@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
+import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -62,10 +63,10 @@ export default function TicketReports() {
   const [tickets, setTickets] = useState<TicketReport[]>([]);
   const [stats, setStats] = useState<ReportStats>({ total: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 });
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [filters, setFilters] = useState({
-    status: searchParams.get('status') || '',
-    priority: searchParams.get('priority') || '',
+    status: searchParams.get('status') || 'all',
+    priority: searchParams.get('priority') || 'all',
     departmentId: searchParams.get('departmentId') || ''
   });
 
@@ -74,11 +75,11 @@ export default function TicketReports() {
     fetchReports();
   }, [dateRange, filters]);
 
-  // Sincronizar filtros com URL quando o componente montar
+      // Sincronizar filtros com URL quando o componente montar
   useEffect(() => {
     const newFilters = {
-      status: searchParams.get('status') || '',
-      priority: searchParams.get('priority') || '',
+      status: searchParams.get('status') || 'all',
+      priority: searchParams.get('priority') || 'all',
       departmentId: searchParams.get('departmentId') || ''
     };
     setFilters(newFilters);
@@ -102,8 +103,8 @@ export default function TicketReports() {
       
       if (dateRange.from) params.append('startDate', format(dateRange.from, 'yyyy-MM-dd'));
       if (dateRange.to) params.append('endDate', format(dateRange.to, 'yyyy-MM-dd'));
-      if (filters.status) params.append('status', filters.status);
-      if (filters.priority) params.append('priority', filters.priority);
+      if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+      if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
       if (filters.departmentId) params.append('departmentId', filters.departmentId);
 
       const response = await fetch(`/api/reports/tickets?${params}`);
@@ -125,7 +126,7 @@ export default function TicketReports() {
 
   const handleFilterChange = (key: string, value: string) => {
     const newParams = new URLSearchParams(searchParams);
-    if (value) {
+    if (value && value !== 'all') {
       newParams.set(key, value);
     } else {
       newParams.delete(key);
@@ -222,7 +223,7 @@ export default function TicketReports() {
                     mode="range"
                     defaultMonth={dateRange.from}
                     selected={dateRange}
-                    onSelect={setDateRange}
+                    onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
                     numberOfMonths={2}
                     locale={ptBR}
                   />
@@ -237,7 +238,7 @@ export default function TicketReports() {
                   <SelectValue placeholder="Todos os status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
+                  <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="open">Aberto</SelectItem>
                   <SelectItem value="in_progress">Em Progresso</SelectItem>
                   <SelectItem value="resolved">Resolvido</SelectItem>
@@ -253,7 +254,7 @@ export default function TicketReports() {
                   <SelectValue placeholder="Todas as prioridades" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas</SelectItem>
+                  <SelectItem value="all">Todas</SelectItem>
                   <SelectItem value="low">Baixa</SelectItem>
                   <SelectItem value="medium">Média</SelectItem>
                   <SelectItem value="high">Alta</SelectItem>
