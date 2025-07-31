@@ -4173,34 +4173,81 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         const userRole = req.session.userRole as string;
         const sessionCompanyId = req.session.companyId;
 
+        // Primeiro, verificar se o departamento existe e a qual empresa pertence
+        const [departmentToDelete] = await db
+          .select({ id: departmentsSchema.id, company_id: departmentsSchema.company_id, name: departmentsSchema.name })
+          .from(departmentsSchema)
+          .where(eq(departmentsSchema.id, departmentIdParam));
+
+        if (!departmentToDelete) {
+          return res.status(404).json({ message: "Departamento não encontrado." });
+        }
+
         const conditions: SQLWrapper[] = [eq(departmentsSchema.id, departmentIdParam)];
 
         if (userRole === 'manager') {
           if (!sessionCompanyId) {
             return res.status(403).json({ message: "Manager deve ter um ID de empresa na sessão para excluir departamentos." });
           }
+          // Manager só pode excluir departamentos da sua empresa
+          if (departmentToDelete.company_id !== sessionCompanyId) {
+            return res.status(403).json({ message: "Manager não tem permissão para excluir este departamento." });
+          }
           conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
         } else if (userRole === 'company_admin') {
           if (!sessionCompanyId) {
             return res.status(403).json({ message: "Company_admin deve ter um ID de empresa na sessão para excluir departamentos." });
           }
+          // Company_admin só pode excluir departamentos da sua empresa
+          if (departmentToDelete.company_id !== sessionCompanyId) {
+            return res.status(403).json({ message: "Company_admin não tem permissão para excluir este departamento." });
+          }
           conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
         } else if (userRole === 'admin') {
-          // Admin pode excluir depto de qualquer empresa, a condição é apenas o ID do departamento.
+          // Admin pode excluir departamento de qualquer empresa, a condição é apenas o ID do departamento.
         } else {
           return res.status(403).json({ message: "Acesso negado." });
         }
 
-        // Antes de deletar, verificar se o departamento não está vinculado a nada
-        // Ex: tickets, incident_types, etc. (ESSA LÓGICA DE VERIFICAÇÃO PRECISA SER IMPLEMENTADA CONFORME REGRAS DE NEGÓCIO)
-        // Por exemplo:
+        // Verificar vínculos antes de deletar
         const [ticketLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
                                        .from(schema.tickets)
                                        .where(eq(schema.tickets.department_id, departmentIdParam));
         if(ticketLink && ticketLink.count > 0) {
-            return res.status(400).json({ message: "Departamento não pode ser excluído pois está vinculado a chamados." });
+            return res.status(400).json({ 
+              message: `Departamento não pode ser excluído pois está vinculado a ${ticketLink.count} chamado(s).` 
+            });
         }
-        // Adicionar verificações para incident_types, official_departments, etc.
+
+        // Verificar vínculos com tipos de incidente
+        const [incidentTypeLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
+                                           .from(schema.incidentTypes)
+                                           .where(eq(schema.incidentTypes.department_id, departmentIdParam));
+        if(incidentTypeLink && incidentTypeLink.count > 0) {
+            return res.status(400).json({ 
+              message: `Departamento não pode ser excluído pois está vinculado a ${incidentTypeLink.count} tipo(s) de chamado.` 
+            });
+        }
+
+        // Verificar vínculos com oficial_departments
+        const [officialDepartmentLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
+                                                 .from(schema.officialDepartments)
+                                                 .where(eq(schema.officialDepartments.department_id, departmentIdParam));
+        if(officialDepartmentLink && officialDepartmentLink.count > 0) {
+            return res.status(400).json({ 
+              message: `Departamento não pode ser excluído pois está vinculado a ${officialDepartmentLink.count} oficial(is).` 
+            });
+        }
+
+        // Verificar vínculos com categorias
+        const [categoryLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
+                                      .from(schema.categories)
+                                      .where(eq(schema.categories.department_id, departmentIdParam));
+        if(categoryLink && categoryLink.count > 0) {
+            return res.status(400).json({ 
+              message: `Departamento não pode ser excluído pois está vinculado a ${categoryLink.count} categoria(s).` 
+            });
+        }
 
         const deleteResult = await db
           .delete(departmentsSchema)
@@ -4216,11 +4263,37 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         res.status(200).json({ message: "Departamento excluído com sucesso." });
       } catch (error: any) {
         console.error("Error deleting department:", error);
-        // Verificar se o erro é por violação de FK (embora já tenhamos tentado verificar antes)
-        if (error && typeof error === 'object' && 'code' in error && error.code === '23503') { // Código de erro PostgreSQL para foreign_key_violation
-          return res.status(400).json({ message: "Departamento não pode ser excluído pois possui vínculos existentes (ex: chamados, tipos de incidentes)." });
+        
+        // Verificar se o erro é por violação de FK
+        if (error && typeof error === 'object' && 'code' in error && error.code === '23503') {
+          // Identificar qual tabela causou a violação de FK
+          const constraint = error.constraint || '';
+          let specificMessage = "Departamento não pode ser excluído pois possui vínculos existentes.";
+          
+          if (constraint.includes('tickets')) {
+            specificMessage = "Departamento não pode ser excluído pois possui chamados vinculados.";
+          } else if (constraint.includes('incident_types')) {
+            specificMessage = "Departamento não pode ser excluído pois possui tipos de chamado vinculados.";
+          } else if (constraint.includes('official_departments')) {
+            specificMessage = "Departamento não pode ser excluído pois possui oficiais vinculados.";
+          } else if (constraint.includes('categories')) {
+            specificMessage = "Departamento não pode ser excluído pois possui categorias vinculadas.";
+          }
+          
+          return res.status(400).json({ message: specificMessage });
         }
-        res.status(500).json({ message: "Failed to delete department" });
+        
+        // Outros tipos de erro
+        if (error && typeof error === 'object' && 'message' in error) {
+          return res.status(500).json({ 
+            message: "Erro ao excluir departamento",
+            details: error.message 
+          });
+        }
+        
+        res.status(500).json({ 
+          message: "Erro interno ao excluir departamento. Tente novamente mais tarde." 
+        });
       }
     }
   );
@@ -4600,8 +4673,24 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         } else if (userRole === 'admin') {
           // Admin pode excluir qualquer tipo, condição já tem o ID.
         } else if (userRole === 'company_admin') {
-          // Company Admin pode excluir tipos globais
-          conditions.push(isNull(schema.incidentTypes.company_id));
+          if (!sessionCompanyId) {
+            return res.status(403).json({ message: "Company Admin deve ter um ID de empresa na sessão para excluir." });
+          }
+          // Company Admin pode excluir tipos da sua empresa OU tipos globais
+          if (incidentTypeToDelete.company_id !== null && incidentTypeToDelete.company_id !== sessionCompanyId) {
+            return res.status(403).json({ message: "Company Admin não tem permissão para excluir este tipo de chamado específico da empresa." });
+          }
+          // Adiciona a condição para garantir que o company_admin só delete da sua empresa ou globais
+          const companyAdminDeleteCondition = or(
+            isNull(schema.incidentTypes.company_id),
+            eq(schema.incidentTypes.company_id, sessionCompanyId)
+          );
+          if (companyAdminDeleteCondition) {
+            conditions.push(companyAdminDeleteCondition);
+          } else {
+            console.error("Error generating company_admin condition for incident type delete");
+            return res.status(500).json({ message: "Erro interno ao processar permissões." });
+          }
         } else if (userRole === 'supervisor') {
           if (!sessionCompanyId) {
             return res.status(403).json({ message: "Supervisor deve ter um ID de empresa na sessão para excluir." });

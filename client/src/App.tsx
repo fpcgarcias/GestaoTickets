@@ -38,6 +38,10 @@ const LogsPage = lazy(() => import("@/pages/logs"));
 const AiAuditPage = lazy(() => import("@/pages/ai-audit"));
 const ReportsIndex = lazy(() => import("@/pages/reports/index"));
 const TicketReports = lazy(() => import("@/pages/reports/TicketReports"));
+const PerformanceReports = lazy(() => import("@/pages/reports/performance"));
+const SLAReports = lazy(() => import("@/pages/reports/sla"));
+const DepartmentReports = lazy(() => import("@/pages/reports/department"));
+const ClientReports = lazy(() => import("@/pages/reports/clients"));
 
 // Componente de loading para as páginas lazy
 function PageLoading() {
@@ -124,6 +128,26 @@ function AppContent() {
                 <ProtectedRoute path="/reports/tickets" component={() => (
                   <MainLayout>
                     <TicketReports />
+                  </MainLayout>
+                )} />
+                <ProtectedRoute path="/reports/performance" component={() => (
+                  <MainLayout>
+                    <PerformanceReports />
+                  </MainLayout>
+                )} />
+                <ProtectedRoute path="/reports/sla" component={() => (
+                  <MainLayout>
+                    <SLAReports />
+                  </MainLayout>
+                )} />
+                <ProtectedRoute path="/reports/department" component={() => (
+                  <MainLayout>
+                    <DepartmentReports />
+                  </MainLayout>
+                )} />
+                <ProtectedRoute path="/reports/clients" component={() => (
+                  <MainLayout>
+                    <ClientReports />
                   </MainLayout>
                 )} />
       

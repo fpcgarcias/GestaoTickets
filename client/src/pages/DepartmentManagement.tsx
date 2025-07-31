@@ -150,7 +150,8 @@ const DepartmentManagement: React.FC = () => {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao criar departamento');
+        const errorMessage = errorData.message || errorData.error || 'Erro ao criar departamento';
+        throw new Error(errorMessage);
       }
       
       return response.json();
@@ -165,9 +166,10 @@ const DepartmentManagement: React.FC = () => {
       resetForm();
     },
     onError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao criar departamento';
       toast({
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Erro ao criar departamento',
+        title: 'Erro ao criar departamento',
+        description: errorMessage,
         variant: 'destructive',
       });
     },
@@ -189,7 +191,8 @@ const DepartmentManagement: React.FC = () => {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao atualizar departamento');
+        const errorMessage = errorData.message || errorData.error || 'Erro ao atualizar departamento';
+        throw new Error(errorMessage);
       }
       
       return response.json();
@@ -204,9 +207,10 @@ const DepartmentManagement: React.FC = () => {
       resetForm();
     },
     onError: (error) => {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao atualizar departamento';
       toast({
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Erro ao atualizar departamento',
+        title: 'Erro ao atualizar departamento',
+        description: errorMessage,
         variant: 'destructive',
       });
     },
@@ -219,7 +223,9 @@ const DepartmentManagement: React.FC = () => {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao excluir departamento');
+        // Extrair a mensagem específica do erro
+        const errorMessage = errorData.message || errorData.error || 'Erro ao excluir departamento';
+        throw new Error(errorMessage);
       }
       
       return id;
@@ -233,9 +239,12 @@ const DepartmentManagement: React.FC = () => {
       setIsDeleteDialogOpen(false);
     },
     onError: (error) => {
+      // Mostrar mensagem de erro mais específica
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao excluir departamento';
+      
       toast({
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Erro ao excluir departamento',
+        title: 'Erro ao excluir departamento',
+        description: errorMessage,
         variant: 'destructive',
       });
     },
