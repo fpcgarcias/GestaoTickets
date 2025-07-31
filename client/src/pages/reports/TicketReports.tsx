@@ -5,9 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
+import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge, PriorityBadge } from '@/components/tickets/status-badge';
+import { getStatusConfig, type TicketStatus } from '@shared/ticket-utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,13 +19,25 @@ import {
 import { Download, CalendarIcon, Filter, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useAuth } from '@/hooks/use-auth';
+
+// Função utilitária para normalizar prioridade (primeira letra maiúscula, resto minúsculo)
+// IGUAL ao dashboard.tsx para consistência total
+function normalizarPrioridade(prioridade: string) {
+  if (!prioridade) return '';
+  return prioridade.charAt(0).toUpperCase() + prioridade.slice(1).toLowerCase();
+}
 
 interface TicketReport {
   id: number;
+  ticket_id: string;
   title: string;
   description: string;
   status: string;
   priority: string;
+  priority_weight?: number;
+  priority_color?: string;
+  priority_name?: string;
   created_at: string;
   updated_at: string;
   resolved_at: string | null;
@@ -52,7 +66,18 @@ interface ReportStats {
   closed: number;
 }
 
+interface Department {
+  id: number;
+  name: string;
+}
+
+interface PriorityOption {
+  value: string;
+  label: string;
+}
+
 export default function TicketReports() {
+  const { user } = useAuth();
   const [location, setLocation] = useLocation();
   const searchParams = new URLSearchParams(location.split('?')[1] || '');
   const setSearchParams = (params: URLSearchParams) => {
@@ -62,46 +87,35 @@ export default function TicketReports() {
   const [tickets, setTickets] = useState<TicketReport[]>([]);
   const [stats, setStats] = useState<ReportStats>({ total: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 });
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [filters, setFilters] = useState({
-    status: searchParams.get('status') || '',
-    priority: searchParams.get('priority') || '',
-    departmentId: searchParams.get('departmentId') || ''
+    status: searchParams.get('status') || 'all',
+    priority: searchParams.get('priority') || 'all',
+    departmentId: searchParams.get('departmentId') || 'all'
   });
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [priorities, setPriorities] = useState<PriorityOption[]>([]);
+  const [canViewDepartments, setCanViewDepartments] = useState(false);
 
+
+  // Buscar dados apenas na montagem inicial
   useEffect(() => {
-    fetchReports();
-  }, [dateRange, filters]);
+    fetchReportsWithCurrentFilters();
+  }, []); // Executar apenas uma vez na montagem
 
-  // Sincronizar filtros com URL quando o componente montar
-  useEffect(() => {
-    const newFilters = {
-      status: searchParams.get('status') || '',
-      priority: searchParams.get('priority') || '',
-      departmentId: searchParams.get('departmentId') || ''
-    };
-    setFilters(newFilters);
-    
-    const fromDate = searchParams.get('startDate');
-    const toDate = searchParams.get('endDate');
-    if (fromDate) {
-      setDateRange(prev => ({ ...prev, from: new Date(fromDate) }));
-    }
-    if (toDate) {
-      setDateRange(prev => ({ ...prev, to: new Date(toDate) }));
-    }
-  }, []);
 
-  const fetchReports = async () => {
+
+  // Função para buscar relatórios com filtros atuais
+  const fetchReportsWithCurrentFilters = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       
-      if (dateRange.from) params.append('startDate', format(dateRange.from, 'yyyy-MM-dd'));
-      if (dateRange.to) params.append('endDate', format(dateRange.to, 'yyyy-MM-dd'));
-      if (filters.status) params.append('status', filters.status);
-      if (filters.priority) params.append('priority', filters.priority);
-      if (filters.departmentId) params.append('departmentId', filters.departmentId);
+      if (dateRange?.from) params.append('startDate', format(dateRange.from, 'yyyy-MM-dd'));
+      if (dateRange?.to) params.append('endDate', format(dateRange.to, 'yyyy-MM-dd'));
+      if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+      if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
+      if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
 
       const response = await fetch(`/api/reports/tickets?${params}`);
       if (!response.ok) {
@@ -120,17 +134,135 @@ export default function TicketReports() {
     }
   };
 
-  const handleFilterChange = (key: string, value: string) => {
-    const newParams = new URLSearchParams(searchParams);
-    if (value) {
-      newParams.set(key, value);
-    } else {
-      newParams.delete(key);
-    }
-    setSearchParams(newParams);
+  // Sincronizar filtros com URL quando mudar - removido para evitar loop
+  // useEffect(() => {
+  //   const newParams = new URLSearchParams();
+  //   
+  //   if (dateRange?.from) newParams.set('startDate', format(dateRange.from, 'yyyy-MM-dd'));
+  //   if (dateRange?.to) newParams.set('endDate', format(dateRange.to, 'yyyy-MM-dd'));
+  //   if (filters.status && filters.status !== 'all') newParams.set('status', filters.status);
+  //   if (filters.priority && filters.priority !== 'all') newParams.set('priority', filters.priority);
+  //   if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
+  //   
+  //   setSearchParams(newParams);
+  // }, [dateRange, filters, setSearchParams]);
+
+  // Sincronizar filtros com URL quando o componente montar
+  useEffect(() => {
+    const newFilters = {
+      status: searchParams.get('status') || 'all',
+      priority: searchParams.get('priority') || 'all',
+      departmentId: searchParams.get('departmentId') || 'all'
+    };
+    setFilters(newFilters);
     
-    // Atualizar os filtros locais
-    setFilters(prev => ({ ...prev, [key]: value }));
+    const fromDate = searchParams.get('startDate');
+    const toDate = searchParams.get('endDate');
+    if (fromDate || toDate) {
+      setDateRange({
+        from: fromDate ? new Date(fromDate) : undefined,
+        to: toDate ? new Date(toDate) : undefined
+      });
+    }
+  }, []); // Executar apenas uma vez na montagem
+
+  // Buscar departamentos dinamicamente
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        console.log('Buscando departamentos...');
+        const response = await fetch('/api/departments?active_only=true');
+        console.log('Resposta da API de departamentos:', response.status);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Dados de departamentos:', data);
+          const validDepartments = (data.departments || []).filter((d: any) => 
+            d.id && d.name && d.name.trim() !== ''
+          );
+          console.log('Departamentos válidos:', validDepartments);
+          setDepartments(validDepartments);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar departamentos:', error);
+      }
+    };
+
+    // Verificar se usuário pode ver departamentos
+    setCanViewDepartments(['admin', 'company_admin', 'manager', 'supervisor'].includes(user?.role || ''));
+
+    fetchDepartments();
+  }, [user?.role]);
+
+  // Buscar prioridades quando o departamento mudar
+  useEffect(() => {
+    const fetchPriorities = async () => {
+      try {
+        const companyId = user?.company_id || user?.company?.id;
+        console.log('Company ID:', companyId);
+        if (!companyId) {
+          console.error('Company ID não encontrado');
+          setPriorities([]);
+          return;
+        }
+
+        // Buscar prioridades baseadas no departamento selecionado
+        const departmentId = filters.departmentId;
+        console.log('Department ID:', departmentId);
+        if (!departmentId || departmentId === 'all') {
+          console.log('Department ID é "all" ou vazio, limpando prioridades');
+          setPriorities([]);
+          return;
+        }
+
+        console.log('Fazendo requisição para:', `/api/departments/${departmentId}/priorities`);
+        const response = await fetch(`/api/departments/${departmentId}/priorities`);
+        console.log('Resposta da API de prioridades:', response.status);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Dados de prioridades:', data);
+          
+          if (data.success && data.data && Array.isArray(data.data.priorities)) {
+            const validPriorities = data.data.priorities
+              .filter((p: any) => p.name && p.name.trim() !== '')
+              .map((p: any) => ({ value: p.name.trim(), label: p.name.trim() }));
+            console.log('Prioridades válidas:', validPriorities);
+            setPriorities(validPriorities);
+          } else {
+            console.log('Nenhuma prioridade encontrada ou formato inválido');
+            setPriorities([]);
+          }
+        } else {
+          console.error('Erro ao buscar prioridades:', response.status);
+          setPriorities([]);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar prioridades:', error);
+        setPriorities([]);
+      }
+    };
+
+    fetchPriorities();
+  }, [user?.company_id, user?.company?.id, filters.departmentId]);
+
+
+
+
+
+  const handleFilterChange = (key: string, value: string) => {
+    // Atualizar os filtros locais primeiro
+    setFilters(prev => {
+      const newFilters = { ...prev, [key]: value };
+      
+      // Se mudou o departamento, limpar a prioridade
+      if (key === 'departmentId') {
+        newFilters.priority = 'all';
+      }
+      
+      return newFilters;
+    });
+    
+    // Atualizar URL apenas quando o usuário clicar em "Aplicar Filtros"
   };
 
   const handleExport = async (format: 'pdf' | 'excel') => {
@@ -140,30 +272,14 @@ export default function TicketReports() {
     window.open(`/api/reports/tickets/export?${params}`, '_blank');
   };
 
-  const getStatusColor = (status: string) => {
-    const colors = {
-      open: 'bg-yellow-100 text-yellow-800',
-      in_progress: 'bg-blue-100 text-blue-800',
-      resolved: 'bg-green-100 text-green-800',
-      closed: 'bg-gray-100 text-gray-800'
-    };
-    return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800';
-  };
+  // Usando StatusBadge e PriorityBadge para consistência visual com o resto do sistema
 
-  const getPriorityColor = (priority: string) => {
-    const colors = {
-      low: 'bg-green-100 text-green-800',
-      medium: 'bg-yellow-100 text-yellow-800',
-      high: 'bg-orange-100 text-orange-800',
-      urgent: 'bg-red-100 text-red-800'
-    };
-    return colors[priority as keyof typeof colors] || 'bg-gray-100 text-gray-800';
-  };
+  console.log('Prioridades no estado:', priorities);
 
   return (
     <div className="p-6">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
-        <h1 className="text-2xl font-bold">Relatório de Tickets</h1>
+        <h1 className="text-2xl font-bold">Relatório de Chamados</h1>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button className="w-full lg:w-auto">
@@ -192,7 +308,7 @@ export default function TicketReports() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Período</label>
               <Popover>
@@ -202,8 +318,8 @@ export default function TicketReports() {
                     className="w-full justify-start text-left font-normal"
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange.from ? (
-                      dateRange.to ? (
+                    {dateRange?.from ? (
+                      dateRange?.to ? (
                         <>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>
                       ) : (
                         format(dateRange.from, "dd/MM/yyyy")
@@ -217,14 +333,54 @@ export default function TicketReports() {
                   <Calendar
                     initialFocus
                     mode="range"
-                    defaultMonth={dateRange.from}
+                    defaultMonth={dateRange?.from}
                     selected={dateRange}
-                    onSelect={setDateRange}
+                    onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
                     numberOfMonths={2}
                     locale={ptBR}
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+
+            {canViewDepartments && (
+              <div>
+                <label className="text-sm font-medium mb-2 block">Departamento</label>
+                <Select value={filters.departmentId} onValueChange={(value) => handleFilterChange('departmentId', value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os departamentos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {departments.map((department) => (
+                      department.id && department.name && department.name.trim() !== '' && (
+                        <SelectItem key={department.id} value={String(department.id)}>
+                          {department.name}
+                        </SelectItem>
+                      )
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Prioridade</label>
+              <Select value={filters.priority} onValueChange={(value) => handleFilterChange('priority', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas as prioridades" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {priorities.map((priority) => (
+                    priority.value && priority.value.trim() !== '' && (
+                      <SelectItem key={priority.value} value={priority.value}>
+                        {priority.label}
+                      </SelectItem>
+                    )
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -235,42 +391,39 @@ export default function TicketReports() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="new">Novo</SelectItem>
                   <SelectItem value="open">Aberto</SelectItem>
+                  <SelectItem value="ongoing">Em Andamento</SelectItem>
                   <SelectItem value="in_progress">Em Progresso</SelectItem>
+                  <SelectItem value="suspended">Suspenso</SelectItem>
+                  <SelectItem value="waiting_customer">Aguardando Cliente</SelectItem>
+                  <SelectItem value="escalated">Escalado</SelectItem>
+                  <SelectItem value="in_analysis">Em Análise</SelectItem>
+                  <SelectItem value="pending_deployment">Aguardando Deploy</SelectItem>
+                  <SelectItem value="reopened">Reaberto</SelectItem>
                   <SelectItem value="resolved">Resolvido</SelectItem>
                   <SelectItem value="closed">Fechado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
-            <div>
-              <label className="text-sm font-medium mb-2 block">Prioridade</label>
-              <Select value={filters.priority} onValueChange={(value) => handleFilterChange('priority', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas as prioridades" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="low">Baixa</SelectItem>
-                  <SelectItem value="medium">Média</SelectItem>
-                  <SelectItem value="high">Alta</SelectItem>
-                  <SelectItem value="urgent">Urgente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium mb-2 block">Departamento</label>
-              <Input
-                placeholder="ID do departamento"
-                value={filters.departmentId}
-                onChange={(e) => handleFilterChange('departmentId', e.target.value)}
-              />
-            </div>
           </div>
 
           <div className="mt-4">
-            <Button onClick={fetchReports} disabled={loading}>
+            <Button onClick={() => {
+              // Atualizar URL com os filtros atuais
+              const newParams = new URLSearchParams();
+              
+              if (dateRange?.from) newParams.set('startDate', format(dateRange.from, 'yyyy-MM-dd'));
+              if (dateRange?.to) newParams.set('endDate', format(dateRange.to, 'yyyy-MM-dd'));
+              if (filters.status && filters.status !== 'all') newParams.set('status', filters.status);
+              if (filters.priority && filters.priority !== 'all') newParams.set('priority', filters.priority);
+              if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
+              
+              setSearchParams(newParams);
+              
+              // Buscar os dados
+              fetchReportsWithCurrentFilters();
+            }} disabled={loading}>
               {loading ? 'Carregando...' : 'Aplicar Filtros'}
             </Button>
           </div>
@@ -314,58 +467,65 @@ export default function TicketReports() {
       {/* Tabela de Tickets */}
       <Card>
         <CardHeader>
-          <CardTitle>Tickets</CardTitle>
+          <CardTitle>Lista de Tickets</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : tickets.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Nenhum ticket encontrado com os filtros aplicados.
-            </div>
+            <div className="text-center py-8">Carregando...</div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Ticket ID</TableHead>
-                  <TableHead>Título</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Departamento</TableHead>
-                  <TableHead>Atribuído a</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Prioridade</TableHead>
-                  <TableHead>Criado em</TableHead>
-                  <TableHead>Resolvido em</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tickets.map((ticket) => (
-                  <TableRow key={ticket.id}>
-                    <TableCell className="font-mono">{ticket.id}</TableCell>
-                    <TableCell className="max-w-xs truncate">{ticket.title}</TableCell>
-                    <TableCell>{ticket.customer?.name || 'N/A'}</TableCell>
-                    <TableCell>{ticket.department?.name || 'N/A'}</TableCell>
-                    <TableCell>{ticket.assigned_to?.name || 'Não atribuído'}</TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(ticket.status)}>
-                        {ticket.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getPriorityColor(ticket.priority)}>
-                        {ticket.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{format(new Date(ticket.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
-                    <TableCell>
-                      {ticket.resolved_at ? format(new Date(ticket.resolved_at), 'dd/MM/yyyy HH:mm') : '-'}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table className="min-w-full lg:min-w-[800px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-20">Ticket ID</TableHead>
+                    <TableHead className="min-w-48">Título</TableHead>
+                    <TableHead className="min-w-32">Cliente</TableHead>
+                    <TableHead className="min-w-32">Departamento</TableHead>
+                    <TableHead className="min-w-36">Atribuído a</TableHead>
+                    <TableHead className="min-w-24">Status</TableHead>
+                    <TableHead className="min-w-24">Prioridade</TableHead>
+                    <TableHead className="min-w-36">Criado em</TableHead>
+                    <TableHead className="min-w-36">Resolvido em</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {tickets.map((ticket) => (
+                    <TableRow key={ticket.id}>
+                      <TableCell className="text-sm">#{ticket.ticket_id}</TableCell>
+                      <TableCell className="max-w-xs truncate text-sm" title={ticket.title}>{ticket.title}</TableCell>
+                      <TableCell className="text-sm">{ticket.customer?.name || 'N/A'}</TableCell>
+                      <TableCell className="text-sm">{ticket.department?.name || 'N/A'}</TableCell>
+                      <TableCell className="text-sm">{ticket.assigned_to?.name || 'Não atribuído'}</TableCell>
+                      <TableCell>
+                        <StatusBadge status={ticket.status as TicketStatus} />
+                      </TableCell>
+                      <TableCell>
+                        <PriorityBadge 
+                          priority={ticket.priority}
+                          weight={ticket.priority_weight}
+                          color={ticket.priority_color}
+                          name={ticket.priority_name}
+                        />
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {ticket.resolved_at 
+                          ? format(new Date(ticket.resolved_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
+                          : 'Não resolvido'
+                        }
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {tickets.length === 0 && !loading && (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhum ticket encontrado com os filtros aplicados.
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
