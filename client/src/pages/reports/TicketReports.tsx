@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
-import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -63,23 +62,22 @@ export default function TicketReports() {
   const [tickets, setTickets] = useState<TicketReport[]>([]);
   const [stats, setStats] = useState<ReportStats>({ total: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 });
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
   const [filters, setFilters] = useState({
-    status: searchParams.get('status') || 'all',
-    priority: searchParams.get('priority') || 'all',
+    status: searchParams.get('status') || '',
+    priority: searchParams.get('priority') || '',
     departmentId: searchParams.get('departmentId') || ''
   });
-
 
   useEffect(() => {
     fetchReports();
   }, [dateRange, filters]);
 
-      // Sincronizar filtros com URL quando o componente montar
+  // Sincronizar filtros com URL quando o componente montar
   useEffect(() => {
     const newFilters = {
-      status: searchParams.get('status') || 'all',
-      priority: searchParams.get('priority') || 'all',
+      status: searchParams.get('status') || '',
+      priority: searchParams.get('priority') || '',
       departmentId: searchParams.get('departmentId') || ''
     };
     setFilters(newFilters);
@@ -94,8 +92,6 @@ export default function TicketReports() {
     }
   }, []);
 
-
-
   const fetchReports = async () => {
     setLoading(true);
     try {
@@ -103,8 +99,8 @@ export default function TicketReports() {
       
       if (dateRange.from) params.append('startDate', format(dateRange.from, 'yyyy-MM-dd'));
       if (dateRange.to) params.append('endDate', format(dateRange.to, 'yyyy-MM-dd'));
-      if (filters.status && filters.status !== 'all') params.append('status', filters.status);
-      if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
+      if (filters.status) params.append('status', filters.status);
+      if (filters.priority) params.append('priority', filters.priority);
       if (filters.departmentId) params.append('departmentId', filters.departmentId);
 
       const response = await fetch(`/api/reports/tickets?${params}`);
@@ -126,7 +122,7 @@ export default function TicketReports() {
 
   const handleFilterChange = (key: string, value: string) => {
     const newParams = new URLSearchParams(searchParams);
-    if (value && value !== 'all') {
+    if (value) {
       newParams.set(key, value);
     } else {
       newParams.delete(key);
@@ -196,7 +192,7 @@ export default function TicketReports() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Período</label>
               <Popover>
@@ -223,7 +219,7 @@ export default function TicketReports() {
                     mode="range"
                     defaultMonth={dateRange.from}
                     selected={dateRange}
-                    onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
+                    onSelect={setDateRange}
                     numberOfMonths={2}
                     locale={ptBR}
                   />
@@ -318,57 +314,58 @@ export default function TicketReports() {
       {/* Tabela de Tickets */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Tickets</CardTitle>
+          <CardTitle>Tickets</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8">Carregando...</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table className="min-w-full lg:min-w-[800px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">ID</TableHead>
-                    <TableHead className="min-w-48">Título</TableHead>
-                    <TableHead className="min-w-32">Cliente</TableHead>
-                    <TableHead className="min-w-32">Departamento</TableHead>
-                    <TableHead className="min-w-36">Atribuído a</TableHead>
-                    <TableHead className="min-w-24">Status</TableHead>
-                    <TableHead className="min-w-24">Prioridade</TableHead>
-                    <TableHead className="min-w-36">Criado em</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tickets.map((ticket) => (
-                    <TableRow key={ticket.id}>
-                      <TableCell className="text-sm">#{ticket.id}</TableCell>
-                      <TableCell className="max-w-xs truncate text-sm" title={ticket.title}>{ticket.title}</TableCell>
-                      <TableCell className="text-sm">{ticket.customer?.name || 'N/A'}</TableCell>
-                      <TableCell className="text-sm">{ticket.department?.name || 'N/A'}</TableCell>
-                      <TableCell className="text-sm">{ticket.assigned_to?.name || 'Não atribuído'}</TableCell>
-                      <TableCell>
-                        <Badge className={`${getStatusColor(ticket.status)} text-xs`}>
-                          {ticket.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={`${getPriorityColor(ticket.priority)} text-xs`}>
-                          {ticket.priority}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              {tickets.length === 0 && !loading && (
-                <div className="text-center py-8 text-muted-foreground">
-                  Nenhum ticket encontrado com os filtros aplicados.
-                </div>
-              )}
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
+          ) : tickets.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhum ticket encontrado com os filtros aplicados.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ticket ID</TableHead>
+                  <TableHead>Título</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Departamento</TableHead>
+                  <TableHead>Atribuído a</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Prioridade</TableHead>
+                  <TableHead>Criado em</TableHead>
+                  <TableHead>Resolvido em</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tickets.map((ticket) => (
+                  <TableRow key={ticket.id}>
+                    <TableCell className="font-mono">{ticket.id}</TableCell>
+                    <TableCell className="max-w-xs truncate">{ticket.title}</TableCell>
+                    <TableCell>{ticket.customer?.name || 'N/A'}</TableCell>
+                    <TableCell>{ticket.department?.name || 'N/A'}</TableCell>
+                    <TableCell>{ticket.assigned_to?.name || 'Não atribuído'}</TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(ticket.status)}>
+                        {ticket.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getPriorityColor(ticket.priority)}>
+                        {ticket.priority}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{format(new Date(ticket.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
+                    <TableCell>
+                      {ticket.resolved_at ? format(new Date(ticket.resolved_at), 'dd/MM/yyyy HH:mm') : '-'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
