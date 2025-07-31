@@ -28,6 +28,20 @@ function normalizarPrioridade(prioridade: string) {
   return prioridade.charAt(0).toUpperCase() + prioridade.slice(1).toLowerCase();
 }
 
+// Utilitário para converter data local (Brasília) para UTC ISO string (yyyy-mm-ddTHH:MM:SSZ)
+// IGUAL ao dashboard.tsx para consistência total
+function toBrasiliaISOString(date: Date, endOfDay = false) {
+  // Ajusta para UTC-3
+  const offsetMs = 3 * 60 * 60 * 1000;
+  const local = new Date(date.getTime() - offsetMs);
+  if (endOfDay) {
+    local.setHours(23, 59, 59, 999);
+  } else {
+    local.setHours(0, 0, 0, 0);
+  }
+  return local.toISOString();
+}
+
 interface TicketReport {
   id: number;
   ticket_id: string;
@@ -111,17 +125,31 @@ export default function TicketReports() {
     try {
       const params = new URLSearchParams();
       
-      if (dateRange?.from) params.append('startDate', format(dateRange.from, 'yyyy-MM-dd'));
-      if (dateRange?.to) params.append('endDate', format(dateRange.to, 'yyyy-MM-dd'));
+      // Usar a mesma lógica de datas do dashboard para consistência
+      if (dateRange?.from) {
+        const startDate = toBrasiliaISOString(dateRange.from, false);
+        params.append('start_date', startDate);
+        console.log('Start date:', startDate);
+      }
+      if (dateRange?.to) {
+        const endDate = toBrasiliaISOString(dateRange.to, true);
+        params.append('end_date', endDate);
+        console.log('End date:', endDate);
+      }
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
       if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
 
-      const response = await fetch(`/api/reports/tickets?${params}`);
+      const url = `/api/reports/tickets?${params}`;
+      console.log('Fetching reports with URL:', url);
+      
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Erro ao buscar relatórios');
       }
       const data = await response.json();
+      
+      console.log('Reports data:', data);
       
       setTickets(data.tickets || []);
       setStats(data.stats || { total: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 });
@@ -156,15 +184,15 @@ export default function TicketReports() {
     };
     setFilters(newFilters);
     
-    const fromDate = searchParams.get('startDate');
-    const toDate = searchParams.get('endDate');
+    const fromDate = searchParams.get('start_date') || searchParams.get('startDate');
+    const toDate = searchParams.get('end_date') || searchParams.get('endDate');
     if (fromDate || toDate) {
       setDateRange({
         from: fromDate ? new Date(fromDate) : undefined,
         to: toDate ? new Date(toDate) : undefined
       });
     }
-  }, []); // Executar apenas uma vez na montagem
+  }, [searchParams]); // Executar quando searchParams mudar
 
   // Buscar departamentos dinamicamente
   useEffect(() => {
@@ -266,7 +294,14 @@ export default function TicketReports() {
   };
 
   const handleExport = async (format: 'pdf' | 'excel') => {
-    const params = new URLSearchParams(searchParams);
+    const params = new URLSearchParams();
+    
+    // Usar a mesma lógica de datas do dashboard para consistência
+    if (dateRange?.from) params.append('start_date', toBrasiliaISOString(dateRange.from, false));
+    if (dateRange?.to) params.append('end_date', toBrasiliaISOString(dateRange.to, true));
+    if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+    if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
+    if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
     params.append('format', format);
     
     window.open(`/api/reports/tickets/export?${params}`, '_blank');
@@ -413,8 +448,9 @@ export default function TicketReports() {
               // Atualizar URL com os filtros atuais
               const newParams = new URLSearchParams();
               
-              if (dateRange?.from) newParams.set('startDate', format(dateRange.from, 'yyyy-MM-dd'));
-              if (dateRange?.to) newParams.set('endDate', format(dateRange.to, 'yyyy-MM-dd'));
+              // Usar a mesma lógica de datas do dashboard para consistência
+              if (dateRange?.from) newParams.set('start_date', toBrasiliaISOString(dateRange.from, false));
+              if (dateRange?.to) newParams.set('end_date', toBrasiliaISOString(dateRange.to, true));
               if (filters.status && filters.status !== 'all') newParams.set('status', filters.status);
               if (filters.priority && filters.priority !== 'all') newParams.set('priority', filters.priority);
               if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);

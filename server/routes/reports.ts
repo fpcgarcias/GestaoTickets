@@ -229,7 +229,13 @@ router.get('/health', (req, res) => {
 // Ticket reports - SIMPLE WORKING VERSION
 router.get('/tickets', authRequired, async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, status, priority, departmentId, companyId } = req.query;
+    const { startDate, endDate, start_date, end_date, status, priority, departmentId, companyId } = req.query;
+    
+    // Usar start_date e end_date se disponíveis (compatibilidade com dashboard)
+    const startDateParam = start_date || startDate;
+    const endDateParam = end_date || endDate;
+    
+    console.log('Reports - Query params:', { startDateParam, endDateParam, status, priority, departmentId });
     
     // Build base query - versão simples sem joins complexos
     let baseQuery = db.select({
@@ -267,12 +273,12 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
     // Apply filters
     const conditions = [];
 
-    if (startDate) {
-      conditions.push(gte(schema.tickets.created_at, new Date(startDate as string)));
+    if (startDateParam) {
+      conditions.push(gte(schema.tickets.created_at, new Date(startDateParam as string)));
     }
 
-    if (endDate) {
-      conditions.push(lte(schema.tickets.created_at, new Date(endDate as string)));
+    if (endDateParam) {
+      conditions.push(lte(schema.tickets.created_at, new Date(endDateParam as string)));
     }
 
     if (status && status !== 'all') {
@@ -293,6 +299,9 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
 
     // Execute query
     const tickets = await baseQuery.orderBy(desc(schema.tickets.created_at));
+    
+    console.log('Reports - Tickets found:', tickets.length);
+    console.log('Reports - Sample ticket dates:', tickets.slice(0, 3).map(t => t.created_at));
 
     // Get additional data for joined fields - filtrando valores null
     const departmentIds = Array.from(new Set(tickets.map(t => t.department_id).filter(id => id !== null))) as number[];
@@ -403,7 +412,11 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
 // Export tickets to multiple formats
 router.get('/tickets/export', authRequired, async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, status, priority, departmentId, companyId, format = 'csv' } = req.query;
+    const { startDate, endDate, start_date, end_date, status, priority, departmentId, companyId, format = 'csv' } = req.query;
+    
+    // Usar start_date e end_date se disponíveis (compatibilidade com dashboard)
+    const startDateParam = start_date || startDate;
+    const endDateParam = end_date || endDate;
     
     // Build base query - versão simples sem joins complexos
     let baseQuery = db.select({
@@ -438,12 +451,12 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
     // Apply filters
     const conditions = [];
 
-    if (startDate) {
-      conditions.push(gte(schema.tickets.created_at, new Date(startDate as string)));
+    if (startDateParam) {
+      conditions.push(gte(schema.tickets.created_at, new Date(startDateParam as string)));
     }
 
-    if (endDate) {
-      conditions.push(lte(schema.tickets.created_at, new Date(endDate as string)));
+    if (endDateParam) {
+      conditions.push(lte(schema.tickets.created_at, new Date(endDateParam as string)));
     }
 
     if (status && status !== 'all') {
