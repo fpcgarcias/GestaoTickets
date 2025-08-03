@@ -31,9 +31,9 @@ function normalizarPrioridade(prioridade: string) {
 // Utilitário para converter data local (Brasília) para UTC ISO string (yyyy-mm-ddTHH:MM:SSZ)
 // IGUAL ao dashboard.tsx para consistência total
 function toBrasiliaISOString(date: Date, endOfDay = false) {
-  // Ajusta para UTC-3
+  // CORREÇÃO: Para converter de UTC-3 para UTC, devemos ADICIONAR 3 horas
   const offsetMs = 3 * 60 * 60 * 1000;
-  const local = new Date(date.getTime() - offsetMs);
+  const local = new Date(date.getTime() + offsetMs);
   if (endOfDay) {
     local.setHours(23, 59, 59, 999);
   } else {
@@ -129,27 +129,22 @@ export default function TicketReports() {
       if (dateRange?.from) {
         const startDate = toBrasiliaISOString(dateRange.from, false);
         params.append('start_date', startDate);
-        console.log('Start date:', startDate);
       }
       if (dateRange?.to) {
         const endDate = toBrasiliaISOString(dateRange.to, true);
         params.append('end_date', endDate);
-        console.log('End date:', endDate);
       }
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
       if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
 
       const url = `/api/reports/tickets?${params}`;
-      console.log('Fetching reports with URL:', url);
       
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Erro ao buscar relatórios');
       }
       const data = await response.json();
-      
-      console.log('Reports data:', data);
       
       setTickets(data.tickets || []);
       setStats(data.stats || { total: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 });
@@ -198,16 +193,12 @@ export default function TicketReports() {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        console.log('Buscando departamentos...');
         const response = await fetch('/api/departments?active_only=true');
-        console.log('Resposta da API de departamentos:', response.status);
         if (response.ok) {
           const data = await response.json();
-          console.log('Dados de departamentos:', data);
           const validDepartments = (data.departments || []).filter((d: any) => 
             d.id && d.name && d.name.trim() !== ''
           );
-          console.log('Departamentos válidos:', validDepartments);
           setDepartments(validDepartments);
         }
       } catch (error) {
@@ -226,42 +217,32 @@ export default function TicketReports() {
     const fetchPriorities = async () => {
       try {
         const companyId = user?.company_id || user?.company?.id;
-        console.log('Company ID:', companyId);
         if (!companyId) {
-          console.error('Company ID não encontrado');
           setPriorities([]);
           return;
         }
 
         // Buscar prioridades baseadas no departamento selecionado
         const departmentId = filters.departmentId;
-        console.log('Department ID:', departmentId);
         if (!departmentId || departmentId === 'all') {
-          console.log('Department ID é "all" ou vazio, limpando prioridades');
           setPriorities([]);
           return;
         }
 
-        console.log('Fazendo requisição para:', `/api/departments/${departmentId}/priorities`);
         const response = await fetch(`/api/departments/${departmentId}/priorities`);
-        console.log('Resposta da API de prioridades:', response.status);
         
         if (response.ok) {
           const data = await response.json();
-          console.log('Dados de prioridades:', data);
           
           if (data.success && data.data && Array.isArray(data.data.priorities)) {
             const validPriorities = data.data.priorities
               .filter((p: any) => p.name && p.name.trim() !== '')
               .map((p: any) => ({ value: p.name.trim(), label: p.name.trim() }));
-            console.log('Prioridades válidas:', validPriorities);
             setPriorities(validPriorities);
           } else {
-            console.log('Nenhuma prioridade encontrada ou formato inválido');
             setPriorities([]);
           }
         } else {
-          console.error('Erro ao buscar prioridades:', response.status);
           setPriorities([]);
         }
       } catch (error) {
@@ -308,8 +289,6 @@ export default function TicketReports() {
   };
 
   // Usando StatusBadge e PriorityBadge para consistência visual com o resto do sistema
-
-  console.log('Prioridades no estado:', priorities);
 
   return (
     <div className="p-6">

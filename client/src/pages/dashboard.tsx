@@ -73,9 +73,9 @@ const PERIOD_OPTIONS = [
 
 // Utilitário para converter data local (Brasília) para UTC ISO string (yyyy-mm-ddTHH:MM:SSZ)
 function toBrasiliaISOString(date: Date, endOfDay = false) {
-  // Ajusta para UTC-3
+  // CORREÇÃO: Para converter de UTC-3 para UTC, devemos ADICIONAR 3 horas
   const offsetMs = 3 * 60 * 60 * 1000;
-  const local = new Date(date.getTime() - offsetMs);
+  const local = new Date(date.getTime() + offsetMs);
   if (endOfDay) {
     local.setHours(23, 59, 59, 999);
   } else {

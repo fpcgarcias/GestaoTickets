@@ -320,10 +320,11 @@ export class SLADashboardAPI {
         if (!sla) continue; // Se não encontrou SLA, ignora o ticket
         // Calcular tempos de resposta e resolução usando tempo útil
         const statusHistory = statusMap.get(ticket.ticketId) || [];
-        // Resposta
-        if (ticket.firstResponseAt && sla) {
+        // Resposta - Se não tem firstResponseAt mas tem resolvedAt, usar resolvedAt
+        if ((ticket.firstResponseAt || ticket.resolvedAt) && sla) {
           const statusPeriods = convertStatusHistoryToPeriods(ticket.createdAt, ticket.status, statusHistory);
-          const responseTimeMs = calculateEffectiveBusinessTime(ticket.createdAt, ticket.firstResponseAt, statusPeriods, businessHours);
+          const firstResponseTime = ticket.firstResponseAt || ticket.resolvedAt;
+          const responseTimeMs = calculateEffectiveBusinessTime(ticket.createdAt, firstResponseTime, statusPeriods, businessHours);
           const responseTime = responseTimeMs / (1000 * 60 * 60); // horas
           metrics.totalResponseTime += responseTime;
           if (responseTime <= sla.responseTimeHours) {

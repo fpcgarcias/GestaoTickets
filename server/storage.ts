@@ -1014,8 +1014,10 @@ export class MemStorage implements IStorage {
       });
     }
     
+    // Filtrar tickets que têm createdAt e (firstResponseAt OU resolvedAt)
+    // Se não tem firstResponseAt mas tem resolvedAt, usar resolvedAt como primeira resposta
     const ticketsWithFirstResponse = Array.from(userTickets).filter(ticket => 
-      ticket.firstResponseAt && ticket.createdAt
+      ticket.createdAt && (ticket.firstResponseAt || ticket.resolvedAt)
     );
     
     if (ticketsWithFirstResponse.length === 0) {
@@ -1026,7 +1028,8 @@ export class MemStorage implements IStorage {
     // TODO: Implementar lógica de períodos suspensos quando necessário
     const totalResponseTime = ticketsWithFirstResponse.reduce((sum, ticket) => {
       const createdAt = new Date(ticket.createdAt);
-      const firstResponseAt = new Date(ticket.firstResponseAt!);
+      // Se não tem firstResponseAt, usar resolvedAt como primeira resposta
+      const firstResponseAt = new Date(ticket.firstResponseAt || ticket.resolvedAt!);
       const responseTime = (firstResponseAt.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
       return sum + responseTime;
     }, 0);

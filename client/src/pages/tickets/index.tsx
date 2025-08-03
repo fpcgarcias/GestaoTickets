@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
@@ -35,9 +35,9 @@ import { usePriorities } from '@/hooks/use-priorities';
 
 // Utilitário para converter data local (Brasília) para UTC ISO string (yyyy-mm-ddTHH:MM:SSZ)
 function toBrasiliaISOString(date: Date, endOfDay = false) {
-  // Ajusta para UTC-3
+  // CORREÇÃO: Para converter de UTC-3 para UTC, devemos ADICIONAR 3 horas
   const offsetMs = 3 * 60 * 60 * 1000;
-  const local = new Date(date.getTime() - offsetMs);
+  const local = new Date(date.getTime() + offsetMs);
   if (endOfDay) {
     local.setHours(23, 59, 59, 999);
   } else {
@@ -87,10 +87,45 @@ export default function TicketsIndex() {
     };
   };
 
+  // Calcular datas exatamente como o dashboard faz
+  const getPeriodDates = () => {
+    const now = new Date();
+    let from: Date;
+    let to: Date;
+    
+    switch (timeFilter) {
+      case 'this-week':
+        from = startOfWeek(now, { weekStartsOn: 1 }); // segunda-feira
+        to = endOfWeek(now, { weekStartsOn: 1 }); // domingo
+        break;
+      case 'last-week': {
+        const lastWeek = new Date(now);
+        lastWeek.setDate(now.getDate() - 7);
+        from = startOfWeek(lastWeek, { weekStartsOn: 1 });
+        to = endOfWeek(lastWeek, { weekStartsOn: 1 });
+        break;
+      }
+      case 'this-month':
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+        break;
+      case 'custom':
+        from = dateRange.from ? dateRange.from : startOfMonth(now);
+        to = dateRange.to ? dateRange.to : endOfMonth(now);
+        break;
+      default:
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+    }
+    return { startDate: from, endDate: to };
+  };
+
   // Busca tickets com base no papel do usuário com paginação e filtros
   const { data: ticketsResponse, isLoading: isTicketsLoading } = useQuery({
     queryKey: ['/api/tickets/user-role', currentPage, searchQuery, statusFilter, priorityFilter, departmentFilter, assignedToFilter, hideResolved, timeFilter, dateRange],
     queryFn: async () => {
+      const { startDate, endDate } = getPeriodDates();
+      
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: '20',
@@ -100,9 +135,9 @@ export default function TicketsIndex() {
         ...(departmentFilter && departmentFilter !== 'all' && { department_id: departmentFilter }),
         ...(assignedToFilter && assignedToFilter !== 'all' && { assigned_to_id: assignedToFilter }),
         ...(hideResolved && { hide_resolved: 'true' }),
-        ...(timeFilter && timeFilter !== 'custom' && { time_filter: timeFilter }),
-        ...(timeFilter === 'custom' && dateRange.from && { date_from: toBrasiliaISOString(dateRange.from, false) }),
-        ...(timeFilter === 'custom' && dateRange.to && { date_to: toBrasiliaISOString(dateRange.to, true) }),
+        // SEMPRE enviar start_date e end_date como o dashboard faz
+        start_date: toBrasiliaISOString(startDate, false),
+        end_date: toBrasiliaISOString(endDate, true),
       });
       
       const res = await fetch(`/api/tickets/user-role?${params}`);

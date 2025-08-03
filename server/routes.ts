@@ -718,132 +718,63 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const dateFrom = req.query.date_from as string;
       const dateTo = req.query.date_to as string;
       
-      const tickets = await storage.getTicketsByUserRole(userId, userRole);
+      // Preparar filtros para o método paginado
+      const filters: any = {};
       
-      // Aplicar todos os filtros
-      let filteredTickets = tickets;
-      
-      // Filtro de busca
       if (search) {
-        const searchLower = search.toLowerCase();
-        filteredTickets = filteredTickets.filter(ticket => 
-          ticket.title.toLowerCase().includes(searchLower) ||
-          ticket.description.toLowerCase().includes(searchLower) ||
-          ticket.ticket_id.toLowerCase().includes(searchLower) ||
-          (ticket.customer_email && ticket.customer_email.toLowerCase().includes(searchLower))
-        );
+        filters.search = search;
       }
       
-      // Filtro de status
       if (statusFilter && statusFilter !== 'all') {
-        filteredTickets = filteredTickets.filter(ticket => ticket.status === statusFilter);
+        filters.status = statusFilter;
       }
       
-      // Filtro para ocultar resolvidos
-      if (hideResolved) {
-        filteredTickets = filteredTickets.filter(ticket => ticket.status !== 'resolved');
-      }
-      
-      // Filtro de prioridade
       if (priorityFilter && priorityFilter !== 'all') {
-        filteredTickets = filteredTickets.filter(ticket => ticket.priority === priorityFilter);
+        filters.priority = priorityFilter;
       }
       
-      // Filtro de departamento
       if (departmentFilter && departmentFilter !== 'all') {
-        const deptId = parseInt(departmentFilter);
-        filteredTickets = filteredTickets.filter(ticket => ticket.department_id === deptId);
+        filters.department_id = parseInt(departmentFilter);
       }
       
-      // Filtro de atendente
       if (assignedToFilter && assignedToFilter !== 'all') {
         if (assignedToFilter === 'unassigned') {
-          filteredTickets = filteredTickets.filter(ticket => ticket.assigned_to_id === null);
+          filters.unassigned = true;
         } else {
-          const assignedId = parseInt(assignedToFilter);
-          filteredTickets = filteredTickets.filter(ticket => ticket.assigned_to_id === assignedId);
+          filters.assigned_to_id = parseInt(assignedToFilter);
         }
       }
       
-      // Filtro de tempo
-      if (timeFilter || dateFrom || dateTo) {
-        const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        
-        filteredTickets = filteredTickets.filter(ticket => {
-          if (!ticket.created_at) return false;
-          
-          const ticketDate = new Date(ticket.created_at);
-          
-          // Filtro de período personalizado
-          if (dateFrom || dateTo) {
-            if (dateFrom) {
-              const startDate = new Date(dateFrom);
-              startDate.setHours(0, 0, 0, 0);
-              if (ticketDate < startDate) return false;
-            }
-            if (dateTo) {
-              const endDate = new Date(dateTo);
-              endDate.setHours(23, 59, 59, 999);
-              if (ticketDate > endDate) return false;
-            }
-            return true;
-          }
-          
-          // Filtros de tempo pré-definidos
-          if (timeFilter === 'this-week') {
-            const weekStart = new Date(today);
-            weekStart.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Segunda-feira
-            weekStart.setHours(0, 0, 0, 0);
-            return ticketDate >= weekStart;
-          }
-          
-          if (timeFilter === 'last-week') {
-            const weekStart = new Date(today);
-            weekStart.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1)); // Segunda-feira
-            
-            const lastWeekStart = new Date(weekStart);
-            lastWeekStart.setDate(weekStart.getDate() - 7);
-            
-            const lastWeekEnd = new Date(weekStart);
-            lastWeekEnd.setHours(0, 0, 0, -1);
-            
-            return ticketDate >= lastWeekStart && ticketDate <= lastWeekEnd;
-          }
-          
-          if (timeFilter === 'this-month') {
-            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-            return ticketDate >= monthStart;
-          }
-          
-          return true;
-        });
+      if (hideResolved) {
+        filters.hide_resolved = true;
       }
       
-      // Ordenar por data de criação (mais recentes primeiro)
-      filteredTickets.sort((a, b) => {
-        const dateA = new Date(a.created_at);
-        const dateB = new Date(b.created_at);
-        return dateB.getTime() - dateA.getTime();
-      });
+      // Processar filtros de data - USAR MESMA LÓGICA DO DASHBOARD
+      const startDate = req.query.start_date as string;
+      const endDate = req.query.end_date as string;
       
-      // Calcular paginação
-      const total = filteredTickets.length;
-      const totalPages = Math.ceil(total / limit);
-      const offset = (page - 1) * limit;
-      const paginatedTickets = filteredTickets.slice(offset, offset + limit);
-      
-      res.json({
-        data: paginatedTickets,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrev: page > 1
+      if (startDate || endDate) {
+        if (startDate) {
+          filters.start_date = startDate;
         }
-      });
+        if (endDate) {
+          filters.end_date = endDate;
+        }
+      } else if (dateFrom || dateTo) {
+        if (dateFrom) {
+          filters.date_from = dateFrom;
+        }
+        if (dateTo) {
+          filters.date_to = dateTo;
+        }
+      } else if (timeFilter) {
+        filters.time_filter = timeFilter;
+      }
+      
+      // Usar o método paginado que aplica filtros no SQL
+      const result = await storage.getTicketsByUserRolePaginated(userId, userRole, filters, page, limit);
+      
+      res.json(result);
     } catch (error) {
       console.error('Erro ao buscar tickets por papel do usuário:', error);
       res.status(500).json({ message: "Falha ao buscar tickets para o usuário" });

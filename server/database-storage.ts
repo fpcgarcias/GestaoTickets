@@ -19,7 +19,7 @@ import {
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike, asc, gte, lte } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike, asc, gte, lte, ne } from "drizzle-orm";
 import { IStorage } from "./storage";
 import { isSlaPaused } from "@shared/ticket-utils";
 import { convertStatusHistoryToPeriods, calculateEffectiveBusinessTime, getBusinessHoursConfig } from "@shared/utils/sla-calculator";
@@ -439,163 +439,202 @@ export class DatabaseStorage implements IStorage {
     page: number = 1,
     limit: number = 20
   ): Promise<{ data: Ticket[]; pagination: { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean } }> {
-    // Montar cláusulas WHERE conforme role e filtros
+    // Montar filtros SQL conforme papel do usuário (MESMA LÓGICA DO DASHBOARD)
     let whereClauses: any[] = [];
     let companyId: number | null = null;
     
     if (userRole === 'admin') {
       // Admin vê tudo
     } else if (userRole === 'company_admin') {
-      // Company admin vê apenas tickets da empresa
       const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (!user || !user.company_id) {
-        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
-      }
+      if (!user || !user.company_id) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       companyId = user.company_id;
       whereClauses.push(eq(tickets.company_id, companyId));
     } else if (userRole === 'customer') {
-      // CLIENTE SÓ VÊ SEUS PRÓPRIOS TICKETS
       const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
-      if (!customer) {
-        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
-      }
+      if (!customer) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       whereClauses.push(eq(tickets.customer_id, customer.id));
     } else if (userRole === 'manager') {
-      // Manager: tickets dele, de subordinados OU não atribuídos + FILTRO POR DEPARTAMENTO
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
-      if (!official) {
-        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
-      }
+      if (!official) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       
       // Buscar departamentos do official
       const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
-      if (officialDepts.length === 0) {
-        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
-      }
+      if (officialDepts.length === 0) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       const departmentIds = officialDepts.map(od => od.department_id);
       
       // Buscar subordinados
       const subordinates = await db.select().from(officials).where(eq(officials.manager_id, official.id));
       const subordinateIds = subordinates.map(s => s.id);
       
-      // Filtro: (assigned_to_id = official.id OU assigned_to_id IN subordinados OU assigned_to_id IS NULL) E department_id IN departamentos
+      if (!filters.assigned_to_id) {
       const assignmentFilter = or(
         eq(tickets.assigned_to_id, official.id),
         subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
         isNull(tickets.assigned_to_id)
       );
-      
       whereClauses.push(assignmentFilter);
+      } else {
+        if (subordinateIds.includes(Number(filters.assigned_to_id))) {
+          whereClauses.push(eq(tickets.assigned_to_id, Number(filters.assigned_to_id)));
+        } else if (Number(filters.assigned_to_id) === official.id) {
+          whereClauses.push(eq(tickets.assigned_to_id, official.id));
+        } else {
+          // Não tem permissão
+          return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+        }
+      }
+      
+      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
       whereClauses.push(inArray(tickets.department_id, departmentIds));
       
     } else if (userRole === 'supervisor') {
-      // Supervisor: tickets dele, de subordinados OU não atribuídos + FILTRO POR DEPARTAMENTO
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
-      if (!official) {
-        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
-      }
+      if (!official) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       
       // Buscar departamentos do official
       const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
-      if (officialDepts.length === 0) {
-        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
-      }
+      if (officialDepts.length === 0) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       const departmentIds = officialDepts.map(od => od.department_id);
       
       // Buscar subordinados
       const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, official.id));
       const subordinateIds = subordinates.map(s => s.id);
       
-      // Filtro: (assigned_to_id = official.id OU assigned_to_id IN subordinados OU assigned_to_id IS NULL) E department_id IN departamentos
+      if (!filters.assigned_to_id) {
       const assignmentFilter = or(
         eq(tickets.assigned_to_id, official.id),
         subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
         isNull(tickets.assigned_to_id)
       );
-      
       whereClauses.push(assignmentFilter);
+      } else {
+        if (subordinateIds.includes(Number(filters.assigned_to_id))) {
+          whereClauses.push(eq(tickets.assigned_to_id, Number(filters.assigned_to_id)));
+        } else if (Number(filters.assigned_to_id) === official.id) {
+          whereClauses.push(eq(tickets.assigned_to_id, official.id));
+        } else {
+          // Não tem permissão
+          return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+        }
+      }
+      
+      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
       whereClauses.push(inArray(tickets.department_id, departmentIds));
       
     } else if (userRole === 'support') {
-      // Support: tickets atribuídos a ele OU não atribuídos + FILTRO POR DEPARTAMENTO
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
-      if (!official) {
-        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
-      }
+      if (!official) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       
       // Buscar departamentos do official
       const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
-      if (officialDepts.length === 0) {
-        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
-      }
+      if (officialDepts.length === 0) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       const departmentIds = officialDepts.map(od => od.department_id);
       
-      // Filtro: (assigned_to_id = official.id OU assigned_to_id IS NULL) E department_id IN departamentos
+      if (!filters.assigned_to_id) {
       const assignmentFilter = or(
         eq(tickets.assigned_to_id, official.id),
         isNull(tickets.assigned_to_id)
       );
-      
       whereClauses.push(assignmentFilter);
-      whereClauses.push(inArray(tickets.department_id, departmentIds));
+      } else if (Number(filters.assigned_to_id) === official.id) {
+        whereClauses.push(eq(tickets.assigned_to_id, official.id));
     } else {
-      // Outros tipos de usuário: filtra por empresa
-      const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (!user || !user.company_id) {
         return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       }
-      companyId = user.company_id;
-      whereClauses.push(eq(tickets.company_id, companyId));
+      
+      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+      whereClauses.push(inArray(tickets.department_id, departmentIds));
     }
-    // Filtros específicos
+
+    // Aplicar filtros adicionais
     if (filters.status && filters.status !== 'all') {
-      if ((ticketStatusEnum.enumValues as string[]).includes(filters.status)) {
         whereClauses.push(eq(tickets.status, filters.status as any));
-      }
     }
     if (filters.priority && filters.priority !== 'all') {
       whereClauses.push(eq(tickets.priority, filters.priority));
     }
-    if (filters.department_id) {
+    if (filters.department_id && filters.department_id !== 'all') {
       whereClauses.push(eq(tickets.department_id, filters.department_id));
     }
-    if (filters.assigned_to_id) {
-      whereClauses.push(eq(tickets.assigned_to_id, filters.assigned_to_id));
-    }
-    if (filters.unassigned) {
+    if (filters.assigned_to_id && filters.assigned_to_id !== 'all') {
+      if (filters.assigned_to_id === 'unassigned') {
       whereClauses.push(isNull(tickets.assigned_to_id));
+      } else {
+        whereClauses.push(eq(tickets.assigned_to_id, Number(filters.assigned_to_id)));
+      }
     }
     if (filters.hide_resolved) {
-      whereClauses.push(sql`${tickets.status} != 'resolved'`);
+      whereClauses.push(ne(tickets.status, 'resolved'));
     }
-    if (filters.date_from) {
+    // USAR MESMA LÓGICA DO DASHBOARD - start_date e end_date têm prioridade
+    if (filters.start_date || filters.end_date) {
+      if (filters.start_date) {
+        whereClauses.push(gte(tickets.created_at, new Date(filters.start_date)));
+      }
+      if (filters.end_date) {
+        whereClauses.push(lte(tickets.created_at, new Date(filters.end_date)));
+      }
+    } else if (filters.date_from) {
       whereClauses.push(gte(tickets.created_at, new Date(filters.date_from)));
     }
-    if (filters.date_to) {
+    if (filters.date_to && !filters.start_date && !filters.end_date) {
       const endDate = new Date(filters.date_to);
       endDate.setHours(23, 59, 59, 999);
       whereClauses.push(lte(tickets.created_at, endDate));
     }
-    if (filters.time_filter && !filters.date_from && !filters.date_to) {
+    if (filters.time_filter && !filters.start_date && !filters.end_date && !filters.date_from && !filters.date_to) {
+      // Usar a mesma lógica do dashboard para calcular datas
       const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      let startDate: Date;
+      let endDate: Date;
+      
       if (filters.time_filter === 'this-week') {
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1));
-        weekStart.setHours(0, 0, 0, 0);
-        whereClauses.push(gte(tickets.created_at, weekStart));
+        // Segunda-feira da semana atual
+        const today = new Date(now);
+        const dayOfWeek = today.getDay();
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 0 = domingo, 1 = segunda
+        startDate = new Date(today);
+        startDate.setDate(today.getDate() - daysToMonday);
+        startDate.setHours(0, 0, 0, 0);
+        
+        // Domingo da semana atual
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+        endDate.setHours(23, 59, 59, 999);
+        
+        whereClauses.push(gte(tickets.created_at, startDate));
+        whereClauses.push(lte(tickets.created_at, endDate));
       } else if (filters.time_filter === 'last-week') {
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1));
-        const lastWeekStart = new Date(weekStart);
-        lastWeekStart.setDate(weekStart.getDate() - 7);
-        const lastWeekEnd = new Date(weekStart);
-        lastWeekEnd.setHours(0, 0, 0, -1);
-        whereClauses.push(gte(tickets.created_at, lastWeekStart));
-        whereClauses.push(lte(tickets.created_at, lastWeekEnd));
+        // Segunda-feira da semana passada
+        const today = new Date(now);
+        const dayOfWeek = today.getDay();
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const thisWeekMonday = new Date(today);
+        thisWeekMonday.setDate(today.getDate() - daysToMonday);
+        
+        startDate = new Date(thisWeekMonday);
+        startDate.setDate(thisWeekMonday.getDate() - 7);
+        startDate.setHours(0, 0, 0, 0);
+        
+        // Domingo da semana passada
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+        endDate.setHours(23, 59, 59, 999);
+        
+        whereClauses.push(gte(tickets.created_at, startDate));
+        whereClauses.push(lte(tickets.created_at, endDate));
       } else if (filters.time_filter === 'this-month') {
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        whereClauses.push(gte(tickets.created_at, monthStart));
+        // Primeiro dia do mês atual
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        startDate.setHours(0, 0, 0, 0);
+        
+        // Último dia do mês atual
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        endDate.setHours(23, 59, 59, 999);
+        
+        whereClauses.push(gte(tickets.created_at, startDate));
+        whereClauses.push(lte(tickets.created_at, endDate));
       }
     }
     // Filtro de busca textual livre (em múltiplos campos)
@@ -635,25 +674,21 @@ export class DatabaseStorage implements IStorage {
     if (whereFinal) {
       const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(tickets)
         .leftJoin(customers, eq(tickets.customer_id, customers.id))
+        .leftJoin(officials, eq(tickets.assigned_to_id, officials.id))
         .where(whereFinal);
       total = Number(count);
     } else {
-      const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(tickets);
+      const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(tickets)
+        .leftJoin(customers, eq(tickets.customer_id, customers.id))
+        .leftJoin(officials, eq(tickets.assigned_to_id, officials.id));
       total = Number(count);
     }
-    // Paginação e ordenação
-    let qFinal;
-    if (whereFinal) {
-      const q1 = query.where(whereFinal);
-      const q2 = q1.orderBy(desc(tickets.created_at));
-      const q3 = q2.limit(limit);
-      qFinal = q3.offset((page - 1) * limit);
-    } else {
-      const q1 = query.orderBy(desc(tickets.created_at));
-      const q2 = q1.limit(limit);
-      qFinal = q2.offset((page - 1) * limit);
-    }
-    const ticketsData = await qFinal;
+    // Query paginada
+    const offset = (page - 1) * limit;
+    const ticketsData = whereFinal
+      ? await query.where(whereFinal).orderBy(desc(tickets.created_at)).limit(limit).offset(offset)
+      : await query.orderBy(desc(tickets.created_at)).limit(limit).offset(offset);
+    
     // Mapear para o formato esperado pelo frontend
     const mappedTickets = ticketsData.map(row => ({
       ...row,
@@ -666,6 +701,7 @@ export class DatabaseStorage implements IStorage {
         email: row.official_email
       } : undefined
     }));
+    
     const totalPages = Math.ceil(total / limit);
     return {
       data: mappedTickets as Ticket[],
@@ -1419,8 +1455,11 @@ export class DatabaseStorage implements IStorage {
       // Buscar tickets filtrados via SQL (otimizado)
       const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate);
       
-      // Filtrar apenas tickets com first_response_at e created_at
-      const ticketsWithFirstResponse = tickets.filter(ticket => ticket.first_response_at && ticket.created_at);
+      // Filtrar tickets que têm created_at e (first_response_at OU resolved_at)
+      // Se não tem first_response_at mas tem resolved_at, usar resolved_at como primeira resposta
+      const ticketsWithFirstResponse = tickets.filter(ticket => 
+        ticket.created_at && (ticket.first_response_at || ticket.resolved_at)
+      );
       if (ticketsWithFirstResponse.length === 0) {
         return 0;
       }
@@ -1445,7 +1484,8 @@ export class DatabaseStorage implements IStorage {
       // Calcular tempo útil (horário comercial, dias úteis, descontando pausas) para cada ticket
       const totalResponseTime = ticketsWithFirstResponse.map((ticket) => {
         const createdAt = new Date(ticket.created_at);
-        const firstResponseAt = new Date(ticket.first_response_at!);
+        // Se não tem first_response_at, usar resolved_at como primeira resposta
+        const firstResponseAt = new Date(ticket.first_response_at || ticket.resolved_at!);
         
         // Buscar status history do ticket
         const statusHistory = statusMap.get(ticket.id) || [];
@@ -1893,7 +1933,7 @@ export class DatabaseStorage implements IStorage {
       } else if (officialId === official.id) {
         whereClauses.push(eq(tickets.assigned_to_id, official.id));
       } else {
-        return [];
+        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       }
       
       // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
