@@ -872,38 +872,89 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       
     } else if (exportFormat === 'pdf') {
       // PDF export with proper binary handling
+      console.log('Starting PDF generation...');
       const htmlContent = generatePDFHTML(exportHeaders, exportRows);
+      console.log('HTML content generated, length:', htmlContent.length);
       
       let browser;
       try {
+        console.log('Launching Puppeteer...');
         browser = await puppeteer.launch({ 
           headless: true,
-          args: ['--no-sandbox', '--disable-setuid-sandbox']
+          timeout: 30000,
+          args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--disable-gpu',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor',
+            '--disable-background-timer-throttling',
+            '--disable-renderer-backgrounding',
+            '--disable-backgrounding-occluded-windows'
+          ]
         });
+        console.log('Puppeteer launched successfully');
+        
         const page = await browser.newPage();
-        await page.setContent(htmlContent, { waitUntil: 'domcontentloaded' });
+        console.log('New page created');
+        
+        // Configurar a página
+        await page.setViewport({ width: 1200, height: 800 });
+        await page.emulateMediaType('print');
+        
+        await page.setContent(htmlContent, { 
+          waitUntil: ['domcontentloaded', 'networkidle0'],
+          timeout: 10000
+        });
+        console.log('HTML content set');
+        
+        // Aguardar um pouco para garantir que tudo foi renderizado
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         const pdfBuffer = await page.pdf({
           format: 'A4',
           printBackground: true,
+          preferCSSPageSize: false,
+          displayHeaderFooter: false,
           margin: {
             top: '1cm',
             right: '1cm',
             bottom: '1cm',
             left: '1cm'
-          }
+          },
+          timeout: 30000
         });
+        console.log('PDF generated, buffer size:', pdfBuffer.length);
         
         await browser.close();
+        console.log('Browser closed');
         
         res.type('application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename=relatorio-chamados.pdf');
         return res.end(pdfBuffer);
         
-      } catch (pdfError) {
-        if (browser) await browser.close();
-        console.error('PDF generation error:', pdfError);
-        return res.status(500).json({ error: 'Erro ao gerar PDF' });
+      } catch (pdfError: any) {
+        console.error('PDF generation error details:', {
+          message: pdfError?.message || 'Unknown error',
+          stack: pdfError?.stack,
+          name: pdfError?.name
+        });
+        
+        if (browser) {
+          try {
+            await browser.close();
+            console.log('Browser closed after error');
+          } catch (closeError) {
+            console.error('Error closing browser:', closeError);
+          }
+        }
+        
+        return res.status(500).json({ 
+          error: 'Erro ao gerar PDF', 
+          details: pdfError?.message || 'Erro desconhecido na geração do PDF'
+        });
       }
       
     } else {
