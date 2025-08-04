@@ -1010,7 +1010,7 @@ export default function EmailSettings() {
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[9999]">
             {PROVIDERS.map(provider => (
               <SelectItem key={provider.value} value={provider.value}>
                 {provider.label}
@@ -1319,7 +1319,7 @@ export default function EmailSettings() {
                         placeholder={isLoadingCompanies ? "Carregando empresas..." : "Selecione uma empresa"} 
                       />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[9999]">
                       {companies?.map(company => (
                         <SelectItem key={company.id} value={company.id.toString()}>
                           {company.name}
@@ -1389,7 +1389,7 @@ export default function EmailSettings() {
                         placeholder={isLoadingCompanies ? "Carregando empresas..." : "Selecione uma empresa"} 
                       />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[9999]">
                       {companies?.map(company => (
                         <SelectItem key={company.id} value={company.id.toString()}>
                           {company.name}
@@ -1577,11 +1577,11 @@ export default function EmailSettings() {
       )}
 
       {/* Dialog para editar/criar template */}
-      <Dialog open={isEditingTemplate} onOpenChange={(open) => {
-        console.log('Dialog estado:', open, 'templateForm:', templateForm);
-        setIsEditingTemplate(open);
-      }}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto" style={{ zIndex: 9999 }}>
+              <Dialog open={isEditingTemplate} onOpenChange={(open) => {
+          console.log('Dialog estado:', open, 'templateForm:', templateForm);
+          setIsEditingTemplate(open);
+        }}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedTemplate ? 'Editar Template' : 'Novo Template'}
@@ -1604,12 +1604,19 @@ export default function EmailSettings() {
                 <Label>Tipo</Label>
                 <Select 
                   value={templateForm.type || ''} 
-                  onValueChange={(value) => setTemplateForm(prev => ({ ...prev, type: value }))}
+                  onValueChange={(value) => {
+                    console.log('Select onValueChange chamado com:', value);
+                    setTemplateForm(prev => ({ ...prev, type: value }));
+                  }}
+                  onOpenChange={(open) => {
+                    console.log('Select onOpenChange chamado com:', open);
+                  }}
                 >
+                  {console.log('Renderizando Select com value:', templateForm.type)}
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[99999] relative" position="popper" side="bottom" align="start">
                     {EMAIL_TEMPLATE_TYPES.map(type => (
                       <SelectItem key={type.value} value={type.value}>
                         {type.label}

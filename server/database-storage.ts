@@ -19,7 +19,7 @@ import {
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike, asc, gte, lte, ne } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike, asc, gte, lte, ne, exists } from "drizzle-orm";
 import { IStorage } from "./storage";
 import { isSlaPaused } from "@shared/ticket-utils";
 import { convertStatusHistoryToPeriods, calculateEffectiveBusinessTime, getBusinessHoursConfig } from "@shared/utils/sla-calculator";
@@ -453,7 +453,19 @@ export class DatabaseStorage implements IStorage {
     } else if (userRole === 'customer') {
       const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
       if (!customer) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
-      whereClauses.push(eq(tickets.customer_id, customer.id));
+      
+      // Cliente pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
+      const customerCondition = or(
+        eq(tickets.customer_id, customer.id), // Tickets que ele criou
+        exists( // Tickets onde ele é participante
+          db.select().from(ticketParticipants)
+            .where(and(
+              eq(ticketParticipants.ticket_id, tickets.id),
+              eq(ticketParticipants.user_id, userId)
+            ))
+        )
+      );
+      whereClauses.push(customerCondition);
     } else if (userRole === 'manager') {
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
       if (!official) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
@@ -1251,7 +1263,19 @@ export class DatabaseStorage implements IStorage {
       } else if (userRole === 'customer') {
         const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
         if (!customer) return { total: 0, byStatus: {}, byPriority: {} };
-        whereClauses.push(eq(tickets.customer_id, customer.id));
+        
+        // Cliente pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
+        const customerCondition = or(
+          eq(tickets.customer_id, customer.id), // Tickets que ele criou
+          exists( // Tickets onde ele é participante
+            db.select().from(ticketParticipants)
+              .where(and(
+                eq(ticketParticipants.ticket_id, tickets.id),
+                eq(ticketParticipants.user_id, userId)
+              ))
+          )
+        );
+        whereClauses.push(customerCondition);
       } else if (userRole === 'manager') {
         const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
         if (!official) return { total: 0, byStatus: {}, byPriority: {} };
@@ -1846,7 +1870,19 @@ export class DatabaseStorage implements IStorage {
     } else if (userRole === 'customer') {
       const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
       if (!customer) return [];
-      whereClauses.push(eq(tickets.customer_id, customer.id));
+      
+      // Cliente pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
+      const customerCondition = or(
+        eq(tickets.customer_id, customer.id), // Tickets que ele criou
+        exists( // Tickets onde ele é participante
+          db.select().from(ticketParticipants)
+            .where(and(
+              eq(ticketParticipants.ticket_id, tickets.id),
+              eq(ticketParticipants.user_id, userId)
+            ))
+        )
+      );
+      whereClauses.push(customerCondition);
     } else if (userRole === 'manager') {
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
       if (!official) return [];

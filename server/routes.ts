@@ -1289,6 +1289,141 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       res.status(500).json({ message: "Falha ao atualizar ticket", error: String(error) });
     }
   });
+
+  // Rota para atualizar completamente um ticket (incluindo status)
+  router.put("/tickets/:id", authRequired, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de ticket inválido" });
+      }
+
+      // ✅ VERIFICAR ACESSO COM CONTROLE DE EMPRESA
+      const userRole = req.session?.userRole as string;
+      const userCompanyId = req.session?.companyId;
+      
+      const existingTicket = await storage.getTicket(id, userRole, userCompanyId);
+      if (!existingTicket) {
+        return res.status(404).json({ message: "Ticket não encontrado" });
+      }
+
+      const { 
+        title, 
+        description, 
+        status, 
+        priority, 
+        assigned_to_id, 
+        department_id,
+        customer_email,
+        customer_id,
+        type
+      } = req.body;
+
+      const updateData: any = {};
+
+      // Validar e adicionar campos que podem ser atualizados
+      if (title !== undefined) updateData.title = title;
+      if (description !== undefined) updateData.description = description;
+      if (priority !== undefined) updateData.priority = priority;
+      if (assigned_to_id !== undefined) updateData.assigned_to_id = assigned_to_id;
+      if (department_id !== undefined) updateData.department_id = department_id;
+      if (customer_email !== undefined) updateData.customer_email = customer_email;
+      if (customer_id !== undefined) updateData.customer_id = customer_id;
+      if (type !== undefined) updateData.type = type;
+
+      // 🔥 VALIDAÇÃO ESPECIAL PARA MUDANÇA DE STATUS
+      let statusChanged = false;
+      let oldStatus = existingTicket.status;
+      
+      if (status !== undefined && status !== existingTicket.status) {
+        // Validar se o usuário tem permissão para mudar o status
+        if (userRole === 'customer' && status !== 'waiting_customer') {
+          return res.status(403).json({ 
+            message: "Operação não permitida", 
+            details: "Clientes só podem alterar o status para 'Aguardando Cliente'." 
+          });
+        }
+
+        updateData.status = status;
+        statusChanged = true;
+
+        // Adicionar campos específicos baseados no novo status
+        if (status === 'resolved' && existingTicket.status !== 'resolved') {
+          updateData.resolved_at = new Date();
+        }
+        if (status === 'ongoing' && !existingTicket.first_response_at) {
+          updateData.first_response_at = new Date();
+        }
+        if (status === 'reopened') {
+          updateData.reopened_at = new Date();
+        }
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "Nenhum dado válido para atualizar" });
+      }
+
+      // Atualizar o ticket
+      const ticket = await storage.updateTicket(id, updateData);
+      if (!ticket) {
+        return res.status(404).json({ message: "Ticket não encontrado" });
+      }
+
+      // 🔥 ENVIAR NOTIFICAÇÕES DE EMAIL PARA MUDANÇA DE STATUS
+      if (statusChanged) {
+        try {
+          // Enviar notificação de email para mudança de status
+          emailNotificationService.notifyStatusChanged(
+            ticket.id,
+            String(oldStatus || ''),
+            String(status || ''),
+            req.session?.userId
+          ).then(() => {
+            console.log(`[📧 EMAIL] ✅ Notificação de mudança de status enviada para ticket ${ticket.id}`);
+          }).catch((emailError) => {
+            console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de mudança de status:`, emailError);
+          });
+
+          // 🔥 ESCALAÇÃO AUTOMÁTICA QUANDO STATUS MUDA PARA "escalated"
+          if (status === 'escalated') {
+            try {
+              emailNotificationService.notifyTicketEscalated(
+                ticket.id,
+                req.session?.userId,
+                `Ticket escalado manualmente por ${req.session?.adUsername || 'usuário'}`
+              ).then(() => {
+                console.log(`[📧 EMAIL] ✅ Notificação de escalação enviada para ticket ${ticket.id}`);
+              }).catch((escalationError) => {
+                console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de escalação:`, escalationError);
+              });
+            } catch (escalationError) {
+              console.error('Erro ao enviar notificação de escalação:', escalationError);
+            }
+          }
+        } catch (notificationError) {
+          console.error('Erro ao enviar notificação de mudança de status:', notificationError);
+        }
+      }
+
+      // 🔥 ENVIAR NOTIFICAÇÃO DE EMAIL PARA MUDANÇA DE ATRIBUIÇÃO
+      if (assigned_to_id !== undefined && existingTicket.assigned_to_id !== assigned_to_id) {
+        try {
+          emailNotificationService.notifyTicketAssigned(ticket.id, assigned_to_id).then(() => {
+            console.log(`[📧 EMAIL] ✅ Notificação de atribuição enviada para ticket ${ticket.id}`);
+          }).catch((emailError) => {
+            console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de atribuição:`, emailError);
+          });
+        } catch (notificationError) {
+          console.error('Erro ao enviar notificação de atribuição:', notificationError);
+        }
+      }
+
+      res.json(ticket);
+    } catch (error) {
+      console.error('Erro ao atualizar ticket (put):', error);
+      res.status(500).json({ message: "Falha ao atualizar ticket", error: String(error) });
+    }
+  });
   
   // Ticket creation and responses
   router.post("/tickets", authRequired, validateRequest(insertTicketSchema), async (req: Request, res: Response) => {
@@ -7775,6 +7910,30 @@ Atenciosamente,
     } catch (error) {
       console.error('Erro ao executar verificação manual:', error);
       res.status(500).json({ message: "Erro ao executar verificação manual", error: String(error) });
+    }
+  });
+
+  // Rota para executar digest diário manual
+  router.post("/notifications/scheduler/daily-digest", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const { schedulerService } = await import("./services/scheduler-service");
+      await schedulerService.runManualDailyDigest();
+      res.json({ success: true, message: "Digest diário executado manualmente" });
+    } catch (error) {
+      console.error('Erro ao executar digest diário manual:', error);
+      res.status(500).json({ message: "Erro ao executar digest diário manual", error: String(error) });
+    }
+  });
+
+  // Rota para executar digest semanal manual
+  router.post("/notifications/scheduler/weekly-digest", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const { schedulerService } = await import("./services/scheduler-service");
+      await schedulerService.runManualWeeklyDigest();
+      res.json({ success: true, message: "Digest semanal executado manualmente" });
+    } catch (error) {
+      console.error('Erro ao executar digest semanal manual:', error);
+      res.status(500).json({ message: "Erro ao executar digest semanal manual", error: String(error) });
     }
   });
 

@@ -275,6 +275,25 @@ export async function POST(req: Request, res: Response) {
       } catch (notificationError) {
         console.error('Erro ao enviar notificação WebSocket de mudança de status:', notificationError);
       }
+
+      // 🔥 ADICIONAR NOTIFICAÇÃO DE EMAIL PARA MUDANÇA DE STATUS
+      try {
+        const { emailNotificationService } = await import('../services/email-notification-service');
+        
+        // Enviar notificação de email para mudança de status
+        emailNotificationService.notifyStatusChanged(
+          ticketId,
+          String(ticket.status || ''),
+          String(validatedData.status || 'new'),
+          shouldReopenByAI ? botUserId : sessionUserId
+        ).then(() => {
+          console.log(`[📧 EMAIL] ✅ Notificação de mudança de status enviada para ticket ${ticketId}`);
+        }).catch((emailError) => {
+          console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de mudança de status:`, emailError);
+        });
+      } catch (notificationError) {
+        console.error('Erro ao importar serviço de email para notificação de mudança de status:', notificationError);
+      }
     }
 
     if (validatedData.assigned_to_id && validatedData.assigned_to_id !== ticket.assigned_to_id) {
@@ -285,6 +304,24 @@ export async function POST(req: Request, res: Response) {
           updated_at: new Date()
         })
         .where(eq(tickets.id, ticketId));
+    }
+
+    // 🔥 ADICIONAR NOTIFICAÇÃO DE EMAIL PARA RESPOSTA DE TICKET
+    try {
+      const { emailNotificationService } = await import('../services/email-notification-service');
+      
+      // Enviar notificação de email para resposta de ticket
+      emailNotificationService.notifyTicketReply(
+        ticketId,
+        sessionUserId,
+        validatedData.message
+      ).then(() => {
+        console.log(`[📧 EMAIL] ✅ Notificação de resposta enviada para ticket ${ticketId}`);
+      }).catch((emailError) => {
+        console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de resposta:`, emailError);
+      });
+    } catch (notificationError) {
+      console.error('Erro ao importar serviço de email para notificação de resposta:', notificationError);
     }
 
     return res.status(201).json(createdReply);
