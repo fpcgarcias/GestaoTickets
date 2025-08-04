@@ -881,62 +881,25 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
         console.log('Launching Puppeteer...');
         browser = await puppeteer.launch({ 
           headless: true,
-          timeout: 30000,
-          ignoreDefaultArgs: ['--disable-extensions'],
-          args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--disable-gpu',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor',
-            '--disable-background-timer-throttling',
-            '--disable-renderer-backgrounding',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-default-apps',
-            '--disable-extensions',
-            '--disable-plugins',
-            '--disable-translate',
-            '--disable-logging',
-            '--disable-log-file',
-            '--disable-dev-shm-usage',
-            '--memory-pressure-off',
-            '--max_old_space_size=4096',
-            '--no-zygote',
-            '--single-process'
-          ]
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
         });
         console.log('Puppeteer launched successfully');
         
         const page = await browser.newPage();
         console.log('New page created');
         
-        // Configurar a página
-        await page.setViewport({ width: 1200, height: 800 });
-        await page.emulateMediaType('print');
-        
-        await page.setContent(htmlContent, { 
-          waitUntil: ['domcontentloaded', 'networkidle0'],
-          timeout: 10000
-        });
+        await page.setContent(htmlContent);
         console.log('HTML content set');
-        
-        // Aguardar um pouco para garantir que tudo foi renderizado
-        await new Promise(resolve => setTimeout(resolve, 1000));
         
         const pdfBuffer = await page.pdf({
           format: 'A4',
           printBackground: true,
-          preferCSSPageSize: false,
-          displayHeaderFooter: false,
           margin: {
             top: '1cm',
             right: '1cm',
             bottom: '1cm',
             left: '1cm'
-          },
-          timeout: 30000
+          }
         });
         console.log('PDF generated, buffer size:', pdfBuffer.length);
         
