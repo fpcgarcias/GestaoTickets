@@ -4,7 +4,7 @@ import { Request, Response } from 'express';
 import { authRequired, adminRequired, companyAdminRequired, managerRequired, supervisorRequired } from '../middleware/authorization';
 import { db } from '../db';
 import * as schema from '@shared/schema';
-import { eq, desc, and, or, gte, lte, isNull, inArray } from 'drizzle-orm';
+import { eq, desc, and, or, gte, lte, isNull, inArray, sql } from 'drizzle-orm';
 import * as XLSX from 'xlsx';
 import puppeteer from 'puppeteer';
 
@@ -262,12 +262,130 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
     })
     .from(schema.tickets);
 
-    // Apply role-based filters
-    if (req.session.userRole !== 'admin') {
-      const userCompanyId = req.session.companyId || companyId;
-      if (userCompanyId) {
-        baseQuery = baseQuery.where(eq(schema.tickets.company_id, parseInt(userCompanyId as string))) as any;
+    // Apply role-based filters - IGUAL À TELA DE TICKETS
+    const userId = req.session.userId;
+    const userRole = req.session.userRole as string;
+    
+    if (!userId || !userRole) {
+      return res.status(401).json({ message: "Usuário não autenticado" });
+    }
+    
+    let roleConditions: any[] = [];
+    
+    if (userRole === 'admin') {
+      // Admin vê tudo - sem filtros
+    } else if (userRole === 'company_admin') {
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+      if (!user || !user.company_id) {
+        return res.status(403).json({ message: "Usuário sem empresa definida" });
       }
+      roleConditions.push(eq(schema.tickets.company_id, user.company_id));
+    } else if (userRole === 'manager') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: "Official não encontrado" });
+      }
+      
+      // Buscar departamentos do manager
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: "Manager sem departamentos" });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      // Buscar subordinados do manager
+      const subordinates = await db.select().from(schema.officials)
+        .where(eq(schema.officials.manager_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      
+      // Manager vê: tickets dos seus departamentos E (atribuídos a ele OU subordinados OU não atribuídos)
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(schema.tickets.assigned_to_id)
+      );
+      
+      roleConditions.push(
+        and(
+          inArray(schema.tickets.department_id, departmentIds),
+          assignmentFilter
+        )
+      );
+      
+    } else if (userRole === 'supervisor') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: "Official não encontrado" });
+      }
+      
+      // Buscar departamentos do supervisor
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: "Supervisor sem departamentos" });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      // Buscar subordinados do supervisor
+      const subordinates = await db.select().from(schema.officials)
+        .where(eq(schema.officials.supervisor_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      
+      // Supervisor vê: tickets dos seus departamentos E (atribuídos a ele OU subordinados OU não atribuídos)
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(schema.tickets.assigned_to_id)
+      );
+      
+      roleConditions.push(
+        and(
+          inArray(schema.tickets.department_id, departmentIds),
+          assignmentFilter
+        )
+      );
+      
+    } else if (userRole === 'support') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: "Official não encontrado" });
+      }
+      
+      // Buscar departamentos do support
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: "Support sem departamentos" });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      // Support vê apenas: tickets dos seus departamentos E (atribuídos a ele OU não atribuídos)
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        isNull(schema.tickets.assigned_to_id)
+      );
+      
+      roleConditions.push(
+        and(
+          inArray(schema.tickets.department_id, departmentIds),
+          assignmentFilter
+        )
+      );
+      
+    } else if (userRole === 'customer') {
+      const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
+      if (!customer) {
+        return res.status(403).json({ message: "Customer não encontrado" });
+      }
+      roleConditions.push(eq(schema.tickets.customer_id, customer.id));
+    } else {
+      return res.status(403).json({ message: "Role não reconhecido" });
+    }
+    
+    // Aplicar filtros de role se existirem
+    if (roleConditions.length > 0) {
+      baseQuery = baseQuery.where(and(...roleConditions)) as any;
     }
 
     // Apply filters
@@ -440,12 +558,130 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
     })
     .from(schema.tickets);
 
-    // Apply role-based filters
-    if (req.session.userRole !== 'admin') {
-      const userCompanyId = req.session.companyId || companyId;
-      if (userCompanyId) {
-        baseQuery = baseQuery.where(eq(schema.tickets.company_id, parseInt(userCompanyId as string))) as any;
+    // Apply role-based filters - IGUAL À TELA DE TICKETS
+    const userId = req.session.userId;
+    const userRole = req.session.userRole as string;
+    
+    if (!userId || !userRole) {
+      return res.status(401).json({ message: "Usuário não autenticado" });
+    }
+    
+    let roleConditions: any[] = [];
+    
+    if (userRole === 'admin') {
+      // Admin vê tudo - sem filtros
+    } else if (userRole === 'company_admin') {
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+      if (!user || !user.company_id) {
+        return res.status(403).json({ message: "Usuário sem empresa definida" });
       }
+      roleConditions.push(eq(schema.tickets.company_id, user.company_id));
+    } else if (userRole === 'manager') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: "Official não encontrado" });
+      }
+      
+      // Buscar departamentos do manager
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: "Manager sem departamentos" });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      // Buscar subordinados do manager
+      const subordinates = await db.select().from(schema.officials)
+        .where(eq(schema.officials.manager_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      
+      // Manager vê: tickets dos seus departamentos E (atribuídos a ele OU subordinados OU não atribuídos)
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(schema.tickets.assigned_to_id)
+      );
+      
+      roleConditions.push(
+        and(
+          inArray(schema.tickets.department_id, departmentIds),
+          assignmentFilter
+        )
+      );
+      
+    } else if (userRole === 'supervisor') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: "Official não encontrado" });
+      }
+      
+      // Buscar departamentos do supervisor
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: "Supervisor sem departamentos" });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      // Buscar subordinados do supervisor
+      const subordinates = await db.select().from(schema.officials)
+        .where(eq(schema.officials.supervisor_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      
+      // Supervisor vê: tickets dos seus departamentos E (atribuídos a ele OU subordinados OU não atribuídos)
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(schema.tickets.assigned_to_id)
+      );
+      
+      roleConditions.push(
+        and(
+          inArray(schema.tickets.department_id, departmentIds),
+          assignmentFilter
+        )
+      );
+      
+    } else if (userRole === 'support') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: "Official não encontrado" });
+      }
+      
+      // Buscar departamentos do support
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: "Support sem departamentos" });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      // Support vê apenas: tickets dos seus departamentos E (atribuídos a ele OU não atribuídos)
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        isNull(schema.tickets.assigned_to_id)
+      );
+      
+      roleConditions.push(
+        and(
+          inArray(schema.tickets.department_id, departmentIds),
+          assignmentFilter
+        )
+      );
+      
+    } else if (userRole === 'customer') {
+      const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
+      if (!customer) {
+        return res.status(403).json({ message: "Customer não encontrado" });
+      }
+      roleConditions.push(eq(schema.tickets.customer_id, customer.id));
+    } else {
+      return res.status(403).json({ message: "Role não reconhecido" });
+    }
+    
+    // Aplicar filtros de role se existirem
+    if (roleConditions.length > 0) {
+      baseQuery = baseQuery.where(and(...roleConditions)) as any;
     }
 
     // Apply filters
