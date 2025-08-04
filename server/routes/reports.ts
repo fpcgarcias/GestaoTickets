@@ -882,6 +882,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
         browser = await puppeteer.launch({ 
           headless: true,
           timeout: 30000,
+          ignoreDefaultArgs: ['--disable-extensions'],
           args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
@@ -892,7 +893,18 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
             '--disable-features=VizDisplayCompositor',
             '--disable-background-timer-throttling',
             '--disable-renderer-backgrounding',
-            '--disable-backgrounding-occluded-windows'
+            '--disable-backgrounding-occluded-windows',
+            '--disable-default-apps',
+            '--disable-extensions',
+            '--disable-plugins',
+            '--disable-translate',
+            '--disable-logging',
+            '--disable-log-file',
+            '--disable-dev-shm-usage',
+            '--memory-pressure-off',
+            '--max_old_space_size=4096',
+            '--no-zygote',
+            '--single-process'
           ]
         });
         console.log('Puppeteer launched successfully');
@@ -949,6 +961,27 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
           } catch (closeError) {
             console.error('Error closing browser:', closeError);
           }
+        }
+        
+        // Se for erro de dependências do Chrome no servidor, retornar CSV como alternativa
+        if (pdfError?.message?.includes('Failed to launch the browser') || 
+            pdfError?.message?.includes('libatk') ||
+            pdfError?.message?.includes('chrome')) {
+          
+          console.log('Chrome dependencies missing, falling back to CSV export...');
+          
+          // Gerar CSV como alternativa
+          const csvContent = [
+            exportHeaders.join(','),
+            ...exportRows.map(row => 
+              row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(',')
+            )
+          ].join('\n');
+          
+          res.type('text/csv');
+          res.setHeader('Content-Disposition', 'attachment; filename=relatorio-chamados-PDF-INDISPONIVEL.csv');
+          res.setHeader('X-PDF-Fallback-Reason', 'Chrome dependencies missing on server');
+          return res.send('\uFEFF' + csvContent); // UTF-8 BOM para Excel
         }
         
         return res.status(500).json({ 

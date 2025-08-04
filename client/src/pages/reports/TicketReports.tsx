@@ -275,17 +275,66 @@ export default function TicketReports() {
   };
 
   const handleExport = async (format: 'pdf' | 'excel') => {
-    const params = new URLSearchParams();
-    
-    // Usar a mesma lógica de datas do dashboard para consistência
-    if (dateRange?.from) params.append('start_date', toBrasiliaISOString(dateRange.from, false));
-    if (dateRange?.to) params.append('end_date', toBrasiliaISOString(dateRange.to, true));
-    if (filters.status && filters.status !== 'all') params.append('status', filters.status);
-    if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
-    if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
-    params.append('format', format);
-    
-    window.open(`/api/reports/tickets/export?${params}`, '_blank');
+    try {
+      const params = new URLSearchParams();
+      
+      // Usar a mesma lógica de datas do dashboard para consistência
+      if (dateRange?.from) params.append('start_date', toBrasiliaISOString(dateRange.from, false));
+      if (dateRange?.to) params.append('end_date', toBrasiliaISOString(dateRange.to, true));
+      if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+      if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
+      if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
+      params.append('format', format);
+      
+      // Para PDF, fazer uma requisição primeiro para verificar se vai funcionar
+      if (format === 'pdf') {
+        try {
+          const response = await fetch(`/api/reports/tickets/export?${params}`, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/pdf, text/csv, application/json'
+            }
+          });
+          
+          const contentType = response.headers.get('content-type');
+          const fallbackReason = response.headers.get('x-pdf-fallback-reason');
+          
+          if (contentType?.includes('text/csv') && fallbackReason) {
+            // Servidor retornou CSV ao invés de PDF devido a problemas
+            alert('⚠️ PDF temporariamente indisponível no servidor.\n\nBaixando como CSV para você. Você pode abrir no Excel e imprimir como PDF se necessário.');
+          }
+          
+          // Download do arquivo (seja PDF ou CSV)
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          
+          if (contentType?.includes('text/csv')) {
+            a.download = 'relatorio-chamados-PDF-INDISPONIVEL.csv';
+          } else {
+            a.download = 'relatorio-chamados.pdf';
+          }
+          
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          
+        } catch (error) {
+          console.error('Erro na exportação PDF:', error);
+          // Fallback: abrir em nova janela como antes
+          window.open(`/api/reports/tickets/export?${params}`, '_blank');
+        }
+      } else {
+        // Para Excel, usar o método simples
+        window.open(`/api/reports/tickets/export?${params}`, '_blank');
+      }
+      
+    } catch (error) {
+      console.error('Erro ao exportar:', error);
+      alert('Erro ao exportar relatório. Tente novamente.');
+    }
   };
 
   // Usando StatusBadge e PriorityBadge para consistência visual com o resto do sistema
