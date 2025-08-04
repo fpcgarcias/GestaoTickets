@@ -1378,9 +1378,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             String(oldStatus || ''),
             String(status || ''),
             req.session?.userId
-          ).then(() => {
-            console.log(`[📧 EMAIL] ✅ Notificação de mudança de status enviada para ticket ${ticket.id}`);
-          }).catch((emailError) => {
+          ).catch((emailError) => {
             console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de mudança de status:`, emailError);
           });
 
@@ -1391,9 +1389,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
                 ticket.id,
                 req.session?.userId,
                 `Ticket escalado manualmente por ${req.session?.adUsername || 'usuário'}`
-              ).then(() => {
-                console.log(`[📧 EMAIL] ✅ Notificação de escalação enviada para ticket ${ticket.id}`);
-              }).catch((escalationError) => {
+              ).catch((escalationError) => {
                 console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de escalação:`, escalationError);
               });
             } catch (escalationError) {
@@ -1408,9 +1404,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // 🔥 ENVIAR NOTIFICAÇÃO DE EMAIL PARA MUDANÇA DE ATRIBUIÇÃO
       if (assigned_to_id !== undefined && existingTicket.assigned_to_id !== assigned_to_id) {
         try {
-          emailNotificationService.notifyTicketAssigned(ticket.id, assigned_to_id).then(() => {
-            console.log(`[📧 EMAIL] ✅ Notificação de atribuição enviada para ticket ${ticket.id}`);
-          }).catch((emailError) => {
+          emailNotificationService.notifyTicketAssigned(ticket.id, assigned_to_id).catch((emailError) => {
             console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de atribuição:`, emailError);
           });
         } catch (notificationError) {

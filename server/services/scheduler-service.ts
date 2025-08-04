@@ -29,11 +29,9 @@ export class SchedulerService {
   // Iniciar o agendador (rodar a cada hora)
   start(): void {
     if (this.isRunning) {
-      console.log('[Scheduler] Agendador já está rodando');
       return;
     }
 
-    console.log('[Scheduler] Iniciando verificação automática de tickets...');
     this.isRunning = true;
 
     // Executar imediatamente uma vez
@@ -49,8 +47,6 @@ export class SchedulerService {
 
     // Iniciar digest semanal (todos os domingos às 9h)
     this.startWeeklyDigest();
-
-    console.log('[Scheduler] Agendador iniciado - verificações a cada hora');
   }
 
   // Parar o agendador
@@ -68,13 +64,10 @@ export class SchedulerService {
       this.weeklyDigestIntervalId = null;
     }
     this.isRunning = false;
-    console.log('[Scheduler] Agendador interrompido');
   }
 
   // Iniciar digest diário
   private startDailyDigest(): void {
-    console.log('[Scheduler] Configurando digest diário...');
-    
     const runDailyDigest = () => {
       const now = new Date();
       const hour = now.getHours();
@@ -98,8 +91,6 @@ export class SchedulerService {
 
   // Iniciar digest semanal
   private startWeeklyDigest(): void {
-    console.log('[Scheduler] Configurando digest semanal...');
-    
     const runWeeklyDigest = () => {
       const now = new Date();
       const dayOfWeek = now.getDay(); // 0 = domingo
@@ -125,7 +116,6 @@ export class SchedulerService {
   // Gerar digest diário
   private async generateDailyDigest(): Promise<void> {
     const companyFilter = process.env.SCHEDULER_COMPANY_FILTER || '*';
-    console.log(`[Scheduler] Gerando digest diário para empresas: ${companyFilter}`);
 
     try {
       if (companyFilter === '*') {
@@ -138,7 +128,6 @@ export class SchedulerService {
           await emailNotificationService.generateDailyDigestForParticipants(companyId);
         }
       }
-      console.log('[Scheduler] Digest diário gerado com sucesso');
     } catch (error) {
       console.error('[Scheduler] Erro ao gerar digest diário:', error);
     }
@@ -147,7 +136,6 @@ export class SchedulerService {
   // Gerar digest semanal
   private async generateWeeklyDigest(): Promise<void> {
     const companyFilter = process.env.SCHEDULER_COMPANY_FILTER || '*';
-    console.log(`[Scheduler] Gerando digest semanal para empresas: ${companyFilter}`);
 
     try {
       if (companyFilter === '*') {
@@ -160,7 +148,6 @@ export class SchedulerService {
           await emailNotificationService.generateWeeklyDigestForParticipants(companyId);
         }
       }
-      console.log('[Scheduler] Digest semanal gerado com sucesso');
     } catch (error) {
       console.error('[Scheduler] Erro ao gerar digest semanal:', error);
     }
@@ -174,18 +161,14 @@ export class SchedulerService {
     const minute = now.getMinutes();
     // Fora do intervalo permitido: antes de 6h, ou depois de 21h, ou exatamente 6:00 ou 22:00+
     if ((hour < 6) || (hour > 21) || (hour === 6 && minute === 0)) {
-      console.log('[Scheduler] Fora do horário permitido (06:01-21:59). Não será feita verificação de tickets agora.');
       return;
     }
 
     // Obter filtro de empresa da variável de ambiente
     const companyFilter = process.env.SCHEDULER_COMPANY_FILTER || '*';
-    console.log(`[Scheduler] Filtro de empresa configurado: ${companyFilter}`);
 
     try {
-      console.log('[Scheduler] Executando verificação de tickets próximos do vencimento...');
       await emailNotificationService.checkTicketsDueSoon(companyFilter);
-      console.log('[Scheduler] Verificação de tickets concluída');
     } catch (error) {
       console.error('[Scheduler] Erro na verificação de tickets:', error);
     }
@@ -193,19 +176,16 @@ export class SchedulerService {
 
   // Método para executar verificação manual
   async runManualCheck(): Promise<void> {
-    console.log('[Scheduler] Executando verificação manual...');
     await this.checkTickets();
   }
 
   // Método para executar digest diário manual
   async runManualDailyDigest(): Promise<void> {
-    console.log('[Scheduler] Executando digest diário manual...');
     await this.generateDailyDigest();
   }
 
   // Método para executar digest semanal manual
   async runManualWeeklyDigest(): Promise<void> {
-    console.log('[Scheduler] Executando digest semanal manual...');
     await this.generateWeeklyDigest();
   }
 

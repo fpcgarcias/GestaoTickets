@@ -286,9 +286,7 @@ export async function POST(req: Request, res: Response) {
           String(ticket.status || ''),
           String(validatedData.status || 'new'),
           shouldReopenByAI ? botUserId : sessionUserId
-        ).then(() => {
-          console.log(`[📧 EMAIL] ✅ Notificação de mudança de status enviada para ticket ${ticketId}`);
-        }).catch((emailError) => {
+        ).catch((emailError) => {
           console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de mudança de status:`, emailError);
         });
       } catch (notificationError) {
@@ -315,9 +313,7 @@ export async function POST(req: Request, res: Response) {
         ticketId,
         sessionUserId,
         validatedData.message
-      ).then(() => {
-        console.log(`[📧 EMAIL] ✅ Notificação de resposta enviada para ticket ${ticketId}`);
-      }).catch((emailError) => {
+      ).catch((emailError) => {
         console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de resposta:`, emailError);
       });
     } catch (notificationError) {

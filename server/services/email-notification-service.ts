@@ -73,14 +73,6 @@ export class EmailNotificationService {
     userRole?: string // 🔥 NOVO PARÂMETRO para validação
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      // LOGS CRÍTICOS PARA PRODUÇÃO
-      console.log(`[📧 EMAIL PROD] ===========================================`);
-      console.log(`[📧 EMAIL PROD] Iniciando envio de email`);
-      console.log(`[📧 EMAIL PROD] Template: ${templateType}`);
-      console.log(`[📧 EMAIL PROD] Destinatário: ${recipientEmail}`);
-      console.log(`[📧 EMAIL PROD] Empresa ID: ${companyId}`);
-      console.log(`[📧 EMAIL PROD] User Role: ${userRole || 'N/A'}`);
-      console.log(`[📧 EMAIL PROD] ===========================================`);
       
       // 🔥 VALIDAÇÃO CRÍTICA: Verificar se company_id é obrigatório
       let validatedCompanyId: number | undefined = undefined;
@@ -97,7 +89,6 @@ export class EmailNotificationService {
       
       // 1. Obter URL base para a empresa
       const baseUrl = await this.getBaseUrlForCompany(validatedCompanyId);
-      console.log(`[📧 EMAIL PROD] URL base obtida: ${baseUrl}`);
       
       // 2. Obter cores e configurações da empresa
       const companyColors = await this.getCompanyColors(validatedCompanyId);
@@ -120,39 +111,29 @@ export class EmailNotificationService {
       };
 
       // 4. Verificar se email está configurado - CRÍTICO: APENAS PARA A EMPRESA ESPECÍFICA
-      console.log(`[📧 EMAIL PROD] Verificando configuração de email APENAS para empresa ${validatedCompanyId}`);
       const emailConfig = await emailConfigService.getEmailConfigForFrontend(validatedCompanyId);
 
       // BLOQUEIO ABSOLUTO: Se qualquer campo essencial estiver vazio, NÃO ENVIA!
       if (!emailConfig || !emailConfig.from_email || !emailConfig.provider ||
           (emailConfig.provider === 'smtp' && (!emailConfig.host || !emailConfig.username || !emailConfig.password || emailConfig.port === 0)) ||
           ((emailConfig.provider === 'brevo' || emailConfig.provider === 'sendgrid' || emailConfig.provider === 'mailgun') && !emailConfig.api_key)) {
-        console.log(`[📧 EMAIL PROD] ❌ ABORTADO: Configuração de email INEXISTENTE ou INCOMPLETA para empresa ${validatedCompanyId}. NENHUM EMAIL SERÁ ENVIADO.`);
         return { success: false, error: 'Configuração de email inexistente ou incompleta para a empresa. Nenhum email enviado.' };
       }
 
       // 4. Buscar template
-      console.log(`[📧 EMAIL PROD] Buscando template '${templateType}' para empresa ${validatedCompanyId}`);
       const template = await this.getEmailTemplate(templateType, validatedCompanyId);
       if (!template) {
-        console.log(`[📧 EMAIL PROD] ❌ ERRO: Template '${templateType}' não encontrado para empresa ${validatedCompanyId}`);
         return { success: false, error: `Template '${templateType}' não encontrado. Configure em Configurações > Email > Templates.` };
       }
-
-      console.log(`[📧 EMAIL PROD] ✅ Template encontrado: ${template.name}`);
 
       // 5. Renderizar template com contexto enriquecido
       const renderedSubject = this.renderTemplate(template.subject_template, enrichedContext);
       const renderedHtml = this.renderTemplate(template.html_template, enrichedContext);
       const renderedText = template.text_template ? this.renderTemplate(template.text_template, enrichedContext) : undefined;
 
-      console.log(`[📧 EMAIL PROD] Template renderizado - Subject: "${renderedSubject}"`);
-
-      // 6. Configurar transporter
+            // 6. Configurar transporter
       try {
-        console.log(`[📧 EMAIL PROD] Criando transporter para ${emailConfig.provider}...`);
         const transporter = await this.createTransporter(emailConfig);
-        console.log(`[📧 EMAIL PROD] ✅ Transporter criado com sucesso para ${emailConfig.provider}`);
 
         // 7. Enviar email
         const mailOptions = {
@@ -163,17 +144,8 @@ export class EmailNotificationService {
           text: renderedText,
         };
 
-        console.log(`[📧 EMAIL PROD] 📧 Enviando email...`);
-        console.log(`[📧 EMAIL PROD] From: ${mailOptions.from}`);
-        console.log(`[📧 EMAIL PROD] To: ${mailOptions.to}`);
-        console.log(`[📧 EMAIL PROD] Subject: ${mailOptions.subject}`);
-        
         const result = await transporter.sendMail(mailOptions);
-        
-        console.log(`[📧 EMAIL PROD] ✅ EMAIL ENVIADO COM SUCESSO!`);
-        console.log(`[📧 EMAIL PROD] Message ID: ${result.messageId}`);
-        console.log(`[📧 EMAIL PROD] ===========================================`);
-        
+
         return { success: true };
       } catch (transporterError) {
         console.error(`[📧 EMAIL PROD] ❌ ERRO ao criar transporter ou enviar email:`, transporterError);
@@ -225,8 +197,6 @@ export class EmailNotificationService {
       }
 
       // Se não encontrou específico da empresa, buscar template padrão (global)
-      console.log(`[📧 EMAIL PROD] 🔍 Buscando template padrão global para '${templateType}'`);
-      
       const [defaultTemplate] = await db
         .select()
         .from(emailTemplates)
@@ -241,13 +211,7 @@ export class EmailNotificationService {
         .limit(1);
 
       if (defaultTemplate) {
-        console.log(`[📧 EMAIL PROD] ✅ Template padrão global encontrado: ${defaultTemplate.name}`);
-        console.log(`[📧 EMAIL PROD] - ID: ${defaultTemplate.id}`);
-        console.log(`[📧 EMAIL PROD] - Tipo: ${defaultTemplate.type}`);
-        console.log(`[📧 EMAIL PROD] - É global: ${defaultTemplate.company_id === null}`);
         return defaultTemplate;
-      } else {
-        console.log(`[📧 EMAIL PROD] ❌ Template padrão global para '${templateType}' não encontrado`);
       }
 
       return null;
@@ -563,17 +527,14 @@ export class EmailNotificationService {
     
     // VALIDAÇÃO CRÍTICA: Verificar se as configurações são válidas
     if (!config || !config.provider || !config.from_email) {
-      console.error(`[📧 EMAIL PROD] ❌ ERRO CRÍTICO: Configurações inválidas ou incompletas`);
       throw new Error('Configurações de email inválidas ou incompletas');
     }
     
     if (config.provider === 'smtp') {
       if (!config.host || !config.username || !config.password) {
-        console.error(`[📧 EMAIL PROD] ❌ ERRO CRÍTICO: Configurações SMTP incompletas`);
         throw new Error('Configurações SMTP incompletas (host, username ou password ausentes)');
       }
       
-      console.log(`[📧 EMAIL PROD] 🔧 Criando transporter SMTP com host: ${config.host}`);
       return nodemailer.createTransport({
         host: config.host,
         port: config.port || 587,
@@ -588,11 +549,9 @@ export class EmailNotificationService {
     // Para APIs externas (Brevo, SendGrid, etc.)
     if (config.provider === 'brevo') {
       if (!config.api_key) {
-        console.error(`[📧 EMAIL PROD] ❌ ERRO CRÍTICO: API Key do Brevo ausente`);
         throw new Error('API Key do Brevo é obrigatória');
       }
       
-      console.log(`[📧 EMAIL PROD] 🔧 Criando transporter Brevo`);
       return nodemailer.createTransport({
         host: 'smtp-relay.brevo.com',
         port: 587,
@@ -606,11 +565,9 @@ export class EmailNotificationService {
 
     if (config.provider === 'sendgrid') {
       if (!config.api_key) {
-        console.error(`[📧 EMAIL PROD] ❌ ERRO CRÍTICO: API Key do SendGrid ausente`);
         throw new Error('API Key do SendGrid é obrigatória');
       }
       
-      console.log(`[📧 EMAIL PROD] 🔧 Criando transporter SendGrid`);
       return nodemailer.createTransport({
         host: 'smtp.sendgrid.net',
         port: 587,
@@ -624,13 +581,11 @@ export class EmailNotificationService {
 
     if (config.provider === 'mailgun') {
       if (!config.api_key) {
-        console.error(`[📧 EMAIL PROD] ❌ ERRO CRÍTICO: API Key do Mailgun ausente`);
         throw new Error('API Key do Mailgun é obrigatória');
       }
       
       // Mailgun requer configuração específica do domínio
       const domain = config.from_email.split('@')[1];
-      console.log(`[📧 EMAIL PROD] 🔧 Criando transporter Mailgun para domínio: ${domain}`);
       return nodemailer.createTransport({
         host: `smtp.mailgun.org`,
         port: 587,
@@ -642,7 +597,6 @@ export class EmailNotificationService {
       });
     }
 
-    console.error(`[📧 EMAIL PROD] ❌ ERRO CRÍTICO: Provedor ${config.provider} não suportado`);
     throw new Error(`Provedor ${config.provider} não suportado`);
   }
 
@@ -816,17 +770,8 @@ export class EmailNotificationService {
         .limit(1);
 
       if (!ticket) {
-        console.log(`[📧 EMAIL PROD] ❌ ERRO: Ticket ${ticketId} não encontrado no banco`);
         return;
       }
-
-      console.log(`[📧 EMAIL PROD] ✅ Ticket encontrado:`);
-      console.log(`[📧 EMAIL PROD] - ID: ${ticket.id}`);
-      console.log(`[📧 EMAIL PROD] - Número: ${ticket.ticket_id}`);
-      console.log(`[📧 EMAIL PROD] - Título: ${ticket.title}`);
-      console.log(`[📧 EMAIL PROD] - Empresa ID: ${ticket.company_id}`);
-      console.log(`[📧 EMAIL PROD] - Departamento ID: ${ticket.department_id}`);
-      console.log(`[📧 EMAIL PROD] - Email cliente: ${ticket.customer_email}`);
 
       // Buscar dados do cliente
       let customer = null;
@@ -837,14 +782,10 @@ export class EmailNotificationService {
           .where(eq(customers.id, ticket.customer_id))
           .limit(1);
         
-        console.log(`[📧 EMAIL PROD] ✅ Cliente encontrado: ${customer?.name || 'N/A'} (${customer?.email || ticket.customer_email})`);
-      } else {
-        console.log(`[📧 EMAIL PROD] ℹ️  Ticket sem customer_id - usando email: ${ticket.customer_email}`);
       }
 
       // Obter URL base para a empresa
       const baseUrl = await this.getBaseUrlForCompany(ticket.company_id || undefined);
-      console.log(`[📧 EMAIL PROD] ✅ URL base obtida: ${baseUrl}`);
 
       const context: EmailNotificationContext = {
         ticket,
@@ -860,8 +801,6 @@ export class EmailNotificationService {
       };
 
       // 🔥 NOVA LÓGICA: Buscar APENAS os atendentes do departamento específico do ticket
-      console.log(`[📧 EMAIL PROD] 🔍 Buscando atendentes do departamento ${ticket.department_id}...`);
-      
       let departmentUsers = [];
       
       if (ticket.department_id) {
@@ -887,33 +826,19 @@ export class EmailNotificationService {
             ticket.company_id ? eq(users.company_id, ticket.company_id) : undefined
           ));
       } else {
-        console.log(`[📧 EMAIL PROD] ⚠️  Ticket sem department_id - pulando notificações (sistema defensivo)`);
         return;
       }
-      
-      console.log(`[📧 EMAIL PROD] 👥 Encontrados ${departmentUsers.length} atendentes do departamento para notificar:`);
       
       if (departmentUsers.length === 0) {
-        console.log(`[📧 EMAIL PROD] ⚠️  ALERTA: Nenhum atendente ativo encontrado para o departamento ${ticket.department_id} - pulando notificações`);
         return;
       }
-
-      // Listar usuários que serão notificados
-      departmentUsers.forEach(user => {
-        console.log(`[📧 EMAIL PROD] - ${user.name} (${user.email}) - Role: ${user.role}`);
-      });
 
       let emailsSent = 0;
       let emailsFailed = 0;
 
       for (const user of departmentUsers) {
-        console.log(`[📧 EMAIL PROD] -------------------------------------------`);
-        console.log(`[📧 EMAIL PROD] 📧 Processando usuário: ${user.name} (${user.email})`);
-        
         const shouldNotify = await this.shouldSendEmailToUser(user.id, 'new_ticket');
         if (shouldNotify) {
-          console.log(`[📧 EMAIL PROD] ✅ Usuário ${user.name} configurado para receber notificações`);
-          
           // 🔥 CORREÇÃO CRÍTICA: Criar contexto personalizado para cada usuário
           const personalizedContext: EmailNotificationContext = {
             ...context,
@@ -930,23 +855,11 @@ export class EmailNotificationService {
           
           if (result.success) {
             emailsSent++;
-            console.log(`[📧 EMAIL PROD] ✅ Email enviado com sucesso para ${user.name}`);
           } else {
             emailsFailed++;
-            console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email para ${user.name}: ${result.error}`);
           }
-        } else {
-          console.log(`[📧 EMAIL PROD] 🔕 Usuário ${user.name} não configurado para receber notificações`);
         }
       }
-
-                    console.log(`[📧 EMAIL PROD] ===========================================`);
-      console.log(`[📧 EMAIL PROD] 📊 RESUMO DA NOTIFICAÇÃO`);
-      console.log(`[📧 EMAIL PROD] Ticket: ${ticket.ticket_id}`);
-      console.log(`[📧 EMAIL PROD] Departamento: ${ticket.department_id}`);
-      console.log(`[📧 EMAIL PROD] Emails enviados: ${emailsSent}`);
-      console.log(`[📧 EMAIL PROD] Emails falharam: ${emailsFailed}`);
-      console.log(`[📧 EMAIL PROD] ===========================================`);
 
       // 🔥 NOVO: Notificar participantes (se houver)
       await this.notifyOtherParticipants(ticketId, 0, 'new_ticket', context);
@@ -958,11 +871,6 @@ export class EmailNotificationService {
 
   async notifyTicketAssigned(ticketId: number, assignedToId: number): Promise<void> {
     try {
-      console.log(`[📧 EMAIL PROD] ===========================================`);
-      console.log(`[📧 EMAIL PROD] 🎯 INICIANDO NOTIFICAÇÃO DE TICKET ATRIBUÍDO`);
-      console.log(`[📧 EMAIL PROD] Ticket ID: ${ticketId}`);
-      console.log(`[📧 EMAIL PROD] Atribuído para ID: ${assignedToId}`);
-      console.log(`[📧 EMAIL PROD] ===========================================`);
 
       // Buscar dados do ticket
       const [ticket] = await db
