@@ -266,6 +266,8 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
     const userId = req.session.userId;
     const userRole = req.session.userRole as string;
     
+    console.log('Reports - User info:', { userId, userRole });
+    
     if (!userId || !userRole) {
       return res.status(401).json({ message: "Usuário não autenticado" });
     }
@@ -279,6 +281,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
       if (!user || !user.company_id) {
         return res.status(403).json({ message: "Usuário sem empresa definida" });
       }
+      console.log('Reports - Company Admin - Company ID:', user.company_id);
       roleConditions.push(eq(schema.tickets.company_id, user.company_id));
     } else if (userRole === 'manager') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
@@ -383,36 +386,38 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
       return res.status(403).json({ message: "Role não reconhecido" });
     }
     
-    // Aplicar filtros de role se existirem
-    if (roleConditions.length > 0) {
-      baseQuery = baseQuery.where(and(...roleConditions)) as any;
-    }
-
-    // Apply filters
-    const conditions = [];
+    // Apply additional filters (datas, status, priority, department)
+    const additionalFilters = [];
 
     if (startDateParam) {
-      conditions.push(gte(schema.tickets.created_at, new Date(startDateParam as string)));
+      additionalFilters.push(gte(schema.tickets.created_at, new Date(startDateParam as string)));
     }
 
     if (endDateParam) {
-      conditions.push(lte(schema.tickets.created_at, new Date(endDateParam as string)));
+      additionalFilters.push(lte(schema.tickets.created_at, new Date(endDateParam as string)));
     }
 
     if (status && status !== 'all') {
-      conditions.push(eq(schema.tickets.status, status as any));
+      additionalFilters.push(eq(schema.tickets.status, status as any));
     }
 
     if (priority && priority !== 'all') {
-      conditions.push(eq(schema.tickets.priority, priority as string));
+      additionalFilters.push(eq(schema.tickets.priority, priority as string));
     }
 
     if (departmentId && departmentId !== 'all') {
-      conditions.push(eq(schema.tickets.department_id, parseInt(departmentId as string)));
+      additionalFilters.push(eq(schema.tickets.department_id, parseInt(departmentId as string)));
     }
 
-    if (conditions.length > 0) {
-      baseQuery = baseQuery.where(and(...conditions)) as any;
+    // Combinar TODAS as condições (role + filtros) em uma única cláusula WHERE
+    const allConditions = [...roleConditions, ...additionalFilters];
+    
+    console.log('Reports - Role conditions count:', roleConditions.length);
+    console.log('Reports - Additional filters count:', additionalFilters.length);
+    console.log('Reports - Total conditions count:', allConditions.length);
+    
+    if (allConditions.length > 0) {
+      baseQuery = baseQuery.where(and(...allConditions)) as any;
     }
 
     // Execute query
@@ -562,6 +567,8 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
     const userId = req.session.userId;
     const userRole = req.session.userRole as string;
     
+    console.log('Reports - User info:', { userId, userRole });
+    
     if (!userId || !userRole) {
       return res.status(401).json({ message: "Usuário não autenticado" });
     }
@@ -575,6 +582,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       if (!user || !user.company_id) {
         return res.status(403).json({ message: "Usuário sem empresa definida" });
       }
+      console.log('Reports - Company Admin - Company ID:', user.company_id);
       roleConditions.push(eq(schema.tickets.company_id, user.company_id));
     } else if (userRole === 'manager') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
@@ -679,36 +687,38 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       return res.status(403).json({ message: "Role não reconhecido" });
     }
     
-    // Aplicar filtros de role se existirem
-    if (roleConditions.length > 0) {
-      baseQuery = baseQuery.where(and(...roleConditions)) as any;
-    }
-
-    // Apply filters
-    const conditions = [];
+    // Apply additional filters (datas, status, priority, department)
+    const additionalFilters = [];
 
     if (startDateParam) {
-      conditions.push(gte(schema.tickets.created_at, new Date(startDateParam as string)));
+      additionalFilters.push(gte(schema.tickets.created_at, new Date(startDateParam as string)));
     }
 
     if (endDateParam) {
-      conditions.push(lte(schema.tickets.created_at, new Date(endDateParam as string)));
+      additionalFilters.push(lte(schema.tickets.created_at, new Date(endDateParam as string)));
     }
 
     if (status && status !== 'all') {
-      conditions.push(eq(schema.tickets.status, status as any));
+      additionalFilters.push(eq(schema.tickets.status, status as any));
     }
 
     if (priority && priority !== 'all') {
-      conditions.push(eq(schema.tickets.priority, priority as string));
+      additionalFilters.push(eq(schema.tickets.priority, priority as string));
     }
 
     if (departmentId && departmentId !== 'all') {
-      conditions.push(eq(schema.tickets.department_id, parseInt(departmentId as string)));
+      additionalFilters.push(eq(schema.tickets.department_id, parseInt(departmentId as string)));
     }
 
-    if (conditions.length > 0) {
-      baseQuery = baseQuery.where(and(...conditions)) as any;
+    // Combinar TODAS as condições (role + filtros) em uma única cláusula WHERE
+    const allConditions = [...roleConditions, ...additionalFilters];
+    
+    console.log('Reports - Role conditions count:', roleConditions.length);
+    console.log('Reports - Additional filters count:', additionalFilters.length);
+    console.log('Reports - Total conditions count:', allConditions.length);
+    
+    if (allConditions.length > 0) {
+      baseQuery = baseQuery.where(and(...allConditions)) as any;
     }
 
     // Execute query
