@@ -445,11 +445,11 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
           .where(inArray(schema.customers.id, customerIds))
       : [];
 
-    // Fetch users
-    const users = assignedToIds.length > 0
-      ? await db.select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
-          .from(schema.users)
-          .where(inArray(schema.users.id, assignedToIds))
+    // Fetch officials (NÃO users - assigned_to_id aponta para officials.id!)
+    const officials = assignedToIds.length > 0
+      ? await db.select({ id: schema.officials.id, name: schema.officials.name, email: schema.officials.email })
+          .from(schema.officials)
+          .where(inArray(schema.officials.id, assignedToIds))
       : [];
 
     // Fetch department priorities for all departments
@@ -470,7 +470,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
     // Create lookup maps
     const departmentMap = new Map(departments.map(d => [d.id, d]));
     const customerMap = new Map(customers.map(c => [c.id, c]));
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const officialMap = new Map(officials.map(o => [o.id, o]));
     
     // Create priority lookup map
     const priorityMap = new Map();
@@ -504,7 +504,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
         closed_at: ticket.closed_at ? ticket.closed_at.toISOString() : null,
         department: ticket.department_id ? departmentMap.get(ticket.department_id) || { id: ticket.department_id, name: 'N/A' } : { id: 0, name: 'N/A' },
         customer: ticket.customer_id ? customerMap.get(ticket.customer_id) || { id: ticket.customer_id, name: 'N/A', email: ticket.customer_email } : { id: 0, name: 'N/A', email: ticket.customer_email },
-        assigned_to: ticket.assigned_to_id ? userMap.get(ticket.assigned_to_id) || null : null
+        assigned_to: ticket.assigned_to_id ? officialMap.get(ticket.assigned_to_id) || null : null
       };
     });
 
@@ -743,11 +743,11 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
           .where(inArray(schema.customers.id, customerIds))
       : [];
 
-    // Fetch users
-    const users = assignedToIds.length > 0
-      ? await db.select({ id: schema.users.id, name: schema.users.name, email: schema.users.email })
-          .from(schema.users)
-          .where(inArray(schema.users.id, assignedToIds))
+    // Fetch officials (NÃO users - assigned_to_id aponta para officials.id!)
+    const officials = assignedToIds.length > 0
+      ? await db.select({ id: schema.officials.id, name: schema.officials.name, email: schema.officials.email })
+          .from(schema.officials)
+          .where(inArray(schema.officials.id, assignedToIds))
       : [];
 
     // Fetch department priorities for all departments
@@ -768,7 +768,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
     // Create lookup maps
     const departmentMap = new Map(departments.map(d => [d.id, d.name]));
     const customerMap = new Map(customers.map(c => [c.id, c.name]));
-    const userMap = new Map(users.map(u => [u.id, { name: u.name, email: u.email }]));
+    const officialMap = new Map(officials.map(o => [o.id, { name: o.name, email: o.email }]));
     
     // Create priority lookup map
     const priorityMap = new Map();
@@ -793,8 +793,8 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
         department_name: ticket.department_id ? departmentMap.get(ticket.department_id) || 'N/A' : 'N/A',
         customer_name: ticket.customer_id ? customerMap.get(ticket.customer_id) || 'N/A' : 'N/A',
         customer_email: ticket.customer_email || '',
-        assigned_to_name: ticket.assigned_to_id ? userMap.get(ticket.assigned_to_id)?.name || 'N/A' : 'Não atribuído',
-        assigned_to_email: ticket.assigned_to_id ? userMap.get(ticket.assigned_to_id)?.email || '' : '',
+              assigned_to_name: ticket.assigned_to_id ? officialMap.get(ticket.assigned_to_id)?.name || 'N/A' : 'Não atribuído',
+      assigned_to_email: ticket.assigned_to_id ? officialMap.get(ticket.assigned_to_id)?.email || '' : '',
         priority_weight: priorityInfo?.weight,
         priority_color: priorityInfo?.color,
         priority_name: priorityInfo?.name
