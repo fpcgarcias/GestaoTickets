@@ -926,26 +926,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
           }
         }
         
-        // Se for erro de dependências do Chrome no servidor, retornar CSV como alternativa
-        if (pdfError?.message?.includes('Failed to launch the browser') || 
-            pdfError?.message?.includes('libatk') ||
-            pdfError?.message?.includes('chrome')) {
-          
-          console.log('Chrome dependencies missing, falling back to CSV export...');
-          
-          // Gerar CSV como alternativa
-          const csvContent = [
-            exportHeaders.join(','),
-            ...exportRows.map(row => 
-              row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(',')
-            )
-          ].join('\n');
-          
-          res.type('text/csv');
-          res.setHeader('Content-Disposition', 'attachment; filename=relatorio-chamados-PDF-INDISPONIVEL.csv');
-          res.setHeader('X-PDF-Fallback-Reason', 'Chrome dependencies missing on server');
-          return res.send('\uFEFF' + csvContent); // UTF-8 BOM para Excel
-        }
+
         
         return res.status(500).json({ 
           error: 'Erro ao gerar PDF', 
