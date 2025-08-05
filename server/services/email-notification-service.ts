@@ -1039,12 +1039,23 @@ export class EmailNotificationService {
           if (assignedOfficial) {
             const shouldNotify = assignedOfficial.user_id ? await this.shouldSendEmailToUser(assignedOfficial.user_id, 'ticket_reply') : false;
             if (shouldNotify) {
+              // 🔥 CORREÇÃO: Criar contexto personalizado para o responsável
+              const assignedOfficialContext: EmailNotificationContext = {
+                ...context,
+                user: {
+                  id: assignedOfficial.user_id || 0,
+                  name: assignedOfficial.name,
+                  email: assignedOfficial.email,
+                  role: 'support'
+                }
+              };
+              
               await this.sendEmailNotification(
                 'ticket_reply',
                 assignedOfficial.email,
-                context,
+                assignedOfficialContext,
                 ticket.company_id!,
-                // Se precisar de role, buscar na tabela users pelo assignedOfficial.user_id
+                'support'
               );
             }
           }
@@ -1053,10 +1064,21 @@ export class EmailNotificationService {
           if (customer) {
             const shouldNotify = typeof customer.id === 'number' ? await this.shouldSendEmailToUser(customer.id, 'ticket_reply') : false;
             if (shouldNotify) {
+              // 🔥 CORREÇÃO: Criar contexto personalizado para o cliente
+              const customerContext: EmailNotificationContext = {
+                ...context,
+                user: {
+                  id: customer.id,
+                  name: customer.name,
+                  email: customer.email,
+                  role: 'customer'
+                }
+              };
+              
               await this.sendEmailNotification(
                 'ticket_reply',
                 customer.email,
-                context,
+                customerContext,
                 ticket.company_id!,
                 'customer'
               );
@@ -1133,10 +1155,21 @@ export class EmailNotificationService {
           if (shouldNotify) {
             console.log(`[📧 EMAIL PROD] ✅ Atendente ${user.name} configurado para receber notificações`);
             
+            // 🔥 CORREÇÃO: Criar contexto personalizado para o atendente
+            const userContext: EmailNotificationContext = {
+              ...context,
+              user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+              }
+            };
+            
             const result = await this.sendEmailNotification(
               'ticket_reply',
               user.email,
-              context,
+              userContext,
               ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
               user.role // Passar a role do atendente para validação
             );
@@ -1266,12 +1299,23 @@ export class EmailNotificationService {
           if (assignedOfficial) {
             const shouldNotify = assignedOfficial.user_id ? await this.shouldSendEmailToUser(assignedOfficial.user_id, 'status_changed') : false;
             if (shouldNotify) {
+              // 🔥 CORREÇÃO: Criar contexto personalizado para o responsável
+              const assignedOfficialContext: EmailNotificationContext = {
+                ...context,
+                user: {
+                  id: assignedOfficial.user_id || 0,
+                  name: assignedOfficial.name,
+                  email: assignedOfficial.email,
+                  role: 'support' // Assumir role padrão para officials
+                }
+              };
+              
               await this.sendEmailNotification(
                 'status_changed',
                 assignedOfficial.email,
-                context,
+                assignedOfficialContext,
                 ticket.company_id!,
-                // Se precisar de role, buscar na tabela users pelo assignedOfficial.user_id
+                'support'
               );
             }
           }
@@ -1280,10 +1324,21 @@ export class EmailNotificationService {
         if (customer) {
           const shouldNotify = await this.shouldSendEmailToUser(customer.id, newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed');
           if (shouldNotify) {
+            // 🔥 CORREÇÃO: Criar contexto personalizado para o cliente
+            const customerContext: EmailNotificationContext = {
+              ...context,
+              user: {
+                id: customer.id,
+                name: customer.name,
+                email: customer.email,
+                role: 'customer'
+              }
+            };
+            
             await this.sendEmailNotification(
               newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed',
               customer.email,
-              context,
+              customerContext,
               ticket.company_id!,
               'customer'
             );
@@ -1317,10 +1372,21 @@ export class EmailNotificationService {
           : true;
 
         if (shouldNotify) {
+          // 🔥 CORREÇÃO: Criar contexto personalizado para o cliente
+          const customerContext: EmailNotificationContext = {
+            ...context,
+            user: customerUser || {
+              id: 0,
+              name: customer?.name || 'Cliente',
+              email: ticket.customer_email,
+              role: 'customer'
+            }
+          };
+          
           const result = await this.sendEmailNotification(
             newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed',
             ticket.customer_email,
-            context,
+            customerContext,
             ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
             customerUser?.role || 'customer' // Passar a role do cliente para validação
           );
