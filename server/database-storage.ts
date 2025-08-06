@@ -1508,15 +1508,27 @@ export class DatabaseStorage implements IStorage {
       // Calcular tempo útil (horário comercial, dias úteis, descontando pausas) para cada ticket
       const totalResponseTime = ticketsWithFirstResponse.map((ticket) => {
         const createdAt = new Date(ticket.created_at);
-        // Se não tem first_response_at, usar resolved_at como primeira resposta
-        const firstResponseAt = new Date(ticket.first_response_at || ticket.resolved_at!);
+        // LÓGICA CORRETA: Se tem first_response_at, usa ele. Se não tem, usa resolved_at
+        let firstResponseAt: Date;
+        if (ticket.first_response_at) {
+          firstResponseAt = new Date(ticket.first_response_at);
+        } else {
+          firstResponseAt = new Date(ticket.resolved_at!);
+        }
         
         // Buscar status history do ticket
         const statusHistory = statusMap.get(ticket.id) || [];
         
-        // Definir tipo TicketStatus localmente se necessário
+        // CORREÇÃO: Para primeira resposta, criar períodos apenas até firstResponseAt
         const statusPeriods = convertStatusHistoryToPeriods(createdAt, ticket.status as TicketStatus, statusHistory);
-        const effectiveTimeMs = calculateEffectiveBusinessTime(createdAt, firstResponseAt, statusPeriods, businessHours);
+        
+        // Limitar o cálculo apenas até firstResponseAt (não até resolved_at)
+        const limitedPeriods = statusPeriods.map(period => ({
+          ...period,
+          endTime: new Date(Math.min(new Date(period.endTime).getTime(), firstResponseAt.getTime()))
+        })).filter(period => new Date(period.startTime) < firstResponseAt);
+        
+        const effectiveTimeMs = calculateEffectiveBusinessTime(createdAt, firstResponseAt, limitedPeriods, businessHours);
         
         return effectiveTimeMs / (1000 * 60 * 60); // converter para horas
       });

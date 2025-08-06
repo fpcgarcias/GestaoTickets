@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\GitHub\\GestaoTickets\\logs\\.936fcc8486af04eec243233a2038b7cc8d80d830-audit.json",
+    "files": [
+        {
+            "date": 1754488259627,
+            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-08-06.log",
+            "hash": "e8e19d6ade2776128eb43b6b7112a0e6397f14d7734ee99c9685f0f4e2bc4ef9"
+        }
+    ],
+    "hashType": "sha256"
+}
