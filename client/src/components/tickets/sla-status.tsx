@@ -12,6 +12,7 @@ import { Clock, Target, CheckCircle, AlertTriangle, Info, Pause, XCircle } from 
 import { useTicketWithSLA, slaUtils } from '@/hooks/use-sla';
 import { usePriorities } from '@/hooks/use-priorities';
 import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
+import { addBusinessTime, getBusinessHoursConfig } from '@shared/utils/sla-calculator';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -108,6 +109,34 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
     return format(new Date(dateStr), 'dd/MM/yyyy \'às\' HH:mm', { locale: ptBR });
   };
 
+  // 🔥 NOVA FUNÇÃO: Verificar se a primeira resposta foi excedida
+  const isFirstResponseOverdue = () => {
+    if (!firstResponseAt || !ticketSLAInfo) return false;
+    
+    const responseDate = new Date(firstResponseAt);
+    const createdDate = new Date(createdAt);
+    
+    // Usar o mesmo sistema de horário comercial que o SLA usa
+    const businessHours = getBusinessHoursConfig();
+    const responseDeadline = addBusinessTime(createdDate, sla.responseTimeHours, businessHours);
+    
+    return responseDate > responseDeadline;
+  };
+
+  // 🔥 NOVA FUNÇÃO: Verificar se a resolução foi excedida
+  const isResolutionOverdue = () => {
+    if (!resolvedAt || !ticketSLAInfo) return false;
+    
+    const resolutionDate = new Date(resolvedAt);
+    const createdDate = new Date(createdAt);
+    
+    // Usar o mesmo sistema de horário comercial que o SLA usa
+    const businessHours = getBusinessHoursConfig();
+    const resolutionDeadline = addBusinessTime(createdDate, sla.resolutionTimeHours, businessHours);
+    
+    return resolutionDate > resolutionDeadline;
+  };
+
   const getStatusIcon = () => {
     if (isFinished) return <CheckCircle className="h-5 w-5 text-green-600" />;
     if (isPaused) return <Pause className="h-5 w-5 text-orange-600" />;
@@ -174,19 +203,19 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
               <div className="text-sm font-medium">
                 {sla.responseTimeHours}h prazo
               </div>
-              {firstResponseAt ? (
-                <div className="text-xs text-green-600">
-                  Respondido em {formatDateTime(firstResponseAt)}
-                </div>
-              ) : status !== 'new' ? (
-                <div className="text-xs text-green-600">
-                  Início de atendimento realizado
-                </div>
-              ) : (
-                <div className={`text-xs ${slaUtils.getSLAStatusColor(slaStatus.responseTimeRemaining, slaStatus.isResponseOverdue)}`}>
-                  {slaUtils.formatTimeRemaining(slaStatus.responseTimeRemaining)}
-                </div>
-              )}
+                             {firstResponseAt ? (
+                 <div className={`text-xs ${isFirstResponseOverdue() ? 'text-red-600' : 'text-green-600'}`}>
+                   Respondido em {formatDateTime(firstResponseAt)}
+                 </div>
+               ) : status !== 'new' ? (
+                 <div className="text-xs text-green-600">
+                   Início de atendimento realizado
+                 </div>
+               ) : (
+                 <div className={`text-xs ${slaUtils.getSLAStatusColor(slaStatus.responseTimeRemaining, slaStatus.isResponseOverdue)}`}>
+                   {slaUtils.formatTimeRemaining(slaStatus.responseTimeRemaining)}
+                 </div>
+               )}
             </div>
           </div>
           
@@ -196,21 +225,23 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
             // @ts-ignore
             style={{
               '--progress-foreground': firstResponseAt 
-                ? 'hsl(142, 76%, 36%)' // Verde se respondido
-                : slaStatus.isResponseOverdue 
-                  ? 'hsl(0, 84%, 60%)' // Vermelho se atrasado
-                  : slaStatus.responseTimeRemaining < 2
-                    ? 'hsl(25, 95%, 53%)' // Laranja se crítico
-                    : 'hsl(221, 83%, 53%)' // Azul se normal
+                ? (isFirstResponseOverdue() ? 'hsl(0, 84%, 60%)' : 'hsl(142, 76%, 36%)') // Vermelho se excedido, verde se no prazo
+                : status !== 'new'
+                  ? 'hsl(142, 76%, 36%)' // Verde se já foi respondido (sem firstResponseAt)
+                  : slaStatus.isResponseOverdue 
+                    ? 'hsl(0, 84%, 60%)' // Vermelho se atrasado
+                    : slaStatus.responseTimeRemaining < 2
+                      ? 'hsl(25, 95%, 53%)' // Laranja se crítico
+                      : 'hsl(221, 83%, 53%)' // Azul se normal
             }}
           />
           
-          {firstResponseAt && (
-            <div className="flex items-center gap-1 text-xs text-green-600">
-              <CheckCircle className="h-3 w-3" />
-              <span>Início de atendimento realizado</span>
-            </div>
-          )}
+                     {firstResponseAt && (
+             <div className={`flex items-center gap-1 text-xs ${isFirstResponseOverdue() ? 'text-red-600' : 'text-green-600'}`}>
+               <CheckCircle className="h-3 w-3" />
+               <span>{isFirstResponseOverdue() ? 'Início de atendimento realizado fora do prazo do SLA' : 'Início de atendimento realizado'}</span>
+             </div>
+           )}
         </div>
 
         <Separator />
@@ -226,45 +257,45 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
               <div className="text-sm font-medium">
                 {sla.resolutionTimeHours}h prazo
               </div>
-              {resolvedAt ? (
-                <div className="text-xs text-green-600">
-                  Resolvido em {formatDateTime(resolvedAt)}
-                </div>
-              ) : isPaused ? (
-                <div className="text-xs text-orange-600">
-                  SLA pausado
-                </div>
-              ) : (
-                <div className={`text-xs ${slaUtils.getSLAStatusColor(slaStatus.resolutionTimeRemaining, slaStatus.isResolutionOverdue)}`}>
-                  {slaUtils.formatTimeRemaining(slaStatus.resolutionTimeRemaining)}
-                </div>
-              )}
+                             {resolvedAt ? (
+                 <div className={`text-xs ${isResolutionOverdue() ? 'text-red-600' : 'text-green-600'}`}>
+                   Resolvido em {formatDateTime(resolvedAt)}
+                 </div>
+               ) : isPaused ? (
+                 <div className="text-xs text-orange-600">
+                   SLA pausado
+                 </div>
+               ) : (
+                 <div className={`text-xs ${slaUtils.getSLAStatusColor(slaStatus.resolutionTimeRemaining, slaStatus.isResolutionOverdue)}`}>
+                   {slaUtils.formatTimeRemaining(slaStatus.resolutionTimeRemaining)}
+                 </div>
+               )}
             </div>
           </div>
           
-          <Progress 
-            value={resolvedAt ? 100 : resolutionProgress} 
-            className="h-2" 
-            // @ts-ignore
-            style={{
-              '--progress-foreground': resolvedAt 
-                ? 'hsl(142, 76%, 36%)' // Verde se resolvido
-                : isPaused 
-                  ? 'hsl(25, 95%, 53%)' // Laranja se pausado
-                  : slaStatus.isResolutionOverdue 
-                    ? 'hsl(0, 84%, 60%)' // Vermelho se atrasado
-                    : slaStatus.resolutionTimeRemaining < 2
-                      ? 'hsl(25, 95%, 53%)' // Laranja se crítico
-                      : 'hsl(142, 76%, 36%)' // Verde se normal
-            }}
-          />
+                     <Progress 
+             value={resolvedAt ? 100 : resolutionProgress} 
+             className="h-2" 
+             // @ts-ignore
+             style={{
+               '--progress-foreground': resolvedAt 
+                 ? (isResolutionOverdue() ? 'hsl(0, 84%, 60%)' : 'hsl(142, 76%, 36%)') // Vermelho se excedido, verde se no prazo
+                 : isPaused 
+                   ? 'hsl(25, 95%, 53%)' // Laranja se pausado
+                   : slaStatus.isResolutionOverdue 
+                     ? 'hsl(0, 84%, 60%)' // Vermelho se atrasado
+                     : slaStatus.resolutionTimeRemaining < 2
+                       ? 'hsl(25, 95%, 53%)' // Laranja se crítico
+                       : 'hsl(142, 76%, 36%)' // Verde se normal
+             }}
+           />
           
-          {resolvedAt ? (
-            <div className="flex items-center gap-1 text-xs text-green-600">
-              <CheckCircle className="h-3 w-3" />
-              <span>Chamado resolvido</span>
-            </div>
-          ) : isPaused ? (
+                     {resolvedAt ? (
+             <div className={`flex items-center gap-1 text-xs ${isResolutionOverdue() ? 'text-red-600' : 'text-green-600'}`}>
+               <CheckCircle className="h-3 w-3" />
+               <span>{isResolutionOverdue() ? 'Chamado resolvido fora do prazo do SLA' : 'Chamado resolvido'}</span>
+             </div>
+           ) : isPaused ? (
             <div className="flex items-center gap-1 text-xs text-orange-600">
               <Pause className="h-3 w-3" />
               <span>SLA pausado pelo status atual</span>
