@@ -850,7 +850,7 @@ export class EmailNotificationService {
             user.email,
             personalizedContext,
             ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
-            user.role // Passar a role do usuário para validação
+            undefined // 🔥 CORREÇÃO: Não passar role para validação em notificações de novo ticket
           );
           
           if (result.success) {
