@@ -1716,13 +1716,27 @@ export class EmailNotificationService {
       const baseUrl = await this.getBaseUrlForCompany(ticket.company_id !== null && ticket.company_id !== undefined ? ticket.company_id : undefined);
       console.log(`[📧 EMAIL PROD] ✅ URL base obtida: ${baseUrl}`);
 
+      // Criar mensagem baseada nas horas até o vencimento
+      let message = '';
+      if (hoursUntilDue <= 1) {
+        message = `Este ticket vence em menos de 1 hora. Ação imediata é necessária.`;
+      } else if (hoursUntilDue <= 4) {
+        message = `Este ticket vence em ${hoursUntilDue} horas. Atenção urgente necessária.`;
+      } else if (hoursUntilDue <= 24) {
+        message = `Este ticket vence em ${hoursUntilDue} horas. Verifique o status e tome as ações necessárias.`;
+      } else {
+        const days = Math.ceil(hoursUntilDue / 24);
+        message = `Este ticket vence em aproximadamente ${days} dias. Verifique o progresso.`;
+      }
+
       const context: EmailNotificationContext = {
         ticket,
         customer: customer || { name: 'Cliente', email: ticket.customer_email },
         system: {
           base_url: baseUrl,
           company_name: 'Sistema de Tickets',
-          support_email: 'suporte@ticketwise.com.br'
+          support_email: 'suporte@ticketwise.com.br',
+          message: message
         }
       };
 
@@ -1737,12 +1751,24 @@ export class EmailNotificationService {
         if (assignedOfficial) {
           const shouldNotify = assignedOfficial.user_id ? await this.shouldSendEmailToUser(assignedOfficial.user_id, 'ticket_due_soon') : false;
           if (shouldNotify) {
+            // Buscar dados do usuário para incluir no contexto
+            const [userData] = await db
+              .select()
+              .from(users)
+              .where(eq(users.id, assignedOfficial.user_id))
+              .limit(1);
+            
+            const userContext = {
+              ...context,
+              user: userData || { name: assignedOfficial.name, email: assignedOfficial.email }
+            };
+            
             await this.sendEmailNotification(
               'ticket_due_soon',
               assignedOfficial.email,
-              context,
+              userContext,
               ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
-              // Se precisar de role, buscar na tabela users pelo assignedOfficial.user_id
+              userData?.role // Passar a role do usuário para validação
             );
           }
         }
@@ -1806,10 +1832,16 @@ export class EmailNotificationService {
         if (shouldNotify) {
           console.log(`[📧 EMAIL PROD] ✅ Atendente ${user.name} configurado para receber notificações`);
           
+          // Criar contexto específico para este usuário
+          const userContext = {
+            ...context,
+            user: user
+          };
+          
           const result = await this.sendEmailNotification(
             'ticket_due_soon',
             user.email,
-            context,
+            userContext,
             ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
             user.role // Passar a role do atendente para validação
           );
