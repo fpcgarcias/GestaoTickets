@@ -1,9 +1,17 @@
 import { db } from '../db';
-import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, slaDefinitions, companies, ticketParticipants, systemSettings } from '@shared/schema';
+import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, slaDefinitions, companies, ticketParticipants, systemSettings, ticketStatusHistory } from '@shared/schema';
 import { eq, and, isNull, inArray, not, ne, or, gte } from 'drizzle-orm';
 import { emailConfigService } from './email-config-service';
 import nodemailer from 'nodemailer';
 import { PriorityService } from "./priority-service";
+import { slaService } from './sla-service';
+import { 
+  calculateEffectiveBusinessTime,
+  convertStatusHistoryToPeriods,
+  getBusinessHoursConfig,
+  addBusinessTime
+} from '@shared/utils/sla-calculator';
+import { isSlaPaused, type TicketStatus } from '@shared/ticket-utils';
 
 export interface EmailNotificationContext {
   ticket?: any;
@@ -1542,7 +1550,7 @@ export class EmailNotificationService {
         [escalatedByUser] = await db
           .select()
           .from(users)
-          .where(and(eq(users.id, escalatedByUserId), eq(users.active, true)))
+          .where(and(eq(users.id, Number(escalatedByUserId)), eq(users.active, true)))
           .limit(1);
         
         console.log(`[📧 EMAIL PROD] ✅ Usuário que escalou encontrado: ${escalatedByUser?.name || 'N/A'}`);
@@ -1751,18 +1759,22 @@ export class EmailNotificationService {
         if (assignedOfficial) {
           const shouldNotify = assignedOfficial.user_id ? await this.shouldSendEmailToUser(assignedOfficial.user_id, 'ticket_due_soon') : false;
           if (shouldNotify) {
-            // Buscar dados do usuário para incluir no contexto
-            const [userData] = await db
-              .select()
-              .from(users)
-              .where(eq(users.id, assignedOfficial.user_id))
-              .limit(1);
-            
+            // Buscar dados do usuário para incluir no contexto (somente se houver user_id)
+            let userData: any | undefined = undefined;
+            if (assignedOfficial.user_id) {
+              const result = await db
+                .select()
+                .from(users)
+                .where(and(eq(users.id, Number(assignedOfficial.user_id)), eq(users.active, true)))
+                .limit(1);
+              userData = result[0];
+            }
+
             const userContext = {
               ...context,
               user: userData || { name: assignedOfficial.name, email: assignedOfficial.email }
             };
-            
+
             await this.sendEmailNotification(
               'ticket_due_soon',
               assignedOfficial.email,
@@ -2091,33 +2103,39 @@ export class EmailNotificationService {
         return (companyId: number) => companyId === specificId;
       };
 
-      // Buscar tickets em andamento que ainda não venceram
-      const ongoingTickets = await db
+      // Buscar tickets ativos (qualquer status não resolvido) que ainda não violaram SLA
+      const activeTickets = await db
         .select({
           id: tickets.id,
           priority: tickets.priority,
           created_at: tickets.created_at,
           company_id: tickets.company_id,
+          department_id: tickets.department_id,
+          incident_type_id: tickets.incident_type_id,
+          category_id: tickets.category_id,
+          status: tickets.status,
+          first_response_at: tickets.first_response_at,
+          resolved_at: tickets.resolved_at,
           sla_breached: tickets.sla_breached
         })
         .from(tickets)
         .where(
           and(
-            eq(tickets.status, 'ongoing'),
+            ne(tickets.status, 'resolved' as any),
             eq(tickets.sla_breached, false)
           )
         );
 
       // Aplicar filtro de empresa se fornecido
       const companyFilterFn = parseCompanyFilter(companyFilter || '*');
-      const filteredTickets = ongoingTickets.filter(ticket => 
+      const filteredTickets = activeTickets.filter((ticket: any) => 
         ticket.company_id ? companyFilterFn(ticket.company_id) : false
       );
 
       // Log das empresas que estão sendo processadas
-      const processedCompanies = filteredTickets
-        .map(t => t.company_id)
-        .filter((id, index, arr) => id !== null && arr.indexOf(id) === index)
+      const processedCompanies = (filteredTickets as any[])
+        .map((t: any) => t.company_id)
+        .filter((id: any, index: number, arr: any[]) => id !== null && arr.indexOf(id) === index)
         .sort();
       console.log(`[Email] Filtro aplicado: ${companyFilter || '*'}`);
       console.log(`[Email] Processando ${filteredTickets.length} tickets de ${processedCompanies.length} empresas: [${processedCompanies.join(', ')}]`);
@@ -2125,79 +2143,101 @@ export class EmailNotificationService {
       const now = new Date();
 
       for (const ticket of filteredTickets) {
-        // Buscar SLA específico para a prioridade e empresa do ticket
-        let slaHours = 24; // Valor padrão
-        
-        try {
-          const [slaDefinition] = await db
-            .select()
-            .from(slaDefinitions)
-            .where(
-              and(
-                eq(slaDefinitions.priority, ticket.priority),
-                ticket.company_id 
-                  ? eq(slaDefinitions.company_id, ticket.company_id)
-                  : isNull(slaDefinitions.company_id)
-              )
-            )
-            .limit(1);
-
-          if (slaDefinition && slaDefinition.response_time_hours) {
-            slaHours = slaDefinition.response_time_hours;
-          }
-        } catch (slaError) {
-          console.warn(`[Email] Erro ao buscar SLA para ticket ${ticket.id}:`, slaError);
+        // Se faltar dados essenciais, pular
+        if (!ticket.company_id || !ticket.department_id || !ticket.incident_type_id) {
+          continue;
         }
 
-        // Calcular horas decorridas e restantes
+        // Se o status atual pausa o SLA, não notificar nem escalar
+        const currentStatus = ticket.status as TicketStatus;
+        if (isSlaPaused(currentStatus)) {
+          continue;
+        }
+
+        // Resolver configuração de SLA completa (response e resolution)
+        const resolvedSLA = await slaService.getTicketSLA(
+          ticket.company_id,
+          ticket.department_id,
+          ticket.incident_type_id,
+          ticket.priority,
+          ticket.category_id || undefined
+        );
+
+        if (!resolvedSLA) {
+          // Sem SLA configurado para o ticket
+          continue;
+        }
+
+        // Buscar histórico de status para calcular tempo efetivo (pausando waiting_customer etc.)
+        const statusHistory = await db
+          .select()
+          .from(ticketStatusHistory)
+          .where(eq(ticketStatusHistory.ticket_id, ticket.id));
+
+        const businessHours = getBusinessHoursConfig();
+        const statusPeriods = convertStatusHistoryToPeriods(new Date(ticket.created_at), currentStatus, statusHistory);
+
         const createdAt = new Date(ticket.created_at);
-        const hoursElapsed = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
-        const hoursRemaining = slaHours - hoursElapsed;
 
-        // Definir threshold de notificação baseado na prioridade/SLA
-        let notificationThreshold: number;
-        
-        if (ticket.priority === 'critical') {
-          // Para críticos: notificar quando restar 25% do tempo (mínimo 1h)
-          notificationThreshold = Math.max(1, slaHours * 0.25);
-        } else if (ticket.priority === 'high') {
-          // Para altos: notificar quando restar 20% do tempo (mínimo 2h)
-          notificationThreshold = Math.max(2, slaHours * 0.20);
-        } else if (ticket.priority === 'medium') {
-          // Para médios: notificar quando restar 15% do tempo (mínimo 3h)
-          notificationThreshold = Math.max(3, slaHours * 0.15);
+        // Decidir qual SLA aplicar: primeira resposta para 'new' sem first_response_at; caso contrário, resolução
+        let targetSlaHours = 0;
+        let elapsedMs = 0;
+        let slaType: 'response' | 'resolution' = 'resolution';
+
+        if (currentStatus === 'new' && !ticket.first_response_at) {
+          // Ainda aguardando primeira resposta
+          slaType = 'response';
+          targetSlaHours = resolvedSLA.responseTimeHours;
+          elapsedMs = calculateEffectiveBusinessTime(createdAt, now, statusPeriods, businessHours);
         } else {
-          // Para baixos: notificar quando restar 10% do tempo (mínimo 4h)
-          notificationThreshold = Math.max(4, slaHours * 0.10);
+          // Contar SLA de resolução até agora (se não resolvido)
+          slaType = 'resolution';
+          targetSlaHours = resolvedSLA.resolutionTimeHours;
+          elapsedMs = calculateEffectiveBusinessTime(createdAt, now, statusPeriods, businessHours);
         }
 
-        console.log(`[Email] Ticket ${ticket.id} - Prioridade: ${ticket.priority}, SLA: ${slaHours}h, Restante: ${hoursRemaining.toFixed(1)}h, Threshold: ${notificationThreshold.toFixed(1)}h`);
+        // Converter para horas
+        const elapsedHours = elapsedMs / (1000 * 60 * 60);
+        const hoursRemaining = Math.max(0, targetSlaHours - elapsedHours);
 
-        // Notificar se estiver próximo do vencimento
+        // Definir threshold de notificação baseado na prioridade/tempo
+        let notificationThreshold: number;
+        const priorityKey = (ticket.priority || '').toString().toLowerCase();
+        if (priorityKey === 'critical' || priorityKey === 'crítica') {
+          notificationThreshold = Math.max(1, targetSlaHours * 0.25);
+        } else if (priorityKey === 'high' || priorityKey === 'alta') {
+          notificationThreshold = Math.max(2, targetSlaHours * 0.20);
+        } else if (priorityKey === 'medium' || priorityKey === 'média' || priorityKey === 'media') {
+          notificationThreshold = Math.max(3, targetSlaHours * 0.15);
+        } else {
+          notificationThreshold = Math.max(4, targetSlaHours * 0.10);
+        }
+
+        const dueDate = addBusinessTime(createdAt, targetSlaHours, businessHours);
+        const typeLabel = slaType === 'response' ? 'Primeira Resposta' : 'Resolução';
+        console.log(`[Email] Ticket ${ticket.id} - ${typeLabel} | Prioridade: ${ticket.priority}, SLA: ${targetSlaHours}h, Restante: ${hoursRemaining.toFixed(1)}h, Vencimento: ${dueDate.toISOString()}, Threshold: ${notificationThreshold.toFixed(1)}h`);
+
+        // Notificar se estiver próximo do vencimento (apenas quando SLA ativo)
         if (hoursRemaining > 0 && hoursRemaining <= notificationThreshold) {
-          console.log(`[Email] Notificando vencimento próximo para ticket ${ticket.id}`);
           await this.notifyTicketDueSoon(ticket.id, Math.round(hoursRemaining));
         }
 
         // Marcar como vencido e escalar se passou do prazo
-        if (hoursRemaining <= 0) {
-          console.log(`[Email] Ticket ${ticket.id} violou SLA, escalando automaticamente`);
-          
+        if (elapsedHours >= targetSlaHours) {
           await db
             .update(tickets)
             .set({ sla_breached: true })
             .where(eq(tickets.id, ticket.id));
 
-          // Escalar automaticamente
           await this.notifyTicketEscalated(
             ticket.id,
             undefined,
-            `Ticket escalado automaticamente por violação de SLA (${slaHours}h). Tempo decorrido: ${hoursElapsed.toFixed(1)}h`
+            `Ticket escalado automaticamente por violação de SLA de ${typeLabel} (${targetSlaHours}h). Tempo efetivo decorrido: ${elapsedHours.toFixed(1)}h`
           );
         }
       }
 
-      console.log(`[Email] Verificação concluída. Analisados ${filteredTickets.length} tickets em andamento (de ${ongoingTickets.length} total).`);
+      console.log(`[Email] Verificação concluída. Analisados ${filteredTickets.length} tickets ativos (de ${activeTickets.length} total).`);
 
     } catch (error) {
       console.error('Erro ao verificar tickets próximos do vencimento:', error);
