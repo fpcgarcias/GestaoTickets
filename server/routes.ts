@@ -1316,7 +1316,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         department_id,
         customer_email,
         customer_id,
-        type
+        type,
+        incident_type_id,
+        category_id
       } = req.body;
 
       const updateData: any = {};
@@ -1330,6 +1332,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       if (customer_email !== undefined) updateData.customer_email = customer_email;
       if (customer_id !== undefined) updateData.customer_id = customer_id;
       if (type !== undefined) updateData.type = type;
+      if (incident_type_id !== undefined) updateData.incident_type_id = incident_type_id;
+      if (category_id !== undefined) updateData.category_id = category_id;
 
       // 🔥 VALIDAÇÃO ESPECIAL PARA MUDANÇA DE STATUS
       let statusChanged = false;
@@ -1361,6 +1365,42 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       if (Object.keys(updateData).length === 0) {
         return res.status(400).json({ message: "Nenhum dado válido para atualizar" });
+      }
+
+      // 🔎 Validação: quando alterar dept/type/categoria, garantir regra de obrigatoriedade
+      try {
+        const effectiveDepartmentId = department_id ?? existingTicket.department_id;
+        const effectiveIncidentTypeId = incident_type_id ?? existingTicket.incident_type_id;
+        const effectiveCategoryId = category_id ?? existingTicket.category_id;
+
+        if (effectiveDepartmentId && effectiveIncidentTypeId) {
+          const [dept] = await db
+            .select({ sla_mode: schema.departments.sla_mode })
+            .from(schema.departments)
+            .where(eq(schema.departments.id, effectiveDepartmentId))
+            .limit(1);
+          const isCategoryMode = dept?.sla_mode === 'category';
+          if (isCategoryMode) {
+            const activeCategories = await db
+              .select({ id: schema.categories.id })
+              .from(schema.categories)
+              .where(and(
+                eq(schema.categories.incident_type_id, effectiveIncidentTypeId),
+                eq(schema.categories.is_active, true)
+              ))
+              .limit(1);
+            const hasActiveCategories = activeCategories.length > 0;
+            if (hasActiveCategories && !effectiveCategoryId) {
+              return res.status(400).json({
+                error: 'Categoria obrigatória',
+                message: 'Seleção de categoria obrigatória para o Departamento. Selecione uma categoria para o tipo de chamado informado.'
+              });
+            }
+          }
+        }
+      } catch (validationError) {
+        console.error('[Tickets] Erro ao validar categoria obrigatória (PUT):', validationError);
+        return res.status(500).json({ error: 'Erro ao validar categoria obrigatória' });
       }
 
       // Atualizar o ticket
@@ -1437,7 +1477,42 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         }
               }
         
-        // 🤖 ANÁLISE DE PRIORIDADE COM IA ANTES DE SALVAR O TICKET
+      // 🔎 Validação: categoria obrigatória por modo do departamento
+      try {
+        if (ticketData.department_id && ticketData.incident_type_id) {
+          const [dept] = await db
+            .select({ sla_mode: schema.departments.sla_mode })
+            .from(schema.departments)
+            .where(eq(schema.departments.id, ticketData.department_id))
+            .limit(1);
+          const isCategoryMode = dept?.sla_mode === 'category';
+
+          if (isCategoryMode) {
+            // Verificar se existem categorias ativas para o tipo selecionado
+            const activeCategories = await db
+              .select({ id: schema.categories.id })
+              .from(schema.categories)
+              .where(and(
+                eq(schema.categories.incident_type_id, ticketData.incident_type_id),
+                eq(schema.categories.is_active, true)
+              ))
+              .limit(1);
+
+            const hasActiveCategories = activeCategories.length > 0;
+            if (hasActiveCategories && !ticketData.category_id) {
+              return res.status(400).json({
+                error: 'Categoria obrigatória',
+                message: 'Este departamento usa SLA por categoria. Selecione uma categoria para o tipo de chamado informado.'
+              });
+            }
+          }
+        }
+      } catch (validationError) {
+        console.error('[Tickets] Erro ao validar requisito de categoria:', validationError);
+        return res.status(500).json({ error: 'Erro ao validar categoria obrigatória' });
+      }
+
+      // 🤖 ANÁLISE DE PRIORIDADE COM IA ANTES DE SALVAR O TICKET
         let finalPriority = ticketData.priority || null;
         
         // ✅ CRIAR O TICKET PRIMEIRO (com prioridade padrão)
@@ -2470,10 +2545,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         for (const department of departments) {
           console.log(`Adicionando departamento ${department} ao atendente ${official.id}`);
           
-          // Buscar o ID do departamento pelo nome
+          // Buscar o ID do departamento pelo nome, restrito à empresa do atendente
           const [dept] = await db.select({ id: schema.departments.id })
             .from(schema.departments)
-            .where(eq(schema.departments.name, department));
+            .where(
+              and(
+                eq(schema.departments.name, department),
+                dataWithDepartment.company_id ? eq(schema.departments.company_id, dataWithDepartment.company_id) : isNull(schema.departments.company_id)
+              )
+            );
             
           if (dept) {
             await storage.addOfficialDepartment({
@@ -2669,10 +2749,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         
         // Adicionar novos departamentos
         for (const department of departments) {
-          // Buscar o ID do departamento pelo nome
+          // Buscar o ID do departamento pelo nome, restrito à empresa do atendente
           const [dept] = await db.select({ id: schema.departments.id })
             .from(schema.departments)
-            .where(eq(schema.departments.name, department));
+            .where(
+              and(
+                eq(schema.departments.name, department),
+                effectiveCompanyId ? eq(schema.departments.company_id, effectiveCompanyId) : isNull(schema.departments.company_id)
+              )
+            );
             
           if (dept) {
             await storage.addOfficialDepartment({
@@ -4063,7 +4148,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     authorize(['admin', 'company_admin', 'manager']), 
     async (req: Request, res: Response) => {
       try {
-        const { name, description, is_active, company_id: company_id_from_body } = req.body;
+        const { name, description, is_active, company_id: company_id_from_body, sla_mode } = req.body;
         const userRole = req.session.userRole as string;
         const sessionCompanyId = req.session.companyId;
 
@@ -4114,6 +4199,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           return res.status(409).json({ message: `Já existe um departamento com o nome "${name}" nesta empresa.` });
         }
 
+        // Validar sla_mode se enviado
+        let slaModeToUse: 'type' | 'category' = 'type';
+        if (sla_mode !== undefined) {
+          if (sla_mode !== 'type' && sla_mode !== 'category') {
+            return res.status(400).json({ message: "Valor inválido para sla_mode. Use 'type' ou 'category'." });
+          }
+          slaModeToUse = sla_mode;
+        }
+
         const newDepartment = await db
           .insert(departmentsSchema)
           .values({
@@ -4121,6 +4215,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             description,
             company_id: effectiveCompanyId,
             is_active: is_active !== undefined ? is_active : true,
+            sla_mode: slaModeToUse,
             created_at: new Date(),
             updated_at: new Date(),
           })
@@ -4151,7 +4246,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           return res.status(400).json({ message: "ID de departamento inválido." });
         }
 
-        const { name, description, is_active, company_id: new_company_id } = req.body; // Captura company_id do corpo
+        const { name, description, is_active, company_id: new_company_id, sla_mode } = req.body; // Captura company_id e sla_mode do corpo
         const userRole = req.session.userRole as string;
         const sessionCompanyId = req.session.companyId;
 
@@ -4160,6 +4255,12 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         if (name !== undefined) updatePayload.name = name;
         if (description !== undefined) updatePayload.description = description;
         if (is_active !== undefined) updatePayload.is_active = is_active;
+        if (sla_mode !== undefined) {
+          if (sla_mode !== 'type' && sla_mode !== 'category') {
+            return res.status(400).json({ message: "Valor inválido para sla_mode. Use 'type' ou 'category'." });
+          }
+          updatePayload.sla_mode = sla_mode;
+        }
 
         const conditions: SQLWrapper[] = [eq(departmentsSchema.id, departmentIdParam)];
 
@@ -8101,17 +8202,55 @@ Atenciosamente,
   router.post("/sla/resolve", authRequired, resolveSLA);
 router.get("/sla/resolve", authRequired, async (req, res) => {
   // Suporte para GET com query parameters (compatibilidade)
-  const { companyId, departmentId, incidentTypeId, priority } = req.query;
+  const { companyId, departmentId, incidentTypeId, categoryId, priority } = req.query;
   
   // Converter para body format e chamar a função original
   req.body = {
     companyId: parseInt(companyId as string),
     departmentId: parseInt(departmentId as string),
     incidentTypeId: parseInt(incidentTypeId as string),
+    categoryId: categoryId ? parseInt(categoryId as string) : undefined,
     priority: priority as string
   };
   
   return resolveSLA(req, res);
+});
+
+  // Alias compatível com cliente legado: /api/sla-resolver
+  router.get("/sla-resolver", authRequired, async (req, res) => {
+    // Reaproveita a mesma lógica do GET /sla/resolve
+    const { companyId, departmentId, incidentTypeId, categoryId, priorityId, priorityName } = req.query as any;
+    // Compatibilidade: o hook antigo envia priorityId/priorityName
+    req.body = {
+      companyId: parseInt(companyId),
+      departmentId: parseInt(departmentId),
+      incidentTypeId: parseInt(incidentTypeId),
+      categoryId: categoryId ? parseInt(categoryId) : undefined,
+      priority: priorityId ? parseInt(priorityId) : (priorityName || undefined)
+    };
+    return resolveSLA(req as any, res as any);
+  });
+
+  // Endpoint auxiliar: obter sla_mode de um departamento
+  router.get("/departments/:id/sla-mode", authRequired, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: 'ID inválido' });
+      }
+      const [dept] = await db
+        .select({ id: departmentsSchema.id, sla_mode: departmentsSchema.sla_mode })
+        .from(departmentsSchema)
+        .where(eq(departmentsSchema.id, id))
+        .limit(1);
+      if (!dept) {
+        return res.status(404).json({ error: 'Departamento não encontrado' });
+      }
+      res.json({ id: dept.id, sla_mode: dept.sla_mode });
+    } catch (error) {
+      console.error('Erro ao obter sla_mode do departamento:', error);
+      res.status(500).json({ error: 'Erro interno' });
+    }
 });
   
   // Estatísticas do cache de SLA (apenas admins)

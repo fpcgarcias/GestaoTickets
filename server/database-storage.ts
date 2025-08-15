@@ -376,14 +376,30 @@ export class DatabaseStorage implements IStorage {
   }
   
   async removeOfficialDepartment(officialId: number, departmentName: string): Promise<boolean> {
-    // Buscar o department_id pelo nome
+    // Garantir que resolvemos o departamento na MESMA empresa do atendente
+    const [official] = await db
+      .select({ id: officials.id, company_id: officials.company_id })
+      .from(officials)
+      .where(eq(officials.id, officialId))
+      .limit(1);
+
+    if (!official || !official.company_id) {
+      console.warn(`Não foi possível determinar a empresa do atendente ${officialId} para remover departamento '${departmentName}'`);
+      return false;
+    }
+
+    // Buscar o department_id pelo nome E pela empresa do atendente
     const [dept] = await db
-      .select()
+      .select({ id: departments.id })
       .from(departments)
-      .where(eq(departments.name, departmentName));
+      .where(and(
+        eq(departments.name, departmentName),
+        eq(departments.company_id, official.company_id)
+      ))
+      .limit(1);
     
     if (!dept) {
-      console.warn(`Departamento não encontrado: ${departmentName}`);
+      console.warn(`Departamento não encontrado para a empresa ${official.company_id}: ${departmentName}`);
       return false;
     }
     
@@ -466,6 +482,10 @@ export class DatabaseStorage implements IStorage {
         )
       );
       whereClauses.push(customerCondition);
+      // Garantir filtro por empresa para não-admins
+      if (customer.company_id) {
+        whereClauses.push(eq(tickets.company_id, customer.company_id));
+      }
     } else if (userRole === 'manager') {
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
       if (!official) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
@@ -474,6 +494,10 @@ export class DatabaseStorage implements IStorage {
       const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
       if (officialDepts.length === 0) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       const departmentIds = officialDepts.map(od => od.department_id);
+      // Filtrar por empresa do atendente
+      if (official.company_id) {
+        whereClauses.push(eq(tickets.company_id, official.company_id));
+      }
       
       // Buscar subordinados
       const subordinates = await db.select().from(officials).where(eq(officials.manager_id, official.id));
@@ -508,6 +532,10 @@ export class DatabaseStorage implements IStorage {
       const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
       if (officialDepts.length === 0) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       const departmentIds = officialDepts.map(od => od.department_id);
+      // Filtrar por empresa do atendente
+      if (official.company_id) {
+        whereClauses.push(eq(tickets.company_id, official.company_id));
+      }
       
       // Buscar subordinados
       const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, official.id));
@@ -542,6 +570,10 @@ export class DatabaseStorage implements IStorage {
       const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
       if (officialDepts.length === 0) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       const departmentIds = officialDepts.map(od => od.department_id);
+      // Filtrar por empresa do atendente
+      if (official.company_id) {
+        whereClauses.push(eq(tickets.company_id, official.company_id));
+      }
       
       if (!filters.assigned_to_id) {
       const assignmentFilter = or(
@@ -1276,6 +1308,10 @@ export class DatabaseStorage implements IStorage {
           )
         );
         whereClauses.push(customerCondition);
+        // Filtrar por empresa SEMPRE para não-admins
+        if (customer.company_id) {
+          whereClauses.push(eq(tickets.company_id, customer.company_id));
+        }
       } else if (userRole === 'manager') {
         const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
         if (!official) return { total: 0, byStatus: {}, byPriority: {} };
@@ -1284,6 +1320,10 @@ export class DatabaseStorage implements IStorage {
         const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
         if (officialDepts.length === 0) return { total: 0, byStatus: {}, byPriority: {} };
         const departmentIds = officialDepts.map(od => od.department_id);
+        // Filtrar por empresa do atendente
+        if (official.company_id) {
+          whereClauses.push(eq(tickets.company_id, official.company_id));
+        }
         
         // Buscar subordinados
         const subordinates = await db.select().from(officials).where(eq(officials.manager_id, official.id));
@@ -1320,6 +1360,10 @@ export class DatabaseStorage implements IStorage {
         const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
         if (officialDepts.length === 0) return { total: 0, byStatus: {}, byPriority: {} };
         const departmentIds = officialDepts.map(od => od.department_id);
+        // Filtrar por empresa do atendente
+        if (official.company_id) {
+          whereClauses.push(eq(tickets.company_id, official.company_id));
+        }
         
         // Buscar subordinados
         const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, official.id));
@@ -1356,6 +1400,10 @@ export class DatabaseStorage implements IStorage {
         const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
         if (officialDepts.length === 0) return { total: 0, byStatus: {}, byPriority: {} };
         const departmentIds = officialDepts.map(od => od.department_id);
+        // Filtrar por empresa do atendente
+        if (official.company_id) {
+          whereClauses.push(eq(tickets.company_id, official.company_id));
+        }
         
         // Support vê tickets atribuídos a ele ou não atribuídos
         if (!officialId) {
@@ -1895,6 +1943,10 @@ export class DatabaseStorage implements IStorage {
         )
       );
       whereClauses.push(customerCondition);
+      // Filtrar por empresa SEMPRE para não-admins
+      if (customer.company_id) {
+        whereClauses.push(eq(tickets.company_id, customer.company_id));
+      }
     } else if (userRole === 'manager') {
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
       if (!official) return [];
@@ -1903,6 +1955,10 @@ export class DatabaseStorage implements IStorage {
       const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
       if (officialDepts.length === 0) return [];
       const departmentIds = officialDepts.map(od => od.department_id);
+      // Filtrar por empresa do atendente
+      if (official.company_id) {
+        whereClauses.push(eq(tickets.company_id, official.company_id));
+      }
       
       // Buscar subordinados
       const subordinates = await db.select().from(officials).where(eq(officials.manager_id, official.id));
@@ -1937,6 +1993,10 @@ export class DatabaseStorage implements IStorage {
       const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
       if (officialDepts.length === 0) return [];
       const departmentIds = officialDepts.map(od => od.department_id);
+      // Filtrar por empresa do atendente
+      if (official.company_id) {
+        whereClauses.push(eq(tickets.company_id, official.company_id));
+      }
       
       // Buscar subordinados
       const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, official.id));
@@ -1971,6 +2031,10 @@ export class DatabaseStorage implements IStorage {
       const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
       if (officialDepts.length === 0) return [];
       const departmentIds = officialDepts.map(od => od.department_id);
+      // Filtrar por empresa do atendente
+      if (official.company_id) {
+        whereClauses.push(eq(tickets.company_id, official.company_id));
+      }
       
       if (!officialId) {
         const assignmentFilter = or(

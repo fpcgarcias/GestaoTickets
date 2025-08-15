@@ -283,11 +283,16 @@ export async function createSupportUserEndpoint(
             continue; // Pular este departamento
           }
           
-          // Buscar o ID do departamento pelo nome
+          // Buscar o ID do departamento pelo nome RESTRITO à empresa do atendente
           const [deptRecord] = await db
             .select({ id: departmentsSchema.id })
             .from(departmentsSchema)
-            .where(eq(departmentsSchema.name, departmentValue));
+            .where(
+              and(
+                eq(departmentsSchema.name, departmentValue),
+                effectiveCompanyId ? eq(departmentsSchema.company_id, effectiveCompanyId) : isNull(departmentsSchema.company_id)
+              )
+            );
             
           if (deptRecord) {
             await storage.addOfficialDepartment({
