@@ -2542,26 +2542,68 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       if (departments && Array.isArray(departments) && departments.length > 0) {
         console.log(`Adicionando ${departments.length} departamentos ao atendente`);
         // Adicionar departamentos
-        for (const department of departments) {
-          console.log(`Adicionando departamento ${department} ao atendente ${official.id}`);
-          
-          // Buscar o ID do departamento pelo nome, restrito à empresa do atendente
-          const [dept] = await db.select({ id: schema.departments.id })
-            .from(schema.departments)
-            .where(
-              and(
-                eq(schema.departments.name, department),
-                dataWithDepartment.company_id ? eq(schema.departments.company_id, dataWithDepartment.company_id) : isNull(schema.departments.company_id)
-              )
-            );
-            
-          if (dept) {
-            await storage.addOfficialDepartment({
-              official_id: official.id,
-              department_id: dept.id
-            });
-          } else {
-            console.warn(`Departamento não encontrado: ${department}`);
+        for (const dep of departments) {
+          // Resolver por ID (preferencial), depois por nome dentro da mesma empresa
+          let resolvedDeptId: number | null = null;
+          let depNameForLog = String(dep);
+          try {
+            if (typeof dep === 'object' && dep !== null) {
+              if ('id' in dep && dep.id) {
+                resolvedDeptId = Number(dep.id);
+              } else if ('department_id' in dep && dep.department_id) {
+                resolvedDeptId = Number(dep.department_id);
+              } else if ('department' in dep && dep.department) {
+                depNameForLog = String(dep.department);
+              }
+            } else if (typeof dep === 'string') {
+              // pode ser um ID em string
+              const asNum = Number(dep);
+              if (!Number.isNaN(asNum)) {
+                resolvedDeptId = asNum;
+              } else {
+                depNameForLog = dep;
+              }
+            } else if (typeof dep === 'number') {
+              resolvedDeptId = dep;
+            }
+
+            let deptRecord: { id: number } | undefined;
+            if (resolvedDeptId !== null) {
+              const [rec] = await db
+                .select({ id: schema.departments.id })
+                .from(schema.departments)
+                .where(
+                  and(
+                    eq(schema.departments.id, resolvedDeptId),
+                    dataWithDepartment.company_id ? eq(schema.departments.company_id, dataWithDepartment.company_id) : isNull(schema.departments.company_id)
+                  )
+                );
+              deptRecord = rec;
+            }
+
+            if (!deptRecord && depNameForLog) {
+              const [recByName] = await db
+                .select({ id: schema.departments.id })
+                .from(schema.departments)
+                .where(
+                  and(
+                    ilike(schema.departments.name, depNameForLog),
+                    dataWithDepartment.company_id ? eq(schema.departments.company_id, dataWithDepartment.company_id) : isNull(schema.departments.company_id)
+                  )
+                );
+              deptRecord = recByName;
+            }
+
+            if (deptRecord) {
+              await storage.addOfficialDepartment({
+                official_id: official.id,
+                department_id: deptRecord.id
+              });
+            } else {
+              console.warn(`Departamento não encontrado (empresa=${dataWithDepartment.company_id}): entrada='${JSON.stringify(dep)}'`);
+            }
+          } catch (e) {
+            console.error('Erro ao resolver departamento:', e);
           }
         }
         
@@ -2737,35 +2779,76 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         // Remover departamentos existentes
         const existingDepartments = await storage.getOfficialDepartments(id);
         for (const dept of existingDepartments) {
-          // Buscar o nome do departamento pelo ID para remover
-          const [deptInfo] = await db.select({ name: schema.departments.name })
-            .from(schema.departments)
-            .where(eq(schema.departments.id, dept.department_id));
-            
-          if (deptInfo) {
-            await storage.removeOfficialDepartment(id, deptInfo.name);
-          }
+          // Remover diretamente por ID para evitar ambiguidade de nome
+          await db
+            .delete(schema.officialDepartments)
+            .where(and(
+              eq(schema.officialDepartments.official_id, id),
+              eq(schema.officialDepartments.department_id, dept.department_id)
+            ));
         }
         
         // Adicionar novos departamentos
-        for (const department of departments) {
-          // Buscar o ID do departamento pelo nome, restrito à empresa do atendente
-          const [dept] = await db.select({ id: schema.departments.id })
-            .from(schema.departments)
-            .where(
-              and(
-                eq(schema.departments.name, department),
-                effectiveCompanyId ? eq(schema.departments.company_id, effectiveCompanyId) : isNull(schema.departments.company_id)
-              )
-            );
-            
-          if (dept) {
-            await storage.addOfficialDepartment({
-              official_id: id,
-              department_id: dept.id
-            });
-          } else {
-            console.warn(`Departamento não encontrado: ${department}`);
+        for (const dep of departments) {
+          let resolvedDeptId: number | null = null;
+          let depNameForLog = String(dep);
+          try {
+            if (typeof dep === 'object' && dep !== null) {
+              if ('id' in dep && dep.id) {
+                resolvedDeptId = Number(dep.id);
+              } else if ('department_id' in dep && dep.department_id) {
+                resolvedDeptId = Number(dep.department_id);
+              } else if ('department' in dep && dep.department) {
+                depNameForLog = String(dep.department);
+              }
+            } else if (typeof dep === 'string') {
+              const asNum = Number(dep);
+              if (!Number.isNaN(asNum)) {
+                resolvedDeptId = asNum;
+              } else {
+                depNameForLog = dep;
+              }
+            } else if (typeof dep === 'number') {
+              resolvedDeptId = dep;
+            }
+
+            let deptRecord: { id: number } | undefined;
+            if (resolvedDeptId !== null) {
+              const [rec] = await db
+                .select({ id: schema.departments.id })
+                .from(schema.departments)
+                .where(
+                  and(
+                    eq(schema.departments.id, resolvedDeptId),
+                    effectiveCompanyId ? eq(schema.departments.company_id, effectiveCompanyId) : isNull(schema.departments.company_id)
+                  )
+                );
+              deptRecord = rec;
+            }
+
+            if (!deptRecord && depNameForLog) {
+              const [recByName] = await db
+                .select({ id: schema.departments.id })
+                .from(schema.departments)
+                .where(
+                  and(
+                    ilike(schema.departments.name, depNameForLog),
+                    effectiveCompanyId ? eq(schema.departments.company_id, effectiveCompanyId) : isNull(schema.departments.company_id)
+                  )
+                );
+              deptRecord = recByName;
+            }
+
+            if (deptRecord) {
+              await storage.addOfficialDepartment({
+                official_id: id,
+                department_id: deptRecord.id
+              });
+            } else {
+              console.warn(`Departamento não encontrado (empresa=${effectiveCompanyId}): entrada='${JSON.stringify(dep)}'`);
+            }
+          } catch (e) {
+            console.error('Erro ao resolver departamento (PATCH):', e);
           }
         }
         

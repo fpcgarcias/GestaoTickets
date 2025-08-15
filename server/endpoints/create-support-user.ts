@@ -8,7 +8,7 @@ import { Request, Response } from 'express';
 import { withTransaction } from '../transaction-manager';
 import { IStorage } from '../storage';
 import { InsertOfficial, InsertUser, departments as departmentsSchema } from '@shared/schema';
-import { eq, isNull } from 'drizzle-orm';
+import { eq, isNull, and } from 'drizzle-orm';
 import { db } from '../db';
 
 export async function createSupportUserEndpoint(
@@ -175,10 +175,7 @@ export async function createSupportUserEndpoint(
       }
       
       console.log(`Criando atendente para usuário ID: ${user.id}`);
-      // Garantir que pelo menos um departamento seja fornecido
-      if (!userDepartments || !Array.isArray(userDepartments) || userDepartments.length === 0) {
-        throw new Error('Pelo menos um departamento deve ser selecionado');
-      }
+      // Aceitar sem departamentos e usar um padrão quando necessário
 
       // Buscar departamentos válidos da base de dados para a empresa
       const availableDepartments = await db
@@ -203,13 +200,14 @@ export async function createSupportUserEndpoint(
       }
       
       // Forçar conversão para array
-      const departmentsArray = Array.isArray(userDepartments) ? userDepartments : [];
+      let departmentsArray = Array.isArray(userDepartments) ? userDepartments : [];
       console.log(`Departamentos recebidos (original): ${JSON.stringify(userDepartments)}`);
       console.log(`Departamentos como array: ${JSON.stringify(departmentsArray)}`);
       
-      // Validar que há pelo menos um departamento
+      // Se nenhum departamento foi fornecido, utilizar o defaultDepartment
       if (departmentsArray.length === 0) {
         console.warn('Nenhum departamento foi fornecido! Usando departamento padrão:', defaultDepartment);
+        departmentsArray = [defaultDepartment];
       } else {
         const firstDept = departmentsArray[0];
         
