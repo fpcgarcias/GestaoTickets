@@ -70,7 +70,10 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     enabled: !isCustomerForThisTicket, // Só busca se não for cliente neste ticket
   });
 
-  const officials = officialsResponse?.data || [];
+  // Filtrar apenas atendentes ativos e ordenar alfabeticamente
+  const officials = (officialsResponse?.data || [])
+    .filter((official: Official) => official.is_active)
+    .sort((a: Official, b: Official) => a.name.localeCompare(b.name, 'pt-BR'));
 
   // Buscar dados de tipos de incidentes usando a API correta
   const { data: incidentTypesData, isLoading: isLoadingIncidentTypes } = useQuery<{incidentTypes: IncidentType[], pagination?: any}>({
