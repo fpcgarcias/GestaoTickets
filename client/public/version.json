@@ -5,7 +5,7 @@
     {
       "version": "1.0.24",
       "date": "2025-08-15",
-      "title": "Correções críticas multi-empresa e vinculação por ID.",
+      "title": "Correções críticas em permissões de atendentes.",
       "type": "bugfix",
       "changes": {
         "fixed": [
