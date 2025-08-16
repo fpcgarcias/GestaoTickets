@@ -1,7 +1,23 @@
 {
-  "current": "1.0.23",
-  "releaseDate": "2025-07-25",
+  "current": "1.0.24",
+  "releaseDate": "2025-08-15",
   "versions": [
+    {
+      "version": "1.0.24",
+      "date": "2025-08-15",
+      "title": "Correções críticas multi-empresa e vinculação por ID.",
+      "type": "bugfix",
+      "changes": {
+        "fixed": [
+          "Correção de vazamento de tickets.",
+          "Correção ao criar/vincular atendentes (erros 409/500).",
+          "Correção no dropdown de atendentes na tela de resposta de tickets organizando alfabeticamente e filtrando inativos."
+        ],
+        "improved": [
+          "Logs e mensagens de diagnóstico mais claras em casos de departamentos não encontrados."
+        ]
+      }
+    },
     {
       "version": "1.0.23",
       "date": "2025-07-25",
