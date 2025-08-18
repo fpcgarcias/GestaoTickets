@@ -946,12 +946,12 @@ export class EmailNotificationService {
       // Aqui, se quiser, pode usar official.id ou official.user_id para preferências, mas o e-mail é sempre official.email
       const shouldNotify = await this.shouldSendEmailToUser(official.user_id || 0, 'ticket_assigned');
       if (shouldNotify) {
+        // Contexto já contém user=official; manter para o destinatário
         await this.sendEmailNotification(
           'ticket_assigned',
           official.email,
           context,
           ticket.company_id!,
-          // Se precisar de role, pode buscar na tabela users pelo official.user_id
         );
       } else {
         console.log(`[📧 EMAIL PROD] 🔕 Atendente (official) ${official.name} não configurado para receber notificações`);
@@ -1586,10 +1586,21 @@ export class EmailNotificationService {
           : true;
 
         if (shouldNotify) {
+          // Personalizar contexto para o cliente destinatário
+          const customerContext: EmailNotificationContext = {
+            ...context,
+            user: customerUser || {
+              id: 0,
+              name: customer?.name || 'Cliente',
+              email: ticket.customer_email,
+              role: 'customer'
+            }
+          };
+
           const result = await this.sendEmailNotification(
             'ticket_escalated',
             ticket.customer_email,
-            context,
+            customerContext,
             ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
             customerUser?.role || 'customer' // Passar a role do cliente para validação
           );
@@ -1662,10 +1673,16 @@ export class EmailNotificationService {
         if (shouldNotify) {
           console.log(`[📧 EMAIL PROD] ✅ Atendente ${user.name} configurado para receber notificações`);
           
+          // Personalizar contexto para o atendente destinatário
+          const personalizedContext: EmailNotificationContext = {
+            ...context,
+            user: user
+          };
+
           const result = await this.sendEmailNotification(
             'ticket_escalated',
             user.email,
-            context,
+            personalizedContext,
             ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
             user.role // Passar a role do atendente para validação
           );
@@ -1844,8 +1861,8 @@ export class EmailNotificationService {
         if (shouldNotify) {
           console.log(`[📧 EMAIL PROD] ✅ Atendente ${user.name} configurado para receber notificações`);
           
-          // Criar contexto específico para este usuário
-          const userContext = {
+          // Criar contexto específico para este usuário (destinatário)
+          const userContext: EmailNotificationContext = {
             ...context,
             user: user
           };
@@ -1935,10 +1952,14 @@ export class EmailNotificationService {
             support_email: 'suporte@ticketwise.com.br'
           }
         };
+        const personalizedContext: EmailNotificationContext = {
+          ...context,
+          user: notifyUser
+        };
         await this.sendEmailNotification(
           'new_customer_registered',
           notifyUser.email,
-          context,
+          personalizedContext,
           customer.company_id || undefined,
           notifyUser.role
         );
@@ -2017,10 +2038,14 @@ export class EmailNotificationService {
 
         const shouldNotify = await this.shouldSendEmailToUser(user.id, 'user_created');
         if (shouldNotify) {
+          const personalizedContext: EmailNotificationContext = {
+            ...context,
+            user: user
+          };
           await this.sendEmailNotification(
             'user_created',
             user.email,
-            context,
+            personalizedContext,
             newUser.company_id!, // 🔥 OBRIGATÓRIO: newUser sempre tem company_id
             user.role // Passar a role do usuário para validação
           );
@@ -2065,10 +2090,14 @@ export class EmailNotificationService {
       for (const user of allUsers) {
         const shouldNotify = await this.shouldSendEmailToUser(user.id, 'system_maintenance');
         if (shouldNotify) {
+          const personalizedContext: EmailNotificationContext = {
+            ...context,
+            user: user
+          };
           await this.sendEmailNotification(
             'system_maintenance',
             user.email,
-            context,
+            personalizedContext,
             companyId!, // 🔥 OBRIGATÓRIO: companyId sempre deve ser fornecido
             user.role // Passar a role do usuário para validação
           );
@@ -2725,7 +2754,7 @@ export class EmailNotificationService {
           const result = await this.sendEmailNotification(
             'daily_digest',
             digest.user.email,
-            context,
+            { ...context, user: digest.user },
             digest.user.company_id,
             digest.user.role
           );
@@ -2852,7 +2881,7 @@ export class EmailNotificationService {
           const result = await this.sendEmailNotification(
             'weekly_digest',
             digest.user.email,
-            context,
+            { ...context, user: digest.user },
             digest.user.company_id,
             digest.user.role
           );
