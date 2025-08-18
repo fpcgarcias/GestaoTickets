@@ -67,6 +67,7 @@ interface SLAConfiguration {
   company_id: number;
   department_id: number;
   incident_type_id: number;
+  category_id?: number | null;
   priority_id: number | null;
   response_time_hours: number;
   resolution_time_hours: number;
@@ -79,6 +80,7 @@ interface SLAConfigurationForm {
   companyId: number;
   departmentId: number;
   incidentTypeId: number;
+  categoryId?: number | null;
   priorityId?: number | null;
   responseTimeHours: number;
   resolutionTimeHours: number;
@@ -95,6 +97,7 @@ export default function SLAConfigurations() {
   );
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<number | undefined>();
   const [selectedIncidentTypeId, setSelectedIncidentTypeId] = useState<number | undefined>();
+  const [departmentSlaMode, setDepartmentSlaMode] = useState<'type' | 'category'>('type');
   const [showOnlyActive, setShowOnlyActive] = useState(true);
 
   // Estados para modais
@@ -102,6 +105,8 @@ export default function SLAConfigurations() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingSLA, setEditingSLA] = useState<SLAConfiguration | null>(null);
+  // Unidade de tempo do formulário (apenas para UI). Mantemos o estado interno sempre em horas
+  const [timeUnit, setTimeUnit] = useState<'hours' | 'days'>('hours');
   
   // Estado para importação
   const [importResults, setImportResults] = useState<{
@@ -117,6 +122,7 @@ export default function SLAConfigurations() {
     companyId: selectedCompanyId || 1,
     departmentId: 1,
     incidentTypeId: 1,
+    categoryId: null,
     priorityId: null,
     responseTimeHours: 1,
     resolutionTimeHours: 8,
@@ -227,6 +233,40 @@ export default function SLAConfigurations() {
     enabled: !!(formData.departmentId && (isAddDialogOpen || isEditDialogOpen)),
   });
 
+  // Buscar modo de SLA do departamento selecionado NO FORMULÁRIO (para controlar o modal)
+  const { data: deptModeData } = useQuery<{ id: number; sla_mode: 'type' | 'category' } | null>({
+    queryKey: ['/api/departments', formData.departmentId, 'sla-mode', (isAddDialogOpen || isEditDialogOpen) ? 'open' : 'closed'],
+    queryFn: async () => {
+      if (!formData.departmentId) return null;
+      const res = await fetch(`/api/departments/${formData.departmentId}/sla-mode`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!formData.departmentId && (isAddDialogOpen || isEditDialogOpen),
+  });
+
+  useEffect(() => {
+    if (deptModeData?.sla_mode) {
+      setDepartmentSlaMode(deptModeData.sla_mode);
+    }
+  }, [deptModeData]);
+
+  // Buscar categorias quando modo=category e tipo selecionado
+  const { data: formCategories } = useQuery<any[]>({
+    queryKey: ['/api/categories', formData.incidentTypeId, 'form'],
+    queryFn: async () => {
+      if (!formData.incidentTypeId) return [];
+      const params = new URLSearchParams();
+      params.append('incident_type_id', formData.incidentTypeId.toString());
+      params.append('active_only', 'true');
+      const res = await fetch(`/api/categories?${params.toString()}`);
+      if (!res.ok) return [];
+      const response = await res.json();
+      return response.categories || [];
+    },
+    enabled: departmentSlaMode === 'category' && !!formData.incidentTypeId && (isAddDialogOpen || isEditDialogOpen),
+  });
+
   // Buscar configurações SLA
   const { data: slaConfigurations, isLoading: isLoadingSLA, refetch: refetchSLA } = useQuery<SLAConfiguration[]>({
     queryKey: ['/api/sla-configurations', selectedCompanyId, selectedDepartmentId, selectedIncidentTypeId, showOnlyActive],
@@ -296,13 +336,33 @@ export default function SLAConfigurations() {
     enabled: !!selectedCompanyId,
   });
 
+  // Buscar TODAS as categorias da empresa (para listar nomes em tabela/matriz)
+  const { data: allCategories } = useQuery<any[]>({
+    queryKey: ['/api/categories/all', selectedCompanyId],
+    queryFn: async () => {
+      if (!selectedCompanyId) return [];
+      const params = new URLSearchParams();
+      params.append('company_id', String(selectedCompanyId));
+      params.append('active_only', 'true');
+      const res = await fetch(`/api/categories?${params.toString()}`);
+      if (!res.ok) return [];
+      const response = await res.json();
+      return response.categories || [];
+    },
+    enabled: !!selectedCompanyId,
+  });
+
   // Mutation para criar configuração SLA
   const createSLAMutation = useMutation({
     mutationFn: async (data: SLAConfigurationForm) => {
+      const payload: any = { ...data };
+      if (departmentSlaMode === 'type') {
+        delete payload.categoryId;
+      }
       const res = await fetch('/api/sla-configurations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
       
       if (!res.ok) {
@@ -332,10 +392,14 @@ export default function SLAConfigurations() {
   const editSLAMutation = useMutation({
     mutationFn: async (data: { id: number } & Partial<SLAConfigurationForm>) => {
       const { id, ...updateData } = data;
+      const payload: any = { ...updateData };
+      if (departmentSlaMode === 'type') {
+        delete payload.categoryId;
+      }
       const res = await fetch(`/api/sla-configurations/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData),
+        body: JSON.stringify(payload),
       });
       
       if (!res.ok) {
@@ -453,6 +517,17 @@ export default function SLAConfigurations() {
     return uniqueTypes.find(t => t.id === incidentTypeId)?.name || 'N/A';
   };
 
+   // Obter nome da categoria
+  const getCategoryName = (categoryId: number | null | undefined) => {
+    if (!categoryId) return '—';
+    const fromAll = (allCategories || []).find((c: any) => c.id === categoryId);
+    if (fromAll) return fromAll.name;
+    // fallback: procurar nas categorias do formulário
+    const fromForm = (formCategories || []).find((c: any) => c.id === categoryId);
+    if (fromForm) return fromForm.name;
+    return `#${categoryId}`;
+  };
+
   const getPriorityName = (priorityId: number | null) => {
     if (!priorityId) return 'Padrão';
     // Busca primeiro nos dados globais, depois nos filtrados e formulário
@@ -496,6 +571,14 @@ export default function SLAConfigurations() {
       return;
     }
 
+    if (departmentSlaMode === 'category') {
+      const hasCategories = (formCategories || []).length > 0;
+      if (hasCategories && (!formData.categoryId || formData.categoryId <= 0)) {
+        toast({ title: "Erro", description: "Selecione uma categoria", variant: "destructive" });
+        return;
+      }
+    }
+
     createSLAMutation.mutate(formData);
   };
 
@@ -505,6 +588,13 @@ export default function SLAConfigurations() {
     if (formData.responseTimeHours >= formData.resolutionTimeHours) {
       toast({ title: "Erro", description: "Tempo de resposta deve ser menor que tempo de resolução", variant: "destructive" });
       return;
+    }
+
+    if (departmentSlaMode === 'category') {
+      // Em edição de tempos, não exigimos mudar categoria; validação de backend cobre consistência
+      if (!editingSLA?.category_id && (!formData.categoryId || formData.categoryId <= 0)) {
+        // nada a fazer; seguimos pois não mudamos a chave de combinação
+      }
     }
 
     editSLAMutation.mutate({
@@ -521,6 +611,7 @@ export default function SLAConfigurations() {
       companyId: slaConfig.company_id,
       departmentId: slaConfig.department_id,
       incidentTypeId: slaConfig.incident_type_id,
+      categoryId: (slaConfig as any).category_id ?? null,
       priorityId: slaConfig.priority_id,
       responseTimeHours: slaConfig.response_time_hours,
       resolutionTimeHours: slaConfig.resolution_time_hours,
@@ -875,6 +966,7 @@ export default function SLAConfigurations() {
                         {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
                         <TableHead>Departamento</TableHead>
                         <TableHead>Tipo de Incidente</TableHead>
+                           <TableHead>Categoria</TableHead>
                         <TableHead>Prioridade</TableHead>
                         <TableHead className="text-center">
                           <div className="flex items-center justify-center gap-1">
@@ -907,6 +999,7 @@ export default function SLAConfigurations() {
                             {getDepartmentName(config.department_id)}
                           </TableCell>
                           <TableCell className="py-4">{getIncidentTypeName(config.incident_type_id)}</TableCell>
+                             <TableCell className="py-4">{getCategoryName((config as any).category_id)}</TableCell>
                           <TableCell className="py-4">
                             <Badge 
                               variant="outline" 
@@ -1144,6 +1237,7 @@ export default function SLAConfigurations() {
                               <TableHeader>
                                 <TableRow>
                                   <TableHead className="w-[200px]">Tipo de Incidente</TableHead>
+                                <TableHead>Categoria</TableHead>
                                   <TableHead>Prioridade</TableHead>
                                   <TableHead className="text-center">
                                     <div className="flex items-center justify-center gap-1">
@@ -1163,62 +1257,84 @@ export default function SLAConfigurations() {
                               <TableBody>
                                 {Object.entries(slaByIncidentType).map(([incidentTypeId, slas]) => {
                                   const incidentTypeName = getIncidentTypeName(parseInt(incidentTypeId));
-                                  
-                                  return slas.map((sla, index) => (
-                                    <TableRow key={sla.id}>
-                                      {index === 0 && (
-                                        <TableCell 
-                                          className="font-medium border-r"
-                                          rowSpan={slas.length}
-                                        >
-                                          <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                                            {incidentTypeName}
-                                          </div>
-                                        </TableCell>
-                                      )}
-                                      <TableCell>
-                                        {sla.priority_id ? (
-                                          <div className="flex items-center gap-2">
-                                            <div 
-                                              className="w-3 h-3 rounded-full"
-                                              style={{ backgroundColor: getPriorityColor(sla.priority_id) }}
-                                            />
-                                            <span className="text-sm font-medium">
-                                              {getPriorityName(sla.priority_id)}
-                                            </span>
-                                          </div>
-                                        ) : (
-                                          <Badge variant="outline" className="text-xs">
-                                            Padrão (todas)
-                                          </Badge>
-                                        )}
-                                      </TableCell>
-                                      <TableCell className="text-center">
-                                        <Badge variant="secondary" className="font-mono">
-                                          {sla.response_time_hours}h
-                                        </Badge>
-                                      </TableCell>
-                                      <TableCell className="text-center">
-                                        <Badge variant="secondary" className="font-mono">
-                                          {sla.resolution_time_hours}h
-                                        </Badge>
-                                      </TableCell>
-                                      <TableCell className="text-center">
-                                        {sla.is_active ? (
-                                          <Badge variant="default" className="bg-green-100 text-green-800">
-                                            <CheckCircle className="h-3 w-3 mr-1" />
-                                            Ativo
-                                          </Badge>
-                                        ) : (
-                                          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                                            <AlertTriangle className="h-3 w-3 mr-1" />
-                                            Inativo
-                                          </Badge>
-                                        )}
-                                      </TableCell>
-                                    </TableRow>
-                                  ));
+                                  // Agrupar por categoria para mesclar células de categoria
+                                  const byCategory = (slas as SLAConfiguration[]).reduce((acc: Record<string, SLAConfiguration[]>, item: any) => {
+                                    const key = item.category_id ?? 'null';
+                                    if (!acc[key]) acc[key] = [];
+                                    acc[key].push(item);
+                                    return acc;
+                                  }, {} as Record<string, SLAConfiguration[]>);
+
+                                  const rows: JSX.Element[] = [];
+                                  let incidentCellRendered = false;
+
+                                  Object.entries(byCategory).forEach(([catId, list]) => {
+                                    list.forEach((sla, idx) => {
+                                      rows.push(
+                                        <TableRow key={`${incidentTypeId}-${catId}-${sla.id}`}>
+                                          {!incidentCellRendered && idx === 0 && (
+                                            <TableCell 
+                                              className="font-medium border-r"
+                                              rowSpan={(slas as SLAConfiguration[]).length}
+                                            >
+                                              <div className="flex items-center gap-2">
+                                                <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                                                {incidentTypeName}
+                                              </div>
+                                            </TableCell>
+                                          )}
+                                          {idx === 0 && (
+                                            <TableCell rowSpan={list.length}>
+                                              {getCategoryName(catId === 'null' ? null : parseInt(catId))}
+                                            </TableCell>
+                                          )}
+                                          <TableCell>
+                                            {sla.priority_id ? (
+                                              <div className="flex items-center gap-2">
+                                                <div 
+                                                  className="w-3 h-3 rounded-full"
+                                                  style={{ backgroundColor: getPriorityColor(sla.priority_id) }}
+                                                />
+                                                <span className="text-sm font-medium">
+                                                  {getPriorityName(sla.priority_id)}
+                                                </span>
+                                              </div>
+                                            ) : (
+                                              <Badge variant="outline" className="text-xs">
+                                                Padrão (todas)
+                                              </Badge>
+                                            )}
+                                          </TableCell>
+                                          <TableCell className="text-center">
+                                            <Badge variant="secondary" className="font-mono">
+                                              {sla.response_time_hours}h
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell className="text-center">
+                                            <Badge variant="secondary" className="font-mono">
+                                              {sla.resolution_time_hours}h
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell className="text-center">
+                                            {sla.is_active ? (
+                                              <Badge variant="default" className="bg-green-100 text-green-800">
+                                                <CheckCircle className="h-3 w-3 mr-1" />
+                                                Ativo
+                                              </Badge>
+                                            ) : (
+                                              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+                                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                                Inativo
+                                              </Badge>
+                                            )}
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    });
+                                    incidentCellRendered = true;
+                                  });
+
+                                  return rows;
                                 })}
                               </TableBody>
                             </Table>
@@ -1305,7 +1421,13 @@ export default function SLAConfigurations() {
                   <Label>Departamento *</Label>
                   <Select 
                     value={formData.departmentId.toString()} 
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, departmentId: parseInt(value) }))}
+                    onValueChange={(value) => setFormData(prev => ({ 
+                      ...prev, 
+                      departmentId: parseInt(value), 
+                      // zera dependentes ao trocar de depto
+                      incidentTypeId: 0 as any,
+                      categoryId: null
+                    }))}
                     disabled={!formData.companyId || !departments?.length}
                   >
                     <SelectTrigger>
@@ -1321,12 +1443,16 @@ export default function SLAConfigurations() {
                   </Select>
                 </div>
 
-                {/* Seletor de Tipo de Incidente */}
+                {/* Seletor de Tipo de Chamado */}
                 <div className="space-y-2">
-                  <Label>Tipo de Incidente *</Label>
+                  <Label>Tipo de Chamado *</Label>
                   <Select 
-                    value={formData.incidentTypeId.toString()} 
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, incidentTypeId: parseInt(value) }))}
+                    value={formData.incidentTypeId ? formData.incidentTypeId.toString() : ''} 
+                    onValueChange={(value) => setFormData(prev => ({ 
+                      ...prev, 
+                      incidentTypeId: parseInt(value),
+                      categoryId: null
+                    }))}
                     disabled={!formData.departmentId || !formIncidentTypes?.length}
                   >
                     <SelectTrigger>
@@ -1341,6 +1467,32 @@ export default function SLAConfigurations() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Seletor de Categoria (apenas quando modo = category) */}
+                {departmentSlaMode === 'category' && (
+                  <div className="space-y-2">
+                    <Label>Categoria *</Label>
+                    <Select 
+                      value={formData.categoryId?.toString() || ''} 
+                      onValueChange={(value) => setFormData(prev => ({ 
+                        ...prev, 
+                        categoryId: value ? parseInt(value) : null 
+                      }))}
+                      disabled={!(formCategories && formCategories.length > 0)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={(formCategories && formCategories.length > 0) ? 'Selecione uma categoria' : 'Sem categorias para este tipo'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {formCategories?.map((cat: any) => (
+                          <SelectItem key={cat.id} value={cat.id.toString()}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 {/* Seletor de Prioridade */}
                 <div className="space-y-2">
@@ -1377,34 +1529,62 @@ export default function SLAConfigurations() {
               </>
             )}
 
+            {/* Unidade de tempo (toggle) */}
+            <div className="flex items-center justify-between">
+              <Label htmlFor="toggle-time-unit">Usar dias</Label>
+              <Switch
+                id="toggle-time-unit"
+                checked={timeUnit === 'days'}
+                onCheckedChange={(checked) => setTimeUnit(checked ? 'days' : 'hours')}
+              />
+            </div>
+
             {/* Tempo de Resposta */}
             <div className="space-y-2">
-              <Label>Tempo de Resposta (horas) *</Label>
+              <Label>Tempo de Resposta ({timeUnit === 'hours' ? 'horas' : 'dias'}) *</Label>
               <Input
                 type="number"
-                min="1"
-                max="8760"
-                value={formData.responseTimeHours}
-                onChange={(e) => setFormData(prev => ({ 
-                  ...prev, 
-                  responseTimeHours: parseInt(e.target.value) || 1 
-                }))}
+                min={1}
+                max={timeUnit === 'hours' ? 8760 : 365}
+                step={timeUnit === 'days' ? 0.5 : 1}
+                value={
+                  timeUnit === 'hours'
+                    ? formData.responseTimeHours
+                    : Number((formData.responseTimeHours / 24).toFixed(2))
+                }
+                onChange={(e) => {
+                  const inputValue = parseFloat(e.target.value);
+                  const normalized = Number.isNaN(inputValue) ? 1 : Math.max(1, inputValue);
+                  const hours = timeUnit === 'hours'
+                    ? Math.round(normalized)
+                    : Math.round(normalized * 24);
+                  setFormData(prev => ({ ...prev, responseTimeHours: hours }));
+                }}
                 placeholder="Ex: 2"
               />
             </div>
 
             {/* Tempo de Resolução */}
             <div className="space-y-2">
-              <Label>Tempo de Resolução (horas) *</Label>
+              <Label>Tempo de Resolução ({timeUnit === 'hours' ? 'horas' : 'dias'}) *</Label>
               <Input
                 type="number"
-                min="1"
-                max="8760"
-                value={formData.resolutionTimeHours}
-                onChange={(e) => setFormData(prev => ({ 
-                  ...prev, 
-                  resolutionTimeHours: parseInt(e.target.value) || 8 
-                }))}
+                min={1}
+                max={timeUnit === 'hours' ? 8760 : 365}
+                step={timeUnit === 'days' ? 0.5 : 1}
+                value={
+                  timeUnit === 'hours'
+                    ? formData.resolutionTimeHours
+                    : Number((formData.resolutionTimeHours / 24).toFixed(2))
+                }
+                onChange={(e) => {
+                  const inputValue = parseFloat(e.target.value);
+                  const normalized = Number.isNaN(inputValue) ? 1 : Math.max(1, inputValue);
+                  const hours = timeUnit === 'hours'
+                    ? Math.round(normalized)
+                    : Math.round(normalized * 24);
+                  setFormData(prev => ({ ...prev, resolutionTimeHours: hours }));
+                }}
                 placeholder="Ex: 24"
               />
             </div>

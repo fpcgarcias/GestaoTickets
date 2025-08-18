@@ -104,6 +104,7 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
               companyId={ticket.company_id}
               departmentId={ticket.department_id}
               incidentTypeId={ticket.incident_type_id}
+              categoryId={ticket.category_id || undefined}
               priority={ticket.priority}
               status={ticket.status}
               createdAt={typeof ticket.created_at === 'string' ? ticket.created_at : new Date(ticket.created_at).toISOString()}

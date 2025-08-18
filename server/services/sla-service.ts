@@ -15,7 +15,7 @@ import {
   type SLADefinition,
   type DepartmentPriority
 } from '@shared/schema';
-import { eq, and, desc, isNull } from 'drizzle-orm';
+import { eq, and, desc, isNull, isNotNull } from 'drizzle-orm';
 
 // Interface para resultado de SLA resolvido
 export interface ResolvedSLA {
@@ -38,6 +38,7 @@ export interface SLAResolutionParams {
   companyId: number;
   departmentId: number;
   incidentTypeId: number;
+  categoryId?: number;
   priorityId?: number;
   priorityName?: string; // Para fallback legacy
 }
@@ -79,34 +80,57 @@ export class SLAService {
     let resolved: ResolvedSLA;
     
     try {
-      // Nível 1: Configuração específica (empresa + dept + tipo + prioridade)
-      resolved = await this.trySpecificConfiguration(params);
-      if (resolved.source === 'specific') {
-        this.setCache(cacheKey, resolved);
-        this.incrementUsage(cacheKey);
+      // Verificar modo do departamento
+      const [dept] = await db
+        .select({ sla_mode: departments.sla_mode })
+        .from(departments)
+        .where(eq(departments.id, params.departmentId))
+        .limit(1);
+
+      const isCategoryMode = dept?.sla_mode === 'category';
+
+      if (isCategoryMode) {
+        // Modo categoria: procurar apenas configs com category_id correspondente
+        resolved = await this.tryCategoryMode(params);
+        if (resolved) {
+          this.setCache(cacheKey, resolved);
+          this.incrementUsage(cacheKey);
+          return resolved;
+        }
+
+        // Sem fallback para tipo quando modo = category
+        return this.getNoSLAResult();
+      } else {
+        // Fluxo atual por tipo
+        // Nível 1: Configuração específica (empresa + dept + tipo + prioridade)
+        resolved = await this.trySpecificConfiguration(params);
+        if (resolved.source === 'specific') {
+          this.setCache(cacheKey, resolved);
+          this.incrementUsage(cacheKey);
+          return resolved;
+        }
+
+        // Nível 2: Configuração padrão do departamento (sem prioridade específica)
+        resolved = await this.tryDepartmentDefault(params);
+        if (resolved.source === 'department_default') {
+          this.setCache(cacheKey, resolved);
+          return resolved;
+        }
+
+        // Nível 3: Configuração padrão da empresa (SLA definitions)
+        resolved = await this.tryCompanyDefault(params);
+        if (resolved.source === 'company_default') {
+          this.setCache(cacheKey, resolved);
+          return resolved;
+        }
+
+        // Nível 4: Sem configuração - NUNCA usar fallback hardcoded
+        resolved = this.getNoSLAResult();
+        if (resolved) {
+          this.setCache(cacheKey, resolved);
+        }
         return resolved;
       }
-
-      // Nível 2: Configuração padrão do departamento (sem prioridade específica)
-      resolved = await this.tryDepartmentDefault(params);
-      if (resolved.source === 'department_default') {
-        this.setCache(cacheKey, resolved);
-        return resolved;
-      }
-
-      // Nível 3: Configuração padrão da empresa (SLA definitions)
-      resolved = await this.tryCompanyDefault(params);
-      if (resolved.source === 'company_default') {
-        this.setCache(cacheKey, resolved);
-        return resolved;
-      }
-
-      // Nível 4: Sem configuração - NUNCA usar fallback hardcoded
-      resolved = this.getNoSLAResult();
-      if (resolved) {
-        this.setCache(cacheKey, resolved);
-      }
-      return resolved;
 
     } catch (error) {
       console.error('Erro ao resolver SLA:', error);
@@ -357,12 +381,14 @@ export class SLAService {
     companyId: number,
     departmentId: number,
     incidentTypeId: number,
-    priority: string | number
+    priority: string | number,
+    categoryId?: number
   ): Promise<ResolvedSLA> {
     const params: SLAResolutionParams = {
       companyId,
       departmentId,
-      incidentTypeId
+      incidentTypeId,
+      categoryId
     };
 
     // Se priority é número, assumir que é ID da prioridade
@@ -434,17 +460,36 @@ export class SLAService {
 
   // Métodos auxiliares para cache
   private generateCacheKey(params: SLAResolutionParams): string {
-    return `sla:${params.companyId}:${params.departmentId}:${params.incidentTypeId}:${params.priorityId || params.priorityName || 'default'}`;
+    const categoryPart = params.categoryId ? `:${params.categoryId}` : '';
+    return `sla:${params.companyId}:${params.departmentId}:${params.incidentTypeId}${categoryPart}:${params.priorityId || params.priorityName || 'default'}`;
   }
 
   private parseCacheKey(key: string): SLAResolutionParams {
-    const [, companyId, departmentId, incidentTypeId, priority] = key.split(':');
+    // Possui duas formas:
+    //  - sem categoria: sla:company:dept:type:priority
+    //  - com categoria: sla:company:dept:type:category:priority
+    const parts = key.split(':');
+    const companyId = parts[1];
+    const departmentId = parts[2];
+    const incidentTypeId = parts[3];
+    let categoryId: string | undefined;
+    let priority: string;
+    if (parts.length === 6) {
+      categoryId = parts[4];
+      priority = parts[5];
+    } else {
+      priority = parts[4];
+    }
     
     const params: SLAResolutionParams = {
       companyId: parseInt(companyId),
       departmentId: parseInt(departmentId),
       incidentTypeId: parseInt(incidentTypeId)
     };
+
+    if (categoryId && /^\d+$/.test(categoryId)) {
+      params.categoryId = parseInt(categoryId);
+    }
 
     // Se priority é número, é priorityId, senão é priorityName
     if (/^\d+$/.test(priority)) {
@@ -454,6 +499,88 @@ export class SLAService {
     }
 
     return params;
+  }
+
+  /**
+   * Resolução para modo categoria: considera apenas configurações com category_id
+   * Sem fallback para tipo quando não encontrar
+   */
+  private async tryCategoryMode(params: SLAResolutionParams): Promise<ResolvedSLA | null> {
+    if (!params.categoryId) {
+      return null;
+    }
+
+    const database = db;
+
+    // 1) Tentar específico por prioridade (category_id + priority_id)
+    let priorityId: number | null = null;
+    if (params.priorityId) {
+      priorityId = params.priorityId;
+    } else if (params.priorityName) {
+      // Buscar ID da prioridade pelo nome dentro do departamento
+      const [priority] = await database
+        .select({ id: departmentPriorities.id })
+        .from(departmentPriorities)
+        .where(and(
+          eq(departmentPriorities.company_id, params.companyId),
+          eq(departmentPriorities.department_id, params.departmentId),
+          eq(departmentPriorities.name, params.priorityName),
+          eq(departmentPriorities.is_active, true)
+        ))
+        .limit(1);
+      if (priority) priorityId = priority.id;
+    }
+
+    if (priorityId) {
+      const withPriority = await database
+        .select()
+        .from(slaConfigurations)
+        .where(and(
+          eq(slaConfigurations.company_id, params.companyId),
+          eq(slaConfigurations.department_id, params.departmentId),
+          eq(slaConfigurations.incident_type_id, params.incidentTypeId),
+          eq(slaConfigurations.category_id, params.categoryId),
+          eq(slaConfigurations.priority_id, priorityId),
+          eq(slaConfigurations.is_active, true)
+        ))
+        .limit(1);
+      if (withPriority.length > 0) {
+        const c = withPriority[0];
+        return {
+          responseTimeHours: c.response_time_hours,
+          resolutionTimeHours: c.resolution_time_hours,
+          source: 'specific',
+          configId: c.id
+        };
+      }
+    }
+
+    // 2) Tentar default de categoria (category_id + priority_id NULL)
+    const categoryDefault = await database
+      .select()
+      .from(slaConfigurations)
+      .where(and(
+        eq(slaConfigurations.company_id, params.companyId),
+        eq(slaConfigurations.department_id, params.departmentId),
+        eq(slaConfigurations.incident_type_id, params.incidentTypeId),
+        eq(slaConfigurations.category_id, params.categoryId),
+        isNull(slaConfigurations.priority_id),
+        eq(slaConfigurations.is_active, true)
+      ))
+      .limit(1);
+
+    if (categoryDefault.length > 0) {
+      const c = categoryDefault[0];
+      return {
+        responseTimeHours: c.response_time_hours,
+        resolutionTimeHours: c.resolution_time_hours,
+        source: 'department_default',
+        configId: c.id
+      };
+    }
+
+    // Não encontrado em modo categoria
+    return null;
   }
 
   private getFromCache(key: string): ResolvedSLA | null {

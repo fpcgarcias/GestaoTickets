@@ -189,6 +189,11 @@ export const TicketForm = () => {
   });
 
   const onSubmit = (data: ExtendedInsertTicket) => {
+    // Validação extra no front: se for obrigatório, não permitir envio sem categoria
+    if (mustRequireCategory && !data.category_id) {
+      toast({ title: "Categoria obrigatória", description: "Selecione uma categoria para este tipo.", variant: "destructive" });
+      return;
+    }
     let ticketDataToSend: any = {
       title: data.title,
       description: data.description,
@@ -259,7 +264,7 @@ export const TicketForm = () => {
     ? incidentTypes.filter((type: IncidentType) => type.department_id === selectedDepartmentId)
     : incidentTypes;
 
-  // Buscar categorias baseadas no tipo de incidente selecionado
+// Buscar categorias baseadas no tipo de incidente selecionado
   const selectedIncidentTypeId = form.watch('incident_type_id');
   const { data: categoriesData } = useQuery<{categories: Category[], pagination: any}>({
     queryKey: ["/api/categories", { incident_type_id: selectedIncidentTypeId, active_only: true }],
@@ -282,6 +287,24 @@ export const TicketForm = () => {
 
   // Garantir que categories é um array
   const categories = Array.isArray(categoriesData?.categories) ? categoriesData.categories : [];
+
+  // Buscar sla_mode do departamento para decidir obrigatoriedade da categoria
+  const { data: deptModeData } = useQuery<{ id: number; sla_mode: 'type' | 'category' } | null>({
+    queryKey: ['/api/departments', selectedDepartmentId, 'sla-mode', 'ticket-form'],
+    queryFn: async () => {
+      if (!selectedDepartmentId) return null;
+      const res = await fetch(`/api/departments/${selectedDepartmentId}/sla-mode`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!selectedDepartmentId,
+  });
+
+  const mustRequireCategory = (() => {
+    if (deptModeData?.sla_mode !== 'category') return false;
+    if (!selectedIncidentTypeId) return false;
+    return categories.length > 0; // só exigir se existem categorias ativas para o tipo
+  })();
 
   // Efeito para pré-selecionar o cliente quando o usuário for customer
   useEffect(() => {
@@ -471,14 +494,16 @@ export const TicketForm = () => {
                 name="category_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Categoria</FormLabel>
+                    <FormLabel>
+                      Categoria {mustRequireCategory ? <span className="text-red-500">*</span> : null}
+                    </FormLabel>
                     <Select 
                       onValueChange={(value) => field.onChange(parseInt(value))} 
                       value={field.value?.toString()}
                       disabled={!selectedIncidentTypeId || categories.length === 0}
                     >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className={mustRequireCategory && !field.value ? 'border-red-500' : ''}>
                           <SelectValue placeholder={
                             !selectedIncidentTypeId 
                               ? "Selecione um tipo primeiro" 
@@ -502,6 +527,9 @@ export const TicketForm = () => {
                         )}
                       </SelectContent>
                     </Select>
+                    {mustRequireCategory && !field.value && (
+                      <p className="text-xs text-red-600 mt-1">Categoria é obrigatória para este departamento e tipo.</p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}

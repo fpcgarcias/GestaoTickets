@@ -5,6 +5,9 @@
 
 import { Request, Response } from 'express';
 import { slaConfigurationService } from '../services/sla-configuration-service';
+import { db } from '../db';
+import { departments as departmentsSchema } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 /**
  * GET /api/sla-configurations
@@ -16,6 +19,7 @@ export async function getSLAConfigurations(req: Request, res: Response) {
       companyId, 
       departmentId, 
       incidentTypeId, 
+      categoryId,
       priorityId, 
       isActive 
     } = req.query;
@@ -25,6 +29,10 @@ export async function getSLAConfigurations(req: Request, res: Response) {
     if (companyId) filters.companyId = parseInt(companyId as string);
     if (departmentId) filters.departmentId = parseInt(departmentId as string);
     if (incidentTypeId) filters.incidentTypeId = parseInt(incidentTypeId as string);
+    if (categoryId !== undefined) {
+      filters.categoryId = categoryId === 'null' ? null : parseInt(categoryId as string);
+    }
+
     if (priorityId !== undefined) {
       filters.priorityId = priorityId === 'null' ? null : parseInt(priorityId as string);
     }
@@ -104,6 +112,40 @@ export async function createSLAConfiguration(req: Request, res: Response) {
     const input = req.body;
     
     console.log('📋 [SLA CREATE] Dados recebidos:', JSON.stringify(input, null, 2));
+
+    // Validação rápida por modo do departamento (reforço no endpoint)
+    if (!input || !input.departmentId) {
+      return res.status(400).json({
+        success: false,
+        error: 'departmentId é obrigatório'
+      });
+    }
+
+    const [dept] = await db
+      .select({ sla_mode: departmentsSchema.sla_mode })
+      .from(departmentsSchema)
+      .where(eq(departmentsSchema.id, input.departmentId))
+      .limit(1);
+
+    if (!dept) {
+      return res.status(400).json({ success: false, error: 'Departamento inválido' });
+    }
+
+    if (dept.sla_mode === 'category') {
+      if (input.categoryId === undefined || input.categoryId === null) {
+        return res.status(400).json({
+          success: false,
+          error: 'Categoria é obrigatória para departamentos com SLA por categoria'
+        });
+      }
+    } else {
+      if (input.categoryId !== undefined && input.categoryId !== null) {
+        return res.status(400).json({
+          success: false,
+          error: 'Categoria deve ser vazia para departamentos com SLA por tipo'
+        });
+      }
+    }
 
     // Validar dados de entrada
     const validation = await slaConfigurationService.validateSLAConfiguration(input);
@@ -250,6 +292,37 @@ export async function bulkCreateSLAConfigurations(req: Request, res: Response) {
         success: false,
         error: 'Parâmetros obrigatórios: companyId, departmentId, configurations'
       });
+    }
+
+    // Reforço: validar modo do departamento
+    const [dept] = await db
+      .select({ sla_mode: departmentsSchema.sla_mode })
+      .from(departmentsSchema)
+      .where(eq(departmentsSchema.id, operation.departmentId))
+      .limit(1);
+
+    if (!dept) {
+      return res.status(400).json({ success: false, error: 'Departamento inválido' });
+    }
+
+    if (dept.sla_mode === 'category') {
+      // Todos devem conter categoryId
+      const missingCategory = (operation.configurations || []).find((c: any) => c.categoryId === undefined || c.categoryId === null);
+      if (missingCategory) {
+        return res.status(400).json({
+          success: false,
+          error: 'Todos os itens devem informar categoryId quando o departamento usa SLA por categoria'
+        });
+      }
+    } else {
+      // Nenhum deve conter categoryId
+      const withCategory = (operation.configurations || []).find((c: any) => c.categoryId !== undefined && c.categoryId !== null);
+      if (withCategory) {
+        return res.status(400).json({
+          success: false,
+          error: 'Nenhum item deve informar categoryId quando o departamento usa SLA por tipo'
+        });
+      }
     }
 
     const result = await slaConfigurationService.bulkCreateSLAConfigurations(operation);

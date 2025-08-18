@@ -10,6 +10,7 @@ import {
   incidentTypes,
   departmentPriorities,
   companies,
+  categories,
   type SlaConfiguration,
   type InsertSlaConfiguration
 } from '@shared/schema';
@@ -20,6 +21,7 @@ export interface SLAConfigurationInput {
   companyId: number;
   departmentId: number;
   incidentTypeId: number;
+  categoryId?: number | null;
   priorityId?: number | null;
   responseTimeHours: number;
   resolutionTimeHours: number;
@@ -37,6 +39,7 @@ export interface BulkSLAOperation {
   departmentId: number;
   configurations: Array<{
     incidentTypeId: number;
+    categoryId?: number | null;
     priorityId?: number | null;
     responseTimeHours: number;
     resolutionTimeHours: number;
@@ -126,9 +129,10 @@ export class SLAConfigurationService {
     }
 
     // Validar se entidades existem
+    let deptSlaMode: 'type' | 'category' | undefined;
     if (input.companyId && input.departmentId) {
       const department = await db
-        .select()
+        .select({ id: departments.id, company_id: departments.company_id, sla_mode: departments.sla_mode })
         .from(departments)
         .where(and(
           eq(departments.id, input.departmentId),
@@ -142,6 +146,8 @@ export class SLAConfigurationService {
           message: 'Departamento não encontrado ou não pertence à empresa',
           code: 'ENTITY_NOT_FOUND'
         });
+      } else {
+        deptSlaMode = (department[0].sla_mode as any) || 'type';
       }
     }
 
@@ -157,6 +163,44 @@ export class SLAConfigurationService {
           field: 'incidentTypeId',
           message: 'Tipo de incidente não encontrado',
           code: 'ENTITY_NOT_FOUND'
+        });
+      }
+    }
+
+    // Regras por modo de SLA (por departamento)
+    if (deptSlaMode === 'category') {
+      // categoryId é obrigatório
+      if (input.categoryId === undefined || input.categoryId === null) {
+        errors.push({
+          field: 'categoryId',
+          message: 'Categoria é obrigatória quando o departamento usa SLA por categoria',
+          code: 'REQUIRED_FIELD'
+        });
+      } else {
+        // Validar existência da categoria e relação com incidentType
+        const category = await db
+          .select()
+          .from(categories)
+          .where(and(
+            eq(categories.id, input.categoryId),
+            eq(categories.incident_type_id, input.incidentTypeId)
+          ))
+          .limit(1);
+        if (category.length === 0) {
+          errors.push({
+            field: 'categoryId',
+            message: 'Categoria não encontrada ou não pertence ao tipo de incidente informado',
+            code: 'ENTITY_NOT_FOUND'
+          });
+        }
+      }
+    } else if (deptSlaMode === 'type') {
+      // categoryId deve ser NULL
+      if (input.categoryId !== undefined && input.categoryId !== null) {
+        errors.push({
+          field: 'categoryId',
+          message: 'Categoria deve ser vazia quando o departamento usa SLA por tipo',
+          code: 'INVALID_VALUE'
         });
       }
     }
@@ -187,6 +231,13 @@ export class SLAConfigurationService {
       eq(slaConfigurations.department_id, input.departmentId),
       eq(slaConfigurations.incident_type_id, input.incidentTypeId)
     ];
+
+    // Incluir category na verificação de duplicidade (alinha com índices únicos parciais)
+    if (input.categoryId === null || input.categoryId === undefined) {
+      conditions.push(isNull(slaConfigurations.category_id));
+    } else {
+      conditions.push(eq(slaConfigurations.category_id, input.categoryId));
+    }
 
     if (input.priorityId) {
       conditions.push(eq(slaConfigurations.priority_id, input.priorityId));
@@ -229,6 +280,7 @@ export class SLAConfigurationService {
       company_id: input.companyId,
       department_id: input.departmentId,
       incident_type_id: input.incidentTypeId,
+      category_id: input.categoryId ?? null,
       priority_id: input.priorityId || null,
       response_time_hours: input.responseTimeHours,
       resolution_time_hours: input.resolutionTimeHours,
@@ -250,6 +302,7 @@ export class SLAConfigurationService {
     companyId?: number;
     departmentId?: number;
     incidentTypeId?: number;
+    categoryId?: number | null;
     priorityId?: number;
     isActive?: boolean;
   } = {}): Promise<SlaConfiguration[]> {
@@ -265,6 +318,14 @@ export class SLAConfigurationService {
 
     if (filters.incidentTypeId) {
       conditions.push(eq(slaConfigurations.incident_type_id, filters.incidentTypeId));
+    }
+
+    if (filters.categoryId !== undefined) {
+      if (filters.categoryId === null) {
+        conditions.push(isNull(slaConfigurations.category_id));
+      } else {
+        conditions.push(eq(slaConfigurations.category_id, filters.categoryId));
+      }
     }
 
     if (filters.priorityId !== undefined) {
@@ -389,6 +450,7 @@ export class SLAConfigurationService {
           companyId: operation.companyId,
           departmentId: operation.departmentId,
           incidentTypeId: config.incidentTypeId,
+          categoryId: config.categoryId ?? null,
           priorityId: config.priorityId,
           responseTimeHours: config.responseTimeHours,
           resolutionTimeHours: config.resolutionTimeHours

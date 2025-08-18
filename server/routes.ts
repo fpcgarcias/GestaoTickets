@@ -8636,7 +8636,16 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   });
   
   // Implementar heartbeat para manter conexões vivas
+  // Respeitar horário de hibernação: não fazer heartbeat entre 21h e 6h
   const heartbeatInterval = setInterval(() => {
+    const now = new Date();
+    const hour = now.getHours();
+    
+    // Não fazer heartbeat durante a madrugada (21h às 6h)
+    if (hour >= 21 || hour < 6) {
+      return;
+    }
+    
     wss.clients.forEach((ws: WebSocketWithAlive) => {
       if (ws.isAlive === false) {
         return ws.terminate();

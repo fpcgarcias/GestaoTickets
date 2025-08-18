@@ -73,6 +73,11 @@ export class SchedulerService {
       const hour = now.getHours();
       const minute = now.getMinutes();
       
+      // Respeitar horário de hibernação: não executar entre 21h e 6h
+      if ((hour >= 21) || (hour < 6)) {
+        return;
+      }
+      
       // Executar às 8h da manhã
       if (hour === 8 && minute === 0) {
         this.generateDailyDigest();
@@ -82,9 +87,9 @@ export class SchedulerService {
     // Executar a cada minuto para verificar se é hora do digest
     this.dailyDigestIntervalId = setInterval(runDailyDigest, 60000); // 1 minuto
     
-    // Executar imediatamente se for 8h
+    // Executar imediatamente se for 8h e estiver no horário permitido
     const now = new Date();
-    if (now.getHours() === 8 && now.getMinutes() === 0) {
+    if (now.getHours() === 8 && now.getMinutes() === 0 && now.getHours() >= 6 && now.getHours() < 21) {
       this.generateDailyDigest();
     }
   }
@@ -97,6 +102,11 @@ export class SchedulerService {
       const hour = now.getHours();
       const minute = now.getMinutes();
       
+      // Respeitar horário de hibernação: não executar entre 21h e 6h
+      if ((hour >= 21) || (hour < 6)) {
+        return;
+      }
+      
       // Executar aos domingos às 9h da manhã
       if (dayOfWeek === 0 && hour === 9 && minute === 0) {
         this.generateWeeklyDigest();
@@ -106,9 +116,9 @@ export class SchedulerService {
     // Executar a cada minuto para verificar se é hora do digest
     this.weeklyDigestIntervalId = setInterval(runWeeklyDigest, 60000); // 1 minuto
     
-    // Executar imediatamente se for domingo às 9h
+    // Executar imediatamente se for domingo às 9h e estiver no horário permitido
     const now = new Date();
-    if (now.getDay() === 0 && now.getHours() === 9 && now.getMinutes() === 0) {
+    if (now.getDay() === 0 && now.getHours() === 9 && now.getMinutes() === 0 && now.getHours() >= 6 && now.getHours() < 21) {
       this.generateWeeklyDigest();
     }
   }

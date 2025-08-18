@@ -164,10 +164,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     // Verificar a cada minuto se ainda está no horário comercial
-    const interval = setInterval(checkBusinessHours, 60000);
-    
-    return () => clearInterval(interval);
-  }, [socket]);
+    // Só executar o intervalo se estiver no horário comercial ou se houver uma conexão ativa
+    if (isWithinAllowedHours() || socket) {
+      const interval = setInterval(checkBusinessHours, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [socket, isWithinAllowedHours]);
 
   const markAllAsRead = () => {
     setUnreadCount(0);

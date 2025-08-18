@@ -11,7 +11,7 @@ import { slaService } from '../services/sla-service';
  */
 export async function resolveSLA(req: Request, res: Response) {
   try {
-    const { companyId, departmentId, incidentTypeId, priority } = req.body;
+    const { companyId, departmentId, incidentTypeId, categoryId, priority } = req.body;
 
     // Validar parâmetros obrigatórios
     if (!companyId || !departmentId || !incidentTypeId) {
@@ -25,8 +25,12 @@ export async function resolveSLA(req: Request, res: Response) {
       companyId,
       departmentId, 
       incidentTypeId,
-      priority
+      priority,
+      categoryId
     );
+    if (!resolvedSLA) {
+      return res.status(404).json({ error: 'no_sla' });
+    }
 
     res.json({
       responseTimeHours: resolvedSLA.responseTimeHours,

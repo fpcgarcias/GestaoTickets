@@ -15,6 +15,11 @@ export const ticketStatusEnum = pgEnum('ticket_status', [
   'reopened',
   'resolved'
 ]);
+// Enum para modo de SLA por departamento
+export const slaModeEnum = pgEnum('sla_mode', [
+  'type',
+  'category'
+]);
 // ticketPriorityEnum removido - agora usando TEXT para prioridades dinâmicas
 // export const ticketPriorityEnum = pgEnum('ticket_priority', ['low', 'medium', 'high', 'critical']);
 export const userRoleEnum = pgEnum('user_role', [
@@ -92,6 +97,7 @@ export const departments = pgTable("departments", {
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
   is_active: boolean("is_active").default(true).notNull(),
+  sla_mode: slaModeEnum("sla_mode").notNull().default('type'),
 });
 
 // Support staff table (ajustado para usar department_id ao invés de enum)
@@ -437,6 +443,7 @@ export const slaConfigurations = pgTable("sla_configurations", {
   company_id: integer("company_id").references(() => companies.id).notNull(),
   department_id: integer("department_id").references(() => departments.id).notNull(),
   incident_type_id: integer("incident_type_id").references(() => incidentTypes.id).notNull(),
+  category_id: integer("category_id").references(() => categories.id),
   priority_id: integer("priority_id").references(() => departmentPriorities.id), // NULL = usa prioridade padrão
   response_time_hours: integer("response_time_hours").notNull(),
   resolution_time_hours: integer("resolution_time_hours").notNull(),
@@ -486,8 +493,9 @@ export const insertTicketSchema = z.object({
   customer_email: z.string().email("Endereço de email inválido"),
   type: z.string().min(1, "O tipo de chamado é obrigatório"),
   priority: z.string().optional(),
-  department_id: z.number().optional(),
-  incident_type_id: z.number().optional(),
+  department_id: z.coerce.number().optional(),
+  incident_type_id: z.coerce.number().optional(),
+  category_id: z.coerce.number().optional(),
   customer_id: z.number().optional(),
   company_id: z.number().optional(),
   participants: z.array(z.number()).optional(), // IDs dos participantes

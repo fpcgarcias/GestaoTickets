@@ -54,10 +54,11 @@ export function useTicketSLA(
   departmentId: number,
   incidentTypeId: number,
   priority: string | number,
+  categoryId?: number,
   enabled: boolean = true
 ) {
   return useQuery<ResolvedSLA>({
-    queryKey: ['/api/sla/resolve', companyId, departmentId, incidentTypeId, priority],
+    queryKey: ['/api/sla/resolve', companyId, departmentId, incidentTypeId, categoryId, priority],
     queryFn: async () => {
       const params = new URLSearchParams({
         companyId: companyId.toString(),
@@ -65,6 +66,7 @@ export function useTicketSLA(
         incidentTypeId: incidentTypeId.toString(),
         priority: priority.toString()
       });
+      if (categoryId) params.append('categoryId', categoryId.toString());
 
       const res = await fetch(`/api/sla/resolve?${params}`);
       if (!res.ok) throw new Error('Erro ao resolver SLA');
@@ -168,6 +170,7 @@ export function useTicketWithSLA(
   companyId?: number,
   departmentId?: number,
   incidentTypeId?: number,
+  categoryId?: number,
   priority?: string,
   createdAt?: string,
   firstResponseAt?: string,
@@ -179,6 +182,7 @@ export function useTicketWithSLA(
     departmentId || 0,
     incidentTypeId || 0,
     priority || 'medium',
+    categoryId,
     !!(companyId && departmentId && incidentTypeId && priority)
   );
 

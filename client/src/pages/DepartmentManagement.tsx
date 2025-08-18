@@ -23,6 +23,7 @@ interface DepartmentFormData {
   description: string;
   company_id?: number | null;
   is_active: boolean;
+  sla_mode?: 'type' | 'category';
 }
 
 const DepartmentManagement: React.FC = () => {
@@ -44,6 +45,7 @@ const DepartmentManagement: React.FC = () => {
     description: '',
     company_id: user?.role === 'admin' ? null : user?.companyId,
     is_active: true,
+    sla_mode: 'type',
   });
   const [isEditing, setIsEditing] = useState(false);
 
@@ -145,7 +147,8 @@ const DepartmentManagement: React.FC = () => {
         name: data.name,
         description: data.description,
         company_id: data.company_id,
-        is_active: data.is_active
+        is_active: data.is_active,
+        sla_mode: data.sla_mode || 'type'
       });
       
       if (!response.ok) {
@@ -186,7 +189,8 @@ const DepartmentManagement: React.FC = () => {
         name: data.name,
         description: data.description,
         company_id: data.company_id,
-        is_active: data.is_active
+        is_active: data.is_active,
+        sla_mode: data.sla_mode || 'type'
       });
       
       if (!response.ok) {
@@ -257,6 +261,7 @@ const DepartmentManagement: React.FC = () => {
       description: '',
       company_id: user?.role === 'admin' ? null : user?.companyId,
       is_active: true,
+      sla_mode: 'type',
     });
     setIsEditing(false);
   };
@@ -275,6 +280,7 @@ const DepartmentManagement: React.FC = () => {
       description: department.description || '',
       company_id: department.company_id,
       is_active: department.is_active,
+      sla_mode: (department as any).sla_mode || 'type',
     });
     setIsEditing(true);
     setIsDialogOpen(true);
@@ -584,6 +590,21 @@ const DepartmentManagement: React.FC = () => {
                   setCurrentDepartment((prev) => ({
                     ...prev,
                     is_active: checked,
+                  }))
+                }
+              />
+            </div>
+
+            {/* Toggle: SLA por categoria */}
+            <div className="flex items-center space-x-2">
+              <Label htmlFor="sla_mode">Usar SLA por categoria</Label>
+              <Switch
+                id="sla_mode"
+                checked={currentDepartment.sla_mode === 'category'}
+                onCheckedChange={(checked) =>
+                  setCurrentDepartment((prev) => ({
+                    ...prev,
+                    sla_mode: checked ? 'category' : 'type',
                   }))
                 }
               />

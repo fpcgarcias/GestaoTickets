@@ -4,12 +4,13 @@
  */
 
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Clock, Target, CheckCircle, AlertTriangle, Info, Pause, XCircle } from 'lucide-react';
-import { useTicketWithSLA, slaUtils } from '@/hooks/use-sla';
+import { useTicketWithSLA, useTicketSLAStatus, slaUtils } from '@/hooks/use-sla';
 import { usePriorities } from '@/hooks/use-priorities';
 import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
 import { addBusinessTime, getBusinessHoursConfig } from '@shared/utils/sla-calculator';
@@ -21,6 +22,7 @@ interface SLAStatusProps {
   companyId: number;
   departmentId: number;
   incidentTypeId: number;
+  categoryId?: number;
   priority: string;
   status: TicketStatus;
   createdAt: string;
@@ -35,6 +37,7 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
   companyId,
   departmentId,
   incidentTypeId,
+  categoryId,
   priority,
   status,
   createdAt,
@@ -48,12 +51,49 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
     companyId,
     departmentId,
     incidentTypeId,
+    categoryId,
     priority,
     createdAt,
     firstResponseAt,
     resolvedAt,
     status
   );
+
+  // Fallback: buscar configurações de SLA legadas por companhia
+  const { data: legacySlaSettings } = useQuery({
+    queryKey: ["/api/settings/sla", companyId],
+    queryFn: async () => {
+      const res = await fetch(`/api/settings/sla?company_id=${companyId}`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!companyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Extrair horas de SLA do formato legado
+  const getLegacySLAHours = (): { responseTimeHours: number; resolutionTimeHours: number } | null => {
+    if (!legacySlaSettings) return null;
+    const priorityKey = priority.toLowerCase();
+    const defaults: Record<string, number> = {
+      critical: 4, high: 8, medium: 24, low: 48,
+      'crítica': 4, 'alta': 8, 'média': 24, 'baixa': 48,
+    };
+    let responseTimeHours: number = defaults[priorityKey] ?? 24;
+    let resolutionTimeHours: number = defaults[priorityKey] ?? 24;
+    if (legacySlaSettings && typeof legacySlaSettings === 'object' && 'settings' in legacySlaSettings) {
+      const settings = (legacySlaSettings as any).settings;
+      const matchKey = Object.keys(settings).find(k => k.toLowerCase() === priorityKey);
+      const setting = matchKey ? settings[matchKey] : null;
+      responseTimeHours = setting?.response_time_hours ?? responseTimeHours;
+      resolutionTimeHours = setting?.resolution_time_hours ?? resolutionTimeHours;
+    } else if (Array.isArray(legacySlaSettings)) {
+      const setting = legacySlaSettings.find((s: any) => s.priority?.toLowerCase() === priorityKey);
+      responseTimeHours = setting?.responseTimeHours ?? setting?.response_time_hours ?? responseTimeHours;
+      resolutionTimeHours = setting?.resolutionTimeHours ?? setting?.resolution_time_hours ?? resolutionTimeHours;
+    }
+    return { responseTimeHours, resolutionTimeHours };
+  };
 
   // Buscar prioridades do departamento para obter o nome correto
   const { data: priorities = [] } = usePriorities(departmentId);
@@ -71,7 +111,13 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
   const isFinished = isSlaFinished(status);
   const isPaused = isSlaPaused(status);
 
-  if (!ticketSLAInfo) {
+  // Consolidar SLA: novo sistema ou fallback legado
+  const consolidatedSLA = ticketSLAInfo?.sla || (() => {
+    const legacy = getLegacySLAHours();
+    return legacy ? { ...legacy, source: 'company_default' as const } : null;
+  })();
+
+  if (!consolidatedSLA) {
     return (
       <Card className={className}>
         <CardHeader>
@@ -94,7 +140,19 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
     );
   }
 
-  const { sla, status: slaStatus } = ticketSLAInfo;
+  const sla = consolidatedSLA;
+
+  const createdDateForStatus = new Date(createdAt);
+  const firstResponseDateForStatus = firstResponseAt ? new Date(firstResponseAt) : undefined;
+  const resolvedDateForStatus = resolvedAt ? new Date(resolvedAt) : undefined;
+  const slaStatus = useTicketSLAStatus(
+    ticketId,
+    createdDateForStatus,
+    firstResponseDateForStatus,
+    resolvedDateForStatus,
+    sla,
+    status
+  )!;
 
   // Calcular progresso dos prazos
   const responseProgress = (firstResponseAt || status !== 'new')
@@ -219,22 +277,22 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
             </div>
           </div>
           
-          <Progress 
-            value={responseProgress} 
-            className="h-2" 
-            // @ts-ignore
+          <div
             style={{
-              '--progress-foreground': firstResponseAt 
-                ? (isFirstResponseOverdue() ? 'hsl(0, 84%, 60%)' : 'hsl(142, 76%, 36%)') // Vermelho se excedido, verde se no prazo
+              // usamos uma div wrapper para evitar erro de tipagem do CSS var no componente Progress
+              ['--progress-foreground' as any]: firstResponseAt
+                ? (isFirstResponseOverdue() ? 'hsl(0, 84%, 60%)' : 'hsl(142, 76%, 36%)')
                 : status !== 'new'
-                  ? 'hsl(142, 76%, 36%)' // Verde se já foi respondido (sem firstResponseAt)
-                  : slaStatus.isResponseOverdue 
-                    ? 'hsl(0, 84%, 60%)' // Vermelho se atrasado
+                  ? 'hsl(142, 76%, 36%)'
+                  : slaStatus.isResponseOverdue
+                    ? 'hsl(0, 84%, 60%)'
                     : slaStatus.responseTimeRemaining < 2
-                      ? 'hsl(25, 95%, 53%)' // Laranja se crítico
-                      : 'hsl(221, 83%, 53%)' // Azul se normal
+                      ? 'hsl(25, 95%, 53%)'
+                      : 'hsl(221, 83%, 53%)'
             }}
-          />
+          >
+            <Progress value={responseProgress} className="h-2" />
+          </div>
           
                      {firstResponseAt && (
              <div className={`flex items-center gap-1 text-xs ${isFirstResponseOverdue() ? 'text-red-600' : 'text-green-600'}`}>
@@ -273,22 +331,21 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
             </div>
           </div>
           
-                     <Progress 
-             value={resolvedAt ? 100 : resolutionProgress} 
-             className="h-2" 
-             // @ts-ignore
+           <div
              style={{
-               '--progress-foreground': resolvedAt 
-                 ? (isResolutionOverdue() ? 'hsl(0, 84%, 60%)' : 'hsl(142, 76%, 36%)') // Vermelho se excedido, verde se no prazo
-                 : isPaused 
-                   ? 'hsl(25, 95%, 53%)' // Laranja se pausado
-                   : slaStatus.isResolutionOverdue 
-                     ? 'hsl(0, 84%, 60%)' // Vermelho se atrasado
+               ['--progress-foreground' as any]: resolvedAt
+                 ? (isResolutionOverdue() ? 'hsl(0, 84%, 60%)' : 'hsl(142, 76%, 36%)')
+                 : isPaused
+                   ? 'hsl(25, 95%, 53%)'
+                   : slaStatus.isResolutionOverdue
+                     ? 'hsl(0, 84%, 60%)'
                      : slaStatus.resolutionTimeRemaining < 2
-                       ? 'hsl(25, 95%, 53%)' // Laranja se crítico
-                       : 'hsl(142, 76%, 36%)' // Verde se normal
+                       ? 'hsl(25, 95%, 53%)'
+                       : 'hsl(142, 76%, 36%)'
              }}
-           />
+           >
+             <Progress value={resolvedAt ? 100 : resolutionProgress} className="h-2" />
+           </div>
           
                      {resolvedAt ? (
              <div className={`flex items-center gap-1 text-xs ${isResolutionOverdue() ? 'text-red-600' : 'text-green-600'}`}>

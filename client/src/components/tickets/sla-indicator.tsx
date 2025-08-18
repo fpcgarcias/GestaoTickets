@@ -16,6 +16,7 @@ interface SLAIndicatorProps {
   // Novos campos para o sistema flexível de SLA
   departmentId?: number;
   incidentTypeId?: number;
+  categoryId?: number;
   firstResponseAt?: string;
   className?: string;
 }
@@ -29,6 +30,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   resolvedAt,
   departmentId,
   incidentTypeId,
+  categoryId,
   firstResponseAt,
   className = ""
 }) => {
@@ -44,6 +46,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     ticketCompanyId,
     departmentId,
     incidentTypeId,
+    categoryId,
     ticketPriority,
     ticketCreatedAt,
     firstResponseAt,
