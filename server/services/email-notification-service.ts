@@ -828,7 +828,6 @@ export class EmailNotificationService {
             eq(officialDepartments.department_id, ticket.department_id),
             eq(users.active, true),
             eq(officials.is_active, true),
-            inArray(users.role, ['admin', 'support', 'manager', 'supervisor']),
             // 🛡️ FILTRO DEFENSIVO: Garantir que department_id não seja NULL
             not(isNull(officialDepartments.department_id)),
             ticket.company_id ? eq(users.company_id, ticket.company_id) : undefined
@@ -845,27 +844,25 @@ export class EmailNotificationService {
       let emailsFailed = 0;
 
       for (const user of departmentUsers) {
+        // Enviar para todos os oficiais ativos DO DEPARTAMENTO respeitando preferências/horários
         const shouldNotify = await this.shouldSendEmailToUser(user.id, 'new_ticket');
-        if (shouldNotify) {
-          // 🔥 CORREÇÃO CRÍTICA: Criar contexto personalizado para cada usuário
-          const personalizedContext: EmailNotificationContext = {
-            ...context,
-            user: user // Adicionar dados do usuário específico
-          };
-          
-          const result = await this.sendEmailNotification(
-            'new_ticket',
-            user.email,
-            personalizedContext,
-            ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
-            undefined // 🔥 CORREÇÃO: Não passar role para validação em notificações de novo ticket
-          );
-          
-          if (result.success) {
-            emailsSent++;
-          } else {
-            emailsFailed++;
-          }
+        if (!shouldNotify) continue;
+
+        const personalizedContext: EmailNotificationContext = {
+          ...context,
+          user: user
+        };
+        const result = await this.sendEmailNotification(
+          'new_ticket',
+          user.email,
+          personalizedContext,
+          ticket.company_id!,
+          undefined
+        );
+        if (result.success) {
+          emailsSent++;
+        } else {
+          emailsFailed++;
         }
       }
 
