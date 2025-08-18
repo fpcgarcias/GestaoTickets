@@ -2515,12 +2515,17 @@ export class EmailNotificationService {
         const shouldNotify = await this.shouldSendEmailToUser(participant.id, notificationType);
         if (shouldNotify) {
           console.log(`[📧 EMAIL PROD] ✅ Participante ${participant.name} configurado para receber notificações`);
-          
+          // Personalizar contexto para o participante destinatário
+          const participantContext: EmailNotificationContext = {
+            ...context,
+            user: participant
+          };
+
           const result = await this.sendEmailNotification(
             notificationType,
             participant.email,
-            context,
-            context.ticket?.company_id!,
+            participantContext,
+            participant.company_id ?? context.ticket?.company_id!,
             participant.role
           );
           

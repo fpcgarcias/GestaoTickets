@@ -1636,8 +1636,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
               await db
                 .update(schema.tickets)
                 .set({ 
-                  priority: finalPriority as any, // SALVAR EXATAMENTE como a IA retornou
-                  priority_id: finalPriorityId // VINCULAR ID CORRETO
+                  priority: finalPriority as any // SALVAR EXATAMENTE como a IA retornou
                 })
                 .where(eq(schema.tickets.id, ticket.id));
                 
