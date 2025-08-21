@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useBusinessHoursRefetchInterval } from '../hooks/use-business-hours';
 import { 
   Loader2, 
   Bell, 
@@ -48,12 +49,8 @@ const AdvancedNotificationSettings: React.FC = () => {
   const [escalateTicketId, setEscalateTicketId] = useState('');
   const [escalateReason, setEscalateReason] = useState('');
 
-  // Função para determinar se está no horário permitido (6h às 21h)
-  const isWithinAllowedHours = () => {
-    const now = new Date();
-    const hour = now.getHours();
-    return hour >= 6 && hour < 21;
-  };
+  // Usar hook dinâmico para horário comercial
+  const refetchInterval = useBusinessHoursRefetchInterval(10000);
 
   // Query para verificar status do scheduler
   const { data: schedulerStatus, refetch: refetchStatus } = useQuery<SchedulerStatus>({
@@ -65,8 +62,8 @@ const AdvancedNotificationSettings: React.FC = () => {
       }
       return response.json();
     },
-    // Atualizar apenas entre 6h e 21h (horário comercial)
-    refetchInterval: isWithinAllowedHours() ? 10000 : false,
+    // Atualizar apenas entre 6h e 21h (horário comercial) - dinâmico
+    refetchInterval: refetchInterval,
   });
 
   // Mutations para controle do scheduler

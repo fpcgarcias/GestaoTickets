@@ -3,7 +3,20 @@ import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from "ws";
 import * as schema from "@shared/schema";
 
-neonConfig.webSocketConstructor = ws;
+// Configurar WebSocket apenas durante horário comercial
+const isBusinessHours = () => {
+  const now = new Date();
+  const hour = now.getHours();
+  return hour >= 6 && hour < 21;
+};
+
+// Só configurar WebSocket durante horário comercial
+if (isBusinessHours()) {
+  neonConfig.webSocketConstructor = ws;
+} else {
+  // Durante a madrugada, usar HTTP apenas (mais lento, mas hiberna)
+  neonConfig.webSocketConstructor = undefined;
+}
 
 if (!process.env.DATABASE_URL) {
   console.error('[db.ts] ERRO: DATABASE_URL não está definida!');

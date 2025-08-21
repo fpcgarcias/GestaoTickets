@@ -44,10 +44,11 @@ const defaultOptions: DefaultOptions = {
 // Configurações específicas por tipo de query
 export const queryConfigs = {
   // Dados que mudam frequentemente (tickets, notificações)
+  // NOTA: refetchInterval deve ser configurado individualmente usando useBusinessHoursRefetchInterval
   realtime: {
     staleTime: 30 * 1000, // 30 segundos
     gcTime: 2 * 60 * 1000, // 2 minutos
-    refetchInterval: 60 * 1000, // Refetch a cada 1 minuto
+    // refetchInterval removido - usar useBusinessHoursRefetchInterval nos componentes
   },
   
   // Dados que mudam ocasionalmente (usuários, clientes)

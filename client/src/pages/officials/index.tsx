@@ -38,6 +38,7 @@ import { ToggleStatusOfficialDialog } from '@/pages/officials/toggle-status-offi
 import { Official } from '@shared/schema';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
+import { useBusinessHoursRefetchInterval } from '../../hooks/use-business-hours';
 
 // Interface para empresa
 interface Company {
@@ -72,12 +73,8 @@ export default function OfficialsIndex() {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
 
-  // Função para determinar se está no horário permitido (6h às 21h)
-  const isWithinAllowedHours = () => {
-    const now = new Date();
-    const hour = now.getHours();
-    return hour >= 6 && hour < 21;
-  };
+  // Usar hook dinâmico para horário comercial
+  const refetchInterval = useBusinessHoursRefetchInterval(30000);
   
   // Reset page when search changes
   const handleSearchChange = (value: string) => {
@@ -120,8 +117,8 @@ export default function OfficialsIndex() {
       return res.json();
     },
     enabled: user?.role === 'admin',
-    // Atualizar apenas entre 6h e 21h (horário comercial)
-    refetchInterval: isWithinAllowedHours() ? 30000 : false,
+    // Atualizar apenas entre 6h e 21h (horário comercial) - dinâmico
+    refetchInterval: refetchInterval,
   });
 
   const officials = officialsResponse?.data || [];

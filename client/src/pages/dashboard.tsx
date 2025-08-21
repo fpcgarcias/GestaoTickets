@@ -9,6 +9,7 @@ import { Clock, CheckCircle2, Users, Calendar, MoreHorizontal } from 'lucide-rea
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
+import { useBusinessHoursRefetchInterval } from '../hooks/use-business-hours';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
@@ -194,12 +195,8 @@ export default function Dashboard() {
     return periodParams.toString();
   };
 
-  // Função para determinar se está no horário permitido (6h às 21h)
-  const isWithinAllowedHours = () => {
-    const now = new Date();
-    const hour = now.getHours();
-    return hour >= 6 && hour < 21;
-  };
+  // Usar hook dinâmico para horário comercial
+  const refetchInterval = useBusinessHoursRefetchInterval(60000);
 
   // Query única para todas as métricas do dashboard
   const { data: dashboardData, isLoading: isDashboardLoading } = useQuery({
@@ -211,8 +208,8 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch dashboard metrics');
       return response.json();
     },
-    // Atualizar apenas entre 6h e 21h (horário comercial)
-    refetchInterval: isWithinAllowedHours() ? 60000 : false,
+    // Atualizar apenas entre 6h e 21h (horário comercial) - dinâmico
+    refetchInterval: refetchInterval,
     refetchIntervalInBackground: false,
   });
 

@@ -13,6 +13,7 @@ import EditClientDialog from './edit-client-dialog';
 import ToggleStatusClientDialog from './toggle-status-client-dialog';
 import BulkImportDialog from './bulk-import-dialog';
 import { useAuth } from '@/hooks/use-auth';
+import { useBusinessHoursRefetchInterval } from '../../hooks/use-business-hours';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -48,12 +49,8 @@ export default function ClientsIndex() {
   const [currentPage, setCurrentPage] = useState(1);
   const { user } = useAuth();
 
-  // Função para determinar se está no horário permitido (6h às 21h)
-  const isWithinAllowedHours = () => {
-    const now = new Date();
-    const hour = now.getHours();
-    return hour >= 6 && hour < 21;
-  };
+  // Usar hook dinâmico para horário comercial
+  const refetchInterval = useBusinessHoursRefetchInterval(30000);
   
   const { data: clientsResponse, isLoading } = useQuery({
     queryKey: ['/api/customers', includeInactive ? 'all' : 'active', currentPage, searchQuery, selectedCompanyId],
@@ -70,8 +67,8 @@ export default function ClientsIndex() {
       if (!res.ok) throw new Error('Erro ao carregar clientes');
       return res.json();
     },
-    // Atualizar apenas entre 6h e 21h (horário comercial)
-    refetchInterval: isWithinAllowedHours() ? 30000 : false,
+    // Atualizar apenas entre 6h e 21h (horário comercial) - dinâmico
+    refetchInterval: refetchInterval,
   });
 
   // Buscar empresas apenas para admin
@@ -83,8 +80,8 @@ export default function ClientsIndex() {
       return res.json();
     },
     enabled: user?.role === 'admin',
-    // Atualizar apenas entre 6h e 21h (horário comercial)
-    refetchInterval: isWithinAllowedHours() ? 30000 : false,
+    // Atualizar apenas entre 6h e 21h (horário comercial) - dinâmico
+    refetchInterval: refetchInterval,
   });
 
   const clients = clientsResponse?.data || [];
