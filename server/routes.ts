@@ -2383,13 +2383,54 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         // Se filterCompanyId for null, mostra todos
         officials = includeInactive ? officials : officials.filter(official => official.is_active);
         
-      } else if (userRole === 'company_admin' || userRole === 'manager') {
-        // COMPANY_ADMIN e MANAGER: VÊM TODOS OS ATENDENTES DA SUA EMPRESA (ignora filterCompanyId)
+      } else if (userRole === 'company_admin') {
+        // COMPANY_ADMIN: VÊ TODOS OS ATENDENTES DA SUA EMPRESA (ignora filterCompanyId)
         officials = allOfficials.filter(official => {
           const sameCompany = official.company_id === sessionCompanyId;
           const isActive = includeInactive || official.is_active;
           return sameCompany && isActive;
         });
+      } else if (userRole === 'manager') {
+        // MANAGER: VÊ APENAS ATENDENTES DOS SEUS DEPARTAMENTOS
+        if (!sessionCompanyId || !userId) {
+          officials = [];
+        } else {
+          // Buscar o official do manager
+          const currentOfficial = allOfficials.find(o => o.user_id === userId);
+          
+          if (!currentOfficial) {
+            officials = [];
+          } else {
+            // Buscar departamentos do manager
+            const managerDepartments = await db
+              .select({ department_id: schema.officialDepartments.department_id })
+              .from(schema.officialDepartments)
+              .where(eq(schema.officialDepartments.official_id, currentOfficial.id));
+            
+            if (managerDepartments.length === 0) {
+              officials = [];
+            } else {
+              const departmentIds = managerDepartments.map(d => d.department_id).filter(id => id !== null);
+              
+              // Buscar todos os atendentes desses departamentos
+              const departmentOfficials = await db
+                .select({ official_id: schema.officialDepartments.official_id })
+                .from(schema.officialDepartments)
+                .where(inArray(schema.officialDepartments.department_id, departmentIds));
+              
+              const allowedOfficialIds = departmentOfficials.map(o => o.official_id);
+              
+              // Filtrar atendentes pelos departamentos permitidos
+              officials = allOfficials.filter(official => {
+                const sameCompany = official.company_id === sessionCompanyId;
+                const isActive = includeInactive || official.is_active;
+                const isAllowed = allowedOfficialIds.includes(official.id);
+                
+                return sameCompany && isActive && isAllowed;
+              });
+            }
+          }
+        }
       } else if (userRole === 'supervisor') {
         // SUPERVISOR: se enxerga + subordinados (quando tiver)
         if (!sessionCompanyId || !userId) {
@@ -4005,13 +4046,66 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           conditions.push(eq(departmentsSchema.company_id, filterCompanyId));
         }
         // Se filterCompanyId for null, mostra todos
-      } else if (userRole === 'company_admin' || userRole === 'manager') {
-        // Company Admin e Manager veem todos os departamentos da sua empresa
+      } else if (userRole === 'company_admin') {
+        // Company Admin vê todos os departamentos da sua empresa
         if (sessionCompanyId) {
           conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
         } else {
           return res.status(403).json({ message: "Acesso negado: ID da empresa não encontrado na sessão." });
         }
+      } else if (userRole === 'manager') {
+        // Manager vê APENAS os departamentos que está vinculado
+        if (!sessionCompanyId || !userId) {
+          return res.status(403).json({ message: "Acesso negado: ID da empresa ou usuário não encontrado na sessão." });
+        }
+
+        // Buscar o official do usuário
+        const [official] = await db
+          .select()
+          .from(schema.officials)
+          .where(eq(schema.officials.user_id, userId))
+          .limit(1);
+
+        if (!official) {
+          return res.status(403).json({ message: "Manager não é um atendente." });
+        }
+
+        // Buscar departamentos do manager
+        const userDepartments = await db
+          .select({ department_id: schema.officialDepartments.department_id })
+          .from(schema.officialDepartments)
+          .where(eq(schema.officialDepartments.official_id, official.id));
+
+        if (userDepartments.length === 0) {
+          // Se o manager não tem departamentos, retornar lista vazia
+          return res.json({
+            departments: [],
+            pagination: {
+              current: page,
+              pages: 0,
+              total: 0,
+              limit: limit
+            }
+          });
+        }
+
+        const allowedDepartmentIds = userDepartments.map(d => d.department_id).filter(id => id !== null);
+
+        if (allowedDepartmentIds.length === 0) {
+          return res.json({
+            departments: [],
+            pagination: {
+              current: page,
+              pages: 0,
+              total: 0,
+              limit: limit
+            }
+          });
+        }
+
+        // Filtrar apenas pelos departamentos do manager + empresa
+        conditions.push(eq(departmentsSchema.company_id, sessionCompanyId));
+        conditions.push(inArray(departmentsSchema.id, allowedDepartmentIds));
       } else if (userRole === 'supervisor' || userRole === 'support') {
         // 🆕 NOVA LÓGICA: Support/Supervisor veem APENAS seus departamentos
         if (!sessionCompanyId || !userId) {

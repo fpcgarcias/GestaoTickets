@@ -7,7 +7,9 @@ import { Request, Response } from 'express';
 import { slaConfigurationService } from '../services/sla-configuration-service';
 import { db } from '../db';
 import { departments as departmentsSchema } from '@shared/schema';
+import * as schema from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import { storage } from '../storage';
 
 /**
  * GET /api/sla-configurations
@@ -24,6 +26,10 @@ export async function getSLAConfigurations(req: Request, res: Response) {
       isActive 
     } = req.query;
 
+    const userRole = req.session?.userRole as string;
+    const userId = req.session?.userId;
+    const sessionCompanyId = req.session?.companyId;
+
     const filters: any = {};
     
     if (companyId) filters.companyId = parseInt(companyId as string);
@@ -37,6 +43,72 @@ export async function getSLAConfigurations(req: Request, res: Response) {
       filters.priorityId = priorityId === 'null' ? null : parseInt(priorityId as string);
     }
     if (isActive !== undefined) filters.isActive = isActive === 'true';
+
+    // APLICAR FILTRO DE DEPARTAMENTO PARA MANAGERS
+    if (userRole === 'manager') {
+      if (!sessionCompanyId || !userId) {
+        return res.status(403).json({
+          success: false,
+          error: 'Acesso negado: dados de sessão inválidos'
+        });
+      }
+
+      // Buscar departamentos do manager
+      const allOfficials = await storage.getOfficials();
+      const currentOfficial = allOfficials.find(o => o.user_id === userId);
+      
+      if (!currentOfficial) {
+        return res.status(403).json({
+          success: false,
+          error: 'Acesso negado: atendente não encontrado'
+        });
+      }
+
+      // Buscar departamentos do manager
+      const managerDepartments = await db
+        .select({ department_id: schema.officialDepartments.department_id })
+        .from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, currentOfficial.id));
+      
+      const departmentIds = managerDepartments.map(d => d.department_id).filter(id => id !== null);
+      
+      if (departmentIds.length === 0) {
+        return res.json({
+          success: true,
+          data: [],
+          count: 0
+        });
+      }
+
+      // Se o filtro de departamento foi especificado, verificar se o manager tem acesso
+      if (filters.departmentId && !departmentIds.includes(filters.departmentId)) {
+        return res.status(403).json({
+          success: false,
+          error: 'Acesso negado: você não tem permissão para visualizar este departamento'
+        });
+      }
+
+      // Se nenhum departamento específico foi solicitado, filtrar pelos departamentos do manager
+      if (!filters.departmentId) {
+        // Para managers, sempre filtrar pelos departamentos permitidos
+        const configurations = await slaConfigurationService.getSLAConfigurations(filters);
+        const filteredConfigs = configurations.filter(config => 
+          departmentIds.includes(config.department_id)
+        );
+        
+        res.set({
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        });
+
+        return res.json({
+          success: true,
+          data: filteredConfigs,
+          count: filteredConfigs.length
+        });
+      }
+    }
 
     const configurations = await slaConfigurationService.getSLAConfigurations(filters);
 
