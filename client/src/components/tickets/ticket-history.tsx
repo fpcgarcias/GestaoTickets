@@ -81,9 +81,9 @@ interface TicketHistoryProps {
 // Tipo para o item de histórico combinado
 interface HistoryItem {
   id: number;
-  type: 'reply' | 'status_change';
+  type: 'reply' | 'status_change' | 'assignment_change';
   created_at: string;
-  data: TicketReply | TicketStatusHistory;
+  data: any;
 }
 
 // Componente de item de histórico
@@ -135,6 +135,49 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                 {translateUserRole(reply.user.role)}
               </Badge>
             )}
+          </div>
+        </div>
+      </div>
+    );
+  } else if (item.type === 'assignment_change') {
+    const assignment = item.data as any;
+    const oldOfficial = assignment.old_assigned_official;
+    const newOfficial = assignment.new_assigned_official;
+    return (
+      <div className="flex gap-3 pb-6 relative">
+        {/* Linha vertical conectando as atividades */}
+        <div className="absolute left-[1.15rem] top-10 bottom-0 w-0.5 bg-gray-200"></div>
+        {/* Círculo com ícone */}
+        <div className="z-10 flex-shrink-0 w-9 h-9 rounded-full bg-teal-50 flex items-center justify-center border-2 border-white shadow">
+          <User className="h-5 w-5 text-teal-600" />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            {assignment.user ? (
+              <>
+                <Avatar className="w-6 h-6">
+                  <AvatarImage src={assignment.user.avatar_url || ""} />
+                  <AvatarFallback className="text-xs">{assignment.user.name?.charAt(0) || "U"}</AvatarFallback>
+                </Avatar>
+                <span className="font-semibold text-sm text-teal-700">{assignment.user.name}</span>
+                <span className="text-sm text-gray-500">transferiu a responsabilidade</span>
+              </>
+            ) : (
+              <>
+                <User className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-500 italic">Usuário não identificado transferiu a responsabilidade</span>
+              </>
+            )}
+            <span className="text-xs text-gray-400 ml-auto">{formatDate(assignment.created_at)}</span>
+          </div>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
+              De: {oldOfficial?.name || 'Não atribuído'}
+            </Badge>
+            <span className="text-sm text-gray-400">→</span>
+            <Badge variant="outline" className="text-xs bg-teal-50 text-teal-700 border-teal-200">
+              Para: {newOfficial?.name || 'Não atribuído'}
+            </Badge>
           </div>
         </div>
       </div>
@@ -288,14 +331,19 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticketId }) => {
     
     if (statusHistory) {
       statusHistory.forEach(status => {
-        items.push({
+        const baseItem = {
           id: status.id,
-          type: 'status_change',
           created_at: typeof status.created_at === 'string' 
             ? status.created_at 
             : new Date(status.created_at).toISOString(),
-          data: status
-        });
+          data: status as any
+        } as any;
+
+        if ((status as any).change_type === 'assignment') {
+          items.push({ ...baseItem, type: 'assignment_change' });
+        } else {
+          items.push({ ...baseItem, type: 'status_change' });
+        }
       });
     }
     

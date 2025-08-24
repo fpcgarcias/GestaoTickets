@@ -44,6 +44,8 @@ interface Department {
   id: number;
   name: string;
   company_id: number;
+  is_active?: boolean;
+  active?: boolean;
 }
 
 interface IncidentType {
@@ -51,6 +53,8 @@ interface IncidentType {
   name: string;
   department_id: number;
   company_id: number;
+  is_active?: boolean;
+  active?: boolean;
 }
 
 interface DepartmentPriority {
@@ -144,9 +148,10 @@ export default function SLAConfigurations() {
   const { data: departments } = useQuery<Department[]>({
     queryKey: ['/api/departments', selectedCompanyId],
     queryFn: async () => {
-      const url = selectedCompanyId 
+      let url = selectedCompanyId 
         ? `/api/departments?company_id=${selectedCompanyId}`
         : '/api/departments';
+      url += (url.includes('?') ? '&' : '?') + 'active_only=true';
       
       const res = await fetch(url);
       if (!res.ok) throw new Error('Erro ao carregar departamentos');
@@ -168,6 +173,7 @@ export default function SLAConfigurations() {
       
       if (selectedCompanyId) params.append('company_id', selectedCompanyId.toString());
       if (selectedDepartmentId) params.append('department_id', selectedDepartmentId.toString());
+      params.append('active_only', 'true');
       
       if (params.toString()) url += `?${params.toString()}`;
       
@@ -221,6 +227,7 @@ export default function SLAConfigurations() {
       
       if (formData.companyId) params.append('company_id', formData.companyId.toString());
       if (formData.departmentId) params.append('department_id', formData.departmentId.toString());
+      params.append('active_only', 'true');
       
       if (params.toString()) url += `?${params.toString()}`;
       
@@ -878,11 +885,15 @@ export default function SLAConfigurations() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos os departamentos</SelectItem>
-                      {departments?.map(dept => (
-                        <SelectItem key={dept.id} value={dept.id.toString()}>
-                          {dept.name}
-                        </SelectItem>
-                      ))}
+                      {departments
+                        ?.filter(dept => (dept.is_active ?? dept.active ?? true))
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base', numeric: true }))
+                        .map(dept => (
+                          <SelectItem key={dept.id} value={dept.id.toString()}>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -900,11 +911,15 @@ export default function SLAConfigurations() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos os tipos</SelectItem>
-                      {incidentTypes?.map(type => (
-                        <SelectItem key={type.id} value={type.id.toString()}>
-                          {type.name}
-                        </SelectItem>
-                      ))}
+                      {incidentTypes
+                        ?.filter(type => (type.is_active ?? type.active ?? true))
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base', numeric: true }))
+                        .map(type => (
+                          <SelectItem key={type.id} value={type.id.toString()}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1434,7 +1449,11 @@ export default function SLAConfigurations() {
                       <SelectValue placeholder="Selecione um departamento" />
                     </SelectTrigger>
                     <SelectContent>
-                      {departments?.map(dept => (
+                      {departments
+                        ?.filter(dept => (dept.is_active ?? dept.active ?? true))
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base', numeric: true }))
+                        .map(dept => (
                         <SelectItem key={dept.id} value={dept.id.toString()}>
                           {dept.name}
                         </SelectItem>
@@ -1459,7 +1478,11 @@ export default function SLAConfigurations() {
                       <SelectValue placeholder="Selecione um tipo" />
                     </SelectTrigger>
                     <SelectContent>
-                      {formIncidentTypes?.map(type => (
+                      {formIncidentTypes
+                        ?.filter(type => (type.is_active ?? type.active ?? true))
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base', numeric: true }))
+                        .map(type => (
                         <SelectItem key={type.id} value={type.id.toString()}>
                           {type.name}
                         </SelectItem>
@@ -1484,7 +1507,11 @@ export default function SLAConfigurations() {
                         <SelectValue placeholder={(formCategories && formCategories.length > 0) ? 'Selecione uma categoria' : 'Sem categorias para este tipo'} />
                       </SelectTrigger>
                       <SelectContent>
-                        {formCategories?.map((cat: any) => (
+                        {formCategories
+                          ?.filter((cat: any) => (cat?.is_active ?? cat?.active ?? true))
+                          .slice()
+                          .sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base', numeric: true }))
+                          .map((cat: any) => (
                           <SelectItem key={cat.id} value={cat.id.toString()}>
                             {cat.name}
                           </SelectItem>

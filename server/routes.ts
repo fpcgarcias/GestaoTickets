@@ -970,6 +970,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           change_type: schema.ticketStatusHistory.change_type,
           old_priority: schema.ticketStatusHistory.old_priority,
           new_priority: schema.ticketStatusHistory.new_priority,
+          old_assigned_to_id: schema.ticketStatusHistory.old_assigned_to_id,
+          new_assigned_to_id: schema.ticketStatusHistory.new_assigned_to_id,
           changed_by_id: schema.ticketStatusHistory.changed_by_id,
           created_at: schema.ticketStatusHistory.created_at,
           user: {
@@ -983,6 +985,34 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         .leftJoin(schema.users, eq(schema.ticketStatusHistory.changed_by_id, schema.users.id))
         .where(eq(schema.ticketStatusHistory.ticket_id, ticketId))
         .orderBy(desc(schema.ticketStatusHistory.created_at)); // Mais recentes primeiro
+
+      // Enriquecer com nomes dos atendentes em eventos de transferência
+      const assignmentIds = new Set<number>();
+      for (const item of statusHistory) {
+        if (item.change_type === 'assignment') {
+          if (item.old_assigned_to_id) assignmentIds.add(item.old_assigned_to_id);
+          if (item.new_assigned_to_id) assignmentIds.add(item.new_assigned_to_id);
+        }
+      }
+
+      if (assignmentIds.size > 0) {
+        const idsArray = Array.from(assignmentIds);
+        const officialsRows = await db
+          .select({ id: schema.officials.id, name: schema.officials.name, email: schema.officials.email })
+          .from(schema.officials)
+          .where(inArray(schema.officials.id, idsArray));
+        const idToOfficial: Record<number, { id: number; name: string | null; email: string | null }> = {};
+        for (const off of officialsRows) {
+          idToOfficial[off.id] = off;
+        }
+
+        for (const item of statusHistory as any[]) {
+          if (item.change_type === 'assignment') {
+            item.old_assigned_official = item.old_assigned_to_id ? idToOfficial[item.old_assigned_to_id] || null : null;
+            item.new_assigned_official = item.new_assigned_to_id ? idToOfficial[item.new_assigned_to_id] || null : null;
+          }
+        }
+      }
 
       res.json(statusHistory);
     } catch (error) {
@@ -1241,6 +1271,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(400).json({ message: "Nenhum dado válido para atualizar" });
       }
 
+      const previousAssignedToId = existingTicket.assigned_to_id || null;
       const ticket = await storage.updateTicket(id, updateData);
       if (!ticket) {
         return res.status(404).json({ message: "Ticket não encontrado" });
@@ -1255,8 +1286,24 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         timestamp: new Date()
       });
       
+      // Registrar histórico de transferência se atribuição mudou
+      if (updateData.assigned_to_id !== undefined && previousAssignedToId !== updateData.assigned_to_id) {
+        try {
+          await db.insert(schema.ticketStatusHistory).values({
+            ticket_id: ticket.id,
+            change_type: 'assignment',
+            old_assigned_to_id: previousAssignedToId,
+            new_assigned_to_id: updateData.assigned_to_id ?? null,
+            changed_by_id: req.session?.userId,
+            created_at: new Date()
+          });
+        } catch (historyErr) {
+          console.error('Erro ao registrar histórico de transferência:', historyErr);
+        }
+      }
+
       // 📧 ENVIAR EMAIL PARA MUDANÇA DE ATRIBUIÇÃO
-      if (updateData.assigned_to_id && existingTicket.assigned_to_id !== updateData.assigned_to_id) {
+      if (updateData.assigned_to_id && previousAssignedToId !== updateData.assigned_to_id) {
         // 🔥 OTIMIZAÇÃO CRÍTICA: Envio de e-mail fire-and-forget (não bloqueia a resposta)
         const emailStartTime = Date.now();
         console.log(`📧 [EMAIL BACKGROUND] ========================================`);

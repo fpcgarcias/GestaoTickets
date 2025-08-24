@@ -295,6 +295,17 @@ export async function POST(req: Request, res: Response) {
     }
 
     if (validatedData.assigned_to_id && validatedData.assigned_to_id !== ticket.assigned_to_id) {
+      // Registrar histórico de transferência (assignment)
+      await db.insert(ticketStatusHistory).values({
+        ticket_id: ticketId,
+        change_type: 'assignment',
+        old_assigned_to_id: ticket.assigned_to_id || null,
+        new_assigned_to_id: validatedData.assigned_to_id,
+        changed_by_id: sessionUserId,
+        created_at: new Date(),
+      });
+
+      // Atualizar atribuição
       await db
         .update(tickets)
         .set({ 

@@ -1,7 +1,21 @@
 {
-  "current": "1.0.24",
-  "releaseDate": "2025-08-15",
+  "current": "1.0.25",
+  "releaseDate": "2025-08-25",
   "versions": [
+    {
+      "version": "1.0.25",
+      "date": "2025-08-25",
+      "title": "Correções de bugs",
+      "type": "bugfix",
+      "changes": {
+        "fixed": [
+          "Correção para gerentes visualizarem os tickets apenas dos departamentos que estão vinculados."
+        ],
+        "improved": [
+          "Logs e mensagens de diagnóstico mais claras em casos de departamentos não encontrados."
+        ]
+      }
+    },
     {
       "version": "1.0.24",
       "date": "2025-08-15",

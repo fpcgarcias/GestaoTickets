@@ -186,6 +186,9 @@ export const ticketStatusHistory = pgTable("ticket_status_history", {
   change_type: text("change_type").notNull().default('status'),
   
   changed_by_id: integer("changed_by_id").references(() => users.id),
+  // Campos para mudança de atribuição (opcionais - usados quando change_type = 'assignment')
+  old_assigned_to_id: integer("old_assigned_to_id").references(() => officials.id),
+  new_assigned_to_id: integer("new_assigned_to_id").references(() => officials.id),
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 

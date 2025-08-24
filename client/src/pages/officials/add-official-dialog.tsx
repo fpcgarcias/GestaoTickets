@@ -114,6 +114,20 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     enabled: user?.role !== 'admin' || formData.company_id !== null, // Para admin, só buscar se empresa estiver selecionada
   });
 
+  // Utilitário: checar interseção de departamentos
+  const hasDepartmentIntersection = (official: any): boolean => {
+    try {
+      const selected = Array.isArray(formData.departments) ? formData.departments : [];
+      if (selected.length === 0) return true; // sem filtro se nada selecionado
+      const offDepts: string[] = Array.isArray(official?.departments) ? official.departments : [];
+      if (offDepts.length === 0) return false;
+      const set = new Set(offDepts.map((d) => (typeof d === 'string' ? d : String(d))));
+      return selected.some((d) => set.has(d));
+    } catch {
+      return false;
+    }
+  };
+
   // Mapear departamentos do banco para o formato usado no componente
   const availableDepartments = Array.isArray(departmentsData) ? departmentsData.map((dept: { id: number; name: string; description?: string }) => ({
     value: dept.name,
@@ -542,10 +556,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                           <SelectItem value="none">Nenhum supervisor</SelectItem>
                           {Array.isArray(existingOfficials) ? existingOfficials
                             .filter((off: any) => {
-                              // Filtrar apenas supervisores
-                              return off && 
-                                     off.user && 
-                                     off.user.role === 'supervisor';
+                              // Filtrar apenas supervisores dos departamentos selecionados
+                              return off && off.user && off.user.role === 'supervisor' && hasDepartmentIntersection(off);
                             })
                             .map((off: any) => (
                               <SelectItem key={off.id} value={off.id.toString()}>
@@ -573,10 +585,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                           <SelectItem value="none">Nenhum manager</SelectItem>
                           {Array.isArray(existingOfficials) ? existingOfficials
                             .filter((off: any) => {
-                              // Filtrar apenas managers e company_admins
-                              return off && 
-                                     off.user && 
-                                     (off.user.role === 'manager' || off.user.role === 'company_admin');
+                              // Filtrar apenas managers e company_admins dos departamentos selecionados
+                              return off && off.user && (off.user.role === 'manager' || off.user.role === 'company_admin') && hasDepartmentIntersection(off);
                             })
                             .map((off: any) => (
                               <SelectItem key={off.id} value={off.id.toString()}>
