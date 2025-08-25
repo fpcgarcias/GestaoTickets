@@ -224,7 +224,7 @@ export const prefetchCriticalData = async () => {
     
     queryClient.prefetchQuery({
       queryKey: queryKeys.departments.all(),
-      queryFn: () => fetch('/api/departments').then(res => res.json()),
+      queryFn: () => fetch('/api/departments?active_only=true').then(res => res.json()),
       ...queryConfigs.static
     }),
     

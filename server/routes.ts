@@ -8566,13 +8566,68 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   router.get("/sla-dashboard/stats", authRequired, async (req: Request, res: Response) => {
     try {
       const companyId = req.session.companyId;
+      const userRole = req.session.userRole;
+      const userId = req.session.userId;
+      
       if (!companyId) {
         return res.status(400).json({ message: "Empresa não identificada" });
       }
 
-      const departmentIds = req.query.departments ? 
+      let departmentIds = req.query.departments ? 
         (req.query.departments as string).split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : 
         undefined;
+
+      // APLICAR FILTRO DE DEPARTAMENTO PARA MANAGERS
+      if (userRole === 'manager') {
+        if (!userId) {
+          return res.status(403).json({
+            success: false,
+            error: 'Acesso negado: dados de sessão inválidos'
+          });
+        }
+
+        // Buscar departamentos do manager
+        const allOfficials = await storage.getOfficials();
+        const currentOfficial = allOfficials.find(o => o.user_id === userId);
+        
+        if (!currentOfficial) {
+          return res.status(403).json({
+            success: false,
+            error: 'Acesso negado: atendente não encontrado'
+          });
+        }
+
+        // Buscar departamentos do manager
+        const managerDepartments = await db
+          .select({ department_id: schema.officialDepartments.department_id })
+          .from(schema.officialDepartments)
+          .where(eq(schema.officialDepartments.official_id, currentOfficial.id));
+        
+        const managerDepartmentIds = managerDepartments.map(d => d.department_id).filter(id => id !== null);
+        
+        if (managerDepartmentIds.length === 0) {
+          return res.json({
+            totalConfigurations: 0,
+            configurationsByDepartment: [],
+            slaCompliance: [],
+            missingConfigurationAlerts: []
+          });
+        }
+
+        // Se o filtro de departamento foi especificado, verificar se o manager tem acesso
+        if (departmentIds && departmentIds.length > 0) {
+          const hasAccess = departmentIds.every(id => managerDepartmentIds.includes(id));
+          if (!hasAccess) {
+            return res.status(403).json({
+              success: false,
+              error: 'Acesso negado: você não tem permissão para visualizar este departamento'
+            });
+          }
+        } else {
+          // Se nenhum departamento específico foi solicitado, filtrar pelos departamentos do manager
+          departmentIds = managerDepartmentIds;
+        }
+      }
 
       const stats = await slaApi.getDashboardStats(companyId, departmentIds);
       res.json(stats);
@@ -8589,6 +8644,9 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   router.get("/sla-dashboard/department/:departmentId", authRequired, async (req: Request, res: Response) => {
     try {
       const companyId = req.session.companyId;
+      const userRole = req.session.userRole;
+      const userId = req.session.userId;
+      
       if (!companyId) {
         return res.status(400).json({ message: "Empresa não identificada" });
       }
@@ -8596,6 +8654,43 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
       const departmentId = parseInt(req.params.departmentId);
       if (isNaN(departmentId)) {
         return res.status(400).json({ message: "ID do departamento inválido" });
+      }
+
+      // APLICAR FILTRO DE DEPARTAMENTO PARA MANAGERS
+      if (userRole === 'manager') {
+        if (!userId) {
+          return res.status(403).json({
+            success: false,
+            error: 'Acesso negado: dados de sessão inválidos'
+          });
+        }
+
+        // Buscar departamentos do manager
+        const allOfficials = await storage.getOfficials();
+        const currentOfficial = allOfficials.find(o => o.user_id === userId);
+        
+        if (!currentOfficial) {
+          return res.status(403).json({
+            success: false,
+            error: 'Acesso negado: atendente não encontrado'
+          });
+        }
+
+        // Buscar departamentos do manager
+        const managerDepartments = await db
+          .select({ department_id: schema.officialDepartments.department_id })
+          .from(schema.officialDepartments)
+          .where(eq(schema.officialDepartments.official_id, currentOfficial.id));
+        
+        const managerDepartmentIds = managerDepartments.map(d => d.department_id).filter(id => id !== null);
+        
+        // Verificar se o manager tem acesso ao departamento específico
+        if (!managerDepartmentIds.includes(departmentId as number)) {
+          return res.status(403).json({
+            success: false,
+            error: 'Acesso negado: você não tem permissão para visualizar este departamento'
+          });
+        }
       }
 
       const overview = await slaApi.getDepartmentOverview(companyId, departmentId);

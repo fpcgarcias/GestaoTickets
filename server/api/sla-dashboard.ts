@@ -11,6 +11,7 @@ import {
   tickets,
   companies,
   departmentPriorities,
+  categories,
   type SlaConfiguration,
   type Department,
   type IncidentType,
@@ -106,7 +107,7 @@ export class SLADashboardAPI {
       })
       .from(slaConfigurations)
       .innerJoin(departments, eq(slaConfigurations.department_id, departments.id))
-      .where(and(...baseFilters, eq(slaConfigurations.is_active, true)))
+      .where(and(...baseFilters, eq(slaConfigurations.is_active, true), eq(departments.is_active, true))) // Filtrar apenas departamentos ativos
       .groupBy(slaConfigurations.department_id, departments.name);
 
     // 3. Calcular configurações faltantes e cobertura por departamento
@@ -257,8 +258,13 @@ export class SLADashboardAPI {
       })
       .from(tickets)
       .leftJoin(departments, eq(tickets.department_id, departments.id))
-      .where(and(...baseFilters))
+      .where(and(...baseFilters, eq(departments.is_active, true))) // Filtrar apenas departamentos ativos
       .orderBy(desc(tickets.created_at));
+
+    // Se não há tickets, retornar array vazio
+    if (ticketsWithSLA.length === 0) {
+      return [];
+    }
 
     // Buscar status history de todos os tickets em lote
     const ticketIds = ticketsWithSLA.map(t => t.ticketId);
@@ -325,7 +331,7 @@ export class SLADashboardAPI {
         // Resposta - Se não tem firstResponseAt mas tem resolvedAt, usar resolvedAt
         if ((ticket.firstResponseAt || ticket.resolvedAt) && sla) {
           const statusPeriods = convertStatusHistoryToPeriods(ticket.createdAt, ticket.status, statusHistory);
-          const firstResponseTime = ticket.firstResponseAt || ticket.resolvedAt;
+          const firstResponseTime = ticket.firstResponseAt || ticket.resolvedAt!; // Garantir que não é null
           const responseTimeMs = calculateEffectiveBusinessTime(ticket.createdAt, firstResponseTime, statusPeriods, businessHours);
           const responseTime = responseTimeMs / (1000 * 60 * 60); // horas
           metrics.totalResponseTime += responseTime;
@@ -348,17 +354,21 @@ export class SLADashboardAPI {
         console.error('Erro ao calcular SLA para ticket:', ticket.ticketId, error);
       }
     }
-    return Array.from(departmentMetrics.entries()).map(([departmentId, metrics]) => ({
-      departmentId,
-      departmentName: metrics.departmentName,
-      totalTickets: metrics.totalTickets,
-      onTimeResponse: metrics.onTimeResponse,
-      onTimeResolution: metrics.onTimeResolution,
-      responseCompliance: metrics.totalTickets > 0 ? (metrics.onTimeResponse / metrics.totalTickets) * 100 : 0,
-      resolutionCompliance: metrics.resolvedTickets > 0 ? (metrics.onTimeResolution / metrics.resolvedTickets) * 100 : 0,
-      averageResponseTime: metrics.totalTickets > 0 ? metrics.totalResponseTime / metrics.totalTickets : 0,
-      averageResolutionTime: metrics.resolvedTickets > 0 ? metrics.totalResolutionTime / metrics.resolvedTickets : 0
-    }));
+
+    // Retornar apenas departamentos que têm tickets válidos (com SLA configurado)
+    return Array.from(departmentMetrics.entries())
+      .filter(([_, metrics]) => metrics.totalTickets > 0) // Filtrar apenas departamentos com tickets
+      .map(([departmentId, metrics]) => ({
+        departmentId,
+        departmentName: metrics.departmentName,
+        totalTickets: metrics.totalTickets,
+        onTimeResponse: metrics.onTimeResponse,
+        onTimeResolution: metrics.onTimeResolution,
+        responseCompliance: (metrics.onTimeResponse / metrics.totalTickets) * 100,
+        resolutionCompliance: metrics.resolvedTickets > 0 ? (metrics.onTimeResolution / metrics.resolvedTickets) * 100 : 0,
+        averageResponseTime: metrics.totalResponseTime / metrics.totalTickets,
+        averageResolutionTime: metrics.resolvedTickets > 0 ? metrics.totalResolutionTime / metrics.resolvedTickets : 0
+      }));
   }
 
   /**
@@ -373,24 +383,47 @@ export class SLADashboardAPI {
     const allDepartments = await db.select({ id: departments.id, name: departments.name, sla_mode: departments.sla_mode }).from(departments).where(and(...deptFilter));
 
     // Buscar todos os tipos de incidente ativos da empresa
-    const allIncidentTypes = await db.select({ id: incidentTypes.id, name: incidentTypes.name }).from(incidentTypes).where(and(eq(incidentTypes.company_id, companyId)));
+    let incidentTypeFilter = [eq(incidentTypes.company_id, companyId)];
+    if (departmentIds && departmentIds.length > 0) {
+      incidentTypeFilter.push(inArray(incidentTypes.department_id, departmentIds));
+    }
+    const allIncidentTypes = await db.select({ id: incidentTypes.id, name: incidentTypes.name }).from(incidentTypes).where(and(...incidentTypeFilter));
 
     // Buscar todas as prioridades ativas por departamento da empresa
+    let priorityFilter = [eq(departmentPriorities.company_id, companyId), eq(departmentPriorities.is_active, true)];
+    if (departmentIds && departmentIds.length > 0) {
+      priorityFilter.push(inArray(departmentPriorities.department_id, departmentIds));
+    }
     const allDeptPriorities = await db.select({
       id: departmentPriorities.id,
       name: departmentPriorities.name,
       departmentId: departmentPriorities.department_id
-    }).from(departmentPriorities).where(and(eq(departmentPriorities.company_id, companyId), eq(departmentPriorities.is_active, true)));
+    }).from(departmentPriorities).where(and(...priorityFilter));
 
     // Buscar todas as configurações de SLA ativas
+    let configFilter = [eq(slaConfigurations.company_id, companyId), eq(slaConfigurations.is_active, true)];
+    if (departmentIds && departmentIds.length > 0) {
+      configFilter.push(inArray(slaConfigurations.department_id, departmentIds));
+    }
     const allConfigs = await db.select({
       departmentId: slaConfigurations.department_id,
       incidentTypeId: slaConfigurations.incident_type_id,
       categoryId: slaConfigurations.category_id,
       priorityId: slaConfigurations.priority_id
-    }).from(slaConfigurations).where(and(eq(slaConfigurations.company_id, companyId), eq(slaConfigurations.is_active, true)));
+    }).from(slaConfigurations).where(and(...configFilter));
 
     // Buscar todas as combinações realmente usadas em tickets reais
+    let ticketFilter = [
+      eq(tickets.company_id, companyId),
+      isNotNull(tickets.department_id),
+      isNotNull(tickets.incident_type_id),
+      isNotNull(tickets.priority)
+    ];
+    
+    if (departmentIds && departmentIds.length > 0) {
+      ticketFilter.push(inArray(tickets.department_id, departmentIds));
+    }
+    
     const ticketCombos = await db
       .select({
         departmentId: tickets.department_id,
@@ -399,12 +432,7 @@ export class SLADashboardAPI {
         priority: tickets.priority
       })
       .from(tickets)
-      .where(and(
-        eq(tickets.company_id, companyId),
-        isNotNull(tickets.department_id),
-        isNotNull(tickets.incident_type_id),
-        isNotNull(tickets.priority)
-      ));
+      .where(and(...ticketFilter));
     // Montar set de combinações realmente usadas
     const deptModeMap = new Map(allDepartments.map(d => [d.id, d.sla_mode] as const));
     const usedCombos = new Set(
@@ -472,22 +500,19 @@ export class SLADashboardAPI {
       const result = await db
         .select({ count: count() })
         .from(incidentTypes)
-        // @ts-ignore: categories table from shared/schema
-        .innerJoin((categories as any), eq((categories as any).incident_type_id, incidentTypes.id))
+        .innerJoin(categories, eq(categories.incident_type_id, incidentTypes.id))
         .leftJoin(slaConfigurations, and(
           eq(slaConfigurations.company_id, companyId),
           eq(slaConfigurations.department_id, departmentId),
           eq(slaConfigurations.incident_type_id, incidentTypes.id),
-          // @ts-ignore
-          eq(slaConfigurations.category_id, (categories as any).id),
+          eq(slaConfigurations.category_id, categories.id),
           eq(slaConfigurations.is_active, true)
         ))
         .where(and(
           eq(incidentTypes.company_id, companyId),
           eq(incidentTypes.department_id, departmentId),
           eq(incidentTypes.is_active, true),
-          // @ts-ignore
-          eq((categories as any).is_active, true),
+          eq(categories.is_active, true),
           isNull(slaConfigurations.id)
         ));
       return result[0]?.count || 0;
