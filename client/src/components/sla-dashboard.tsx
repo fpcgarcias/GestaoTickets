@@ -97,14 +97,20 @@ export function SLADashboard({ className }: SLADashboardProps) {
   const { data: departmentsResponse } = useQuery({
     queryKey: ['/api/departments'],
     queryFn: async () => {
-      const res = await fetch('/api/departments');
+      const res = await fetch('/api/departments?active_only=true');
       if (!res.ok) throw new Error('Erro ao carregar departamentos');
       return res.json();
     },
     enabled: !!user,
   });
 
-  const departments: Department[] = departmentsResponse?.departments || [];
+  // Garantir que departments seja sempre um array, lidando com diferentes estruturas de resposta
+  const departments: Department[] = Array.isArray(departmentsResponse) 
+    ? departmentsResponse 
+    : departmentsResponse?.departments || departmentsResponse?.data || [];
+
+  // Filtrar apenas departamentos ativos para o dropdown (redundante, mas seguro)
+  const activeDepartments = departments.filter(dept => dept.is_active);
 
   // Buscar estatísticas do dashboard SLA
   const { data: slaStats, isLoading: isStatsLoading } = useQuery<SLADashboardStats>({
@@ -235,7 +241,7 @@ export function SLADashboard({ className }: SLADashboardProps) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos os departamentos</SelectItem>
-              {departments.map((dept) => (
+              {activeDepartments.map((dept) => (
                 <SelectItem key={dept.id} value={dept.id.toString()}>
                   {dept.name}
                 </SelectItem>
