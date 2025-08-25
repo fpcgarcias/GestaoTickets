@@ -204,12 +204,13 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   name: 'sessionId', // Nome personalizado para evitar detecção automática
+  // Sessão deslizante: renova o cookie a cada resposta enquanto houver atividade
+  rolling: true,
   cookie: {
     secure: process.env.NODE_ENV === 'production', // HTTPS apenas em produção
     httpOnly: true, // Previne acesso via JavaScript
-    // Ajuste de timezone: Neon salva em UTC, mas usuários estão em UTC-3
-    // maxAge: 21h = 24h efetivas no horário local do Brasil
-    maxAge: 21 * 60 * 60 * 1000, // 21 horas (efetivamente 24h no horário local UTC-3)
+    // Janela de inatividade: 8 horas
+    maxAge: 8 * 60 * 60 * 1000, // 8h
     sameSite: 'strict' // Proteção CSRF
   }
 }));
