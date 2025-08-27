@@ -2214,6 +2214,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           
           // Atualizar a senha do usuário associado
           await storage.updateUser(customer.user_id, { password: hashedPassword });
+
+          // Encerrar sessões do usuário após alterar a senha via cliente
+          try {
+            await db.execute(sql`
+              DELETE FROM user_sessions
+              WHERE (sess->>'userId')::int = ${customer.user_id}
+            `);
+          } catch (sessionError) {
+            console.error('Erro ao encerrar sessões do usuário (cliente) após alterar senha:', sessionError);
+          }
         }
       }
 
@@ -2860,7 +2870,18 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         
         // Se temos dados para atualizar, realizar a atualização
         if (Object.keys(userUpdateData).length > 0) {
-          await storage.updateUser(official.user_id, userUpdateData);
+          const updated = await storage.updateUser(official.user_id, userUpdateData);
+          // Se a senha foi alterada, encerrar as sessões do usuário
+          if (userUpdateData.password) {
+            try {
+              await db.execute(sql`
+                DELETE FROM user_sessions
+                WHERE (sess->>'userId')::int = ${official.user_id}
+              `);
+            } catch (sessionError) {
+              console.error('Erro ao encerrar sessões do usuário (atendente) após alterar senha:', sessionError);
+            }
+          }
         }
       }
       // Se apenas a senha foi fornecida diretamente, atualizar apenas ela
@@ -2874,6 +2895,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           password: hashedPassword,
           company_id: effectiveCompanyId
         });
+        // Encerrar sessões do usuário após alterar a senha via atendente
+        try {
+          await db.execute(sql`
+            DELETE FROM user_sessions
+            WHERE (sess->>'userId')::int = ${official.user_id}
+          `);
+        } catch (sessionError) {
+          console.error('Erro ao encerrar sessões do usuário (atendente) após alterar senha:', sessionError);
+        }
       }
       // Se não há senha mas há company_id para atualizar no usuário
       else if (official.user_id && effectiveCompanyId !== undefined) {
@@ -3305,6 +3335,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         })
         .where(eq(schema.users.id, user_id));
       
+      // Encerrar todas as sessões do usuário após a troca de senha
+      try {
+        await db.execute(sql`
+          DELETE FROM user_sessions
+          WHERE (sess->>'userId')::int = ${user_id}
+        `);
+      } catch (sessionError) {
+        console.error('Erro ao encerrar sessões do usuário após troca de senha:', sessionError);
+        // Não falhar a operação principal por causa disso
+      }
+      
       // Retornar sucesso
       res.json({ 
         success: true, 
@@ -3564,6 +3605,18 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       // Atualizar usuário
       const updatedUser = await storage.updateUser(id, updateData);
+      
+      // Se a senha foi atualizada, encerrar sessões desse usuário
+      if (updateData.password) {
+        try {
+          await db.execute(sql`
+            DELETE FROM user_sessions
+            WHERE (sess->>'userId')::int = ${id}
+          `);
+        } catch (sessionError) {
+          console.error('Erro ao encerrar sessões do usuário (usuários) após alterar senha:', sessionError);
+        }
+      }
       if (!updatedUser) {
         return res.status(500).json({ message: "Falha ao atualizar usuário" });
       }
