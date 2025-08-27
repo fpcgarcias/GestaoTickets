@@ -75,7 +75,8 @@ export class AnthropicProvider implements AiProviderInterface {
             tokensUsed: {
               request: data.usage?.input_tokens || 0,
               response: data.usage?.output_tokens || 0,
-            }
+            },
+            rawResponse: data
           };
         }
         
@@ -88,7 +89,8 @@ export class AnthropicProvider implements AiProviderInterface {
           tokensUsed: {
             request: data.usage?.input_tokens || 0,
             response: data.usage?.output_tokens || 0,
-          }
+          },
+          rawResponse: data
         };
       }
 
@@ -107,7 +109,8 @@ export class AnthropicProvider implements AiProviderInterface {
             tokensUsed: {
               request: data.usage?.input_tokens || 0,
               response: data.usage?.output_tokens || 0,
-            }
+            },
+            rawResponse: data
           };
         }
         
@@ -120,7 +123,8 @@ export class AnthropicProvider implements AiProviderInterface {
           tokensUsed: {
             request: data.usage?.input_tokens || 0,
             response: data.usage?.output_tokens || 0,
-          }
+          },
+          rawResponse: data
         };
       }
       
@@ -139,7 +143,8 @@ export class AnthropicProvider implements AiProviderInterface {
         tokensUsed: {
           request: data.usage?.input_tokens || 0,
           response: data.usage?.output_tokens || 0,
-        }
+        },
+        rawResponse: data
       };
 
     } catch (error: any) {

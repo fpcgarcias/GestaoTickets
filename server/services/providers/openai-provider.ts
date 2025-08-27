@@ -77,7 +77,8 @@ export class OpenAiProvider implements AiProviderInterface {
             tokensUsed: {
               request: data.usage?.prompt_tokens || 0,
               response: data.usage?.completion_tokens || 0,
-            }
+            },
+            rawResponse: data
           };
         }
         
@@ -90,7 +91,8 @@ export class OpenAiProvider implements AiProviderInterface {
           tokensUsed: {
             request: data.usage?.prompt_tokens || 0,
             response: data.usage?.completion_tokens || 0,
-          }
+          },
+          rawResponse: data
         };
       }
 
@@ -109,7 +111,8 @@ export class OpenAiProvider implements AiProviderInterface {
             tokensUsed: {
               request: data.usage?.prompt_tokens || 0,
               response: data.usage?.completion_tokens || 0,
-            }
+            },
+            rawResponse: data
           };
         }
         
@@ -122,7 +125,8 @@ export class OpenAiProvider implements AiProviderInterface {
           tokensUsed: {
             request: data.usage?.prompt_tokens || 0,
             response: data.usage?.completion_tokens || 0,
-          }
+          },
+          rawResponse: data
         };
       }
       
@@ -141,7 +145,8 @@ export class OpenAiProvider implements AiProviderInterface {
         tokensUsed: {
           request: data.usage?.prompt_tokens || 0,
           response: data.usage?.completion_tokens || 0,
-        }
+        },
+        rawResponse: data
       };
 
     } catch (error: any) {

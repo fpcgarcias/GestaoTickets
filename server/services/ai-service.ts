@@ -31,6 +31,8 @@ export interface AiAnalysisResult {
     request: number;
     response: number;
   };
+  // Objeto bruto retornado pelo provedor de IA (será persistido como JSON em ai_response_raw)
+  rawResponse?: any;
 }
 
 export interface AiProviderInterface {
@@ -715,6 +717,7 @@ export class AiService {
         input_title: request.title,
         input_description: request.description,
         suggested_priority: result.priority,
+        ai_response_raw: result.rawResponse ? JSON.stringify(result.rawResponse) : undefined,
         ai_justification: result.justification,
         provider: config.provider,
         model: config.model,

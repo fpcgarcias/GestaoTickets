@@ -78,7 +78,8 @@ export class GoogleProvider implements AiProviderInterface {
             tokensUsed: {
               request: 0,
               response: data.usageMetadata?.candidatesTokenCount || 0,
-            }
+            },
+            rawResponse: data
           };
         }
         
@@ -91,7 +92,8 @@ export class GoogleProvider implements AiProviderInterface {
           tokensUsed: {
             request: 0,
             response: data.usageMetadata?.candidatesTokenCount || 0,
-          }
+          },
+          rawResponse: data
         };
       }
 
@@ -110,7 +112,8 @@ export class GoogleProvider implements AiProviderInterface {
             tokensUsed: {
               request: 0,
               response: data.usageMetadata?.candidatesTokenCount || 0,
-            }
+            },
+            rawResponse: data
           };
         }
         
@@ -123,7 +126,8 @@ export class GoogleProvider implements AiProviderInterface {
           tokensUsed: {
             request: 0,
             response: data.usageMetadata?.candidatesTokenCount || 0,
-          }
+          },
+          rawResponse: data
         };
       }
       
@@ -142,7 +146,8 @@ export class GoogleProvider implements AiProviderInterface {
         tokensUsed: {
           request: 0,
           response: data.usageMetadata?.candidatesTokenCount || 0,
-        }
+        },
+        rawResponse: data
       };
 
     } catch (error: any) {
