@@ -189,6 +189,33 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     <Card>
       <CardContent className="p-6">
         <h3 className="text-lg font-medium mb-6">Responder ao Chamado</h3>
+        {/* Contexto do Chamado: Departamento / Tipo / Categoria (sem dependência do FormContext) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Departamento</div>
+            <Input
+              value={(ticket as any).department_name || '—'}
+              readOnly
+              className="bg-neutral-50"
+            />
+          </div>
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Tipo de Chamado</div>
+            <Input
+              value={(ticket as any).incident_type_name || '—'}
+              readOnly
+              className="bg-neutral-50"
+            />
+          </div>
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Categoria</div>
+            <Input
+              value={(ticket as any).category_name || '—'}
+              readOnly
+              className="bg-neutral-50"
+            />
+          </div>
+        </div>
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

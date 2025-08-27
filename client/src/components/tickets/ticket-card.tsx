@@ -67,7 +67,16 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
     assigned_to_id: assignedToId,
     department_id: departmentId,
     company_id: companyId,
-  } = ticket;
+    incident_type_id: incidentTypeId,
+    category_id: categoryId,
+    // campos enriquecidos do backend
+    // @ts-ignore
+    department_name: departmentName,
+    // @ts-ignore
+    incident_type_name: incidentTypeName,
+    // @ts-ignore
+    category_name: categoryName,
+  } = ticket as any;
   
   // Buscar prioridades do departamento para obter informações adicionais
   const { data: priorities = [] } = usePriorities(departmentId || undefined);
@@ -180,6 +189,18 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
             <StatusBadge status={status} />
           </div>
           <p className="text-neutral-600 line-clamp-2">{description}</p>
+        </div>
+        {/* Metadados: Departamento / Tipo / Categoria */}
+        <div className="mt-2 text-xs text-neutral-600 flex flex-wrap gap-2">
+          {departmentName && (
+            <span className="bg-neutral-50 border border-neutral-200 px-2 py-0.5 rounded-full">Departamento: {departmentName}</span>
+          )}
+          {incidentTypeName && (
+            <span className="bg-neutral-50 border border-neutral-200 px-2 py-0.5 rounded-full">Tipo: {incidentTypeName}</span>
+          )}
+          {categoryName && (
+            <span className="bg-neutral-50 border border-neutral-200 px-2 py-0.5 rounded-full">Categoria: {categoryName}</span>
+          )}
         </div>
         
         <div className="flex justify-between items-center mt-3 pt-3 border-t border-neutral-100">

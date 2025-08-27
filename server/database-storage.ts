@@ -907,10 +907,17 @@ export class DatabaseStorage implements IStorage {
         official_supervisor_id: officials.supervisor_id,
         official_manager_id: officials.manager_id,
         official_department_id: officials.department_id,
+        // Nomes relacionados
+        dept_name: departments.name,
+        incident_type_name: incidentTypes.name,
+        category_name: categories.name,
       })
       .from(tickets)
       .leftJoin(customers, eq(customers.id, tickets.customer_id))
       .leftJoin(officials, eq(officials.id, tickets.assigned_to_id))
+      .leftJoin(departments, eq(departments.id, tickets.department_id))
+      .leftJoin(incidentTypes, eq(incidentTypes.id, tickets.incident_type_id))
+      .leftJoin(categories, eq(categories.id, tickets.category_id))
       .where(eq(tickets.id, id))
       .limit(1);
     
@@ -978,7 +985,10 @@ export class DatabaseStorage implements IStorage {
       ...ticket,
       customer: customerData || {},
       official: officialData, 
-      replies: replies
+      replies: replies,
+      department_name: result.dept_name || undefined,
+      incident_type_name: result.incident_type_name || undefined,
+      category_name: result.category_name || undefined
     } as Ticket;
   }
 

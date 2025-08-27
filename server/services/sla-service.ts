@@ -15,7 +15,7 @@ import {
   type SLADefinition,
   type DepartmentPriority
 } from '@shared/schema';
-import { eq, and, desc, isNull, isNotNull } from 'drizzle-orm';
+import { eq, and, desc, isNull, isNotNull, ilike } from 'drizzle-orm';
 
 // Interface para resultado de SLA resolvido
 export interface ResolvedSLA {
@@ -517,18 +517,48 @@ export class SLAService {
     if (params.priorityId) {
       priorityId = params.priorityId;
     } else if (params.priorityName) {
-      // Buscar ID da prioridade pelo nome dentro do departamento
-      const [priority] = await database
-        .select({ id: departmentPriorities.id })
-        .from(departmentPriorities)
-        .where(and(
-          eq(departmentPriorities.company_id, params.companyId),
-          eq(departmentPriorities.department_id, params.departmentId),
-          eq(departmentPriorities.name, params.priorityName),
-          eq(departmentPriorities.is_active, true)
-        ))
-        .limit(1);
-      if (priority) priorityId = priority.id;
+      // Resolver priorityId por nome com fallback/normalização e case-insensitive
+      const priorityCandidates: string[] = [];
+      const original = params.priorityName;
+      priorityCandidates.push(original);
+      priorityCandidates.push(original.charAt(0).toUpperCase() + original.slice(1).toLowerCase());
+      priorityCandidates.push(original.toLowerCase());
+      priorityCandidates.push(original.toUpperCase());
+
+      const legacyMap: Record<string, string> = {
+        baixa: 'Baixa',
+        média: 'Média',
+        media: 'Média',
+        alta: 'Alta',
+        crítica: 'Crítica',
+        critica: 'Crítica',
+        low: 'Baixa',
+        medium: 'Média',
+        high: 'Alta',
+        critical: 'Crítica',
+      };
+      if (legacyMap[original.toLowerCase()]) {
+        priorityCandidates.push(legacyMap[original.toLowerCase()]);
+      }
+
+      // Tentar por variantes (exatas) e também ILIKE para garantir match por case
+      for (const candidate of priorityCandidates) {
+        const [priority] = await database
+          .select({ id: departmentPriorities.id })
+          .from(departmentPriorities)
+          .where(and(
+            eq(departmentPriorities.company_id, params.companyId),
+            eq(departmentPriorities.department_id, params.departmentId),
+            // tentar match exato primeiro, se falhar tentar ILIKE
+            ilike(departmentPriorities.name, candidate),
+            eq(departmentPriorities.is_active, true)
+          ))
+          .limit(1);
+        if (priority) {
+          priorityId = priority.id;
+          break;
+        }
+      }
     }
 
     if (priorityId) {

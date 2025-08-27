@@ -352,7 +352,7 @@ class NotificationService {
   }
   
   // Enviar notificação para todos os usuários
-  public async sendNotificationToAll(payload: NotificationPayload): Promise<void> {
+  public async sendNotificationToAll(payload: NotificationPayload, excludeUserIds: number[] = []): Promise<void> {
     // Coletar todos os clientes em um único array
     const allClients: WebSocketWithUser[] = [];
     this.clients.forEach(clientArray => {
@@ -362,6 +362,11 @@ class NotificationService {
     // Enviar para todos os clientes abertos (verificando configurações individuais)
     for (const client of allClients) {
       if (client.readyState === WebSocket.OPEN && client.userId) {
+        // Pular usuários que devem ser excluídos
+        if (excludeUserIds.includes(client.userId)) {
+          continue;
+        }
+        
         // Verificar configurações para WebSocket (sem verificar horário)
         const shouldNotifyWebSocket = await this.shouldNotifyWebSocketByType(client.userId, payload.type);
         if (shouldNotifyWebSocket) {

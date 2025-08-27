@@ -658,6 +658,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         return res.status(403).json({ message: "Acesso negado - Papel sem permissão para visualizar tickets" });
       }
 
+      // Enriquecer lista com nomes de departamento/tipo/categoria para exibir nos cards
       let ticketsQuery = db
         .select({
           id: schema.tickets.id,
@@ -673,9 +674,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           assigned_to_id: schema.tickets.assigned_to_id,
           customer_id: schema.tickets.customer_id,
           company_id: schema.tickets.company_id,
-          department_id: schema.tickets.department_id
+          department_id: schema.tickets.department_id,
+          incident_type_id: schema.tickets.incident_type_id,
+          category_id: schema.tickets.category_id,
+          department_name: schema.departments.name,
+          incident_type_name: schema.incidentTypes.name,
+          category_name: schema.categories.name,
         })
-        .from(schema.tickets);
+        .from(schema.tickets)
+        .leftJoin(schema.departments, eq(schema.tickets.department_id, schema.departments.id))
+        .leftJoin(schema.incidentTypes, eq(schema.tickets.incident_type_id, schema.incidentTypes.id))
+        .leftJoin(schema.categories, eq(schema.tickets.category_id, schema.categories.id));
 
       // Filtrar as condições válidas
       const finalConditions = conditions.filter(c => c !== undefined) as SQLWrapper[];
@@ -1585,6 +1594,22 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             for (const participantId of ticketData.participants) {
               try {
                 await storage.addTicketParticipant(ticket.id, participantId, userId);
+                
+                // 🔥 FASE 4.2: Enviar notificação WebSocket de participante adicionado
+                try {
+                  await notificationService.notifyParticipantAdded(ticket.id, participantId, userId);
+                } catch (notificationError) {
+                  console.error('Erro ao enviar notificação WebSocket de participante adicionado:', notificationError);
+                  // Não falhar a operação por erro de notificação
+                }
+
+                // 🔥 NOVO: Enviar notificação de participante adicionado
+                try {
+                  await emailNotificationService.notifyTicketParticipantAdded(ticket.id, participantId, userId);
+                } catch (notificationError) {
+                  console.error('Erro ao enviar notificação de participante adicionado:', notificationError);
+                  // Não falhar a operação por erro de notificação
+                }
               } catch (error) {
                 console.error(`[Participantes] Erro ao adicionar participante ${participantId}:`, error);
                 // Continuar com os próximos participantes mesmo se um falhar
@@ -1758,7 +1783,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Responder com o ticket criado
       res.status(201).json(ticket);
       
-      // Enviar notificação via WebSocket
+      // Enviar notificação via WebSocket (excluindo participantes que serão notificados separadamente)
+      const participantIds = ticketData.participants && Array.isArray(ticketData.participants) ? ticketData.participants : [];
+      // @ts-ignore
       notificationService.sendNotificationToAll({
         type: 'new_ticket',
         title: 'Novo Ticket Criado',
@@ -1767,7 +1794,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         ticketCode: ticket.ticket_id,
         priority: finalPriority,
         timestamp: new Date()
-      });
+      }, participantIds); // Excluir participantes da notificação geral
       
       // 📧 ENVIAR EMAIL DE CONFIRMAÇÃO PARA O CLIENTE
       try {
@@ -1896,8 +1923,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Enriquecer clientes com nome da empresa e status do usuário, sem sobrescrever o campo company original
       const enrichedCustomers = customers.map(customer => ({
         ...customer,
-        company_display: customer.company_name || customer.company || '-', // campo auxiliar para exibição
-        active: typeof customer.user_active === 'boolean' ? customer.user_active : true
+        company_display: (customer as any).company_name || customer.company || '-', // campo auxiliar para exibição
+        active: typeof (customer as any).user_active === 'boolean' ? (customer as any).user_active : true
       }));
       
       // Filtrar os clientes inativos se necessário
@@ -1970,7 +1997,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       }
 
       // Filtrar apenas clientes ativos
-      customers = customers.filter(customer => customer.active);
+      customers = customers.filter(customer => (customer as any).active);
 
       // Aplicar busca se fornecida
       if (search) {
