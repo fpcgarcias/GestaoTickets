@@ -9,10 +9,12 @@
       "type": "bugfix",
       "changes": {
         "fixed": [
-          "Correção para gerentes visualizarem os tickets apenas dos departamentos que estão vinculados."
-        ],
-        "improved": [
-          "Logs e mensagens de diagnóstico mais claras em casos de departamentos não encontrados."
+          "Correção para gerentes visualizarem os tickets apenas dos departamentos que estão vinculados.",
+          "Correção na tela de adicionar SLA, organizando os dropdowns em ordem alfabética.",
+          "Correção na tela de adicionar SLA para não exibir departamentos, tipos de chamados ou categorias inativos.",
+          "Tela de resposta de tickets agora exibe as transferências de atendentes.",
+          "Tela de detalhamento de tickets agora exibe a categoria do chamado.",
+          "Correção do filtro de departamentos no relatório de chamados."
         ]
       }
     },
