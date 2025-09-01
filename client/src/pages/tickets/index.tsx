@@ -52,6 +52,7 @@ export default function TicketsIndex() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState('this-month');
+  const [includeOpenOutsidePeriod, setIncludeOpenOutsidePeriod] = useState(true);
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
@@ -122,7 +123,7 @@ export default function TicketsIndex() {
 
   // Busca tickets com base no papel do usuário com paginação e filtros
   const { data: ticketsResponse, isLoading: isTicketsLoading } = useQuery({
-    queryKey: ['/api/tickets/user-role', currentPage, searchQuery, statusFilter, priorityFilter, departmentFilter, assignedToFilter, hideResolved, timeFilter, dateRange],
+    queryKey: ['/api/tickets/user-role', currentPage, searchQuery, statusFilter, priorityFilter, departmentFilter, assignedToFilter, hideResolved, timeFilter, dateRange, includeOpenOutsidePeriod],
     queryFn: async () => {
       const { startDate, endDate } = getPeriodDates();
       
@@ -138,6 +139,7 @@ export default function TicketsIndex() {
         // SEMPRE enviar start_date e end_date como o dashboard faz
         start_date: toBrasiliaISOString(startDate, false),
         end_date: toBrasiliaISOString(endDate, true),
+        ...(timeFilter === 'this-month' && includeOpenOutsidePeriod ? { include_open_outside_period: 'true' } : {}),
       });
       
       const res = await fetch(`/api/tickets/user-role?${params}`);
@@ -446,8 +448,8 @@ export default function TicketsIndex() {
           </Select>
         </div>
 
-        {/* Terceira linha: Checkbox para ocultar tickets resolvidos */}
-        <div className="flex items-center gap-4">
+        {/* Terceira linha: Checkboxes de resolvidos e incluir abertos anteriores */}
+        <div className="flex items-center gap-6">
           <div className="flex items-center space-x-2">
             <Checkbox
               id="hideResolved"
@@ -459,6 +461,25 @@ export default function TicketsIndex() {
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
               Ocultar chamados resolvidos
+            </Label>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="includeOpenOutsidePeriod"
+              checked={includeOpenOutsidePeriod}
+              // Só faz sentido quando o período é "Este Mês"
+              disabled={timeFilter !== 'this-month'}
+              onCheckedChange={(checked) => {
+                setIncludeOpenOutsidePeriod(!!checked);
+                setCurrentPage(1);
+              }}
+            />
+            <Label
+              htmlFor="includeOpenOutsidePeriod"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              Incluir abertos de períodos anteriores
             </Label>
           </div>
         </div>

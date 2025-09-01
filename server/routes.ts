@@ -723,6 +723,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const departmentFilter = req.query.department_id as string;
       const assignedToFilter = req.query.assigned_to_id as string;
       const hideResolved = req.query.hide_resolved === 'true';
+      const includeOpenOutsidePeriod = req.query.include_open_outside_period === 'true';
       const timeFilter = req.query.time_filter as string;
       const dateFrom = req.query.date_from as string;
       const dateTo = req.query.date_to as string;
@@ -756,6 +757,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       if (hideResolved) {
         filters.hide_resolved = true;
+      }
+      if (includeOpenOutsidePeriod) {
+        filters.include_open_outside_period = true;
       }
       
       // Processar filtros de data - USAR MESMA LÓGICA DO DASHBOARD

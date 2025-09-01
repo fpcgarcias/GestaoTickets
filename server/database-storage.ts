@@ -608,77 +608,131 @@ export class DatabaseStorage implements IStorage {
         whereClauses.push(eq(tickets.assigned_to_id, Number(filters.assigned_to_id)));
       }
     }
-    if (filters.hide_resolved) {
-      whereClauses.push(ne(tickets.status, 'resolved'));
-    }
-    // USAR MESMA LÓGICA DO DASHBOARD - start_date e end_date têm prioridade
-    if (filters.start_date || filters.end_date) {
-      if (filters.start_date) {
-        whereClauses.push(gte(tickets.created_at, new Date(filters.start_date)));
-      }
-      if (filters.end_date) {
-        whereClauses.push(lte(tickets.created_at, new Date(filters.end_date)));
-      }
-    } else if (filters.date_from) {
-      whereClauses.push(gte(tickets.created_at, new Date(filters.date_from)));
-    }
-    if (filters.date_to && !filters.start_date && !filters.end_date) {
-      const endDate = new Date(filters.date_to);
-      endDate.setHours(23, 59, 59, 999);
-      whereClauses.push(lte(tickets.created_at, endDate));
-    }
-    if (filters.time_filter && !filters.start_date && !filters.end_date && !filters.date_from && !filters.date_to) {
-      // Usar a mesma lógica do dashboard para calcular datas
-      const now = new Date();
-      let startDate: Date;
-      let endDate: Date;
-      
-      if (filters.time_filter === 'this-week') {
-        // Segunda-feira da semana atual
-        const today = new Date(now);
-        const dayOfWeek = today.getDay();
-        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 0 = domingo, 1 = segunda
-        startDate = new Date(today);
-        startDate.setDate(today.getDate() - daysToMonday);
-        startDate.setHours(0, 0, 0, 0);
-        
-        // Domingo da semana atual
-        endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 6);
-        endDate.setHours(23, 59, 59, 999);
-        
-        whereClauses.push(gte(tickets.created_at, startDate));
-        whereClauses.push(lte(tickets.created_at, endDate));
-      } else if (filters.time_filter === 'last-week') {
-        // Segunda-feira da semana passada
-        const today = new Date(now);
-        const dayOfWeek = today.getDay();
-        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        const thisWeekMonday = new Date(today);
-        thisWeekMonday.setDate(today.getDate() - daysToMonday);
-        
-        startDate = new Date(thisWeekMonday);
-        startDate.setDate(thisWeekMonday.getDate() - 7);
-        startDate.setHours(0, 0, 0, 0);
-        
-        // Domingo da semana passada
-        endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 6);
-        endDate.setHours(23, 59, 59, 999);
-        
-        whereClauses.push(gte(tickets.created_at, startDate));
-        whereClauses.push(lte(tickets.created_at, endDate));
+    // Tratamento especial: incluir abertos fora do período (OR lógico)
+    const includeOpenOutsidePeriod = !!(filters as any).include_open_outside_period;
+    if (includeOpenOutsidePeriod) {
+      // Determinar janela do período (preferência: start/end_date, depois date_from/date_to, depois this-month)
+      let periodStart: Date | undefined;
+      let periodEnd: Date | undefined;
+      if (filters.start_date || filters.end_date) {
+        if (filters.start_date) {
+          periodStart = new Date(filters.start_date);
+        }
+        if (filters.end_date) {
+          periodEnd = new Date(filters.end_date);
+        }
+      } else if (filters.date_from || filters.date_to) {
+        if (filters.date_from) {
+          periodStart = new Date(filters.date_from);
+        }
+        if (filters.date_to) {
+          const endDate = new Date(filters.date_to);
+          endDate.setHours(23, 59, 59, 999);
+          periodEnd = endDate;
+        }
       } else if (filters.time_filter === 'this-month') {
-        // Primeiro dia do mês atual
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        startDate.setHours(0, 0, 0, 0);
-        
-        // Último dia do mês atual
-        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const now = new Date();
+        periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        periodStart.setHours(0, 0, 0, 0);
+        periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        periodEnd.setHours(23, 59, 59, 999);
+      }
+
+      if (periodStart || periodEnd) {
+        // Montar ramo do período do mês atual
+        const monthBranch: any[] = [];
+        if (periodStart) monthBranch.push(gte(tickets.created_at, periodStart));
+        if (periodEnd) monthBranch.push(lte(tickets.created_at, periodEnd));
+        // Toggle hide_resolved deve atuar apenas no mês atual
+        if (filters.hide_resolved) {
+          monthBranch.push(ne(tickets.status, 'resolved'));
+        }
+
+        const monthBranchCondition = monthBranch.length > 0 ? and(...monthBranch) : undefined;
+        const openOutsideCondition = ne(tickets.status, 'resolved');
+        const orCondition = monthBranchCondition ? or(monthBranchCondition, openOutsideCondition) : openOutsideCondition;
+
+        whereClauses.push(orCondition);
+      } else {
+        // Se não conseguimos determinar período, cair no comportamento padrão abaixo
+        if (filters.hide_resolved) {
+          whereClauses.push(ne(tickets.status, 'resolved'));
+        }
+      }
+    } else {
+      // Comportamento padrão existente para filtros de data e hide_resolved
+      if (filters.hide_resolved) {
+        whereClauses.push(ne(tickets.status, 'resolved'));
+      }
+      // USAR MESMA LÓGICA DO DASHBOARD - start_date e end_date têm prioridade
+      if (filters.start_date || filters.end_date) {
+        if (filters.start_date) {
+          whereClauses.push(gte(tickets.created_at, new Date(filters.start_date)));
+        }
+        if (filters.end_date) {
+          whereClauses.push(lte(tickets.created_at, new Date(filters.end_date)));
+        }
+      } else if (filters.date_from) {
+        whereClauses.push(gte(tickets.created_at, new Date(filters.date_from)));
+      }
+      if (filters.date_to && !filters.start_date && !filters.end_date) {
+        const endDate = new Date(filters.date_to);
         endDate.setHours(23, 59, 59, 999);
-        
-        whereClauses.push(gte(tickets.created_at, startDate));
         whereClauses.push(lte(tickets.created_at, endDate));
+      }
+      if (filters.time_filter && !filters.start_date && !filters.end_date && !filters.date_from && !filters.date_to) {
+        // Usar a mesma lógica do dashboard para calcular datas
+        const now = new Date();
+        let startDate: Date;
+        let endDate: Date;
+        
+        if (filters.time_filter === 'this-week') {
+          // Segunda-feira da semana atual
+          const today = new Date(now);
+          const dayOfWeek = today.getDay();
+          const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 0 = domingo, 1 = segunda
+          startDate = new Date(today);
+          startDate.setDate(today.getDate() - daysToMonday);
+          startDate.setHours(0, 0, 0, 0);
+          
+          // Domingo da semana atual
+          endDate = new Date(startDate);
+          endDate.setDate(startDate.getDate() + 6);
+          endDate.setHours(23, 59, 59, 999);
+          
+          whereClauses.push(gte(tickets.created_at, startDate));
+          whereClauses.push(lte(tickets.created_at, endDate));
+        } else if (filters.time_filter === 'last-week') {
+          // Segunda-feira da semana passada
+          const today = new Date(now);
+          const dayOfWeek = today.getDay();
+          const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+          const thisWeekMonday = new Date(today);
+          thisWeekMonday.setDate(today.getDate() - daysToMonday);
+          
+          startDate = new Date(thisWeekMonday);
+          startDate.setDate(thisWeekMonday.getDate() - 7);
+          startDate.setHours(0, 0, 0, 0);
+          
+          // Domingo da semana passada
+          endDate = new Date(startDate);
+          endDate.setDate(startDate.getDate() + 6);
+          endDate.setHours(23, 59, 59, 999);
+          
+          whereClauses.push(gte(tickets.created_at, startDate));
+          whereClauses.push(lte(tickets.created_at, endDate));
+        } else if (filters.time_filter === 'this-month') {
+          // Primeiro dia do mês atual
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          startDate.setHours(0, 0, 0, 0);
+          
+          // Último dia do mês atual
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          endDate.setHours(23, 59, 59, 999);
+          
+          whereClauses.push(gte(tickets.created_at, startDate));
+          whereClauses.push(lte(tickets.created_at, endDate));
+        }
       }
     }
     // Filtro de busca textual livre (em múltiplos campos)
