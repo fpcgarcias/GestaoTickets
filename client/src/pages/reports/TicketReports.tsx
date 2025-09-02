@@ -170,25 +170,24 @@ export default function TicketReports() {
   //   setSearchParams(newParams);
   // }, [dateRange, filters, setSearchParams]);
 
-  // Sincronizar filtros com a URL apenas quando a própria URL mudar
+  // Sincronizar filtros com URL quando o componente montar
   useEffect(() => {
-    const params = new URLSearchParams(location.split('?')[1] || '');
     const newFilters = {
-      status: params.get('status') || 'all',
-      priority: params.get('priority') || 'all',
-      departmentId: params.get('departmentId') || 'all'
+      status: searchParams.get('status') || 'all',
+      priority: searchParams.get('priority') || 'all',
+      departmentId: searchParams.get('departmentId') || 'all'
     };
     setFilters(newFilters);
-
-    const fromDate = params.get('start_date') || params.get('startDate');
-    const toDate = params.get('end_date') || params.get('endDate');
+    
+    const fromDate = searchParams.get('start_date') || searchParams.get('startDate');
+    const toDate = searchParams.get('end_date') || searchParams.get('endDate');
     if (fromDate || toDate) {
       setDateRange({
         from: fromDate ? new Date(fromDate) : undefined,
         to: toDate ? new Date(toDate) : undefined
       });
     }
-  }, [location]);
+  }, [searchParams]); // Executar quando searchParams mudar
 
   // Buscar departamentos dinamicamente
   useEffect(() => {

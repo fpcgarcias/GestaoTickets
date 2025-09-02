@@ -1,7 +1,18 @@
 {
-  "current": "1.0.25",
-  "releaseDate": "2025-08-25",
+  "current": "1.0.26",
+  "releaseDate": "2025-09-01",
   "versions": [
+    {
+      "version": "1.0.26",
+      "date": "2025-09-01",
+      "title": "Implementação de melhorias",
+      "type": "update",
+      "changes": {
+        "improved": [
+          "Adicionado checkbox para exibir todos os tickets em aberto, independente do período selecionado."
+        ]
+      }
+    },
     {
       "version": "1.0.25",
       "date": "2025-08-25",

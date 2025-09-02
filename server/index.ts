@@ -179,10 +179,9 @@ if (process.env.NODE_ENV === 'production') {
         ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
       },
       tableName: 'user_sessions', // Usar a tabela existente
-      createTableIfMissing: false, // Não criar tabela automaticamente
+      createTableIfMissing: true, // Criar automaticamente se não existir (evita erro 500 no login)
       // CRÍTICO: Desabilitar limpeza automática que roda a cada intervalo
       pruneSessionInterval: false, // Não fazer limpeza automática
-      disableTTL: true, // Desabilitar TTL automático
       // Se precisar de limpeza, fazer manualmente apenas durante horário comercial
     });
     console.log('🔧 Session store: PostgreSQL (produção) - usando tabela user_sessions');
