@@ -4158,6 +4158,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   // Rota para usuários não-admin obterem departamentos com paginação
   router.get("/departments", authRequired, async (req: Request, res: Response) => {
     try {
+      // Suporte a contexto específico da tela de criação de ticket
+      const context = (req.query.context as string) || '';
       // Parâmetros de paginação
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50; // 50 por página por padrão
@@ -4169,6 +4171,65 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const sessionCompanyId = req.session.companyId;
 
       const conditions: SQLWrapper[] = [];
+
+      // Contexto de criação de ticket: obrigatoriamente filtrar por empresa e apenas departamentos ativos
+      if (context === 'create_ticket') {
+        // Determinar empresa efetiva
+        let effectiveCompanyId: number | null = null;
+        if (userRole === 'admin') {
+          // Admin precisa especificar a empresa alvo via query
+          effectiveCompanyId = filterCompanyId ?? null;
+          if (!effectiveCompanyId) {
+            return res.status(400).json({ message: "Para context=create_ticket, admin deve informar company_id." });
+          }
+        } else {
+          // Demais papéis: usar empresa da sessão
+          effectiveCompanyId = sessionCompanyId ?? null;
+          if (!effectiveCompanyId) {
+            return res.status(403).json({ message: "Acesso negado: ID da empresa não encontrado na sessão." });
+          }
+        }
+
+        // Filtros obrigatórios
+        conditions.push(eq(departmentsSchema.company_id, effectiveCompanyId));
+        conditions.push(eq(departmentsSchema.is_active, true));
+
+        // Filtro por busca (opcional)
+        if (search) {
+          const searchCondition = or(
+            ilike(departmentsSchema.name, `%${search}%`),
+            ilike(departmentsSchema.description, `%${search}%`)
+          );
+          conditions.push(searchCondition);
+        }
+
+        // Contagem total
+        let countQuery = db
+          .select({ count: sql<number>`count(*)`.mapWith(Number) })
+          .from(departmentsSchema)
+          .where(and(...conditions));
+        const [{ count: totalCount }] = await countQuery;
+
+        const offset = (page - 1) * limit;
+        const departments = await db
+          .select()
+          .from(departmentsSchema)
+          .where(and(...conditions))
+          .orderBy(asc(departmentsSchema.name))
+          .limit(limit)
+          .offset(offset);
+
+        const totalPages = Math.ceil(totalCount / limit);
+        return res.json({
+          departments,
+          pagination: {
+            current: page,
+            pages: totalPages,
+            total: totalCount,
+            limit: limit
+          }
+        });
+      }
 
       // Lógica de filtro por empresa E por departamentos específicos do usuário
       if (userRole === 'admin') {

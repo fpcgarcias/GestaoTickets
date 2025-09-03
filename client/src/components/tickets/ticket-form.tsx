@@ -232,11 +232,12 @@ export const TicketForm = () => {
     createTicketMutation.mutate(ticketDataToSend);
   };
 
-  // Buscar dados de departamentos
+  // Buscar dados de departamentos (contexto criação de ticket): todos ativos da empresa
   const { data: departmentsData } = useQuery<{departments: Department[], pagination: any}>({
-    queryKey: ["/api/departments", { active_only: true }],
+    queryKey: ["/api/departments", { active_only: true, context: 'create_ticket' }],
     queryFn: async () => {
-      const res = await fetch('/api/departments?active_only=true');
+      const params = new URLSearchParams({ active_only: 'true', context: 'create_ticket' });
+      const res = await fetch(`/api/departments?${params.toString()}`);
       if (!res.ok) throw new Error('Erro ao carregar departamentos');
       return res.json();
     },

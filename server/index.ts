@@ -9,6 +9,7 @@ import fs from "fs";
 import { fileURLToPath } from 'url';
 import { migrate } from './migrate';
 import { runMigrations } from './migration-runner';
+import { initDb } from './db';
 
 // Importar connect-pg-simple para sessões em produção
 import pgSimple from 'connect-pg-simple';
@@ -268,6 +269,8 @@ app.use((req, res, next) => {
 // Função start agora configura tudo
 async function startServer() {
   try {
+    // Inicializar conexão com DB (com fallback HTTP→WS quando necessário)
+    await initDb();
     // Executar migrações de estrutura do banco PRIMEIRO
     console.log("🔧 Verificando estrutura do banco de dados...");
     await runMigrations();

@@ -451,6 +451,9 @@ export class DatabaseStorage implements IStorage {
       time_filter?: string;
       date_from?: string;
       date_to?: string;
+      start_date?: string;
+      end_date?: string;
+      include_open_outside_period?: boolean;
     } = {},
     page: number = 1,
     limit: number = 20
@@ -521,8 +524,9 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
-      whereClauses.push(inArray(tickets.department_id, departmentIds));
+      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO (mas união com tickets que criou/participa abaixo)
+      const deptConstraint = inArray(tickets.department_id, departmentIds);
+      whereClauses.push(deptConstraint);
       
     } else if (userRole === 'supervisor') {
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
@@ -559,8 +563,9 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
-      whereClauses.push(inArray(tickets.department_id, departmentIds));
+      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO (mas união com tickets que criou/participa abaixo)
+      const deptConstraint = inArray(tickets.department_id, departmentIds);
+      whereClauses.push(deptConstraint);
       
     } else if (userRole === 'support') {
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
@@ -587,8 +592,36 @@ export class DatabaseStorage implements IStorage {
         return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       }
       
-      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
-      whereClauses.push(inArray(tickets.department_id, departmentIds));
+      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO (mas união com tickets que criou/participa abaixo)
+      const deptConstraint = inArray(tickets.department_id, departmentIds);
+      whereClauses.push(deptConstraint);
+    }
+
+    // OR adicional: Todos os papéis (exceto admin) também enxergam tickets que criaram (customer) OU onde são participantes,
+    // independentemente do departamento
+    if (userRole !== 'admin') {
+      // Obter customer_id do usuário, se existir
+      const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
+      const participantSubquery = exists(
+        db.select().from(ticketParticipants)
+          .where(and(
+            eq(ticketParticipants.ticket_id, tickets.id),
+            eq(ticketParticipants.user_id, userId)
+          ))
+      );
+
+      const createdByBranch = customer && customer.id
+        ? eq(tickets.customer_id, customer.id)
+        : sql`false`;
+
+      // Se já há cláusulas, OR com o branch de criador/participante; senão, usar apenas criador/participante
+      if (whereClauses.length > 0) {
+        const existingAnd = and(...whereClauses);
+        const visibilityUnion = or(existingAnd, createdByBranch, participantSubquery);
+        whereClauses = [visibilityUnion];
+      } else {
+        whereClauses = [or(createdByBranch, participantSubquery)];
+      }
     }
 
     // Aplicar filtros adicionais
