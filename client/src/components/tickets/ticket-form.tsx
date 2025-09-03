@@ -288,13 +288,14 @@ export const TicketForm = () => {
 // Buscar categorias baseadas no tipo de incidente selecionado
   const selectedIncidentTypeId = form.watch('incident_type_id');
   const { data: categoriesData } = useQuery<{categories: Category[], pagination: any}>({
-    queryKey: ["/api/categories", { incident_type_id: selectedIncidentTypeId, active_only: true }],
+    queryKey: ["/api/categories", { incident_type_id: selectedIncidentTypeId, active_only: true, context: 'create_ticket' }],
     queryFn: async () => {
       if (!selectedIncidentTypeId) return { categories: [], pagination: null };
       
       const params = new URLSearchParams({
         incident_type_id: selectedIncidentTypeId.toString(),
-        active_only: 'true'
+        active_only: 'true',
+        context: 'create_ticket'
       });
       
       const response = await apiRequest('GET', `/api/categories?${params}`);

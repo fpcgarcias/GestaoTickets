@@ -5688,6 +5688,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const active_only = req.query.active_only === "true";
       const filterCompanyId = req.query.company_id ? parseInt(req.query.company_id as string) : null;
       const incident_type_id = req.query.incident_type_id ? parseInt(req.query.incident_type_id as string) : null;
+      const context = (req.query.context as string) || '';
       const userRole = req.session?.userRole as string;
       const sessionCompanyId = req.session.companyId;
       const sessionUserId = req.session.userId;
@@ -5699,7 +5700,89 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const conditions: SQLWrapper[] = [];
 
-      // Lógica de filtro por empresa
+      // Suporte ao contexto de criação de ticket: liberar categorias da empresa, sem restringir por departamentos do atendente
+      if (context === 'create_ticket') {
+        let effectiveCompanyId: number | null = null;
+        if (userRole === 'admin') {
+          effectiveCompanyId = filterCompanyId ?? null;
+          if (!effectiveCompanyId) {
+            return res.status(400).json({ message: "Para context=create_ticket, admin deve informar company_id." });
+          }
+        } else {
+          effectiveCompanyId = sessionCompanyId ?? null;
+          if (!effectiveCompanyId) {
+            return res.status(403).json({ message: "Acesso negado: ID da empresa não encontrado na sessão." });
+          }
+        }
+
+        // Filtros obrigatórios por empresa (e ativos se solicitado)
+        conditions.push(eq(schema.categories.company_id, effectiveCompanyId));
+        if (active_only) {
+          conditions.push(eq(schema.categories.is_active, true));
+        }
+        if (incident_type_id) {
+          conditions.push(eq(schema.categories.incident_type_id, incident_type_id));
+        }
+
+        // Filtro por busca (opcional)
+        if (search) {
+          const searchCondition = or(
+            ilike(schema.categories.name, `%${search}%`),
+            ilike(schema.categories.description, `%${search}%`)
+          );
+          conditions.push(searchCondition);
+        }
+
+        // Query principal com JOIN para trazer dados do tipo de incidente
+        const offset = (page - 1) * limit;
+        const categoriesQuery = db
+          .select({
+            id: schema.categories.id,
+            name: schema.categories.name,
+            description: schema.categories.description,
+            incident_type_id: schema.categories.incident_type_id,
+            company_id: schema.categories.company_id,
+            is_active: schema.categories.is_active,
+            created_at: schema.categories.created_at,
+            updated_at: schema.categories.updated_at,
+            incident_type_name: schema.incidentTypes.name,
+            department_id: schema.incidentTypes.department_id,
+            department_name: schema.departments.name,
+          })
+          .from(schema.categories)
+          .leftJoin(schema.incidentTypes, eq(schema.categories.incident_type_id, schema.incidentTypes.id))
+          .leftJoin(schema.departments, eq(schema.incidentTypes.department_id, schema.departments.id))
+          .where(and(...conditions))
+          .orderBy(desc(schema.categories.created_at))
+          .limit(limit)
+          .offset(offset);
+
+        const countQuery = db
+          .select({ count: sql<number>`count(*)`.mapWith(Number) })
+          .from(schema.categories)
+          .leftJoin(schema.incidentTypes, eq(schema.categories.incident_type_id, schema.incidentTypes.id))
+          .where(and(...conditions));
+
+        const [categories, countResult] = await Promise.all([
+          categoriesQuery,
+          countQuery
+        ]);
+
+        const total = countResult[0]?.count || 0;
+        const totalPages = Math.ceil(total / limit);
+
+        return res.json({
+          categories,
+          pagination: {
+            current: page,
+            pages: totalPages,
+            total,
+            limit,
+          },
+        });
+      }
+
+      // Lógica de filtro por empresa (com restrições por papel)
       if (userRole === 'admin') {
         // Admin pode filtrar por empresa específica ou ver todas
         if (filterCompanyId) {
