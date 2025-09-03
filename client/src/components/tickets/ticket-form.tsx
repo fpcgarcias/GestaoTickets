@@ -125,7 +125,27 @@ export const TicketForm = () => {
 
   // Buscar prioridades do departamento selecionado
   const watchedDepartmentId = form.watch('department_id');
-  const { data: priorities = [], isLoading: prioritiesLoading } = usePriorities(watchedDepartmentId);
+  const { data: priorities = [], isLoading: prioritiesLoading } = useQuery<NormalizedPriority[]>({
+    queryKey: ['priorities', watchedDepartmentId, 'create_ticket'],
+    queryFn: async () => {
+      if (!watchedDepartmentId) return [];
+      const params = new URLSearchParams({ context: 'create_ticket' });
+      const response = await fetch(`/api/departments/${watchedDepartmentId}/priorities?${params.toString()}`);
+      if (!response.ok) return [];
+      const result = await response.json();
+      if (result.data?.isDefault || !result.data?.priorities?.length) return [];
+      return result.data.priorities.map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        value: p.name.toLowerCase(),
+        weight: p.weight,
+        color: p.color,
+        legacyValue: (p.weight === 1 ? 'low' : p.weight === 2 ? 'medium' : p.weight === 3 ? 'high' : 'critical'),
+        isDefault: false,
+      }));
+    },
+    enabled: !!watchedDepartmentId,
+  });
 
   const createTicketMutation = useMutation({
     mutationFn: async (data: InsertTicket) => {

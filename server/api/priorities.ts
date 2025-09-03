@@ -18,6 +18,7 @@ export async function getDepartmentPriorities(req: Request, res: Response) {
     const departmentId = parseInt(req.params.departmentId);
     const userCompanyId = req.session.companyId;
     const userRole = req.session.userRole;
+    const context = (req.query.context as string) || '';
 
     if (isNaN(departmentId)) {
       return res.status(400).json({ 
@@ -77,7 +78,9 @@ export async function getDepartmentPriorities(req: Request, res: Response) {
     }
 
     // 🆕 Para support/supervisor: verificar se tem acesso ao departamento específico
-    if (userRole === 'support' || userRole === 'supervisor') {
+    // EXCETO quando estiver no contexto de criação de ticket (context=create_ticket),
+    // onde devem visualizar prioridades de qualquer departamento da empresa
+    if ((userRole === 'support' || userRole === 'supervisor') && context !== 'create_ticket') {
       const { officials, officialDepartments } = await import('@shared/schema');
       
       // Buscar o official do usuário
