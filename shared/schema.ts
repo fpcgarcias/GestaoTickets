@@ -189,6 +189,14 @@ export const ticketStatusHistory = pgTable("ticket_status_history", {
   // Campos para mudança de atribuição (opcionais - usados quando change_type = 'assignment')
   old_assigned_to_id: integer("old_assigned_to_id").references(() => officials.id),
   new_assigned_to_id: integer("new_assigned_to_id").references(() => officials.id),
+
+  // Campos para mudança de departamento/tipo/categoria (change_type = 'department')
+  old_department_id: integer("old_department_id").references(() => departments.id),
+  new_department_id: integer("new_department_id").references(() => departments.id),
+  old_incident_type_id: integer("old_incident_type_id").references(() => incidentTypes.id),
+  new_incident_type_id: integer("new_incident_type_id").references(() => incidentTypes.id),
+  old_category_id: integer("old_category_id").references(() => categories.id),
+  new_category_id: integer("new_category_id").references(() => categories.id),
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 

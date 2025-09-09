@@ -985,6 +985,12 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           new_priority: schema.ticketStatusHistory.new_priority,
           old_assigned_to_id: schema.ticketStatusHistory.old_assigned_to_id,
           new_assigned_to_id: schema.ticketStatusHistory.new_assigned_to_id,
+          old_department_id: schema.ticketStatusHistory.old_department_id,
+          new_department_id: schema.ticketStatusHistory.new_department_id,
+          old_incident_type_id: schema.ticketStatusHistory.old_incident_type_id,
+          new_incident_type_id: schema.ticketStatusHistory.new_incident_type_id,
+          old_category_id: schema.ticketStatusHistory.old_category_id,
+          new_category_id: schema.ticketStatusHistory.new_category_id,
           changed_by_id: schema.ticketStatusHistory.changed_by_id,
           created_at: schema.ticketStatusHistory.created_at,
           user: {
@@ -1002,6 +1008,10 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Enriquecer com nomes dos atendentes em eventos de transferência
       const assignmentIds = new Set<number>();
       for (const item of statusHistory) {
+        // Normalizar: se tiver colunas de departamento preenchidas, forçar change_type
+        if ((item as any).old_department_id != null || (item as any).new_department_id != null) {
+          (item as any).change_type = 'department';
+        }
         if (item.change_type === 'assignment') {
           if (item.old_assigned_to_id) assignmentIds.add(item.old_assigned_to_id);
           if (item.new_assigned_to_id) assignmentIds.add(item.new_assigned_to_id);
@@ -1024,6 +1034,56 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             item.old_assigned_official = item.old_assigned_to_id ? idToOfficial[item.old_assigned_to_id] || null : null;
             item.new_assigned_official = item.new_assigned_to_id ? idToOfficial[item.new_assigned_to_id] || null : null;
           }
+        }
+      }
+
+      // Enriquecer nomes de departamento/tipo/categoria para eventos de transferência
+      const deptIds = new Set<number>();
+      const typeIds = new Set<number>();
+      const catIds = new Set<number>();
+      for (const item of statusHistory as any[]) {
+        if ((item.old_department_id ?? null) !== null) deptIds.add(item.old_department_id);
+        if ((item.new_department_id ?? null) !== null) deptIds.add(item.new_department_id);
+        if ((item.old_incident_type_id ?? null) !== null) typeIds.add(item.old_incident_type_id);
+        if ((item.new_incident_type_id ?? null) !== null) typeIds.add(item.new_incident_type_id);
+        if ((item.old_category_id ?? null) !== null) catIds.add(item.old_category_id);
+        if ((item.new_category_id ?? null) !== null) catIds.add(item.new_category_id);
+      }
+
+      const idToDeptName: Record<number, string> = {};
+      const idToTypeName: Record<number, string> = {};
+      const idToCatName: Record<number, string> = {};
+
+      if (deptIds.size > 0) {
+        const rows = await db
+          .select({ id: schema.departments.id, name: schema.departments.name })
+          .from(schema.departments)
+          .where(inArray(schema.departments.id, Array.from(deptIds)));
+        for (const r of rows) idToDeptName[r.id] = r.name as unknown as string;
+      }
+      if (typeIds.size > 0) {
+        const rows = await db
+          .select({ id: schema.incidentTypes.id, name: schema.incidentTypes.name })
+          .from(schema.incidentTypes)
+          .where(inArray(schema.incidentTypes.id, Array.from(typeIds)));
+        for (const r of rows) idToTypeName[r.id] = r.name as unknown as string;
+      }
+      if (catIds.size > 0) {
+        const rows = await db
+          .select({ id: schema.categories.id, name: schema.categories.name })
+          .from(schema.categories)
+          .where(inArray(schema.categories.id, Array.from(catIds)));
+        for (const r of rows) idToCatName[r.id] = r.name as unknown as string;
+      }
+
+      for (const item of statusHistory as any[]) {
+        if ((item.old_department_id ?? item.new_department_id) !== undefined) {
+          item.old_department_name = item.old_department_id ? idToDeptName[item.old_department_id] || null : null;
+          item.new_department_name = item.new_department_id ? idToDeptName[item.new_department_id] || null : null;
+          item.old_incident_type_name = item.old_incident_type_id ? idToTypeName[item.old_incident_type_id] || null : null;
+          item.new_incident_type_name = item.new_incident_type_id ? idToTypeName[item.new_incident_type_id] || null : null;
+          item.old_category_name = item.old_category_id ? idToCatName[item.old_category_id] || null : null;
+          item.new_category_name = item.new_category_id ? idToCatName[item.new_category_id] || null : null;
         }
       }
 
@@ -1516,6 +1576,179 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     } catch (error) {
       console.error('Erro ao atualizar ticket (put):', error);
       res.status(500).json({ message: "Falha ao atualizar ticket", error: String(error) });
+    }
+  });
+
+  // Transferir ticket entre departamentos (mesma empresa) com opção de tipo e categoria
+  router.post("/tickets/:id/transfer", authRequired, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de ticket inválido" });
+      }
+
+      const userRole = req.session?.userRole as string;
+      const userId = req.session?.userId as number | undefined;
+      const sessionCompanyId = req.session?.companyId as number | undefined;
+
+      if (userRole === 'customer') {
+        return res.status(403).json({ message: "Clientes não podem transferir chamados" });
+      }
+
+      // Carregar ticket respeitando multiempresa
+      const existingTicket = await storage.getTicket(id, userRole, sessionCompanyId);
+      if (!existingTicket) {
+        return res.status(404).json({ message: "Ticket não encontrado" });
+      }
+
+      const { department_id, incident_type_id, category_id } = req.body as {
+        department_id?: number;
+        incident_type_id?: number;
+        category_id?: number | null;
+      };
+
+      if (!department_id || !incident_type_id) {
+        return res.status(400).json({ message: "department_id e incident_type_id são obrigatórios" });
+      }
+
+      // Validar departamento (mesma empresa do ticket)
+      const [targetDept] = await db
+        .select({ id: schema.departments.id, company_id: schema.departments.company_id, sla_mode: schema.departments.sla_mode })
+        .from(schema.departments)
+        .where(eq(schema.departments.id, department_id))
+        .limit(1);
+
+      if (!targetDept) {
+        return res.status(404).json({ message: "Departamento destino não encontrado" });
+      }
+      if (existingTicket.company_id && targetDept.company_id && existingTicket.company_id !== targetDept.company_id) {
+        return res.status(403).json({ message: "Transferência para outra empresa não é permitida" });
+      }
+      if (sessionCompanyId && targetDept.company_id && sessionCompanyId !== targetDept.company_id && userRole !== 'admin') {
+        return res.status(403).json({ message: "Departamento não pertence à sua empresa" });
+      }
+
+      // Validar tipo de incidente pertence ao departamento e empresa
+      const [targetType] = await db
+        .select({ id: schema.incidentTypes.id, department_id: schema.incidentTypes.department_id, company_id: schema.incidentTypes.company_id })
+        .from(schema.incidentTypes)
+        .where(and(
+          eq(schema.incidentTypes.id, incident_type_id),
+          eq(schema.incidentTypes.department_id, department_id)
+        ))
+        .limit(1);
+      if (!targetType) {
+        return res.status(400).json({ message: "Tipo de chamado inválido para o departamento informado" });
+      }
+      if (existingTicket.company_id && targetType.company_id && existingTicket.company_id !== targetType.company_id) {
+        return res.status(403).json({ message: "Tipo de chamado pertence a outra empresa" });
+      }
+
+      // Validar categoria quando necessário
+      let effectiveCategoryId: number | null | undefined = category_id ?? null;
+      if (targetDept.sla_mode === 'category') {
+        // Se houver categorias ativas para o tipo, exigir seleção
+        const activeCats = await db
+          .select({ id: schema.categories.id, company_id: schema.categories.company_id })
+          .from(schema.categories)
+          .where(and(
+            eq(schema.categories.incident_type_id, incident_type_id),
+            eq(schema.categories.is_active, true)
+          ))
+          .limit(1);
+
+        const hasActiveCats = activeCats.length > 0;
+        if (hasActiveCats && !effectiveCategoryId) {
+          return res.status(400).json({ message: "Categoria é obrigatória para este departamento" });
+        }
+        if (effectiveCategoryId) {
+          const [cat] = await db
+            .select({ id: schema.categories.id, incident_type_id: schema.categories.incident_type_id, company_id: schema.categories.company_id })
+            .from(schema.categories)
+            .where(eq(schema.categories.id, effectiveCategoryId))
+            .limit(1);
+          if (!cat || cat.incident_type_id !== incident_type_id) {
+            return res.status(400).json({ message: "Categoria não pertence ao tipo de chamado selecionado" });
+          }
+          if (existingTicket.company_id && cat.company_id && existingTicket.company_id !== cat.company_id) {
+            return res.status(403).json({ message: "Categoria pertence a outra empresa" });
+          }
+        }
+      } else {
+        // Modos por tipo: permitir category_id opcional, mas se enviado valida
+        if (effectiveCategoryId) {
+          const [cat] = await db
+            .select({ id: schema.categories.id, incident_type_id: schema.categories.incident_type_id, company_id: schema.categories.company_id })
+            .from(schema.categories)
+            .where(eq(schema.categories.id, effectiveCategoryId))
+            .limit(1);
+          if (!cat || cat.incident_type_id !== incident_type_id) {
+            return res.status(400).json({ message: "Categoria não pertence ao tipo de chamado selecionado" });
+          }
+          if (existingTicket.company_id && cat.company_id && existingTicket.company_id !== cat.company_id) {
+            return res.status(403).json({ message: "Categoria pertence a outra empresa" });
+          }
+        }
+      }
+
+      // Preparar atualização do ticket (manter prioridade/SLA e status intactos)
+      const updateData: any = {
+        department_id,
+        incident_type_id,
+        category_id: effectiveCategoryId ?? null,
+        updated_at: new Date(),
+      };
+
+      // Se houver atendente vinculado, desvincular e registrar histórico de assignment
+      const hadAssigned = existingTicket.assigned_to_id !== null && existingTicket.assigned_to_id !== undefined;
+      if (hadAssigned) {
+        updateData.assigned_to_id = null;
+      }
+
+      // Executar atualização
+      const updated = await storage.updateTicket(id, updateData);
+      if (!updated) {
+        return res.status(404).json({ message: "Ticket não encontrado" });
+      }
+
+      // Registrar histórico da transferência de departamento
+      try {
+        await db.insert(schema.ticketStatusHistory).values({
+          ticket_id: id,
+          change_type: 'department',
+          old_department_id: existingTicket.department_id ?? null,
+          new_department_id: department_id,
+          old_incident_type_id: existingTicket.incident_type_id ?? null,
+          new_incident_type_id: incident_type_id,
+          old_category_id: existingTicket.category_id ?? null,
+          new_category_id: effectiveCategoryId ?? null,
+          changed_by_id: userId,
+          created_at: new Date(),
+        });
+      } catch (histErr) {
+        console.error('[Histórico] Erro ao registrar transferência de departamento:', histErr);
+      }
+
+      // Registrar histórico de desvinculação (assignment) se aplicável
+      if (hadAssigned) {
+        try {
+          await db.insert(schema.ticketStatusHistory).values({
+            ticket_id: id,
+            change_type: 'assignment',
+            old_assigned_to_id: existingTicket.assigned_to_id,
+            new_assigned_to_id: null,
+            changed_by_id: userId,
+            created_at: new Date(),
+          });
+        } catch (histErr) {
+          console.error('[Histórico] Erro ao registrar desvinculação de atendente:', histErr);
+        }
+      }
+
+      return res.json(updated);
+    } catch (error) {
+      console.error('Erro ao transferir ticket:', error);
+      return res.status(500).json({ message: 'Falha ao transferir ticket', error: String(error) });
     }
   });
   
@@ -4173,14 +4406,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const conditions: SQLWrapper[] = [];
 
       // Contexto de criação de ticket: obrigatoriamente filtrar por empresa e apenas departamentos ativos
-      if (context === 'create_ticket') {
+      if (context === 'create_ticket' || context === 'transfer_ticket') {
         // Determinar empresa efetiva
         let effectiveCompanyId: number | null = null;
         if (userRole === 'admin') {
           // Admin precisa especificar a empresa alvo via query
           effectiveCompanyId = filterCompanyId ?? null;
           if (!effectiveCompanyId) {
-            return res.status(400).json({ message: "Para context=create_ticket, admin deve informar company_id." });
+            return res.status(400).json({ message: `Para context=${context}, admin deve informar company_id.` });
           }
         } else {
           // Demais papéis: usar empresa da sessão

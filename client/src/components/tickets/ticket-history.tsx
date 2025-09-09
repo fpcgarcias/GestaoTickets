@@ -81,7 +81,7 @@ interface TicketHistoryProps {
 // Tipo para o item de histórico combinado
 interface HistoryItem {
   id: number;
-  type: 'reply' | 'status_change' | 'assignment_change';
+  type: 'reply' | 'status_change' | 'assignment_change' | 'department_change';
   created_at: string;
   data: any;
 }
@@ -135,6 +135,58 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                 {translateUserRole(reply.user.role)}
               </Badge>
             )}
+          </div>
+        </div>
+      </div>
+    );
+  } else if (item.type === 'department_change') {
+    const deptChange = item.data as any;
+    return (
+      <div className="flex gap-3 pb-6 relative">
+        <div className="absolute left-[1.15rem] top-10 bottom-0 w-0.5 bg-gray-200"></div>
+        <div className="z-10 flex-shrink-0 w-9 h-9 rounded-full bg-indigo-50 flex items-center justify-center border-2 border-white shadow">
+          <RefreshCw className="h-5 w-5 text-indigo-500" />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            {deptChange.user ? (
+              <>
+                <Avatar className="w-6 h-6">
+                  <AvatarImage src={deptChange.user.avatar_url || ""} />
+                  <AvatarFallback className="text-xs">
+                    {deptChange.user.role === 'integration_bot' ? '🤖' : deptChange.user.name?.charAt(0) || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="font-semibold text-sm text-indigo-700">{deptChange.user.name}</span>
+                <span className="text-sm text-gray-500">transferiu o chamado</span>
+              </>
+            ) : (
+              <>
+                <User className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-500 italic">Usuário não identificado transferiu o chamado</span>
+              </>
+            )}
+            <span className="text-xs text-gray-400 ml-auto">{formatDate(deptChange.created_at)}</span>
+          </div>
+          <div className="mt-1 text-sm text-gray-700 space-y-1">
+            <div>
+              <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">Departamento:</Badge>
+              <span className="ml-2">{deptChange.old_department_name || '—'}</span>
+              <span className="mx-2 text-gray-400">→</span>
+              <span>{deptChange.new_department_name || '—'}</span>
+            </div>
+            <div>
+              <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">Tipo:</Badge>
+              <span className="ml-2">{deptChange.old_incident_type_name || '—'}</span>
+              <span className="mx-2 text-gray-400">→</span>
+              <span>{deptChange.new_incident_type_name || '—'}</span>
+            </div>
+            <div>
+              <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">Categoria:</Badge>
+              <span className="ml-2">{deptChange.old_category_name || '—'}</span>
+              <span className="mx-2 text-gray-400">→</span>
+              <span>{deptChange.new_category_name || '—'}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -339,8 +391,11 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticketId }) => {
           data: status as any
         } as any;
 
-        if ((status as any).change_type === 'assignment') {
+        const ct = (status as any).change_type;
+        if (ct === 'assignment') {
           items.push({ ...baseItem, type: 'assignment_change' });
+        } else if (ct === 'department') {
+          items.push({ ...baseItem, type: 'department_change' });
         } else {
           items.push({ ...baseItem, type: 'status_change' });
         }
@@ -401,4 +456,4 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticketId }) => {
       </CardContent>
     </Card>
   );
-}; 
+};

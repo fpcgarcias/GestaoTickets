@@ -21,17 +21,17 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { insertTicketReplySchema, type InsertTicketReply } from '@shared/schema';
-import { TICKET_STATUS, TICKET_TYPES } from '@/lib/utils';
+import { TICKET_STATUS } from '@/lib/utils';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Ticket, Official, IncidentType } from '@shared/schema';
+import { Ticket, Official } from '@shared/schema';
 import { Loader2 } from 'lucide-react';
-import { z } from 'zod';
 import { FileUpload } from './file-upload';
 import { useAuth } from '@/hooks/use-auth';
 import { getStatusConfig, type TicketStatus } from '@shared/ticket-utils';
+import { TicketTransferDialog } from './TicketTransferDialog';
 
 interface TicketReplyFormProps {
   ticket: Ticket;
@@ -42,6 +42,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const { user } = useAuth();
+  const [transferOpen, setTransferOpen] = React.useState(false);
   
   // 🔥 CORREÇÃO: Determinar se o usuário é cliente NESTE TICKET específico
   // Só é cliente se o role for 'customer' E for o criador do ticket
@@ -49,10 +50,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const isCustomerForThisTicket = user?.role === 'customer' && 
     ticket.customer?.user_id && user?.id && ticket.customer.user_id === user.id;
   
-  // 🔥 CORREÇÃO: Permissões baseadas no ROLE do usuário, não no contexto do ticket
-  // Apenas usuários com role 'customer' não podem modificar status e atendente
-  const canModifyStatus = user?.role !== 'customer';
-  const canModifyAssignment = user?.role !== 'customer';
+  // Permissões são controladas por isCustomerForThisTicket nas renderizações abaixo
   
   // Buscar a lista de atendentes disponíveis (apenas para não-clientes)
   const { data: officialsResponse, isLoading: isLoadingOfficials } = useQuery({
@@ -75,30 +73,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     .filter((official: Official) => official.is_active)
     .sort((a: Official, b: Official) => a.name.localeCompare(b.name, 'pt-BR'));
 
-  // Buscar dados de tipos de incidentes usando a API correta
-  const { data: incidentTypesData, isLoading: isLoadingIncidentTypes } = useQuery<{incidentTypes: IncidentType[], pagination?: any}>({
-    queryKey: ["/api/incident-types", { active_only: true }],
-    queryFn: async () => {
-      const response = await apiRequest('GET', '/api/incident-types?active_only=true');
-      const data = await response.json();
-      return data;
-    },
-  });
-
-  // Garantir que incidentTypes é um array
-  const incidentTypes = Array.isArray(incidentTypesData?.incidentTypes) ? incidentTypesData.incidentTypes : [];
-
-  // Filtrar tipos de incidentes pelo departamento do ticket
-  const filteredIncidentTypes = ticket.department_id && Array.isArray(incidentTypes)
-    ? incidentTypes.filter((type: IncidentType) => type.department_id === ticket.department_id)
-    : (incidentTypes || []);
-    
-  // Estender o tipo do formulário para incluir incidentTypeId
-  const formSchema = insertTicketReplySchema.extend({
-    incidentTypeId: z.number().optional(),
-    type: z.string().optional()
-  });
-  type FormValues = z.infer<typeof formSchema>;
+  // Tipo de chamado não é editável após a abertura
 
   const form = useForm({
     resolver: zodResolver(insertTicketReplySchema),
@@ -107,7 +82,6 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
       message: '',
       status: ticket.status,
       assigned_to_id: ticket.assigned_to_id || undefined,
-      type: ticket.type,
       is_internal: false,
     },
   });
@@ -137,9 +111,6 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
 
   const onSubmit = (data: any) => {
     
-    // Verificar se o formulário é válido
-    const formErrors = form.formState.errors;
-    
     // Para clientes, sempre manter status e atendente originais
     const statusToUse = isCustomerForThisTicket ? ticket.status : data.status;
     const assignedToUse = isCustomerForThisTicket ? ticket.assigned_to_id : data.assigned_to_id;
@@ -152,7 +123,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
       ticket_id: data.ticket_id || ticket.id,
       message: data.message || "Status atualizado automaticamente",
       status: statusToUse,
-      type: data.type,
+      type: ticket.type,
       is_internal: false,
       statusChanged: statusChanged,
       previousStatus: statusChanged ? ticket.status : undefined,
@@ -188,7 +159,15 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   return (
     <Card>
       <CardContent className="p-6">
-        <h3 className="text-lg font-medium mb-6">Responder ao Chamado</h3>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-medium">Responder ao Chamado</h3>
+          {/* Botão Transferir: oculto apenas para customer */}
+          {user?.role !== 'customer' && (
+            <Button variant="secondary" onClick={() => setTransferOpen(true)}>
+              Transferir Chamado
+            </Button>
+          )}
+        </div>
         {/* Contexto do Chamado: Departamento / Tipo / Categoria (sem dependência do FormContext) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="space-y-2">
@@ -229,51 +208,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 />
               </FormItem>
               
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo de Chamado</FormLabel>
-                    <Select 
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                      }}
-                      defaultValue={field.value}
-                      disabled={isLoadingIncidentTypes}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={
-                            isLoadingIncidentTypes 
-                              ? "Carregando tipos..." 
-                              : "Escolher Tipo"
-                          } />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {isLoadingIncidentTypes ? (
-                          <div className="flex items-center justify-center p-2">
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            <span>Carregando tipos...</span>
-                          </div>
-                        ) : filteredIncidentTypes.length > 0 ? (
-                          filteredIncidentTypes.map((type: IncidentType) => (
-                            <SelectItem key={type.id} value={type.value}>
-                              {type.name}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <div className="p-2 text-neutral-500 text-sm text-center">
-                            Nenhum tipo de chamado encontrado para este departamento
-                          </div>
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Campo de Tipo de Chamado removido do formulário (somente cabeçalho exibe) */}
               
               <FormField
                 control={form.control}
@@ -334,9 +269,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                   </FormItem>
                 )}
               />
-            </div>
-            
-            <div className="grid grid-cols-1 gap-6">
+
               <FormField
                 control={form.control}
                 name="assigned_to_id"
@@ -386,6 +319,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 )}
               />
             </div>
+
             
             <FormField
               control={form.control}
@@ -442,6 +376,13 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
             </div>
           </form>
         </Form>
+        {/* Modal de Transferência */}
+        <TicketTransferDialog 
+          open={transferOpen}
+          onOpenChange={setTransferOpen}
+          ticketId={ticket.id}
+          currentDepartmentId={ticket.department_id || undefined}
+        />
       </CardContent>
     </Card>
   );

@@ -138,6 +138,7 @@ export class EmailNotificationService {
       const renderedSubject = this.renderTemplate(template.subject_template, enrichedContext);
       const renderedHtml = this.renderTemplate(template.html_template, enrichedContext);
       const renderedText = template.text_template ? this.renderTemplate(template.text_template, enrichedContext) : undefined;
+      const finalHtml = this.ensureUtf8Html(renderedHtml);
 
             // 6. Configurar transporter
       try {
@@ -148,8 +149,13 @@ export class EmailNotificationService {
           from: `${emailConfig.from_name} <${emailConfig.from_email}>`,
           to: recipientEmail,
           subject: renderedSubject,
-          html: renderedHtml,
+          html: finalHtml,
           text: renderedText,
+          headers: {
+            'Content-Type': 'text/html; charset=UTF-8',
+            'Content-Language': 'pt-BR',
+          },
+          textEncoding: 'quoted-printable',
         };
 
         const result = await transporter.sendMail(mailOptions);
@@ -516,6 +522,28 @@ export class EmailNotificationService {
     }
 
     return rendered;
+  }
+
+  // Garante que o HTML tenha meta charset UTF-8 para evitar erros como "Balne�rio"
+  private ensureUtf8Html(html: string | undefined): string | undefined {
+    if (!html || typeof html !== 'string') return html;
+
+    const hasCharsetMeta = /<meta[^>]*charset\s*=\s*"?utf-8"?/i.test(html);
+    if (hasCharsetMeta) return html;
+
+    // Inserir dentro de <head> se existir; caso contrário, no topo do HTML
+    const meta = '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">';
+    if (/<head[^>]*>/i.test(html)) {
+      return html.replace(/<head[^>]*>/i, (m) => `${m}\n    ${meta}`);
+    }
+
+    // Se não houver <head>, tentar após <!doctype> ou início do documento
+    if (/<!doctype html>/i.test(html)) {
+      return html.replace(/<!doctype html>/i, (m) => `${m}\n<html><head>${meta}</head>`);
+    }
+
+    // Fallback: prefixar o meta no topo
+    return `${meta}\n${html}`;
   }
 
   // Criar transporter baseado na configuração
