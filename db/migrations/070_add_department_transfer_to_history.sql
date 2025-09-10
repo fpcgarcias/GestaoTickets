@@ -22,3 +22,4 @@ COMMENT ON COLUMN ticket_status_history.old_category_id IS 'Categoria anterior (
 COMMENT ON COLUMN ticket_status_history.new_category_id IS 'Nova categoria (apenas para change_type = department)';
 
 
+
