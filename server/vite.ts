@@ -96,31 +96,8 @@ export function serveStatic(app: Express) {
     );
   }
 
-  // Cabeçalho de segurança opcional
-  app.use((req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    next();
-  });
-
-  // 1) Sirva estáticos com rotas explícitas (NÃO deixar cair no fallback)
-  app.use('/css', express.static(path.join(distPath, 'css'), { 
-    maxAge: '1y', 
-    immutable: true,
-    setHeaders: (res, filePath) => {
-      res.set('Cache-Control', 'public, max-age=31536000, immutable');
-    }
-  }));
-  
-  app.use('/js', express.static(path.join(distPath, 'js'), { 
-    maxAge: '1y', 
-    immutable: true,
-    setHeaders: (res, filePath) => {
-      res.set('Cache-Control', 'public, max-age=31536000, immutable');
-    }
-  }));
-  
-  // 2) Outros arquivos estáticos (imagens, etc.)
-  app.use('/', express.static(distPath, {
+  // Configurar headers de cache para produção
+  app.use(express.static(distPath, {
     setHeaders: (res, filePath) => {
       // Cache agressivo para assets com hash no nome
       if (filePath.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/)) {
@@ -138,8 +115,8 @@ export function serveStatic(app: Express) {
     }
   }));
 
-  // 3) Fallback do SPA somente no final (para rotas da app)
-  app.get('*', (_req, res) => {
+  // fall through to index.html if the file doesn't exist
+  app.use("*", (_req, res) => {
     // Configurar headers para o index.html
     res.set({
       'Cache-Control': 'no-store, no-cache, must-revalidate',
