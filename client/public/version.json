@@ -1,15 +1,16 @@
 {
   "current": "1.0.28",
-  "releaseDate": "2025-09-10",
+  "releaseDate": "2025-09-12",
   "versions": [
     {
       "version": "1.0.28",
-      "date": "2025-09-10",
+      "date": "2025-09-12",
       "title": "Correções de bugs",
       "type": "bugfix",
       "changes": {
         "fixed": [
-          "Corrigido os dropdowns de departamentos, prioridades e status na tela de relatório de chamados."
+          "Corrigido os dropdowns de departamentos, prioridades e status na tela de relatório de chamados.",
+          "Modernização dos gráficos do dashboard."
         ]
       }
     },    
