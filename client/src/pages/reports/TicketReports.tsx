@@ -170,7 +170,7 @@ export default function TicketReports() {
   //   setSearchParams(newParams);
   // }, [dateRange, filters, setSearchParams]);
 
-  // Sincronizar filtros com URL quando o componente montar
+  // Sincronizar filtros com URL apenas na montagem inicial
   useEffect(() => {
     const newFilters = {
       status: searchParams.get('status') || 'all',
@@ -187,7 +187,7 @@ export default function TicketReports() {
         to: toDate ? new Date(toDate) : undefined
       });
     }
-  }, [searchParams]); // Executar quando searchParams mudar
+  }, []); // Executar apenas uma vez na montagem inicial
 
   // Buscar departamentos dinamicamente
   useEffect(() => {

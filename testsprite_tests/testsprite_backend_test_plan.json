@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TC001",
+    "title": "get tickets by user role with pagination",
+    "description": "Verify that the GET /api/tickets endpoint returns tickets filtered by user role and supports pagination parameters such as page and limit."
+  },
+  {
+    "id": "TC002",
+    "title": "create a new ticket",
+    "description": "Test the POST /api/tickets endpoint to ensure a new ticket can be created with valid fields including title, description, priority, type, and department_id, and that the ticket is stored with correct metadata."
+  },
+  {
+    "id": "TC003",
+    "title": "get ticket by id",
+    "description": "Validate the GET /api/tickets/{id} endpoint to retrieve a ticket by its ID, ensuring correct ticket details are returned and proper error handling for invalid or non-existent IDs."
+  },
+  {
+    "id": "TC004",
+    "title": "user login with active directory authentication",
+    "description": "Test the POST /api/login endpoint to verify user authentication against Active Directory credentials, session creation, and role-based authorization."
+  },
+  {
+    "id": "TC005",
+    "title": "get sla configurations",
+    "description": "Verify the GET /api/sla-configurations endpoint returns the list of SLA configurations with correct details including priorities, response times, and business hours."
+  },
+  {
+    "id": "TC006",
+    "title": "create sla configuration",
+    "description": "Test the POST /api/sla-configurations endpoint to create a new SLA configuration with valid input and ensure it is stored and applied correctly."
+  },
+  {
+    "id": "TC007",
+    "title": "get departments",
+    "description": "Validate the GET /api/departments endpoint to retrieve the list of departments with their configurations."
+  },
+  {
+    "id": "TC008",
+    "title": "create department",
+    "description": "Test the POST /api/departments endpoint to create a new department with valid data and verify it is stored correctly."
+  },
+  {
+    "id": "TC009",
+    "title": "upload attachment",
+    "description": "Verify the POST /api/attachments endpoint supports file upload via multipart/form-data, stores the file securely in AWS S3, and links metadata correctly to the ticket and user."
+  },
+  {
+    "id": "TC010",
+    "title": "get ticket reports with date filters",
+    "description": "Test the GET /api/reports/tickets endpoint to generate ticket reports filtered by startDate and endDate, ensuring accurate data and correct filtering."
+  }
+]

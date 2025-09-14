@@ -12,18 +12,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { useBusinessHoursRefetchInterval } from '../hooks/use-business-hours';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { 
-  PieChart, 
-  Pie, 
-  Cell, 
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend
-} from 'recharts';
+import { ModernPieChart } from '@/components/charts/modern-pie-chart';
+import { ModernBarChart } from '@/components/charts/modern-bar-chart';
 
 // Definir tipos para os dados das consultas
 interface TicketStats {
@@ -233,10 +223,10 @@ export default function Dashboard() {
     { name: 'Novos', value: ticketStats.byStatus.new, color: '#F59E0B' },
     { name: 'Em Andamento', value: ticketStats.byStatus.ongoing, color: '#3B82F6' },
     { name: 'Resolvidos', value: ticketStats.byStatus.resolved, color: '#10B981' },
+    { name: 'Outros Status', value: otherStatusCount, color: '#8B5CF6' },
   ];
 
-  // Filtrar dados para o gráfico (apenas status com valor > 0)
-  const statusDataForChart = statusData.filter(item => item.value > 0);
+  // Os novos componentes modernos lidam com dados vazios internamente
 
   // Processar dados de prioridade - agrupar case-insensitive e exibir padronizado
   const prioridadeMap: Record<string, { name: string; Qtde: number }> = {};
@@ -352,74 +342,10 @@ export default function Dashboard() {
             <CardDescription>Distribuição de chamados por diferentes status</CardDescription>
           </CardHeader>
           <CardContent>
-            {isDashboardLoading ? (
-              <Skeleton className="w-full h-72" />
-            ) : statusDataForChart.length > 0 ? (
-              <>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={statusDataForChart}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={true}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {statusDataForChart.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-                
-                {/* Legenda customizada mostrando todos os status */}
-                <div className="flex justify-center mt-4">
-                  <div className="flex flex-wrap gap-4 justify-center">
-                    {statusData.map((item) => (
-                      <div key={item.name} className="flex items-center gap-2">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: item.color }}
-                        ></div>
-                        <span className="text-sm text-gray-600">
-                          {item.name}: {item.value}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center justify-center h-72">
-                  <div className="text-center">
-                    <p className="text-gray-500 mb-2">Nenhum chamado cadastrado</p>
-                    <p className="text-sm text-gray-400">Os dados aparecerão aqui quando houver chamados no sistema</p>
-                  </div>
-                </div>
-                
-                {/* Legenda sempre visível mesmo sem dados */}
-                <div className="flex justify-center mt-4">
-                  <div className="flex flex-wrap gap-4 justify-center">
-                    {statusData.map((item) => (
-                      <div key={item.name} className="flex items-center gap-2">
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: item.color }}
-                        ></div>
-                        <span className="text-sm text-gray-600">
-                          {item.name}: {item.value}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
+            <ModernPieChart 
+              data={statusData} 
+              isLoading={isDashboardLoading}
+            />
           </CardContent>
         </Card>
         
@@ -429,34 +355,10 @@ export default function Dashboard() {
             <CardDescription>Número de chamados para cada nível de prioridade</CardDescription>
           </CardHeader>
           <CardContent>
-            {isDashboardLoading ? (
-              <Skeleton className="w-full h-72" />
-            ) : priorityData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={priorityData}
-                  margin={{
-                    top: 20,
-                    right: 30,
-                    left: 20,
-                    bottom: 5,
-                  }}
-                >
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="Qtde" fill="#8884d8" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-72">
-                <div className="text-center">
-                  <p className="text-gray-500 mb-2">Nenhum chamado cadastrado</p>
-                  <p className="text-sm text-gray-400">Os dados aparecerão aqui quando houver chamados no sistema</p>
-                </div>
-              </div>
-            )}
+            <ModernBarChart 
+              data={priorityData} 
+              isLoading={isDashboardLoading}
+            />
           </CardContent>
         </Card>
       </div>

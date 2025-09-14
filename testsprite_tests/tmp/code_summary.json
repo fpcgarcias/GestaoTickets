@@ -1,0 +1,374 @@
+{
+  "tech_stack": [
+    "TypeScript",
+    "React 18",
+    "Vite",
+    "Node.js",
+    "Express.js",
+    "PostgreSQL",
+    "Drizzle ORM",
+    "TailwindCSS",
+    "Radix UI",
+    "TanStack Query",
+    "React Hook Form",
+    "Zod",
+    "AWS S3",
+    "Nodemailer",
+    "Passport.js",
+    "Helmet",
+    "CORS",
+    "Express Rate Limit",
+    "Bcrypt",
+    "Puppeteer",
+    "Active Directory"
+  ],
+  "features": [
+    {
+      "name": "Ticket Management API",
+      "description": "Handles creation, updates, replies, and management of support tickets including attachments and participants.",
+      "files": [
+        "server/api/tickets/",
+        "server/api/ticket-replies.ts",
+        "server/routes/ticket-participants.ts",
+        "shared/schema.ts",
+        "shared/ticket-utils.ts",
+        "server/database-storage.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Ticket Management API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/api/tickets": {
+            "get": {
+              "summary": "Get tickets by user role with pagination",
+              "parameters": [
+                {
+                  "name": "page",
+                  "in": "query",
+                  "schema": { "type": "integer" }
+                },
+                {
+                  "name": "limit",
+                  "in": "query",
+                  "schema": { "type": "integer" }
+                }
+              ]
+            },
+            "post": {
+              "summary": "Create a new ticket",
+              "requestBody": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "title": { "type": "string" },
+                        "description": { "type": "string" },
+                        "priority": { "type": "string" },
+                        "type": { "type": "string" },
+                        "department_id": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "/api/tickets/{id}": {
+            "get": {
+              "summary": "Get ticket by ID",
+              "parameters": [
+                {
+                  "name": "id",
+                  "in": "path",
+                  "required": true,
+                  "schema": { "type": "integer" }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "User and Authentication API",
+      "description": "Manages users, authentication, and permissions with Active Directory integration.",
+      "files": [
+        "server/api/users/",
+        "server/utils/active-directory.ts",
+        "server/middleware/authorization.ts",
+        "server/utils/password.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "User Authentication API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/api/login": {
+            "post": {
+              "summary": "User login",
+              "requestBody": {
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "username": { "type": "string" },
+                        "password": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "SLA Management API",
+      "description": "Manages Service Level Agreements, priorities, and business hours calculations.",
+      "files": [
+        "server/api/sla-configurations.ts",
+        "server/services/sla-service.ts",
+        "server/api/priorities.ts",
+        "server/services/priority-service.ts",
+        "shared/utils/sla-calculator.ts",
+        "shared/utils/sla-resolver.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "SLA Management API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/api/sla-configurations": {
+            "get": {
+              "summary": "Get SLA configurations"
+            },
+            "post": {
+              "summary": "Create SLA configuration"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Department Management API",
+      "description": "Manages departments, officials, and department-specific configurations.",
+      "files": [
+        "server/api/departments/",
+        "server/api/departments.ts",
+        "server/api/department-priorities.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Department Management API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/api/departments": {
+            "get": {
+              "summary": "Get departments"
+            },
+            "post": {
+              "summary": "Create department"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "AI Integration API",
+      "description": "AI-powered ticket analysis, priority suggestion, and automated responses.",
+      "files": [
+        "server/api/ai-configurations.ts",
+        "server/services/ai-service.ts",
+        "client/src/pages/ai-audit.tsx"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "AI Integration API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/api/ai-configurations": {
+            "get": {
+              "summary": "Get AI configurations"
+            },
+            "post": {
+              "summary": "Create AI configuration"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Attachment Management API",
+      "description": "Handles file uploads and attachments using AWS S3 storage.",
+      "files": [
+        "server/api/attachments/",
+        "server/services/s3-service.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Attachment Management API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/api/attachments": {
+            "post": {
+              "summary": "Upload attachment",
+              "requestBody": {
+                "content": {
+                  "multipart/form-data": {
+                    "schema": {
+                      "type": "object",
+                      "properties": {
+                        "file": {
+                          "type": "string",
+                          "format": "binary"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Reports and Analytics API",
+      "description": "Generates reports, statistics, and analytics for tickets and performance metrics.",
+      "files": [
+        "server/routes/reports.ts",
+        "server/routes/dashboard.ts",
+        "client/src/pages/dashboard.tsx"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Reports and Analytics API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/api/reports/tickets": {
+            "get": {
+              "summary": "Get ticket reports",
+              "parameters": [
+                {
+                  "name": "startDate",
+                  "in": "query",
+                  "schema": { "type": "string", "format": "date" }
+                },
+                {
+                  "name": "endDate",
+                  "in": "query",
+                  "schema": { "type": "string", "format": "date" }
+                }
+              ]
+            }
+          },
+          "/api/reports/tickets/export": {
+            "get": {
+              "summary": "Export tickets to CSV/Excel",
+              "parameters": [
+                {
+                  "name": "format",
+                  "in": "query",
+                  "schema": { "type": "string", "enum": ["csv", "excel"] }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Security and Monitoring API",
+      "description": "Security monitoring, logging, and audit trail functionality.",
+      "files": [
+        "server/api/security-monitoring.ts",
+        "server/api/logs.ts",
+        "server/services/logger.ts",
+        "server/middleware/security.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Security and Monitoring API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/api/logs": {
+            "get": {
+              "summary": "Get system logs"
+            }
+          },
+          "/api/security-monitoring": {
+            "get": {
+              "summary": "Get security monitoring data"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Scheduler Service",
+      "description": "Background job scheduling for notifications, SLA monitoring, and automated tasks.",
+      "files": [
+        "server/services/scheduler-service.ts",
+        "SCHEDULER_CONFIG.md"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Scheduler Service API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/api/scheduler/status": {
+            "get": {
+              "summary": "Get scheduler status"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Email Configuration API",
+      "description": "Email template management and notification configuration.",
+      "files": [
+        "server/services/email-config-service.ts"
+      ],
+      "api_doc": {
+        "openapi": "3.0.0",
+        "info": {
+          "title": "Email Configuration API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/api/email-config": {
+            "get": {
+              "summary": "Get email configurations"
+            },
+            "post": {
+              "summary": "Create email configuration"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

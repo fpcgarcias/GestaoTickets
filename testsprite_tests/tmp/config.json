@@ -1,0 +1,18 @@
+{
+  "status": "commited",
+  "type": "backend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:5173",
+  "backendAuthType": "basic token",
+  "backendUsername": "admin@ticketwise.com.br",
+  "backendPassword": "admin123",
+  "executionArgs": {
+    "projectName": "GestaoTickets",
+    "projectPath": "c:\\GitHub\\GestaoTickets",
+    "testIds": [],
+    "additionalInstruction": "Execute comprehensive system scan for bugs, security vulnerabilities, performance issues and code inconsistencies. Focus on: 1) Input data validation, 2) Error handling, 3) Authentication and authorization security, 4) SQL queries and database performance, 5) Session management, 6) External service integrations (S3, AI, Email). Generate detailed report with actionable recommendations.",
+    "envs": {
+      "API_KEY": "sk-user-0JTHAyCrNYPhk_i8FnxaOrhCPk-tsZGuRSounsYBPj4iOnNfT4-wmZB_Z-iylsecxw6RDa7NZuGwEtRX7CKY8oKeTkMQcH-GxfY3TaiZ1k4QSX7o2nDc5LPQoPA82AJOthg"
+    }
+  }
+}

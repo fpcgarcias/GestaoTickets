@@ -1,7 +1,18 @@
 {
-  "current": "1.0.27",
-  "releaseDate": "2025-09-09",
+  "current": "1.0.28",
+  "releaseDate": "2025-09-10",
   "versions": [
+    {
+      "version": "1.0.28",
+      "date": "2025-09-10",
+      "title": "Correções de bugs",
+      "type": "bugfix",
+      "changes": {
+        "fixed": [
+          "Corrigido os dropdowns de departamentos, prioridades e status na tela de relatório de chamados."
+        ]
+      }
+    },    
     {
       "version": "1.0.27",
       "date": "2025-09-09",
