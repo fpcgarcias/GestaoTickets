@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusDot } from '@/components/tickets/status-badge';
 import { TimeMetricCard } from '@/components/ui/time-metric-card';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
-import { Clock, CheckCircle2, Users, Calendar, MoreHorizontal } from 'lucide-react';
+import { Clock, CheckCircle2, Users, Calendar, MoreHorizontal, Building } from 'lucide-react';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
@@ -90,6 +90,9 @@ export default function Dashboard() {
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
   const [calendarOpen, setCalendarOpen] = useState(false);
 
+  // Filtro de departamento
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('all');
+
   // Função para calcular datas igual ao index.tsx
   function getPeriodDates() {
     const now = new Date();
@@ -129,6 +132,28 @@ export default function Dashboard() {
   // APENAS admin, company_admin, manager, supervisor e support devem ver o dropdown
   // customer, viewer, etc. NÃO devem ver
   const shouldShowOfficialFilter = user?.role && ['admin', 'company_admin', 'manager', 'supervisor', 'support'].includes(user.role);
+
+  // Verificar se deve exibir o filtro de departamentos
+  // APENAS admin, company_admin, manager e supervisor devem ver o dropdown
+  // Outras roles (support, customer, viewer, etc.) NÃO devem ver
+  const shouldShowDepartmentFilter = user?.role && ['admin', 'company_admin', 'manager', 'supervisor'].includes(user.role);
+
+  // Buscar departamentos apenas se necessário
+  // O endpoint /api/departments já filtra automaticamente baseado na role:
+  // - Admin/Company_admin: retorna todos os departamentos
+  // - Manager/Supervisor: retorna apenas departamentos vinculados ao usuário
+  const { data: departmentsResponse, isLoading: isDepartmentsLoading } = useQuery({
+    queryKey: ['/api/departments', { active_only: true }, user?.role, user?.id],
+    queryFn: async () => {
+      const res = await fetch('/api/departments?active_only=true');
+      if (!res.ok) throw new Error('Erro ao carregar departamentos');
+      return res.json();
+    },
+    enabled: shouldShowDepartmentFilter,
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
+
+  const departments = departmentsResponse?.departments || departmentsResponse || [];
 
   // Buscar atendentes apenas se necessário
   const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
@@ -190,9 +215,15 @@ export default function Dashboard() {
 
   // Query única para todas as métricas do dashboard
   const { data: dashboardData, isLoading: isDashboardLoading } = useQuery({
-    queryKey: ['dashboard-metrics', startDate.toISOString(), endDate.toISOString(), selectedOfficialId],
+    queryKey: ['dashboard-metrics', startDate.toISOString(), endDate.toISOString(), selectedOfficialId, selectedDepartmentId],
     queryFn: async () => {
-      const params = getQueryParamsWithPeriod();
+      let params = getQueryParamsWithPeriod();
+      // Adicionar filtro de departamento se selecionado
+      if (selectedDepartmentId !== 'all') {
+        const urlParams = new URLSearchParams(params);
+        urlParams.append('department_id', selectedDepartmentId);
+        params = urlParams.toString();
+      }
       const url = `/api/tickets/dashboard-metrics${params ? `?${params}` : ''}`;
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch dashboard metrics');
@@ -261,6 +292,25 @@ export default function Dashboard() {
               {format(startDate, 'dd/MM/yy', { locale: ptBR })} - {format(endDate, 'dd/MM/yy', { locale: ptBR })}
             </span>
           </div>
+          {/* Filtro de Departamento */}
+          {shouldShowDepartmentFilter && (
+            <div className="flex items-center gap-2">
+              <Building className="h-4 w-4 text-neutral-500" />
+              <Select value={selectedDepartmentId} onValueChange={setSelectedDepartmentId}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Todos os Departamentos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Departamentos</SelectItem>
+                  {departments.map((department: any) => (
+                    <SelectItem key={department.id} value={department.id.toString()}>
+                      {department.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {/* Filtro de Atendente */}
           {shouldShowOfficialFilter && (
             <div className="flex items-center gap-2">

@@ -99,16 +99,16 @@ export interface IStorage {
     byPriority: Record<string, number>;
   }>;
   getRecentTickets(limit?: number): Promise<Ticket[]>;
-  getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
-  getRecentTicketsByUserRole(userId: number, userRole: string, limit?: number, officialId?: number, startDate?: Date, endDate?: Date): Promise<Ticket[]>;
+  getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
+  getRecentTicketsByUserRole(userId: number, userRole: string, limit?: number, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<Ticket[]>;
   
   // Time metrics operations
-  getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number>;
-  getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number>;
+  getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<number>;
+  getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<number>;
 
   // Dashboard optimized operations
-  getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
-  getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number, officialId?: number, startDate?: Date, endDate?: Date): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>>;
+  getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
+  getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>>;
 
   // Company operations (adicionar se não existir)
   getCompany(id: number): Promise<any | undefined>;
@@ -950,7 +950,7 @@ export class MemStorage implements IStorage {
     };
   }
 
-  async getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+  async getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
     // Simulação: Filtrar tickets pelo usuário/papel e depois calcular estatísticas
     let userTickets = await this.getTicketsByUserRole(userId, userRole);
     
@@ -967,6 +967,11 @@ export class MemStorage implements IStorage {
       });
     }
     
+    // Filtrar por departamento se especificado
+    if (departmentId) {
+      userTickets = userTickets.filter(ticket => ticket.departmentId === departmentId);
+    }
+    
     const stats = { total: userTickets.length, byStatus: {}, byPriority: {} };
     userTickets.forEach(ticket => {
       stats.byStatus[ticket.status] = (stats.byStatus[ticket.status] || 0) + 1;
@@ -979,7 +984,7 @@ export class MemStorage implements IStorage {
     return stats;
   }
 
-  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 5, officialId?: number, startDate?: Date, endDate?: Date): Promise<Ticket[]> {
+  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 5, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<Ticket[]> {
     let userTickets = await this.getTicketsByUserRole(userId, userRole);
     
     // Filtrar por atendente se especificado
@@ -993,12 +998,17 @@ export class MemStorage implements IStorage {
         const createdAt = new Date(ticket.createdAt);
         return createdAt >= startDate && createdAt <= endDate;
       });
+    }
+    
+    // Filtrar por departamento se especificado
+    if (departmentId) {
+      userTickets = userTickets.filter(ticket => ticket.departmentId === departmentId);
     }
     
     return userTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
   }
 
-  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number> {
+  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<number> {
     let userTickets = await this.getTicketsByUserRole(userId, userRole);
     
     // Filtrar por atendente se especificado
@@ -1012,6 +1022,11 @@ export class MemStorage implements IStorage {
         const createdAt = new Date(ticket.createdAt);
         return createdAt >= startDate && createdAt <= endDate;
       });
+    }
+    
+    // Filtrar por departamento se especificado
+    if (departmentId) {
+      userTickets = userTickets.filter(ticket => ticket.departmentId === departmentId);
     }
     
     // Filtrar tickets que têm createdAt e (firstResponseAt OU resolvedAt)
@@ -1037,7 +1052,7 @@ export class MemStorage implements IStorage {
     return Math.round((totalResponseTime / ticketsWithFirstResponse.length) * 100) / 100;
   }
 
-  async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<number> {
+  async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<number> {
     let userTickets = await this.getTicketsByUserRole(userId, userRole);
     
     // Filtrar por atendente se especificado
@@ -1051,6 +1066,11 @@ export class MemStorage implements IStorage {
         const createdAt = new Date(ticket.createdAt);
         return createdAt >= startDate && createdAt <= endDate;
       });
+    }
+    
+    // Filtrar por departamento se especificado
+    if (departmentId) {
+      userTickets = userTickets.filter(ticket => ticket.departmentId === departmentId);
     }
     
     const resolvedTickets = Array.from(userTickets).filter(ticket => 
@@ -1089,7 +1109,7 @@ export class MemStorage implements IStorage {
   }
 
   // Dashboard optimized operations
-  async getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+  async getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
     // Implementação básica para memória
     const userTickets = await this.getTicketsByUserRole(userId, userRole);
     
@@ -1105,6 +1125,11 @@ export class MemStorage implements IStorage {
         const createdAt = new Date(ticket.createdAt);
         return createdAt >= startDate && createdAt <= endDate;
       });
+    }
+    
+    // Filtrar por departamento se especificado
+    if (departmentId) {
+      filteredTickets = filteredTickets.filter(ticket => ticket.departmentId === departmentId);
     }
     
     // Calcular estatísticas
@@ -1126,7 +1151,7 @@ export class MemStorage implements IStorage {
     };
   }
 
-  async getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number, officialId?: number, startDate?: Date, endDate?: Date): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>> {
+  async getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>> {
     // Implementação básica para memória
     const userTickets = await this.getTicketsByUserRole(userId, userRole);
     
@@ -1142,6 +1167,11 @@ export class MemStorage implements IStorage {
         const createdAt = new Date(ticket.createdAt);
         return createdAt >= startDate && createdAt <= endDate;
       });
+    }
+    
+    // Filtrar por departamento se especificado
+    if (departmentId) {
+      filteredTickets = filteredTickets.filter(ticket => ticket.departmentId === departmentId);
     }
     
     // Ordenar por data de criação (mais recentes primeiro) e limitar

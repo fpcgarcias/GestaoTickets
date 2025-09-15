@@ -14,19 +14,20 @@ router.get('/dashboard-metrics', async (req: Request, res: Response) => {
     }
 
     // Filtros
-    const { start_date, end_date, official_id } = req.query;
+    const { start_date, end_date, official_id, department_id } = req.query;
     const startDate = start_date ? new Date(String(start_date)) : undefined;
     const endDate = end_date ? new Date(String(end_date)) : undefined;
     const officialId = official_id && official_id !== 'all' ? Number(official_id) : undefined;
+    const departmentId = department_id && department_id !== 'all' ? Number(department_id) : undefined;
 
-    // Estatísticas - usar função otimizada que aplica corretamente o filtro de officialId
-    const stats = await storage.getTicketStatsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate);
+    // Estatísticas - usar função otimizada que aplica corretamente o filtro de officialId e departmentId
+    const stats = await storage.getTicketStatsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId);
     // Tempo médio de início de atendimento
-    const averageFirstResponseTime = await storage.getAverageFirstResponseTimeByUserRole(userId, userRole, officialId, startDate, endDate);
+    const averageFirstResponseTime = await storage.getAverageFirstResponseTimeByUserRole(userId, userRole, officialId, startDate, endDate, departmentId);
     // Tempo médio de resolução
-    const averageResolutionTime = await storage.getAverageResolutionTimeByUserRole(userId, userRole, officialId, startDate, endDate);
+    const averageResolutionTime = await storage.getAverageResolutionTimeByUserRole(userId, userRole, officialId, startDate, endDate, departmentId);
     // Tickets recentes (limitado a 5) - usar função otimizada
-    const recentTickets = await storage.getRecentTicketsForDashboardByUserRole(userId, userRole, 5, officialId, startDate, endDate);
+    const recentTickets = await storage.getRecentTicketsForDashboardByUserRole(userId, userRole, 5, officialId, startDate, endDate, departmentId);
 
     return res.json({
       stats,

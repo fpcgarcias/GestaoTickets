@@ -1,7 +1,18 @@
 {
-  "current": "1.0.28",
-  "releaseDate": "2025-09-12",
+  "current": "1.0.29",
+  "releaseDate": "2025-09-15",
   "versions": [
+    {
+      "version": "1.0.29",
+      "date": "2025-09-15",
+      "title": "Melhorias no sistema",
+      "type": "update",
+      "changes": {
+        "improved": [
+          "Implementação de filtro de departamentos no dashboard."
+        ]
+      }
+    },    
     {
       "version": "1.0.28",
       "date": "2025-09-12",
