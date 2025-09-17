@@ -14,6 +14,7 @@ import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, 
 import { ptBR } from 'date-fns/locale';
 import { ModernPieChart } from '@/components/charts/modern-pie-chart';
 import { ModernBarChart } from '@/components/charts/modern-bar-chart';
+import { ComparisonArrow } from '@/components/ui/comparison-arrow';
 
 // Definir tipos para os dados das consultas
 interface TicketStats {
@@ -244,10 +245,17 @@ export default function Dashboard() {
   const avgResolutionData = { averageTime: dashboardData?.averageResolutionTime || 0 };
   const recentTickets = Array.isArray(dashboardData?.recentTickets) ? dashboardData.recentTickets : [];
 
+  // Dados de comparação do período anterior
+  const previousTicketStats = dashboardData?.previousStats || null;
+  const previousAvgFirstResponseTime = dashboardData?.previousAverageFirstResponseTime || null;
+  const previousAvgResolutionTime = dashboardData?.previousAverageResolutionTime || null;
+
   // Calcular chamados com outros status (qualquer status que não seja new, ongoing ou resolved)
   const otherStatusCount = Object.entries(ticketStats.byStatus)
     .filter(([status]) => !['new', 'ongoing', 'resolved'].includes(status))
     .reduce((sum, [_, count]) => sum + count, 0);
+
+  // Calcular valores anteriores para comparação (removido previousOtherStatusCount - não é mais usado)
 
   // Dados de status transformados para português
   const statusData = [
@@ -338,32 +346,35 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
         <StatCard 
           title="Total de Chamados" 
-          value={ticketStats.total} // Acesso direto agora é seguro
+          value={ticketStats.total}
+          previousValue={previousTicketStats?.total}
           isLoading={isDashboardLoading}
         />
         <StatCard 
           title="Chamados Novos" 
-          value={ticketStats.byStatus.new} // Acesso direto agora é seguro
+          value={ticketStats.byStatus.new}
           isLoading={isDashboardLoading}
-          status={TICKET_STATUS.NEW as 'new'} // Cast para o tipo literal
+          status={TICKET_STATUS.NEW as 'new'}
         />
         <StatCard 
           title="Chamados em Andamento" 
-          value={ticketStats.byStatus.ongoing} // Acesso direto agora é seguro
+          value={ticketStats.byStatus.ongoing}
+          previousValue={previousTicketStats?.byStatus.ongoing}
           isLoading={isDashboardLoading}
-          status={TICKET_STATUS.ONGOING as 'ongoing'} // Cast para o tipo literal
+          status={TICKET_STATUS.ONGOING as 'ongoing'}
         />
         <StatCard 
           title="Chamados Resolvidos" 
-          value={ticketStats.byStatus.resolved} // Acesso direto agora é seguro
+          value={ticketStats.byStatus.resolved}
+          previousValue={previousTicketStats?.byStatus.resolved}
           isLoading={isDashboardLoading}
-          status={TICKET_STATUS.RESOLVED as 'resolved'} // Cast para o tipo literal
+          status={TICKET_STATUS.RESOLVED as 'resolved'}
         />
         <StatCard 
           title="Outros Status" 
           value={otherStatusCount}
           isLoading={isDashboardLoading}
-          icon="other" // Ícone especial para outros status
+          icon="other"
         />
       </div>
       
@@ -373,6 +384,7 @@ export default function Dashboard() {
           title="Tempo Médio de Início de Atendimento"
           description="Tempo médio entre a criação e início de atendimento dos chamados"
           value={avgFirstResponseData?.averageTime || 0}
+          previousValue={previousAvgFirstResponseTime}
           isLoading={isDashboardLoading}
           icon={<Clock className="h-4 w-4 text-blue-500" />}
         />
@@ -380,6 +392,7 @@ export default function Dashboard() {
           title="Tempo Médio de Resolução"
           description="Tempo médio entre a criação e resolução dos chamados"
           value={avgResolutionData?.averageTime || 0}
+          previousValue={previousAvgResolutionTime}
           isLoading={isDashboardLoading}
           icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
         />
@@ -458,12 +471,13 @@ export default function Dashboard() {
 interface StatCardProps {
   title: string;
   value: number;
+  previousValue?: number; // Valor anterior para comparação
   isLoading: boolean;
   status?: 'new' | 'ongoing' | 'resolved'; // Tipo mais específico para status
   icon?: string; // Adicionar suporte para ícone customizado
 }
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, isLoading, status, icon }) => {
+const StatCard: React.FC<StatCardProps> = ({ title, value, previousValue, isLoading, status, icon }) => {
   return (
     <Card>
       <CardContent className="p-6">
@@ -475,7 +489,16 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, isLoading, status, ic
         {isLoading ? (
           <Skeleton className="h-10 w-16" />
         ) : (
-          <p className="text-3xl font-bold">{value}</p>
+          <div className="flex items-end justify-between">
+            <p className="text-3xl font-bold">{value}</p>
+            {previousValue !== undefined && (
+              <ComparisonArrow 
+                currentValue={value} 
+                previousValue={previousValue}
+                format="number"
+              />
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

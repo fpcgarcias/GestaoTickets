@@ -2,11 +2,13 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock, TrendingUp } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ComparisonArrow } from './comparison-arrow';
 
 interface TimeMetricCardProps {
   title: string;
   description: string;
   value: number;
+  previousValue?: number; // Valor anterior para comparação
   isLoading: boolean;
   unit?: string;
   icon?: React.ReactNode;
@@ -18,6 +20,7 @@ export const TimeMetricCard: React.FC<TimeMetricCardProps> = ({
   title, 
   description, 
   value, 
+  previousValue,
   isLoading, 
   unit = 'horas',
   icon = <Clock className="h-4 w-4" />,
@@ -79,14 +82,24 @@ export const TimeMetricCard: React.FC<TimeMetricCardProps> = ({
           {isLoading ? (
             <Skeleton className="h-8 w-20" />
           ) : (
-            <div className="text-2xl font-bold">
-              {formatTime(value)}
+            <div className="flex items-end justify-between">
+              <div className="text-2xl font-bold">
+                {formatTime(value)}
+              </div>
+              {previousValue !== undefined && (
+                <ComparisonArrow 
+                  currentValue={value} 
+                  previousValue={previousValue}
+                  format="time"
+                />
+              )}
             </div>
           )}
           <p className="text-xs text-muted-foreground">
             {description}
           </p>
-          {trend && trendValue && (
+          {/* Manter compatibilidade com o sistema antigo de trends */}
+          {trend && trendValue && previousValue === undefined && (
             <div className={`flex items-center gap-1 text-xs ${getTrendColor(trend)}`}>
               {getTrendIcon(trend)}
               <span>{Math.abs(trendValue)}% em relação ao mês anterior</span>
