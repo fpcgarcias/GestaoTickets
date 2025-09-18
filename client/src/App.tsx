@@ -42,6 +42,8 @@ const PerformanceReports = lazy(() => import("@/pages/reports/performance"));
 const SLAReports = lazy(() => import("@/pages/reports/sla"));
 const DepartmentReports = lazy(() => import("@/pages/reports/department"));
 const ClientReports = lazy(() => import("@/pages/reports/clients"));
+const SatisfactionSurvey = lazy(() => import("@/pages/satisfaction-survey"));
+const SatisfactionDashboard = lazy(() => import("@/pages/satisfaction-dashboard"));
 
 // Componente de loading para as páginas lazy
 function PageLoading() {
@@ -229,11 +231,22 @@ function AppContent() {
         </MainLayout>
       )} />
       
+      <ProtectedRoute path="/satisfaction-dashboard" component={() => (
+        <MainLayout>
+          <SatisfactionDashboard />
+        </MainLayout>
+      )} />
+      
       {/* Rota pública - Changelog */}
       <Route path="/changelog" component={() => (
         <MainLayout>
           <Changelog />
         </MainLayout>
+      )} />
+      
+      {/* Rota pública - Pesquisa de Satisfação */}
+      <Route path="/satisfaction/:token" component={() => (
+        <SatisfactionSurvey />
       )} />
       
       <Route component={NotFound} />

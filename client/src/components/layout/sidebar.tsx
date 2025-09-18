@@ -22,7 +22,8 @@ import {
   Grid3X3,
   FileText,
   Brain,
-  PieChart
+  PieChart,
+  Star
 } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -77,6 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     { href: "/priority-settings", icon: <Palette size={20} />, label: "Prioridades", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/sla-configurations", icon: <Clock size={20} />, label: "Configurações SLA", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/sla-dashboard", icon: <BarChart3 size={20} />, label: "Dashboard SLA", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/satisfaction-dashboard", icon: <Star size={20} />, label: "Dashboard Satisfação", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/performance-dashboard", icon: <BarChart3 size={20} />, label: "Dashboard Performance", roles: ['admin'] },
     { href: "/ai-audit", icon: <Brain size={20} />, label: "Auditoria de IA", roles: ['admin', 'company_admin'] },
     { href: "/logs", icon: <FileText size={20} />, label: "Logs do Sistema", roles: ['admin'] },

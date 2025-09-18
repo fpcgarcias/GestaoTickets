@@ -24,6 +24,7 @@ interface DepartmentFormData {
   company_id?: number | null;
   is_active: boolean;
   sla_mode?: 'type' | 'category';
+  satisfaction_survey_enabled?: boolean;
 }
 
 const DepartmentManagement: React.FC = () => {
@@ -46,6 +47,7 @@ const DepartmentManagement: React.FC = () => {
     company_id: user?.role === 'admin' ? null : user?.companyId,
     is_active: true,
     sla_mode: 'type',
+    satisfaction_survey_enabled: false,
   });
   const [isEditing, setIsEditing] = useState(false);
 
@@ -148,7 +150,8 @@ const DepartmentManagement: React.FC = () => {
         description: data.description,
         company_id: data.company_id,
         is_active: data.is_active,
-        sla_mode: data.sla_mode || 'type'
+        sla_mode: data.sla_mode || 'type',
+        satisfaction_survey_enabled: data.satisfaction_survey_enabled || false
       });
       
       if (!response.ok) {
@@ -190,7 +193,8 @@ const DepartmentManagement: React.FC = () => {
         description: data.description,
         company_id: data.company_id,
         is_active: data.is_active,
-        sla_mode: data.sla_mode || 'type'
+        sla_mode: data.sla_mode || 'type',
+        satisfaction_survey_enabled: data.satisfaction_survey_enabled || false
       });
       
       if (!response.ok) {
@@ -262,6 +266,7 @@ const DepartmentManagement: React.FC = () => {
       company_id: user?.role === 'admin' ? null : user?.companyId,
       is_active: true,
       sla_mode: 'type',
+      satisfaction_survey_enabled: false,
     });
     setIsEditing(false);
   };
@@ -281,6 +286,7 @@ const DepartmentManagement: React.FC = () => {
       company_id: department.company_id,
       is_active: department.is_active,
       sla_mode: (department as any).sla_mode || 'type',
+      satisfaction_survey_enabled: (department as any).satisfaction_survey_enabled || false,
     });
     setIsEditing(true);
     setIsDialogOpen(true);
@@ -405,6 +411,7 @@ const DepartmentManagement: React.FC = () => {
                 <TableHead>Descrição</TableHead>
                 {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
                 <TableHead>Status</TableHead>
+                <TableHead>Pesquisa Satisfação</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -416,18 +423,19 @@ const DepartmentManagement: React.FC = () => {
                     <TableCell><Skeleton className="h-5 w-40" /></TableCell>
                     {user?.role === 'admin' && <TableCell><Skeleton className="h-5 w-32" /></TableCell>}
                     <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                   </TableRow>
                 ))
               ) : error ? (
                 <TableRow>
-                  <TableCell colSpan={user?.role === 'admin' ? 5 : 4} className="text-center py-10 text-red-500">
+                  <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-red-500">
                     Erro ao carregar departamentos. Tente novamente mais tarde.
                   </TableCell>
                 </TableRow>
               ) : departments.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={user?.role === 'admin' ? 5 : 4} className="text-center py-10 text-neutral-500">
+                  <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-neutral-500">
                     Nenhum departamento encontrado.
                   </TableCell>
                 </TableRow>
@@ -454,6 +462,17 @@ const DepartmentManagement: React.FC = () => {
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                           Inativo
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {(dept as any).satisfaction_survey_enabled ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          Ativada
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          Desativada
                         </span>
                       )}
                     </TableCell>
@@ -605,6 +624,28 @@ const DepartmentManagement: React.FC = () => {
                   setCurrentDepartment((prev) => ({
                     ...prev,
                     sla_mode: checked ? 'category' : 'type',
+                  }))
+                }
+              />
+            </div>
+
+            {/* Toggle: Pesquisa de Satisfação */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-1">
+                <Label htmlFor="satisfaction_survey_enabled" className="font-medium">
+                  Pesquisa de Satisfação
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Enviar automaticamente pesquisa de satisfação quando tickets deste departamento forem resolvidos
+                </p>
+              </div>
+              <Switch
+                id="satisfaction_survey_enabled"
+                checked={currentDepartment.satisfaction_survey_enabled || false}
+                onCheckedChange={(checked) =>
+                  setCurrentDepartment((prev) => ({
+                    ...prev,
+                    satisfaction_survey_enabled: checked,
                   }))
                 }
               />

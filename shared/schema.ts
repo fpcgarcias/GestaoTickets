@@ -98,6 +98,7 @@ export const departments = pgTable("departments", {
   updated_at: timestamp("updated_at").defaultNow().notNull(),
   is_active: boolean("is_active").default(true).notNull(),
   sla_mode: slaModeEnum("sla_mode").notNull().default('type'),
+  satisfaction_survey_enabled: boolean("satisfaction_survey_enabled").default(false).notNull(),
 });
 
 // Support staff table (ajustado para usar department_id ao invés de enum)
@@ -325,7 +326,8 @@ export const emailTemplateTypeEnum = pgEnum('email_template_type', [
   'user_created',         // Novo usuário criado
   'system_maintenance',   // Manutenção do sistema
   'ticket_participant_added',    // Participante adicionado ao ticket
-  'ticket_participant_removed'   // Participante removido do ticket
+  'ticket_participant_removed',  // Participante removido do ticket
+  'satisfaction_survey'   // Pesquisa de satisfação
 ]);
 
 // Tabela para templates de email
@@ -461,6 +463,22 @@ export const slaConfigurations = pgTable("sla_configurations", {
   is_active: boolean("is_active").default(true).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Tabela para pesquisas de satisfação
+export const satisfactionSurveys = pgTable("satisfaction_surveys", {
+  id: serial("id").primaryKey(),
+  ticket_id: integer("ticket_id").references(() => tickets.id, { onDelete: 'cascade' }).notNull(),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  customer_email: text("customer_email").notNull(),
+  survey_token: text("survey_token").notNull().unique(),
+  sent_at: timestamp("sent_at").defaultNow().notNull(),
+  responded_at: timestamp("responded_at"),
+  rating: integer("rating"), // 1-5 estrelas, validação será feita no backend
+  comments: text("comments"),
+  status: text("status", { enum: ['sent', 'responded', 'expired'] }).notNull().default('sent'),
+  expires_at: timestamp("expires_at").notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Schema for inserting companies
@@ -620,6 +638,12 @@ export const insertTicketParticipantSchema = createInsertSchema(ticketParticipan
   added_at: true,
 });
 
+// Schema for inserting satisfaction surveys
+export const insertSatisfactionSurveySchema = createInsertSchema(satisfactionSurveys).omit({
+  id: true,
+  created_at: true,
+});
+
 // Types
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -732,6 +756,12 @@ export type TicketParticipant = typeof ticketParticipants.$inferSelect & {
   added_by?: Partial<User>;
 };
 export type InsertTicketParticipant = z.infer<typeof insertTicketParticipantSchema>;
+
+export type SatisfactionSurvey = typeof satisfactionSurveys.$inferSelect & {
+  ticket?: Partial<Ticket>;
+  company?: Partial<Company>;
+};
+export type InsertSatisfactionSurvey = z.infer<typeof insertSatisfactionSurveySchema>;
 
 // Relation declarations
 
@@ -923,5 +953,17 @@ export const ticketParticipantsRelations = relations(ticketParticipants, ({ one 
   added_by: one(users, {
     fields: [ticketParticipants.added_by_id],
     references: [users.id],
+  }),
+}));
+
+// Relações para a tabela de pesquisas de satisfação
+export const satisfactionSurveysRelations = relations(satisfactionSurveys, ({ one }) => ({
+  ticket: one(tickets, {
+    fields: [satisfactionSurveys.ticket_id],
+    references: [tickets.id],
+  }),
+  company: one(companies, {
+    fields: [satisfactionSurveys.company_id],
+    references: [companies.id],
   }),
 }));

@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, slaDefinitions, companies, ticketParticipants, systemSettings, ticketStatusHistory } from '@shared/schema';
+import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, slaDefinitions, companies, ticketParticipants, systemSettings, ticketStatusHistory, departments, satisfactionSurveys } from '@shared/schema';
 import { eq, and, isNull, inArray, not, ne, or, gte } from 'drizzle-orm';
 import { emailConfigService } from './email-config-service';
 import nodemailer from 'nodemailer';
@@ -1428,6 +1428,17 @@ export class EmailNotificationService {
             console.log(`[📧 EMAIL PROD] ✅ Email de mudança de status enviado com sucesso para cliente`);
           } else {
             console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email de mudança de status para cliente: ${result.error}`);
+          }
+
+          // 🎯 ENVIAR PESQUISA DE SATISFAÇÃO SE TICKET FOI RESOLVIDO
+          if (newStatus === 'resolved') {
+            console.log(`[📧 SATISFACTION] 🎯 Ticket resolvido, iniciando envio de pesquisa de satisfação`);
+            
+            // Enviar pesquisa de satisfação de forma assíncrona (não bloquear o fluxo principal)
+            this.sendSatisfactionSurvey(ticketId).catch((surveyError) => {
+              console.error(`[📧 SATISFACTION] ❌ Erro ao enviar pesquisa de satisfação:`, surveyError);
+              console.error(`[📧 SATISFACTION] ❌ Stack trace:`, surveyError.stack);
+            });
           }
         } else {
           console.log(`[📧 EMAIL PROD] 🔕 Cliente não configurado para receber notificações de mudança de status`);
@@ -3058,6 +3069,183 @@ export class EmailNotificationService {
         fromEmail: 'noreply@ticketwise.com.br'
       };
     }
+  }
+
+  // Enviar pesquisa de satisfação quando ticket é resolvido
+  async sendSatisfactionSurvey(ticketId: number): Promise<void> {
+    try {
+      console.log(`[📧 SATISFACTION] 🔍 Iniciando envio de pesquisa de satisfação para ticket ${ticketId}`);
+      console.log(`[📧 SATISFACTION] 📊 NODE_ENV: ${process.env.NODE_ENV}`);
+      
+      // Buscar detalhes completos do ticket
+      const [ticket] = await db
+        .select({
+          id: tickets.id,
+          ticket_id: tickets.ticket_id,
+          title: tickets.title,
+          customer_email: tickets.customer_email,
+          company_id: tickets.company_id,
+          department_id: tickets.department_id,
+          assigned_to_id: tickets.assigned_to_id,
+          resolved_at: tickets.resolved_at,
+        })
+        .from(tickets)
+        .where(eq(tickets.id, ticketId))
+        .limit(1);
+
+      if (!ticket) {
+        console.log(`[📧 SATISFACTION] ❌ Ticket ${ticketId} não encontrado`);
+        return;
+      }
+
+      if (!ticket.customer_email) {
+        console.log(`[📧 SATISFACTION] ❌ Ticket ${ticketId} não tem email do cliente`);
+        return;
+      }
+
+      // Verificar se o departamento tem pesquisa de satisfação ativada
+      if (ticket.department_id) {
+        const [department] = await db
+          .select({
+            satisfaction_survey_enabled: departments.satisfaction_survey_enabled
+          })
+          .from(departments)
+          .where(eq(departments.id, ticket.department_id))
+          .limit(1);
+
+        if (!department?.satisfaction_survey_enabled) {
+          console.log(`[📧 SATISFACTION] 🔕 Departamento ${ticket.department_id} não tem pesquisa de satisfação ativada`);
+          return;
+        }
+      }
+
+      // Buscar dados do cliente
+      const [customer] = await db
+        .select()
+        .from(customers)
+        .where(eq(customers.email, ticket.customer_email))
+        .limit(1);
+
+      // Buscar dados do atendente responsável
+      let assignedOfficial = null;
+      if (ticket.assigned_to_id) {
+        const [official] = await db
+          .select()
+          .from(officials)
+          .where(eq(officials.id, ticket.assigned_to_id))
+          .limit(1);
+        assignedOfficial = official;
+      }
+
+      // Gerar token único para a pesquisa
+      const surveyToken = this.generateSurveyToken();
+      
+      // Criar registro da pesquisa de satisfação
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // Expira em 7 dias
+
+      const [surveyRecord] = await db
+        .insert(satisfactionSurveys)
+        .values({
+          ticket_id: ticket.id,
+          company_id: ticket.company_id!,
+          customer_email: ticket.customer_email,
+          survey_token: surveyToken,
+          expires_at: expiresAt,
+          status: 'sent'
+        })
+        .returning();
+
+      console.log(`[📧 SATISFACTION] ✅ Registro de pesquisa criado com token: ${surveyToken}`);
+
+      // Buscar dados da empresa para o domínio personalizado
+      const [company] = await db
+        .select()
+        .from(companies)
+        .where(eq(companies.id, ticket.company_id!))
+        .limit(1);
+
+      // Construir link da pesquisa com domínio personalizado
+      const baseUrl = company?.domain || 'app.ticketwise.com.br';
+      const surveyLink = `https://${baseUrl}/satisfaction/${surveyToken}`;
+
+      // 🧪 DESENVOLVIMENTO: Log do link da pesquisa para testes
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`\n🔗 PESQUISA DE SATISFAÇÃO GERADA (DESENVOLVIMENTO)`);
+        console.log(`📧 Cliente: ${ticket.customer_email}`);
+        console.log(`🎫 Ticket #${ticket.ticket_id}: "${ticket.title}"`);
+        console.log(`🌐 Link da pesquisa: http://localhost:5173/satisfaction/${surveyToken}`);
+        console.log(`⏰ Expira em: 7 dias (${expiresAt.toLocaleDateString('pt-BR')})`);
+        console.log(`🔑 Token: ${surveyToken}`);
+        console.log(`-------------------------------------------\n`);
+      }
+
+      // Preparar contexto do email
+      const context: EmailNotificationContext = {
+        ticket: {
+          ...ticket,
+          assigned_official_name: assignedOfficial?.name || 'Não atribuído',
+          resolved_at_formatted: ticket.resolved_at?.toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }) || new Date().toLocaleDateString('pt-BR')
+        },
+        customer: {
+          name: customer?.name || 'Cliente',
+          email: ticket.customer_email
+        },
+        survey: {
+          link: surveyLink,
+          token: surveyToken,
+          expires_at: expiresAt
+        },
+        system: {
+          company_name: company?.name || 'Sistema de Tickets',
+          colors: {
+            primary: company?.primary_color || '#3B82F6',
+            primaryDark: company?.primary_dark_color || '#1E40AF',
+            secondary: company?.secondary_color || '#F3F4F6',
+            accent: company?.accent_color || '#10B981',
+            background: company?.background_color || '#F9FAFB',
+            text: company?.text_color || '#111827'
+          }
+        }
+      };
+
+      // Enviar email de pesquisa de satisfação
+      const result = await this.sendEmailNotification(
+        'satisfaction_survey',
+        ticket.customer_email,
+        context,
+        ticket.company_id!,
+        'customer'
+      );
+
+      if (result.success) {
+        console.log(`[📧 SATISFACTION] ✅ Pesquisa de satisfação enviada com sucesso para ${ticket.customer_email}`);
+      } else {
+        console.log(`[📧 SATISFACTION] ❌ Falha ao enviar pesquisa de satisfação: ${result.error}`);
+        
+        // Marcar pesquisa como falha no envio
+        await db
+          .update(satisfactionSurveys)
+          .set({ status: 'failed' })
+          .where(eq(satisfactionSurveys.id, surveyRecord.id));
+      }
+
+    } catch (error) {
+      console.error(`[📧 SATISFACTION] ❌ Erro ao enviar pesquisa de satisfação:`, error);
+    }
+  }
+
+  // Gerar token único para pesquisa de satisfação
+  private generateSurveyToken(): string {
+    const timestamp = Date.now().toString(36);
+    const randomPart = Math.random().toString(36).substring(2, 15);
+    return `survey_${timestamp}_${randomPart}`;
   }
 
 }

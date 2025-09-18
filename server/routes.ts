@@ -125,6 +125,8 @@ const insertDepartmentSchemaInternal = z.object({
   description: z.string().optional().nullable(),
   company_id: z.number().int().positive().optional().nullable(),
   is_active: z.boolean().optional(),
+  sla_mode: z.enum(['type', 'category']).optional(),
+  satisfaction_survey_enabled: z.boolean().optional(),
 });
 const updateDepartmentSchemaInternal = insertDepartmentSchemaInternal.partial();
 
@@ -4749,7 +4751,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     authorize(['admin', 'company_admin', 'manager']), 
     async (req: Request, res: Response) => {
       try {
-        const { name, description, is_active, company_id: company_id_from_body, sla_mode } = req.body;
+        const { name, description, is_active, company_id: company_id_from_body, sla_mode, satisfaction_survey_enabled } = req.body;
         const userRole = req.session.userRole as string;
         const sessionCompanyId = req.session.companyId;
 
@@ -4817,6 +4819,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             company_id: effectiveCompanyId,
             is_active: is_active !== undefined ? is_active : true,
             sla_mode: slaModeToUse,
+            satisfaction_survey_enabled: satisfaction_survey_enabled !== undefined ? satisfaction_survey_enabled : false,
             created_at: new Date(),
             updated_at: new Date(),
           })
@@ -4847,7 +4850,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           return res.status(400).json({ message: "ID de departamento inválido." });
         }
 
-        const { name, description, is_active, company_id: new_company_id, sla_mode } = req.body; // Captura company_id e sla_mode do corpo
+        const { name, description, is_active, company_id: new_company_id, sla_mode, satisfaction_survey_enabled } = req.body; // Captura company_id, sla_mode e satisfaction_survey_enabled do corpo
         const userRole = req.session.userRole as string;
         const sessionCompanyId = req.session.companyId;
 
@@ -4862,6 +4865,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           }
           updatePayload.sla_mode = sla_mode;
         }
+        if (satisfaction_survey_enabled !== undefined) updatePayload.satisfaction_survey_enabled = satisfaction_survey_enabled;
 
         const conditions: SQLWrapper[] = [eq(departmentsSchema.id, departmentIdParam)];
 
@@ -8516,6 +8520,136 @@ Atenciosamente,
           is_active: true,
           is_default: true,
           available_variables: JSON.stringify(['user.name','ticket.ticket_id','official.name','ticket.title','ticket.status_text','ticket.priority_text','customer.name','customer.email','ticket.link','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+        },
+        {
+          name: 'Pesquisa de Satisfação',
+          type: 'satisfaction_survey',
+          description: 'Pesquisa de satisfação enviada quando um ticket é resolvido',
+          subject_template: 'Como foi seu atendimento? Avalie o ticket {{ticket.ticket_id}}',
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pesquisa de Satisfação</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <!-- 100% wrapper -->
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+
+        <!-- CARD / CONTAINER -->
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+          <!-- HEADER (logo ou nome da empresa) -->
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- HERO / TÍTULO -->
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:24px;margin:0 0 12px 0;color:{{system.colors.text}};text-align:center;">Como foi seu atendimento?</h2>
+              <p style="font-size:16px;margin:0;text-align:center;">Olá {{customer.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;text-align:center;">
+                Seu ticket <strong>{{ticket.ticket_id}}</strong> foi resolvido com sucesso!<br>
+                Gostaríamos muito de saber como foi sua experiência.
+              </p>
+            </td>
+          </tr>
+
+          <!-- DETALHES DO TICKET -->
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Título:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Atendente:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.assigned_official_name}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Resolvido em:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.resolved_at_formatted}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA PRINCIPAL - Avaliar -->
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <p style="font-size:18px;margin:0 0 20px 0;color:{{system.colors.text}};text-align:center;font-weight:600;">
+                Clique abaixo para avaliar seu atendimento:
+              </p>
+              <a href="{{survey.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:6px;font-size:18px;font-weight:bold;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                ⭐ Avaliar Atendimento
+              </a>
+              <p style="font-size:13px;margin:16px 0 0 0;color:#666666;text-align:center;">
+                Leva apenas 1 minuto • Expira em 7 dias
+              </p>
+            </td>
+          </tr>
+
+          <!-- INFORMAÇÃO ADICIONAL -->
+          <tr>
+            <td style="padding:0 40px 32px 40px;color:{{system.colors.text}};">
+              <div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:6px;padding:20px;margin:0;">
+                <h3 style="font-size:16px;margin:0 0 12px 0;color:{{system.colors.text}};">Por que sua opinião é importante?</h3>
+                <p style="font-size:14px;margin:0;color:#666666;line-height:1.6;">
+                  Seu feedback nos ajuda a melhorar continuamente nossos serviços e garantir que você tenha sempre a melhor experiência possível.
+                </p>
+              </div>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">Esta é uma mensagem automática — por favor, não responda a este e-mail.</p>
+            </td>
+          </tr>
+
+        </table><!-- /container -->
+      </td>
+    </tr>
+  </table><!-- /wrapper -->
+</body>
+</html>`,
+          text_template: `Como foi seu atendimento?
+
+Olá {{customer.name}},
+
+Seu ticket {{ticket.ticket_id}} foi resolvido com sucesso!
+
+Detalhes do Ticket:
+- Título: {{ticket.title}}
+- Atendente: {{ticket.assigned_official_name}}
+- Resolvido em: {{ticket.resolved_at_formatted}}
+
+Gostaríamos muito de saber como foi sua experiência. Por favor, avalie nosso atendimento clicando no link abaixo:
+
+{{survey.link}}
+
+Sua opinião é muito importante para nós e nos ajuda a melhorar continuamente nossos serviços.
+
+A pesquisa expira em 7 dias e leva apenas 1 minuto para ser preenchida.
+
+Atenciosamente,
+{{system.from_name}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['customer.name','ticket.ticket_id','ticket.title','ticket.assigned_official_name','ticket.resolved_at_formatted','survey.link','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
         }
       ];
 
@@ -9208,6 +9342,17 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   
   // Registrar rotas de relatórios
   app.use("/api/reports", reportsRouter);
+  
+  // Rotas de pesquisa de satisfação (sem autenticação - acesso público via token)
+  const satisfactionSurveyHandlers = await import("./api/satisfaction-surveys");
+  router.get("/satisfaction-surveys/:token", satisfactionSurveyHandlers.GET);
+  router.post("/satisfaction-surveys/:token", satisfactionSurveyHandlers.POST);
+  
+  // Rotas do dashboard de satisfação (com autenticação)
+  const satisfactionDashboardHandlers = await import("./api/satisfaction-dashboard");
+  router.get("/satisfaction-dashboard/surveys", authRequired, satisfactionDashboardHandlers.getSurveys);
+  router.get("/satisfaction-dashboard/stats", authRequired, satisfactionDashboardHandlers.getStats);
+  router.get("/satisfaction-dashboard/export", authRequired, satisfactionDashboardHandlers.exportData);
   
   app.use("/api", router);
   
