@@ -658,13 +658,14 @@ export class EmailNotificationService {
         .where(eq(userNotificationSettings.user_id, userId))
         .limit(1);
 
-      // Se não tem configurações, usar padrões (permitir)
+      // 🔥 NOVA LÓGICA: Se não tem configurações, enviar por padrão
       if (!settings) {
         return true;
       }
 
-      // Verificar se email está habilitado
-      if (!settings.email_notifications) {
+      // 🔥 NOVA LÓGICA: Só não envia se email_notifications estiver EXPLICITAMENTE false
+      // Se for null/undefined, considera como true (padrão)
+      if (settings.email_notifications === false) {
         return false;
       }
 
@@ -706,9 +707,11 @@ export class EmailNotificationService {
         'weekly_digest': 'new_ticket_assigned',
       };
 
+      // 🔥 NOVA LÓGICA: Verificar configuração específica do tipo
       const settingKey = typeMap[notificationType];
       if (settingKey && settingKey in settings) {
-        return Boolean(settings[settingKey]) ?? true;
+        // Só não envia se estiver EXPLICITAMENTE false
+        return settings[settingKey] !== false;
       }
 
       return true;
@@ -1390,7 +1393,17 @@ export class EmailNotificationService {
         return;
       }
 
+      // 🔥 DEBUG: SEMPRE MOSTRAR DADOS DO TICKET
+      console.log(`[📧 EMAIL PROD] 🔍 TICKET DADOS:`, {
+        id: ticket.id,
+        ticket_id: ticket.ticket_id,
+        customer_email: ticket.customer_email,
+        department_id: ticket.department_id,
+        title: ticket.title?.substring(0, 50)
+      });
+
       // 🔥 NOTIFICAR O CLIENTE (sempre que houver email)
+      console.log(`[📧 EMAIL PROD] 🔍 Verificando se ticket tem email do cliente: ${ticket.customer_email || 'SEM EMAIL'}`);
       if (ticket.customer_email) {
         console.log(`[📧 EMAIL PROD] 📧 Notificando cliente sobre mudança de status: ${ticket.customer_email}`);
         
@@ -1400,9 +1413,10 @@ export class EmailNotificationService {
           .where(eq(users.email, ticket.customer_email))
           .limit(1);
 
+        // 🔥 NOVA LÓGICA: Por padrão cliente recebe, só não envia se explicitamente desativado
         const shouldNotify = customerUser
           ? await this.shouldSendEmailToUser(customerUser.id, newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed')
-          : true;
+          : true; // Se não é usuário registrado, sempre envia
 
         if (shouldNotify) {
           // 🔥 CORREÇÃO: Criar contexto personalizado para o cliente
@@ -1430,18 +1444,23 @@ export class EmailNotificationService {
             console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email de mudança de status para cliente: ${result.error}`);
           }
 
-          // 🎯 ENVIAR PESQUISA DE SATISFAÇÃO SE TICKET FOI RESOLVIDO
-          if (newStatus === 'resolved') {
-            console.log(`[📧 SATISFACTION] 🎯 Ticket resolvido, iniciando envio de pesquisa de satisfação`);
-            
-            // Enviar pesquisa de satisfação de forma assíncrona (não bloquear o fluxo principal)
-            this.sendSatisfactionSurvey(ticketId).catch((surveyError) => {
-              console.error(`[📧 SATISFACTION] ❌ Erro ao enviar pesquisa de satisfação:`, surveyError);
-              console.error(`[📧 SATISFACTION] ❌ Stack trace:`, surveyError.stack);
-            });
-          }
+          // 🎯 PESQUISA DE SATISFAÇÃO SERÁ ENVIADA INDEPENDENTE DAS NOTIFICAÇÕES (ver abaixo)
         } else {
           console.log(`[📧 EMAIL PROD] 🔕 Cliente não configurado para receber notificações de mudança de status`);
+        }
+
+        // 🎯 ENVIAR PESQUISA DE SATISFAÇÃO SE TICKET FOI RESOLVIDO (INDEPENDENTE DAS NOTIFICAÇÕES)
+        console.log(`[📧 SATISFACTION] 🔍 Verificando se deve enviar pesquisa: newStatus=${newStatus}, ticketId=${ticketId}`);
+        if (newStatus === 'resolved') {
+          console.log(`[📧 SATISFACTION] 🎯 Ticket resolvido, iniciando envio de pesquisa de satisfação (independente de notificações)`);
+          
+          // Enviar pesquisa de satisfação de forma assíncrona (não bloquear o fluxo principal)
+          this.sendSatisfactionSurvey(ticketId).catch((surveyError) => {
+            console.error(`[📧 SATISFACTION] ❌ Erro ao enviar pesquisa de satisfação:`, surveyError);
+            console.error(`[📧 SATISFACTION] ❌ Stack trace:`, surveyError.stack);
+          });
+        } else {
+          console.log(`[📧 SATISFACTION] ⏭️ Status não é 'resolved', pulando pesquisa de satisfação`);
         }
       }
 
@@ -3229,11 +3248,9 @@ export class EmailNotificationService {
       } else {
         console.log(`[📧 SATISFACTION] ❌ Falha ao enviar pesquisa de satisfação: ${result.error}`);
         
-        // Marcar pesquisa como falha no envio
-        await db
-          .update(satisfactionSurveys)
-          .set({ status: 'failed' })
-          .where(eq(satisfactionSurveys.id, surveyRecord.id));
+        // Marcar pesquisa como falha no envio (manter como 'sent' pois não existe status 'failed')
+        // Não alteramos o status pois 'failed' não está no enum permitido
+        console.log(`[📧 SATISFACTION] ⚠️ Status mantido como 'sent' mesmo com falha no envio`);
       }
 
     } catch (error) {

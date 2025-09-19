@@ -120,6 +120,16 @@ const SatisfactionSurvey: React.FC = () => {
       return;
     }
 
+    // Validar comentário obrigatório para avaliações baixas (1 ou 2 estrelas)
+    if ((rating === 1 || rating === 2) && (!comments || comments.trim() === '')) {
+      toast({
+        title: 'Comentário obrigatório',
+        description: 'Para avaliações de 1 ou 2 estrelas, é necessário deixar um comentário explicando o motivo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -353,11 +363,15 @@ const SatisfactionSurvey: React.FC = () => {
             {/* Comments Section */}
             <div className="space-y-2">
               <Label htmlFor="comments" className="text-base font-medium text-gray-900">
-                Comentários (opcional)
+                Comentários {(rating === 1 || rating === 2) ? '(obrigatório)' : '(opcional)'}
               </Label>
               <Textarea
                 id="comments"
-                placeholder="Conte-nos mais sobre sua experiência..."
+                placeholder={
+                  (rating === 1 || rating === 2) 
+                    ? "Por favor, explique o motivo da sua avaliação para que possamos melhorar..." 
+                    : "Conte-nos mais sobre sua experiência..."
+                }
                 value={comments}
                 onChange={(e) => setComments(e.target.value)}
                 className="min-h-[100px] resize-none"

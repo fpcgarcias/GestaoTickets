@@ -8,6 +8,15 @@ import { z } from 'zod';
 const satisfactionResponseSchema = z.object({
   rating: z.number().int().min(1).max(5),
   comments: z.string().optional().nullable(),
+}).refine((data) => {
+  // Se a avaliação for 1 ou 2 estrelas, comentário é obrigatório
+  if ((data.rating === 1 || data.rating === 2)) {
+    return data.comments && data.comments.trim().length > 0;
+  }
+  return true;
+}, {
+  message: "Comentário é obrigatório para avaliações de 1 ou 2 estrelas",
+  path: ["comments"]
 });
 
 // GET /api/satisfaction-surveys/:token - Obter dados da pesquisa

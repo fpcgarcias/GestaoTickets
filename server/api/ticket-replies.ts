@@ -288,6 +288,7 @@ export async function POST(req: Request, res: Response) {
           shouldReopenByAI ? botUserId : sessionUserId
         ).catch((emailError) => {
           console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de mudança de status:`, emailError);
+          console.error(`[📧 EMAIL] ❌ Stack trace:`, emailError.stack);
         });
       } catch (notificationError) {
         console.error('Erro ao importar serviço de email para notificação de mudança de status:', notificationError);
