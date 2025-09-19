@@ -337,29 +337,50 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         });
       }
       
-      const AD = await import('activedirectory2').then(mod => mod.default);
+      const { Client } = await import('ldapts');
       const adConfig = {
-        url: process.env.AD_URL,
-        baseDN: process.env.AD_BASE_DN,
-        username: process.env.AD_USERNAME,
-        password: process.env.AD_PASSWORD,
-        attributes: {
-          user: ['sAMAccountName', 'mail', 'displayName', 'userPrincipalName', 'proxyAddresses']
-        }
+        url: process.env.AD_URL!,
+        baseDN: process.env.AD_BASE_DN!,
+        username: process.env.AD_USERNAME!,
+        password: process.env.AD_PASSWORD!
       };
-      const ad = new AD(adConfig);
-      // Lógica simplificada da rota test-ad-email para manter o foco
-      const formattedUsername = username.includes('@') ? username.split('@')[0] : username;
-      ad.findUser(formattedUsername, (err: any, userEntry: any) => {
-        if (err) {
-          console.error("[AD Email Test] Erro ao buscar usuário no AD:", err);
-          return res.status(500).json({ success: false, message: "Erro ao buscar usuário no AD", error: err });
-        }
-        if (!userEntry) {
+      
+      const client = new Client({
+        url: adConfig.url,
+        timeout: 10000
+      });
+      
+      try {
+        // Fazer bind com a conta de serviço
+        await client.bind(adConfig.username, adConfig.password);
+        
+        // Buscar o usuário
+        const formattedUsername = username.includes('@') ? username.split('@')[0] : username;
+        const searchFilter = `(|(sAMAccountName=${formattedUsername})(userPrincipalName=${username}))`;
+        
+        const { searchEntries } = await client.search(adConfig.baseDN, {
+          scope: 'sub',
+          filter: searchFilter,
+          attributes: ['sAMAccountName', 'mail', 'displayName', 'userPrincipalName', 'proxyAddresses']
+        });
+        
+        if (!searchEntries || searchEntries.length === 0) {
           return res.status(404).json({ success: false, message: "Usuário não encontrado no AD" });
         }
-        res.json({ success: true, user: userEntry }); 
-      });
+        
+        const userEntry = searchEntries[0];
+        res.json({ success: true, user: userEntry });
+        
+      } catch (err) {
+        console.error("[AD Email Test] Erro ao buscar usuário no AD:", err);
+        return res.status(500).json({ success: false, message: "Erro ao buscar usuário no AD", error: err });
+      } finally {
+        try {
+          await client.unbind();
+        } catch (unbindError) {
+          // Ignorar erros de unbind
+        }
+      }
 
     } catch (error) {
       console.error("[AD Email Test] Erro inesperado:", error);
