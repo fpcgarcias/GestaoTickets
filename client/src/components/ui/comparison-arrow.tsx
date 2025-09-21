@@ -71,9 +71,9 @@ export const ComparisonArrow: React.FC<ComparisonArrowProps> = ({
       }
     } else {
       if (isPositive) {
-        return `📈 Valor aumentou ${percentage} em relação ao período anterior\n(Crescimento de ${currentValue - previousValue} unidades)`;
+        return `📈 Valor aumentou ${percentage} em relação ao período anterior\n(Crescimento de ${currentValue - previousValue} tickets)`;
       } else {
-        return `📉 Valor diminuiu ${percentage} em relação ao período anterior\n(Redução de ${Math.abs(currentValue - previousValue)} unidades)`;
+        return `📉 Valor diminuiu ${percentage} em relação ao período anterior\n(Redução de ${Math.abs(currentValue - previousValue)} tickets)`;
       }
     }
   };
