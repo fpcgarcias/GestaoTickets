@@ -1,12 +1,14 @@
 import "./loadEnv"; // Importar PRIMEIRO para carregar variáveis de ambiente
 
 // Inicializar telemetria ANTES de qualquer outro import (apenas em produção)
-if (process.env.NODE_ENV === 'production') {
-  console.log('🔍 Inicializando monitoramento...');
-  // Importar telemetria de forma síncrona
-  require("./telemetry/newrelic");
-  require("./telemetry/otel-config");
-  console.log('✅ Monitoramento inicializado!');
+async function initTelemetry() {
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🔍 Inicializando monitoramento...');
+    // Importar telemetria de forma assíncrona
+    await import("./telemetry/newrelic.js");
+    await import("./telemetry/otel-config.js");
+    console.log('✅ Monitoramento inicializado!');
+  }
 }
 
 import express, { type Request, Response, NextFunction } from "express";
@@ -278,6 +280,9 @@ app.use((req, res, next) => {
 // Função start agora configura tudo
 async function startServer() {
   try {
+    // Inicializar telemetria primeiro (apenas em produção)
+    await initTelemetry();
+    
     // Inicializar conexão com DB (com fallback HTTP→WS quando necessário)
     await initDb();
     // Executar migrações de estrutura do banco PRIMEIRO
