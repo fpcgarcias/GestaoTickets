@@ -340,6 +340,12 @@ export class EmailNotificationService {
       if (context.system?.base_url) {
         rendered = rendered.replace(/\{\{ticket\.link\}\}/g, `${context.system.base_url}/tickets/${ticket.id}`);
       }
+      Object.entries(ticket).forEach(([key, value]) => {
+        const placeholder = "{{ticket." + key + "}}";
+        const escaped = placeholder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const replacement = value === undefined || value === null ? "" : String(value);
+        rendered = rendered.replace(new RegExp(escaped, "g"), replacement);
+      });
     }
 
     // 2. DADOS DO CLIENTE - TODAS as variáveis da lista
@@ -3268,3 +3274,4 @@ export class EmailNotificationService {
 }
 
 export const emailNotificationService = new EmailNotificationService(); 
+
