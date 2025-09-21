@@ -52,6 +52,12 @@ import {
   validateFileUpload
 } from './middleware/security';
 
+// === IMPORTS DE MÉTRICAS TÉCNICAS ===
+import {
+  recordApiError,
+  recordApiResponseTime
+} from './telemetry/custom-metrics';
+
 // === IMPORTS DE MONITORAMENTO ===
 import {
   getSecurityReport,

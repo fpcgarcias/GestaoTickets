@@ -1,0 +1,155 @@
+{
+  "name": "GestaoTickets - Monitoramento Técnico",
+  "description": "Dashboard técnico para monitoramento de performance, erros e infraestrutura",
+  "permissions": "PUBLIC_READ_WRITE",
+  "pages": [
+    {
+      "name": "Overview Técnico",
+      "description": "Visão geral da performance do sistema",
+      "widgets": [
+        {
+          "title": "Response Time por Endpoint",
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.bar"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountId": "YOUR_ACCOUNT_ID",
+                "query": "SELECT average(duration) as 'Tempo Médio (ms)' FROM Transaction WHERE appName = 'GestaoTickets-Prod-Server1' FACET name SINCE 1 hour ago LIMIT 10"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            }
+          }
+        },
+        {
+          "title": "Top Erros",
+          "layout": {
+            "column": 7,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.pie"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountId": "YOUR_ACCOUNT_ID",
+                "query": "SELECT count(*) as 'Total de Erros' FROM TransactionError WHERE appName = 'GestaoTickets-Prod-Server1' FACET `error.message` SINCE 1 hour ago LIMIT 5"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            }
+          }
+        },
+        {
+          "title": "Database Performance",
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountId": "YOUR_ACCOUNT_ID",
+                "query": "SELECT average(duration) as 'Query Time (ms)' FROM DatabaseSample WHERE appName = 'GestaoTickets-Prod-Server1' FACET operation TIMESERIES SINCE 1 hour ago"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "HTTP Status Codes",
+          "layout": {
+            "column": 7,
+            "row": 4,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.pie"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountId": "YOUR_ACCOUNT_ID",
+                "query": "SELECT count(*) as 'Requests' FROM Transaction WHERE appName = 'GestaoTickets-Prod-Server1' FACET httpResponseCode SINCE 1 hour ago"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            }
+          }
+        },
+        {
+          "title": "Memory Usage",
+          "layout": {
+            "column": 1,
+            "row": 7,
+            "width": 12,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountId": "YOUR_ACCOUNT_ID",
+                "query": "SELECT latest(memoryUsedBytes) / 1000000 as 'Memory (MB)' FROM SystemSample WHERE appName = 'GestaoTickets-Prod-Server1' TIMESERIES SINCE 1 hour ago"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

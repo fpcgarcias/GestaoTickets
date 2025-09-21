@@ -1,5 +1,14 @@
 import "./loadEnv"; // Importar PRIMEIRO para carregar variáveis de ambiente
 
+// Inicializar telemetria ANTES de qualquer outro import (apenas em produção)
+if (process.env.NODE_ENV === 'production') {
+  console.log('🔍 Inicializando monitoramento...');
+  // Importar telemetria de forma síncrona
+  require("./telemetry/newrelic");
+  require("./telemetry/otel-config");
+  console.log('✅ Monitoramento inicializado!');
+}
+
 import express, { type Request, Response, NextFunction } from "express";
 import { setupVite, serveStatic, log } from "./vite";
 import session from "express-session";
