@@ -3210,6 +3210,7 @@ export class EmailNotificationService {
         ticket: {
           ...ticket,
           assigned_official_name: assignedOfficial?.name || 'Não atribuído',
+          resolved_at: ticket.resolved_at || new Date(),
           resolved_at_formatted: ticket.resolved_at?.toLocaleDateString('pt-BR', {
             day: '2-digit',
             month: '2-digit',

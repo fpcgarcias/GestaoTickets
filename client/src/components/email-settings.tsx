@@ -859,14 +859,15 @@ export default function EmailSettings() {
         status_text: 'Em Andamento',
         priority: 'high',
         priority_text: 'Alta',
+        assigned_official_name: 'Carlos Oliveira',
         type: 'Suporte Técnico',
         created_at: '2025-01-31T10:30:00Z',
         created_at_formatted: '31/01/2025 10:30',
         updated_at: '2025-01-31T14:45:00Z',
         updated_at_formatted: '31/01/2025 14:45',
         first_response_at_formatted: '31/01/2025 11:15',
-        resolved_at: null,
-        resolved_at_formatted: '',
+        resolved_at: '2025-01-31T15:30:00Z',
+        resolved_at_formatted: '31/01/2025 15:30',
         link: 'https://sistema.empresa.com/tickets/123'
       },
       customer: {
