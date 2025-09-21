@@ -1,23 +1,23 @@
 /**
  * Configuração New Relic
- * Este arquivo deve estar na raiz do projeto
+ * Este arquivo DEVE estar na raiz do projeto e ser um .js
  */
 
-const config = {
+'use strict';
+
+exports.config = {
   /**
    * Nome da aplicação no New Relic
-   * Pode ser sobrescrito pela variável NEW_RELIC_APP_NAME
    */
   app_name: [process.env.NEW_RELIC_APP_NAME || 'GestaoTickets-Default'],
 
   /**
-   * Chave de licença do New Relic
-   * OBRIGATÓRIO - obtida no painel do New Relic
+   * Chave de licença do New Relic - OBRIGATÓRIO
    */
   license_key: process.env.NEW_RELIC_LICENSE_KEY,
 
   /**
-   * Nível de log (error, warn, info, debug, trace)
+   * Nível de log
    */
   logging: {
     level: process.env.NEW_RELIC_LOG_LEVEL || 'info',
@@ -29,9 +29,9 @@ const config = {
    */
   transaction_tracer: {
     enabled: true,
-    transaction_threshold: 'apdex_f', // Capturar transações lentas
-    record_sql: 'obfuscated', // Capturar SQL mas mascarar valores
-    explain_threshold: 500 // Explicar queries que demoram mais de 500ms
+    transaction_threshold: 'apdex_f',
+    record_sql: 'obfuscated',
+    explain_threshold: 500
   },
 
   /**
@@ -44,14 +44,14 @@ const config = {
   },
 
   /**
-   * Configurações de browser monitoring (RUM)
+   * Browser monitoring
    */
   browser_monitoring: {
     enable: true
   },
 
   /**
-   * Configurações de aplicação
+   * Application logging
    */
   application_logging: {
     enabled: true,
@@ -72,19 +72,17 @@ const config = {
   },
 
   /**
-   * Configurações específicas para Node.js
+   * Regras específicas
    */
   rules: {
     name: [
-      // Ignorar healthcheck
       { pattern: '/health', name: 'HealthCheck' },
-      // Ignorar arquivos estáticos
       { pattern: '/.*\\.(css|js|png|jpg|jpeg|gif|ico|svg)$', ignore: true }
     ]
   },
 
   /**
-   * Configurações de atributos personalizados
+   * Atributos personalizados
    */
   attributes: {
     enabled: true,
@@ -95,5 +93,3 @@ const config = {
     ]
   }
 };
-
-export = config;
