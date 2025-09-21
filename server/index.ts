@@ -1,34 +1,32 @@
-import "./loadEnv"; // Importar PRIMEIRO para carregar variáveis de ambiente
+import "./loadEnv";
+import { createRequire } from "module";
 
-// Inicializar telemetria ANTES de qualquer outro import (apenas em produção)
-async function initTelemetry() {
-  if (process.env.NODE_ENV === 'production') {
-    console.log('🔍 Inicializando monitoramento...');
-    // Importar telemetria de forma assíncrona
-    await import("./telemetry/newrelic.js");
-    await import("./telemetry/otel-config.js");
-    console.log('✅ Monitoramento inicializado!');
-  }
+const require = createRequire(import.meta.url);
+const isProduction = process.env.NODE_ENV === "production";
+
+if (isProduction) {
+  console.log("Inicializando monitoramento...");
+  await import("./telemetry/newrelic.js");
+  await import("./telemetry/otel-config.js");
+  console.log("Monitoramento inicializado!");
+} else {
+  console.log("Monitoramento New Relic desabilitado (NODE_ENV !== 'production')");
 }
 
-import express, { type Request, Response, NextFunction } from "express";
-import { setupVite, serveStatic, log } from "./vite";
-import session from "express-session";
-import crypto from "crypto";
-import path from "path"; // RESTAURAR esta importação, pois é usada abaixo
-import fs from "fs";
-import { fileURLToPath } from 'url';
-import { migrate } from './migrate';
-import { runMigrations } from './migration-runner';
-import { initDb } from './db';
-
-// Importar connect-pg-simple para sessões em produção
-import pgSimple from 'connect-pg-simple';
-
-// === IMPORTS DE SEGURANÇA ===
-import helmet from "helmet";
-import cors from "cors";
-import rateLimit from "express-rate-limit";
+const express = require("express") as typeof import("express");
+const { setupVite, serveStatic, log } = await import("./vite");
+const session = require("express-session") as typeof import("express-session");
+const crypto = require("crypto") as typeof import("crypto");
+const path = require("path") as typeof import("path");
+const fs = require("fs") as typeof import("fs");
+const { fileURLToPath } = require("url") as typeof import("url");
+const { runMigrations } = await import("./migration-runner");
+const { initDb } = await import("./db");
+const pgSimple = require("connect-pg-simple") as typeof import("connect-pg-simple");
+const helmet = require("helmet") as typeof import("helmet");
+const cors = require("cors") as typeof import("cors");
+const rateLimit = require("express-rate-limit") as typeof import("express-rate-limit");
+// === IMPORTS DE SEGURANCA ===
 
 // Calcular __dirname para ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -279,10 +277,7 @@ app.use((req, res, next) => {
 
 // Função start agora configura tudo
 async function startServer() {
-  try {
-    // Inicializar telemetria primeiro (apenas em produção)
-    await initTelemetry();
-    
+  try {    
     // Inicializar conexão com DB (com fallback HTTP→WS quando necessário)
     await initDb();
     // Executar migrações de estrutura do banco PRIMEIRO
@@ -340,3 +335,4 @@ async function startServer() {
 }
 
 startServer();
+
