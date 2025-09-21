@@ -72,11 +72,25 @@ exports.config = {
   },
 
   /**
-   * Regras específicas
+   * Regras específicas para nomeação de transações
    */
   rules: {
     name: [
+      // Healthcheck
       { pattern: '/health', name: 'HealthCheck' },
+      
+      // APIs específicas
+      { pattern: '/api/tickets', name: 'API-Tickets' },
+      { pattern: '/api/tickets/.*', name: 'API-Tickets-Detail' },
+      { pattern: '/api/users', name: 'API-Users' },
+      { pattern: '/api/users/.*', name: 'API-Users-Detail' },
+      { pattern: '/api/departments', name: 'API-Departments' },
+      { pattern: '/api/sla-dashboard', name: 'API-SLA-Dashboard' },
+      { pattern: '/api/dashboard', name: 'API-Dashboard' },
+      { pattern: '/api/reports', name: 'API-Reports' },
+      { pattern: '/api/logs', name: 'API-Logs' },
+      
+      // Ignorar arquivos estáticos
       { pattern: '/.*\\.(css|js|png|jpg|jpeg|gif|ico|svg)$', ignore: true }
     ]
   },

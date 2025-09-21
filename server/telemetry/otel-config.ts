@@ -39,8 +39,17 @@ if (process.env.NODE_ENV === 'production') {
       getNodeAutoInstrumentations({
         // Configurações específicas
         '@opentelemetry/instrumentation-express': {
-          // Monitorar todas as rotas Express
+          // Monitorar todas as rotas Express com nomes específicos
           enabled: true,
+          requestHook: (span, info) => {
+            // Capturar rota específica ao invés de método genérico
+            if (info.request.route?.path) {
+              span.setAttributes({
+                'http.route': info.request.route.path,
+                'express.route': info.request.route.path
+              });
+            }
+          }
         },
         '@opentelemetry/instrumentation-http': {
           // Monitorar requests HTTP (APIs externas)
