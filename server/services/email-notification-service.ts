@@ -1267,6 +1267,7 @@ export class EmailNotificationService {
       console.log(`[📧 EMAIL PROD] Novo status: ${newStatus}`);
       console.log(`[📧 EMAIL PROD] Alterado por ID: ${changedByUserId || 'N/A'}`);
       console.log(`[📧 EMAIL PROD] ===========================================`);
+      console.log(`[📧 DEBUG] 🔍 INICIANDO MÉTODO notifyStatusChanged para ticket ${ticketId}`);
 
       // Buscar dados do ticket
       console.log(`[📧 EMAIL PROD] 🔍 Buscando ticket ID: ${ticketId}`);
@@ -1282,6 +1283,15 @@ export class EmailNotificationService {
       }
       
       console.log(`[📧 EMAIL PROD] ✅ Ticket encontrado: ${ticket.ticket_id}`);
+
+      // 🎯 DISPARAR PESQUISA DE SATISFAÇÃO IMEDIATAMENTE SE TICKET FOI RESOLVIDO
+      if (newStatus === 'resolved') {
+        console.log(`[📧 SATISFACTION] 🎯 TICKET RESOLVIDO! DISPARANDO PESQUISA DE SATISFAÇÃO AGORA!`);
+        this.sendSatisfactionSurvey(ticketId).catch((surveyError) => {
+          console.error(`[📧 SATISFACTION] ❌ Erro ao enviar pesquisa de satisfação:`, surveyError);
+        });
+      }
+
       // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
       let customer = null;
       if (ticket.customer_id) {
@@ -1469,19 +1479,6 @@ export class EmailNotificationService {
 
       }
 
-      // 🎯 ENVIAR PESQUISA DE SATISFAÇÃO SE TICKET FOI RESOLVIDO (INDEPENDENTE DE QUALQUER BLOCO OU CONDIÇÃO)
-      console.log(`[📧 SATISFACTION] 🔍 Verificando se deve enviar pesquisa: newStatus=${newStatus}, ticketId=${ticketId}`);
-      if (newStatus === 'resolved') {
-        console.log(`[📧 SATISFACTION] 🎯 Ticket resolvido, iniciando envio de pesquisa de satisfação (FODA-SE O BLOCO DO IF)`);
-        
-        // Enviar pesquisa de satisfação de forma assíncrona (não bloquear o fluxo principal)
-        this.sendSatisfactionSurvey(ticketId).catch((surveyError) => {
-          console.error(`[📧 SATISFACTION] ❌ Erro ao enviar pesquisa de satisfação:`, surveyError);
-          console.error(`[📧 SATISFACTION] ❌ Stack trace:`, surveyError.stack);
-        });
-      } else {
-        console.log(`[📧 SATISFACTION] ⏭️ Status não é 'resolved', pulando pesquisa de satisfação`);
-      }
 
       // 🔥 NOTIFICAR ATENDENTES DO DEPARTAMENTO (exceto quem alterou)
       console.log(`[📧 EMAIL PROD] 📧 Notificando atendentes do departamento ${ticket.department_id} sobre mudança de status`);
@@ -1587,9 +1584,30 @@ export class EmailNotificationService {
       console.log(`[📧 EMAIL PROD] Emails enviados: ${emailsSent}`);
       console.log(`[📧 EMAIL PROD] Emails falharam: ${emailsFailed}`);
       console.log(`[📧 EMAIL PROD] ===========================================`);
+      console.log(`[📧 DEBUG] 🔍 CHEGOU NO FINAL DO TRY - ANTES DO CATCH`);
 
     } catch (error) {
-      console.error('Erro ao enviar notificação de mudança de status:', error);
+      console.error(`[📧 EMAIL PROD] ❌ ERRO CRÍTICO em notifyStatusChanged para ticket ${ticketId}:`, error);
+      console.error(`[📧 EMAIL PROD] ❌ Stack trace:`, error.stack);
+      console.error(`[📧 SATISFACTION] ❌ Erro na notificação, mas pesquisa de satisfação será executada mesmo assim...`);
+    }
+
+    // 🎯 PESQUISA DE SATISFAÇÃO EXECUTADA FORA DO TRY/CATCH PARA GARANTIR QUE SEMPRE FUNCIONE
+    try {
+      console.log(`[📧 SATISFACTION] 🔍 Verificando se deve enviar pesquisa: newStatus=${newStatus}, ticketId=${ticketId}`);
+      if (newStatus === 'resolved') {
+        console.log(`[📧 SATISFACTION] 🎯 Ticket resolvido, iniciando envio de pesquisa de satisfação (FORA DO TRY/CATCH)`);
+        
+        // Enviar pesquisa de satisfação de forma assíncrona (não bloquear o fluxo principal)
+        this.sendSatisfactionSurvey(ticketId).catch((surveyError) => {
+          console.error(`[📧 SATISFACTION] ❌ Erro ao enviar pesquisa de satisfação:`, surveyError);
+          console.error(`[📧 SATISFACTION] ❌ Stack trace:`, surveyError.stack);
+        });
+      } else {
+        console.log(`[📧 SATISFACTION] ⏭️ Status não é 'resolved', pulando pesquisa de satisfação`);
+      }
+    } catch (satisfactionError) {
+      console.error(`[📧 SATISFACTION] ❌ Erro crítico na pesquisa de satisfação:`, satisfactionError);
     }
   }
 
