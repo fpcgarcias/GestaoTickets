@@ -44,6 +44,11 @@ export interface EmailNotificationContext {
     from_name?: string;
     from_email?: string;
   };
+  survey?: {
+    link: string;
+    token: string;
+    expires_at: Date;
+  };
   digest?: {
     type: string;
     date: Date;
@@ -155,7 +160,7 @@ export class EmailNotificationService {
             'Content-Type': 'text/html; charset=UTF-8',
             'Content-Language': 'pt-BR',
           },
-          textEncoding: 'quoted-printable',
+          textEncoding: 'quoted-printable' as const,
         };
 
         const result = await transporter.sendMail(mailOptions);
@@ -1264,12 +1269,19 @@ export class EmailNotificationService {
       console.log(`[📧 EMAIL PROD] ===========================================`);
 
       // Buscar dados do ticket
+      console.log(`[📧 EMAIL PROD] 🔍 Buscando ticket ID: ${ticketId}`);
       const [ticket] = await db
         .select()
         .from(tickets)
         .where(eq(tickets.id, ticketId))
         .limit(1);
-      if (!ticket) return;
+      
+      if (!ticket) {
+        console.log(`[📧 EMAIL PROD] ❌ TICKET ${ticketId} NÃO ENCONTRADO! ISSO É IMPOSSÍVEL!`);
+        return;
+      }
+      
+      console.log(`[📧 EMAIL PROD] ✅ Ticket encontrado: ${ticket.ticket_id}`);
       // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
       let customer = null;
       if (ticket.customer_id) {
@@ -1455,19 +1467,20 @@ export class EmailNotificationService {
           console.log(`[📧 EMAIL PROD] 🔕 Cliente não configurado para receber notificações de mudança de status`);
         }
 
-        // 🎯 ENVIAR PESQUISA DE SATISFAÇÃO SE TICKET FOI RESOLVIDO (INDEPENDENTE DAS NOTIFICAÇÕES)
-        console.log(`[📧 SATISFACTION] 🔍 Verificando se deve enviar pesquisa: newStatus=${newStatus}, ticketId=${ticketId}`);
-        if (newStatus === 'resolved') {
-          console.log(`[📧 SATISFACTION] 🎯 Ticket resolvido, iniciando envio de pesquisa de satisfação (independente de notificações)`);
-          
-          // Enviar pesquisa de satisfação de forma assíncrona (não bloquear o fluxo principal)
-          this.sendSatisfactionSurvey(ticketId).catch((surveyError) => {
-            console.error(`[📧 SATISFACTION] ❌ Erro ao enviar pesquisa de satisfação:`, surveyError);
-            console.error(`[📧 SATISFACTION] ❌ Stack trace:`, surveyError.stack);
-          });
-        } else {
-          console.log(`[📧 SATISFACTION] ⏭️ Status não é 'resolved', pulando pesquisa de satisfação`);
-        }
+      }
+
+      // 🎯 ENVIAR PESQUISA DE SATISFAÇÃO SE TICKET FOI RESOLVIDO (INDEPENDENTE DE QUALQUER BLOCO OU CONDIÇÃO)
+      console.log(`[📧 SATISFACTION] 🔍 Verificando se deve enviar pesquisa: newStatus=${newStatus}, ticketId=${ticketId}`);
+      if (newStatus === 'resolved') {
+        console.log(`[📧 SATISFACTION] 🎯 Ticket resolvido, iniciando envio de pesquisa de satisfação (FODA-SE O BLOCO DO IF)`);
+        
+        // Enviar pesquisa de satisfação de forma assíncrona (não bloquear o fluxo principal)
+        this.sendSatisfactionSurvey(ticketId).catch((surveyError) => {
+          console.error(`[📧 SATISFACTION] ❌ Erro ao enviar pesquisa de satisfação:`, surveyError);
+          console.error(`[📧 SATISFACTION] ❌ Stack trace:`, surveyError.stack);
+        });
+      } else {
+        console.log(`[📧 SATISFACTION] ⏭️ Status não é 'resolved', pulando pesquisa de satisfação`);
       }
 
       // 🔥 NOTIFICAR ATENDENTES DO DEPARTAMENTO (exceto quem alterou)
@@ -3102,64 +3115,61 @@ export class EmailNotificationService {
       console.log(`[📧 SATISFACTION] 🔍 Iniciando envio de pesquisa de satisfação para ticket ${ticketId}`);
       console.log(`[📧 SATISFACTION] 📊 NODE_ENV: ${process.env.NODE_ENV}`);
       
-      // Buscar detalhes completos do ticket
-      const [ticket] = await db
+      // Buscar dados do ticket com JOIN na tabela customers (seguindo padrão dos outros métodos)
+      const [ticketData] = await db
         .select({
-          id: tickets.id,
-          ticket_id: tickets.ticket_id,
+          // Dados do ticket
+          ticket_id: tickets.id,
+          ticket_number: tickets.ticket_id,
           title: tickets.title,
-          customer_email: tickets.customer_email,
           company_id: tickets.company_id,
           department_id: tickets.department_id,
           assigned_to_id: tickets.assigned_to_id,
           resolved_at: tickets.resolved_at,
+          // Dados do cliente via JOIN
+          customer_id: customers.id,
+          customer_name: customers.name,
+          customer_email: customers.email
         })
         .from(tickets)
+        .innerJoin(customers, eq(tickets.customer_id, customers.id))
         .where(eq(tickets.id, ticketId))
         .limit(1);
 
-      if (!ticket) {
-        console.log(`[📧 SATISFACTION] ❌ Ticket ${ticketId} não encontrado`);
+      if (!ticketData) {
+        console.log(`[📧 SATISFACTION] ❌ Ticket ${ticketId} não encontrado ou sem cliente associado`);
         return;
       }
 
-      if (!ticket.customer_email) {
-        console.log(`[📧 SATISFACTION] ❌ Ticket ${ticketId} não tem email do cliente`);
-        return;
-      }
+      console.log(`[📧 SATISFACTION] ✅ Dados encontrados:`);
+      console.log(`[📧 SATISFACTION] - Ticket: ${ticketData.ticket_number}`);
+      console.log(`[📧 SATISFACTION] - Cliente: ${ticketData.customer_name} (${ticketData.customer_email})`);
+      console.log(`[📧 SATISFACTION] - Departamento: ${ticketData.department_id}`);
 
-      // Verificar se o departamento tem pesquisa de satisfação ativada
-      if (ticket.department_id) {
-        const [department] = await db
-          .select({
-            satisfaction_survey_enabled: departments.satisfaction_survey_enabled
-          })
-          .from(departments)
-          .where(eq(departments.id, ticket.department_id))
-          .limit(1);
-
-        if (!department?.satisfaction_survey_enabled) {
-          console.log(`[📧 SATISFACTION] 🔕 Departamento ${ticket.department_id} não tem pesquisa de satisfação ativada`);
-          return;
-        }
-      }
-
-      // Buscar dados do cliente
-      const [customer] = await db
-        .select()
-        .from(customers)
-        .where(eq(customers.email, ticket.customer_email))
+      // Verificar se o departamento tem pesquisa de satisfação ativada (department_id é obrigatório)
+      const [department] = await db
+        .select({
+          satisfaction_survey_enabled: departments.satisfaction_survey_enabled
+        })
+        .from(departments)
+        .where(eq(departments.id, ticketData.department_id!))
         .limit(1);
 
-      // Buscar dados do atendente responsável
+      if (!department?.satisfaction_survey_enabled) {
+        console.log(`[📧 SATISFACTION] 🔕 Departamento ${ticketData.department_id} não tem pesquisa de satisfação ativada`);
+        return;
+      }
+
+      console.log(`[📧 SATISFACTION] ✅ Departamento tem pesquisa de satisfação ativada - prosseguindo com envio`);
+
+      // Buscar dados do atendente responsável (seguindo padrão dos outros métodos)
       let assignedOfficial = null;
-      if (ticket.assigned_to_id) {
-        const [official] = await db
+      if (ticketData.assigned_to_id) {
+        [assignedOfficial] = await db
           .select()
           .from(officials)
-          .where(eq(officials.id, ticket.assigned_to_id))
+          .where(eq(officials.id, ticketData.assigned_to_id))
           .limit(1);
-        assignedOfficial = official;
       }
 
       // Gerar token único para a pesquisa
@@ -3172,9 +3182,9 @@ export class EmailNotificationService {
       const [surveyRecord] = await db
         .insert(satisfactionSurveys)
         .values({
-          ticket_id: ticket.id,
-          company_id: ticket.company_id!,
-          customer_email: ticket.customer_email,
+          ticket_id: ticketData.ticket_id,
+          company_id: ticketData.company_id!,
+          customer_email: ticketData.customer_email,
           survey_token: surveyToken,
           expires_at: expiresAt,
           status: 'sent'
@@ -3183,22 +3193,63 @@ export class EmailNotificationService {
 
       console.log(`[📧 SATISFACTION] ✅ Registro de pesquisa criado com token: ${surveyToken}`);
 
-      // Buscar dados da empresa para o domínio personalizado
+      // Obter URL base usando o método já existente (seguindo padrão dos outros métodos)
+      const baseUrl = await this.getBaseUrlForCompany(ticketData.company_id || undefined);
+      const surveyLink = `${baseUrl}/satisfaction/${surveyToken}`;
+
+      console.log(`[📧 SATISFACTION] ✅ URL base obtida: ${baseUrl}`);
+
+      // Buscar dados da empresa para o nome
       const [company] = await db
-        .select()
+        .select({
+          id: companies.id,
+          name: companies.name,
+          domain: companies.domain
+        })
         .from(companies)
-        .where(eq(companies.id, ticket.company_id!))
+        .where(eq(companies.id, ticketData.company_id!))
         .limit(1);
 
-      // Construir link da pesquisa com domínio personalizado
-      const baseUrl = company?.domain || 'app.ticketwise.com.br';
-      const surveyLink = `https://${baseUrl}/satisfaction/${surveyToken}`;
+      // Definir cores baseadas no domínio (igual ao index.html)
+      let themeColors = {
+        primary: '#3B82F6',
+        primaryDark: '#1E40AF', 
+        secondary: '#F3F4F6',
+        accent: '#10B981',
+        background: '#F9FAFB',
+        text: '#111827'
+      };
+
+      // Detectar tema pelo domínio (seguindo lógica do index.html)
+      if (baseUrl.includes('vixbrasil.com')) {
+        // Tema VIX (amarelo/dourado) - convertendo HSL para hex equivalente
+        themeColors = {
+          primary: '#D4A017',      // hsl(45, 93%, 47%)
+          primaryDark: '#B8860B',  // hsl(45, 93%, 37%)
+          secondary: '#F5F5DC',    // hsl(45, 20%, 95%)
+          accent: '#F0E68C',       // hsl(45, 50%, 90%)
+          background: '#FFFEF7',   // hsl(45, 10%, 98%)
+          text: '#2F2F1F'          // hsl(45, 20%, 15%)
+        };
+      } else if (baseUrl.includes('oficinamuda.com')) {
+        // Tema Oficina Muda (azul escuro) - convertendo HSL para hex equivalente
+        themeColors = {
+          primary: '#005A8B',      // hsl(200, 100%, 35%)
+          primaryDark: '#003F5C',  // hsl(200, 100%, 25%)
+          secondary: '#E6F3FF',    // hsl(200, 20%, 95%)
+          accent: '#CCE7FF',       // hsl(200, 50%, 90%)
+          background: '#F7FBFF',   // hsl(200, 10%, 98%)
+          text: '#1A2B33'          // hsl(200, 20%, 15%)
+        };
+      }
+
+      console.log(`[📧 SATISFACTION] 🎨 Tema aplicado baseado no domínio: ${baseUrl.includes('vixbrasil.com') ? 'VIX' : baseUrl.includes('oficinamuda.com') ? 'Oficina Muda' : 'TicketWise'}`);
 
       // 🧪 DESENVOLVIMENTO: Log do link da pesquisa para testes
       if (process.env.NODE_ENV === 'development') {
         console.log(`\n🔗 PESQUISA DE SATISFAÇÃO GERADA (DESENVOLVIMENTO)`);
-        console.log(`📧 Cliente: ${ticket.customer_email}`);
-        console.log(`🎫 Ticket #${ticket.ticket_id}: "${ticket.title}"`);
+        console.log(`📧 Cliente: ${ticketData.customer_email}`);
+        console.log(`🎫 Ticket #${ticketData.ticket_number}: "${ticketData.title}"`);
         console.log(`🌐 Link da pesquisa: http://localhost:5173/satisfaction/${surveyToken}`);
         console.log(`⏰ Expira em: 7 dias (${expiresAt.toLocaleDateString('pt-BR')})`);
         console.log(`🔑 Token: ${surveyToken}`);
@@ -3208,10 +3259,12 @@ export class EmailNotificationService {
       // Preparar contexto do email
       const context: EmailNotificationContext = {
         ticket: {
-          ...ticket,
+          id: ticketData.ticket_id,
+          ticket_id: ticketData.ticket_number,
+          title: ticketData.title,
           assigned_official_name: assignedOfficial?.name || 'Não atribuído',
-          resolved_at: ticket.resolved_at || new Date(),
-          resolved_at_formatted: ticket.resolved_at?.toLocaleDateString('pt-BR', {
+          resolved_at: ticketData.resolved_at || new Date(),
+          resolved_at_formatted: ticketData.resolved_at?.toLocaleDateString('pt-BR', {
             day: '2-digit',
             month: '2-digit',
             year: 'numeric',
@@ -3220,8 +3273,8 @@ export class EmailNotificationService {
           }) || new Date().toLocaleDateString('pt-BR')
         },
         customer: {
-          name: customer?.name || 'Cliente',
-          email: ticket.customer_email
+          name: ticketData.customer_name || 'Cliente',
+          email: ticketData.customer_email
         },
         survey: {
           link: surveyLink,
@@ -3230,28 +3283,21 @@ export class EmailNotificationService {
         },
         system: {
           company_name: company?.name || 'Sistema de Tickets',
-          colors: {
-            primary: company?.primary_color || '#3B82F6',
-            primaryDark: company?.primary_dark_color || '#1E40AF',
-            secondary: company?.secondary_color || '#F3F4F6',
-            accent: company?.accent_color || '#10B981',
-            background: company?.background_color || '#F9FAFB',
-            text: company?.text_color || '#111827'
-          }
+          colors: themeColors
         }
       };
 
       // Enviar email de pesquisa de satisfação
       const result = await this.sendEmailNotification(
         'satisfaction_survey',
-        ticket.customer_email,
+        ticketData.customer_email,
         context,
-        ticket.company_id!,
+        ticketData.company_id!,
         'customer'
       );
 
       if (result.success) {
-        console.log(`[📧 SATISFACTION] ✅ Pesquisa de satisfação enviada com sucesso para ${ticket.customer_email}`);
+        console.log(`[📧 SATISFACTION] ✅ Pesquisa de satisfação enviada com sucesso para ${ticketData.customer_email}`);
       } else {
         console.log(`[📧 SATISFACTION] ❌ Falha ao enviar pesquisa de satisfação: ${result.error}`);
         
