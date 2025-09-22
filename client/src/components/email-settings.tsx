@@ -103,7 +103,8 @@ const EMAIL_TEMPLATE_TYPES = [
   { value: 'user_created', label: 'Usuário Criado' },
   { value: 'system_maintenance', label: 'Manutenção do Sistema' },
   { value: 'ticket_participant_added', label: 'Participante Adicionado' },
-  { value: 'ticket_participant_removed', label: 'Participante Removido' }
+  { value: 'ticket_participant_removed', label: 'Participante Removido' },
+  { value: 'satisfaction_survey', label: 'Pesquisa de Satisfação' }
 ];
 
 const PROVIDERS = [
@@ -1660,7 +1661,7 @@ export default function EmailSettings() {
                 style={{ pointerEvents: 'auto' }}
               />
               <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
-                💡 Dica: Use variáveis como {"{{"} ticket.title {"}}"}, {"{{"} customer.name {"}}"}, {"{{"} ticket.ticket_id {"}}"}, {"{{"} user.name {"}}"}, etc. 
+                💡 Dica: Use variáveis como {{ticket.title}}, {{customer.name}}, {{ticket.ticket_id}}, {{user.name}}, etc. 
                 Você pode ver um preview do template após salvá-lo.
               </div>
             </div>
@@ -1784,4 +1785,4 @@ export default function EmailSettings() {
       </Dialog>
     </div>
   );
-} 
+}

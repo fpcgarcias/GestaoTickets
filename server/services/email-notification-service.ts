@@ -158,9 +158,22 @@ export class EmailNotificationService {
           text: renderedText,
           headers: {
             'Content-Type': 'text/html; charset=UTF-8',
+            'Content-Transfer-Encoding': '8bit',
+            'MIME-Version': '1.0',
             'Content-Language': 'pt-BR',
+            'X-Priority': '3',
+            'X-Mailer': 'TicketWise Email Service',
+            'X-MSMail-Priority': 'Normal',
+            'Importance': 'Normal'
           },
-          textEncoding: 'quoted-printable' as const,
+          encoding: 'utf8',
+          textEncoding: 'base64' as const,
+          alternatives: [
+            {
+              contentType: 'text/html; charset=UTF-8',
+              content: finalHtml
+            }
+          ]
         };
 
         const result = await transporter.sendMail(mailOptions);
@@ -535,26 +548,78 @@ export class EmailNotificationService {
     return rendered;
   }
 
-  // Garante que o HTML tenha meta charset UTF-8 para evitar erros como "Balne�rio"
+  // Garante que o HTML tenha meta charset UTF-8 e estrutura completa para Gmail
   private ensureUtf8Html(html: string | undefined): string | undefined {
     if (!html || typeof html !== 'string') return html;
 
+    // Verificar se já tem estrutura HTML completa
+    const hasHtmlTag = /<html[^>]*>/i.test(html);
+    const hasHeadTag = /<head[^>]*>/i.test(html);
+    const hasBodyTag = /<body[^>]*>/i.test(html);
     const hasCharsetMeta = /<meta[^>]*charset\s*=\s*"?utf-8"?/i.test(html);
-    if (hasCharsetMeta) return html;
+    const hasContentTypeMeta = /<meta[^>]*http-equiv\s*=\s*"?content-type"?/i.test(html);
 
-    // Inserir dentro de <head> se existir; caso contrário, no topo do HTML
-    const meta = '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">';
-    if (/<head[^>]*>/i.test(html)) {
-      return html.replace(/<head[^>]*>/i, (m) => `${m}\n    ${meta}`);
+    // Se já tem estrutura completa e charset, retornar como está
+    if (hasHtmlTag && hasHeadTag && hasBodyTag && (hasCharsetMeta || hasContentTypeMeta)) {
+      return html;
     }
 
-    // Se não houver <head>, tentar após <!doctype> ou início do documento
-    if (/<!doctype html>/i.test(html)) {
-      return html.replace(/<!doctype html>/i, (m) => `${m}\n<html><head>${meta}</head>`);
+    // Criar estrutura HTML completa para garantir compatibilidade com Gmail
+    const metaTags = `
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="format-detection" content="date=no">
+    <meta name="format-detection" content="address=no">
+    <meta name="format-detection" content="email=no">`;
+
+    // Se já tem tags HTML, apenas adicionar metas necessárias
+    if (hasHtmlTag && hasHeadTag) {
+      if (!hasCharsetMeta && !hasContentTypeMeta) {
+        return html.replace(/<head[^>]*>/i, (match) => `${match}\n${metaTags}`);
+      }
+      return html;
     }
 
-    // Fallback: prefixar o meta no topo
-    return `${meta}\n${html}`;
+    // Se tem apenas conteúdo HTML sem estrutura, envolver em estrutura completa
+    const completeHtml = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>${metaTags}
+    <title>Email Notification</title>
+    <style type="text/css">
+        /* Reset básico para email */
+        body, table, td, p, a, li, blockquote {
+            -webkit-text-size-adjust: 100%;
+            -ms-text-size-adjust: 100%;
+        }
+        table, td {
+            mso-table-lspace: 0pt;
+            mso-table-rspace: 0pt;
+        }
+        img {
+            -ms-interpolation-mode: bicubic;
+            border: 0;
+            height: auto;
+            line-height: 100%;
+            outline: none;
+            text-decoration: none;
+        }
+        /* Garantir que o Gmail não altere as cores */
+        .gmail-fix {
+            color: inherit !important;
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif;">
+    <div class="gmail-fix">
+        ${html}
+    </div>
+</body>
+</html>`;
+
+    return completeHtml;
   }
 
   // Criar transporter baseado na configuração
@@ -590,6 +655,25 @@ export class EmailNotificationService {
           user: config.username,
           pass: config.password
         },
+        // Configurações específicas para melhorar compatibilidade com Gmail
+        tls: {
+          rejectUnauthorized: false,
+          ciphers: 'SSLv3'
+        },
+        dkim: {
+          domainName: config.from_email.split('@')[1],
+          keySelector: 'default',
+          privateKey: false
+        },
+        // Headers padrão para melhor entrega
+        defaults: {
+          headers: {
+            'X-Mailer': 'TicketWise Email Service',
+            'X-Priority': '3',
+            'X-MSMail-Priority': 'Normal',
+            'Importance': 'Normal'
+          }
+        }
       });
     }
 
@@ -607,6 +691,19 @@ export class EmailNotificationService {
           user: config.from_email,
           pass: config.api_key
         },
+        // Configurações específicas para melhorar compatibilidade com Gmail
+        tls: {
+          rejectUnauthorized: false
+        },
+        // Headers padrão para melhor entrega
+        defaults: {
+          headers: {
+            'X-Mailer': 'TicketWise Email Service',
+            'X-Priority': '3',
+            'X-MSMail-Priority': 'Normal',
+            'Importance': 'Normal'
+          }
+        }
       });
     }
 
@@ -623,6 +720,19 @@ export class EmailNotificationService {
           user: 'apikey',
           pass: config.api_key
         },
+        // Configurações específicas para melhorar compatibilidade com Gmail
+        tls: {
+          rejectUnauthorized: false
+        },
+        // Headers padrão para melhor entrega
+        defaults: {
+          headers: {
+            'X-Mailer': 'TicketWise Email Service',
+            'X-Priority': '3',
+            'X-MSMail-Priority': 'Normal',
+            'Importance': 'Normal'
+          }
+        }
       });
     }
 
@@ -641,6 +751,19 @@ export class EmailNotificationService {
           user: `postmaster@${domain}`,
           pass: config.api_key
         },
+        // Configurações específicas para melhorar compatibilidade com Gmail
+        tls: {
+          rejectUnauthorized: false
+        },
+        // Headers padrão para melhor entrega
+        defaults: {
+          headers: {
+            'X-Mailer': 'TicketWise Email Service',
+            'X-Priority': '3',
+            'X-MSMail-Priority': 'Normal',
+            'Importance': 'Normal'
+          }
+        }
       });
     }
 
@@ -3338,5 +3461,5 @@ export class EmailNotificationService {
 
 }
 
-export const emailNotificationService = new EmailNotificationService(); 
+export const emailNotificationService = new EmailNotificationService();
 
