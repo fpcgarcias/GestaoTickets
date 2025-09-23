@@ -83,7 +83,40 @@ export async function GET(req: Request, res: Response) {
     
     const company = companyResult.rows[0];
 
+    // Definir cores baseadas no domínio (igual ao email-notification-service.ts)
+    let themeColors = {
+      primary: '#3B82F6',
+      secondary: '#F3F4F6',
+      accent: '#10B981',
+      background: '#F9FAFB',
+      text: '#111827'
+    };
+
+    if (company?.domain) {
+      // Detectar tema pelo domínio (seguindo lógica do index.html)
+      if (company.domain.includes('vixbrasil.com')) {
+        // Tema VIX (amarelo/dourado)
+        themeColors = {
+          primary: '#D4A017',      // hsl(45, 93%, 47%)
+          secondary: '#F5F5DC',    // hsl(45, 20%, 95%)
+          accent: '#F0E68C',       // hsl(45, 50%, 90%)
+          background: '#FFFEF7',   // hsl(45, 10%, 98%)
+          text: '#2F2F1F'          // hsl(45, 20%, 15%)
+        };
+      } else if (company.domain.includes('oficinamuda.com')) {
+        // Tema Oficina Muda (azul escuro)
+        themeColors = {
+          primary: '#005A8B',      // hsl(200, 100%, 35%)
+          secondary: '#E6F3FF',    // hsl(200, 20%, 95%)
+          accent: '#CCE7FF',       // hsl(200, 50%, 90%)
+          background: '#F7FBFF',   // hsl(200, 10%, 98%)
+          text: '#1A2B33'          // hsl(200, 20%, 15%)
+        };
+      }
+    }
+
     console.log(`[📊 SATISFACTION API] ✅ Pesquisa encontrada e válida: ${token}`);
+    console.log(`[📊 SATISFACTION API] 🎨 Tema aplicado: ${company?.domain?.includes('vixbrasil.com') ? 'VIX' : company?.domain?.includes('oficinamuda.com') ? 'Oficina Muda' : 'TicketWise'}`);
 
     res.json({
       survey: {
@@ -96,13 +129,7 @@ export async function GET(req: Request, res: Response) {
       },
       company: company ? {
         name: company.name,
-        colors: {
-          primary: company.primary_color || '#3B82F6',
-          secondary: company.secondary_color || '#F3F4F6',
-          accent: company.accent_color || '#10B981',
-          background: company.background_color || '#F9FAFB',
-          text: company.text_color || '#111827'
-        },
+        colors: themeColors,
         domain: company.domain
       } : null
     });
