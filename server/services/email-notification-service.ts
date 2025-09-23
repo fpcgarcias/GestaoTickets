@@ -525,7 +525,34 @@ export class EmailNotificationService {
       });
     }
 
-    // 8. VARIÁVEIS GLOBAIS DE COMPATIBILIDADE (para templates antigos)
+    // 8. VARIÁVEIS DE PESQUISA DE SATISFAÇÃO
+    if (context.survey) {
+      const survey = context.survey;
+      
+      // {{survey.link}} - Link da pesquisa de satisfação
+      rendered = rendered.replace(/\{\{survey\.link\}\}/g, String(survey.link || ''));
+      
+      // {{survey.token}} - Token da pesquisa
+      rendered = rendered.replace(/\{\{survey\.token\}\}/g, String(survey.token || ''));
+      
+      // {{survey.expires_at}} - Data de expiração
+      if (survey.expires_at) {
+        const expiresFormatted = survey.expires_at instanceof Date 
+          ? survey.expires_at.toLocaleDateString('pt-BR')
+          : String(survey.expires_at);
+        rendered = rendered.replace(/\{\{survey\.expires_at\}\}/g, expiresFormatted);
+      }
+
+      // Outras propriedades da pesquisa
+      Object.entries(survey).forEach(([key, value]) => {
+        if (!['link', 'token', 'expires_at'].includes(key)) { // Já tratados acima
+          const placeholder = `{{survey.${key}}}`;
+          rendered = rendered.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), String(value || ''));
+        }
+      });
+    }
+
+    // 9. VARIÁVEIS GLOBAIS DE COMPATIBILIDADE (para templates antigos)
     if (context.system?.company_name) {
       rendered = rendered.replace(/\{\{company_name\}\}/g, context.system.company_name);
     }
