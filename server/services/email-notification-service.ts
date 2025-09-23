@@ -157,8 +157,6 @@ export class EmailNotificationService {
           html: finalHtml,
           text: renderedText,
           headers: {
-            'Content-Type': 'text/html; charset=UTF-8',
-            'Content-Transfer-Encoding': '8bit',
             'MIME-Version': '1.0',
             'Content-Language': 'pt-BR',
             'X-Priority': '3',
@@ -166,14 +164,7 @@ export class EmailNotificationService {
             'X-MSMail-Priority': 'Normal',
             'Importance': 'Normal'
           },
-          encoding: 'utf8',
-          textEncoding: 'base64' as const,
-          alternatives: [
-            {
-              contentType: 'text/html; charset=UTF-8',
-              content: finalHtml
-            }
-          ]
+          encoding: 'utf8'
         };
 
         const result = await transporter.sendMail(mailOptions);
@@ -660,11 +651,6 @@ export class EmailNotificationService {
           rejectUnauthorized: false,
           ciphers: 'SSLv3'
         },
-        dkim: {
-          domainName: config.from_email.split('@')[1],
-          keySelector: 'default',
-          privateKey: false
-        },
         // Headers padrão para melhor entrega
         defaults: {
           headers: {
@@ -674,7 +660,7 @@ export class EmailNotificationService {
             'Importance': 'Normal'
           }
         }
-      });
+      } as any);
     }
 
     // Para APIs externas (Brevo, SendGrid, etc.)
@@ -704,7 +690,7 @@ export class EmailNotificationService {
             'Importance': 'Normal'
           }
         }
-      });
+      } as any);
     }
 
     if (config.provider === 'sendgrid') {
@@ -733,7 +719,7 @@ export class EmailNotificationService {
             'Importance': 'Normal'
           }
         }
-      });
+      } as any);
     }
 
     if (config.provider === 'mailgun') {
@@ -764,7 +750,7 @@ export class EmailNotificationService {
             'Importance': 'Normal'
           }
         }
-      });
+      } as any);
     }
 
     throw new Error(`Provedor ${config.provider} não suportado`);
@@ -1711,7 +1697,7 @@ export class EmailNotificationService {
 
     } catch (error) {
       console.error(`[📧 EMAIL PROD] ❌ ERRO CRÍTICO em notifyStatusChanged para ticket ${ticketId}:`, error);
-      console.error(`[📧 EMAIL PROD] ❌ Stack trace:`, error.stack);
+      console.error(`[📧 EMAIL PROD] ❌ Stack trace:`, (error as any)?.stack);
       console.error(`[📧 SATISFACTION] ❌ Erro na notificação, mas pesquisa de satisfação será executada mesmo assim...`);
     }
 
@@ -1724,7 +1710,7 @@ export class EmailNotificationService {
         // Enviar pesquisa de satisfação de forma assíncrona (não bloquear o fluxo principal)
         this.sendSatisfactionSurvey(ticketId).catch((surveyError) => {
           console.error(`[📧 SATISFACTION] ❌ Erro ao enviar pesquisa de satisfação:`, surveyError);
-          console.error(`[📧 SATISFACTION] ❌ Stack trace:`, surveyError.stack);
+          console.error(`[📧 SATISFACTION] ❌ Stack trace:`, (surveyError as any)?.stack);
         });
       } else {
         console.log(`[📧 SATISFACTION] ⏭️ Status não é 'resolved', pulando pesquisa de satisfação`);

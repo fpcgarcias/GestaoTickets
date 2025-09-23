@@ -26,3 +26,4 @@ COMMENT ON COLUMN ticket_status_history.new_category_id IS 'Nova categoria (apen
 
 
 
+
