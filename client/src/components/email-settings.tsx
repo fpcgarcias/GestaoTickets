@@ -1643,7 +1643,7 @@ export default function EmailSettings() {
               <Input
                 value={templateForm.subject_template || ''}
                 onChange={(e) => setTemplateForm(prev => ({ ...prev, subject_template: e.target.value }))}
-                placeholder={`Ex: Novo Ticket: {{ticket.title}}`}
+                placeholder="Ex: Novo Ticket: {{ticket.title}}"
               />
             </div>
 
@@ -1654,14 +1654,14 @@ export default function EmailSettings() {
                 onChange={(e) => setTemplateForm(prev => ({ ...prev, html_template: e.target.value }))}
                 onFocus={() => console.log('Campo HTML focado')}
                 onClick={() => console.log('Campo HTML clicado')}
-                placeholder={`Template HTML com variáveis {{ticket.title}}, {{customer.name}}, etc.`}
+                placeholder="Template HTML com variáveis {{ticket.title}}, {{customer.name}}, etc."
                 className="h-40 font-mono text-xs"
                 disabled={false}
                 readOnly={false}
                 style={{ pointerEvents: 'auto' }}
               />
               <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
-                💡 Dica: Use variáveis como {{ticket.title}}, {{customer.name}}, {{ticket.ticket_id}}, {{user.name}}, etc. 
+                💡 Dica: Use variáveis como {`{{ticket.title}}`}, {`{{customer.name}}`}, {`{{ticket.ticket_id}}`}, {`{{user.name}}`}, etc. 
                 Você pode ver um preview do template após salvá-lo.
               </div>
             </div>
