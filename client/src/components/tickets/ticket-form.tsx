@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { insertTicketSchema, type InsertTicket } from '@shared/schema';
 import { TICKET_TYPES, PRIORITY_LEVELS } from '@/lib/utils';
 import { z } from 'zod';
@@ -28,10 +35,12 @@ import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
+import { useTheme } from '@/contexts/theme-context';
 import { FileUpload } from './file-upload';
 import { CustomerSearch } from './customer-search';
 import { ParticipantSearch } from './participant-search';
 import { usePriorities, findPriorityByLegacyValue, type NormalizedPriority } from '@/hooks/use-priorities';
+import { Loader2, CheckCircle, AlertCircle, Brain, FileText } from 'lucide-react';
 
 // Garante que PRIORITY_LEVELS.LOW etc. sejam tratados como literais específicos.
 // Zod z.enum requer um array não vazio de strings literais.
@@ -91,11 +100,22 @@ interface User {
   company_id?: number;
 }
 
+// Tipos para o modal de feedback
+type CreationStep = 'idle' | 'creating' | 'analyzing' | 'complete' | 'error';
+
+interface CreationProgress {
+  step: CreationStep;
+  message: string;
+  ticketId?: number;
+  error?: string;
+}
+
 export const TicketForm = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
-  const { user } = useAuth();
+  const { user, company } = useAuth();
+  const { themeName } = useTheme();
 
   // Estado para gerenciar arquivos pendentes
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -103,6 +123,48 @@ export const TicketForm = () => {
   
   // Estado para gerenciar participantes selecionados
   const [selectedParticipants, setSelectedParticipants] = useState<User[]>([]);
+
+  // Estados para o modal de feedback
+  const [showCreationModal, setShowCreationModal] = useState(false);
+  const [creationProgress, setCreationProgress] = useState<CreationProgress>({
+    step: 'idle',
+    message: ''
+  });
+  const usedAIFeedbackRef = useRef(false);
+
+  // Função para obter cores da empresa baseadas no tema
+  const getCompanyColors = () => {
+    const themes = {
+      default: {
+        primary: '#1c73e8',      // Azul Ticket Wise
+        secondary: '#f0f0f5',    // Cinza claro
+        accent: '#e8f4fd',       // Azul muito claro
+        success: '#10b981',      // Verde
+        warning: '#f59e0b',      // Laranja
+        error: '#ef4444'         // Vermelho
+      },
+      vix: {
+        primary: '#e6b800',      // Amarelo/dourado ViX
+        secondary: '#f5f2e6',    // Bege claro
+        accent: '#f0e6cc',       // Bege mais escuro
+        success: '#10b981',      // Verde
+        warning: '#f59e0b',      // Laranja
+        error: '#ef4444'         // Vermelho
+      },
+      oficinaMuda: {
+        primary: '#4a2f1a',      // Marrom escuro Oficina Muda
+        secondary: '#5a6b4a',    // Verde escuro
+        accent: '#e6b800',       // Amarelo/dourado
+        success: '#10b981',      // Verde
+        warning: '#f59e0b',      // Laranja
+        error: '#ef4444'         // Vermelho
+      }
+    };
+
+    return themes[themeName as keyof typeof themes] || themes.default;
+  };
+
+  const companyColors = getCompanyColors();
 
   // Não precisamos mais buscar todos os clientes antecipadamente
   // O componente CustomerSearch fará a busca conforme necessário
@@ -149,29 +211,62 @@ export const TicketForm = () => {
 
   const createTicketMutation = useMutation({
     mutationFn: async (data: InsertTicket) => {
+      const aiPermissionFromCompany = company?.ai_permission === true;
+      const aiPermissionFromUser = user?.company?.ai_permission === true;
+      const shouldUseAIFeedback = aiPermissionFromCompany || aiPermissionFromUser;
+      usedAIFeedbackRef.current = shouldUseAIFeedback;
+
+      if (shouldUseAIFeedback) {
+        // Mostrar modal e iniciar processo
+        setShowCreationModal(true);
+        setCreationProgress({
+          step: 'creating',
+          message: 'Criando ticket...'
+        });
+
+        // Simular tempo de cria??uo do ticket (500ms)
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Atualizar para anolise de IA
+        setCreationProgress({
+          step: 'analyzing',
+          message: 'IA analisando prioridade do ticket...'
+        });
+      } else {
+        setShowCreationModal(false);
+        setCreationProgress({
+          step: 'idle',
+          message: ''
+        });
+      }
+
+      // Fazer a requisi??uo real (que inclui anolise da IA)
       const response = await apiRequest('POST', '/api/tickets', data);
-      return response.json();
+      const createdTicket = await response.json();
+
+      return { createdTicket, pendingFiles: [...pendingFiles] };
     },
-    onSuccess: async (createdTicket) => {
-      // Se há arquivos pendentes, fazer upload
+    onSuccess: async ({ createdTicket, pendingFiles }) => {
+      const usedAIFeedback = usedAIFeedbackRef.current;
+
+      // Se ho arquivos pendentes, fazer upload silenciosamente
       if (pendingFiles.length > 0) {
-        setIsUploadingFiles(true);
         try {
           for (const file of pendingFiles) {
             const formData = new FormData();
             formData.append('file', file);
-            
+
             const uploadResponse = await fetch(`/api/tickets/${createdTicket.id}/attachments`, {
               method: 'POST',
               body: formData,
             });
-            
+
             if (!uploadResponse.ok) {
               const errorData = await uploadResponse.json();
               throw new Error(`Erro no upload de ${file.name}: ${errorData.message || 'Erro desconhecido'}`);
             }
           }
-          
+
           toast({
             title: "Sucesso!",
             description: `Chamado criado com sucesso e ${pendingFiles.length} arquivo(s) anexado(s).`,
@@ -183,7 +278,6 @@ export const TicketForm = () => {
             variant: "destructive",
           });
         } finally {
-          setIsUploadingFiles(false);
           setPendingFiles([]);
         }
       } else {
@@ -192,19 +286,61 @@ export const TicketForm = () => {
           description: "Chamado criado com sucesso.",
         });
       }
-      
+
+      if (usedAIFeedback) {
+        // Mostrar sucesso no modal
+        setCreationProgress({
+          step: 'complete',
+          message: 'Chamado criado com sucesso!'
+        });
+      }
+
+      // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ['/api/tickets/user-role'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets/stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets/recent'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
-      navigate('/tickets');
+
+      if (usedAIFeedback) {
+        // Aguardar um pouco para mostrar o sucesso e depois navegar
+        setTimeout(() => {
+          setShowCreationModal(false);
+          usedAIFeedbackRef.current = false;
+          navigate('/tickets');
+        }, 1500);
+      } else {
+        usedAIFeedbackRef.current = false;
+        setShowCreationModal(false);
+        navigate('/tickets');
+      }
     },
     onError: (error) => {
+      const usedAIFeedback = usedAIFeedbackRef.current;
+
+      if (usedAIFeedback) {
+        setCreationProgress({
+          step: 'error',
+          message: `Erro ao criar o chamado: ${error.message || 'Erro desconhecido'}`,
+          error: error.message
+        });
+      }
+
       toast({
         title: "Erro",
         description: error.message || "Falha ao criar o chamado",
         variant: "destructive",
       });
+
+      if (usedAIFeedback) {
+        // Fechar modal ap??s 3 segundos em caso de erro
+        setTimeout(() => {
+          setShowCreationModal(false);
+          usedAIFeedbackRef.current = false;
+        }, 3000);
+      } else {
+        usedAIFeedbackRef.current = false;
+        setShowCreationModal(false);
+      }
     },
   });
 
@@ -340,12 +476,13 @@ export const TicketForm = () => {
   }, [user, form]);
 
   return (
-    <Card>
-      <CardContent className="p-6">
-        <h2 className="text-lg font-medium mb-2">Criar Novo Chamado</h2>
-        <p className="text-neutral-600 mb-6">Adicione um novo chamado de suporte</p>
-        
-        <Form {...form}>
+    <>
+      <Card>
+        <CardContent className="p-6">
+          <h2 className="text-lg font-medium mb-2">Criar Novo Chamado</h2>
+          <p className="text-neutral-600 mb-6">Adicione um novo chamado de suporte</p>
+          
+          <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <FormField
@@ -703,17 +840,121 @@ export const TicketForm = () => {
                 className="px-6"
                 disabled={createTicketMutation.isPending || isUploadingFiles}
               >
-                {createTicketMutation.isPending 
-                  ? "Criando..." 
-                  : isUploadingFiles 
-                    ? "Anexando arquivos..." 
-                    : "Enviar Chamado"
-                }
+                Enviar Chamado
               </Button>
             </div>
           </form>
         </Form>
       </CardContent>
     </Card>
+
+    {/* Modal de Feedback Visual */}
+    <Dialog open={showCreationModal} onOpenChange={(open) => {
+      if (!open && creationProgress.step !== 'complete' && creationProgress.step !== 'error') {
+        // Não permitir fechar o modal durante o processo
+        return;
+      }
+      setShowCreationModal(open);
+    }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Criando seu chamado...</DialogTitle>
+          <DialogDescription>
+            Aguarde enquanto processamos seu ticket
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-6 py-4">
+          {/* Indicador visual baseado no step */}
+          <div className="flex items-center justify-center">
+            {creationProgress.step === 'creating' && (
+              <div className="flex items-center space-x-3">
+                <Loader2 
+                  className="h-8 w-8 animate-spin" 
+                  style={{ color: companyColors.primary }}
+                />
+                <FileText className="h-6 w-6 text-gray-400" />
+              </div>
+            )}
+            
+            {creationProgress.step === 'analyzing' && (
+              <div className="flex items-center space-x-3">
+                <Brain 
+                  className="h-8 w-8 animate-pulse" 
+                  style={{ color: companyColors.primary }}
+                />
+                <Loader2 
+                  className="h-6 w-6 animate-spin" 
+                  style={{ color: companyColors.primary }}
+                />
+              </div>
+            )}
+            
+            {creationProgress.step === 'complete' && (
+              <div className="flex items-center space-x-3">
+                <CheckCircle 
+                  className="h-8 w-8" 
+                  style={{ color: companyColors.success }}
+                />
+              </div>
+            )}
+            
+            {creationProgress.step === 'error' && (
+              <div className="flex items-center space-x-3">
+                <AlertCircle 
+                  className="h-8 w-8" 
+                  style={{ color: companyColors.error }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Mensagem de status */}
+          <div className="text-center">
+            <p className="text-sm font-medium text-gray-900">
+              {creationProgress.message}
+            </p>
+            
+            {creationProgress.step === 'analyzing' && (
+              <p className="text-xs text-gray-500 mt-2">
+                Nossa IA está analisando o conteúdo do seu ticket para definir a prioridade ideal...
+              </p>
+            )}
+          </div>
+
+          {/* Barra de progresso visual */}
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div 
+              className="h-2 rounded-full transition-all duration-500"
+              style={{
+                backgroundColor: creationProgress.step === 'creating' ? companyColors.primary :
+                                creationProgress.step === 'analyzing' ? companyColors.primary :
+                                creationProgress.step === 'complete' ? companyColors.success :
+                                creationProgress.step === 'error' ? companyColors.error :
+                                '#d1d5db',
+                width: creationProgress.step === 'creating' ? '25%' :
+                       creationProgress.step === 'analyzing' ? '50%' :
+                       creationProgress.step === 'complete' || creationProgress.step === 'error' ? '100%' :
+                       '0%'
+              }}
+            />
+          </div>
+
+          {/* Botão de fechar apenas em caso de erro */}
+          {creationProgress.step === 'error' && (
+            <div className="flex justify-center">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowCreationModal(false)}
+                className="mt-2"
+              >
+                Fechar
+              </Button>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 };

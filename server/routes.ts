@@ -3522,7 +3522,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             email: company.email,
             domain: company.domain || '',
             cnpj: company.cnpj || '',
-            phone: company.phone || ''
+            phone: company.phone || '',
+            ai_permission: company.ai_permission
           }
         });
       } else {
@@ -4059,7 +4060,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
               domain: companyData.domain || '',
               active: companyData.active,
               cnpj: companyData.cnpj || '',
-              phone: companyData.phone || ''
+              phone: companyData.phone || '',
+              ai_permission: companyData.ai_permission
             }
           };
           

@@ -10,6 +10,7 @@ interface Company {
   active: boolean;
   cnpj?: string;
   phone?: string;
+  ai_permission?: boolean;
 }
 
 interface User {
