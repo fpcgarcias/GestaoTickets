@@ -2402,6 +2402,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           name,
           role: 'customer' as typeof schema.userRoleEnum.enumValues[number],
           company_id: effectiveCompanyId,
+          must_change_password: req.body.must_change_password || false,
         });
       } else {
         // Usar usuário existente
@@ -2479,7 +2480,10 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           const hashedPassword = await hashPassword(password);
           
           // Atualizar a senha do usuário associado
-          await storage.updateUser(customer.user_id, { password: hashedPassword });
+          await storage.updateUser(customer.user_id, { 
+            password: hashedPassword,
+            must_change_password: req.body.must_change_password || false
+          });
 
           // Encerrar sessões do usuário após alterar a senha via cliente
           try {
@@ -6159,7 +6163,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         .leftJoin(schema.incidentTypes, eq(schema.categories.incident_type_id, schema.incidentTypes.id))
         .leftJoin(schema.departments, eq(schema.incidentTypes.department_id, schema.departments.id))
         .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(desc(schema.categories.created_at))
+        .orderBy(asc(schema.categories.name))
         .limit(limit)
         .offset(offset);
 

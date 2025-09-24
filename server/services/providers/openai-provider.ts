@@ -45,10 +45,10 @@ export class OpenAiProvider implements AiProviderInterface {
               content: userPrompt
             }
           ],
-          temperature: parseFloat(config.temperature),
-          max_tokens: config.max_tokens,
+          temperature: parseFloat(config.temperature || '0.7'),
+          max_tokens: config.max_tokens || 1000,
         }),
-        signal: AbortSignal.timeout(config.timeout_seconds * 1000)
+        signal: AbortSignal.timeout((config.timeout_seconds || 30) * 1000)
       });
 
       if (!response.ok) {
@@ -83,7 +83,7 @@ export class OpenAiProvider implements AiProviderInterface {
         }
         
         return {
-          priority: config.fallback_priority,
+          priority: config.fallback_priority || 'MÉDIA',
           confidence: 0,
           justification: 'Resposta vazia da IA',
           usedFallback: true,
@@ -117,7 +117,7 @@ export class OpenAiProvider implements AiProviderInterface {
         }
         
         return {
-          priority: config.fallback_priority,
+          priority: config.fallback_priority || 'MÉDIA',
           confidence: 0.2,
           justification: `Não foi possível extrair prioridade da resposta: "${aiResponse}"`,
           usedFallback: true,
@@ -206,6 +206,33 @@ export class OpenAiProvider implements AiProviderInterface {
     
     if (priorityMatch) {
       const extractedPriority = priorityMatch[1].trim();
+      let justification: string;
+      
+      if (justificationMatch?.[1]?.trim()) {
+        // Se encontrou a tag JUSTIFICATIVA completa, usar o conteúdo dela
+        justification = justificationMatch[1].trim();
+      } else {
+        // Tentar extrair justificativa mesmo sem tag de fechamento
+        const openJustificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*)/i);
+        if (openJustificationMatch?.[1]?.trim()) {
+          justification = openJustificationMatch[1].trim();
+        } else {
+          // Se não encontrou nenhuma justificativa, usar mensagem padrão
+          justification = 'Análise baseada no conteúdo do ticket';
+        }
+      }
+      
+      return {
+        priority: extractedPriority,
+        justification: justification
+      };
+    }
+
+    // Tentar extrair usando tags de prioridade específicas (Média, Alta, etc.)
+    const specificPriorityMatch = response.match(/<(MÉDIA|MEDIA|ALTA|BAIXA|CRÍTICA|CRITICA)>(.*?)<\/(MÉDIA|MEDIA|ALTA|BAIXA|CRÍTICA|CRITICA)>/i);
+    
+    if (specificPriorityMatch) {
+      const extractedPriority = specificPriorityMatch[1].trim();
       let justification: string;
       
       if (justificationMatch?.[1]?.trim()) {

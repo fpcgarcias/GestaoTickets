@@ -230,6 +230,33 @@ export class GoogleProvider implements AiProviderInterface {
         justification: justification
       };
     }
+
+    // Tentar extrair usando tags de prioridade específicas (Média, Alta, etc.)
+    const specificPriorityMatch = response.match(/<(MÉDIA|MEDIA|ALTA|BAIXA|CRÍTICA|CRITICA)>(.*?)<\/(MÉDIA|MEDIA|ALTA|BAIXA|CRÍTICA|CRITICA)>/i);
+    
+    if (specificPriorityMatch) {
+      const extractedPriority = specificPriorityMatch[1].trim();
+      let justification: string;
+      
+      if (justificationMatch?.[1]?.trim()) {
+        // Se encontrou a tag JUSTIFICATIVA completa, usar o conteúdo dela
+        justification = justificationMatch[1].trim();
+      } else {
+        // Tentar extrair justificativa mesmo sem tag de fechamento
+        const openJustificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*)/i);
+        if (openJustificationMatch?.[1]?.trim()) {
+          justification = openJustificationMatch[1].trim();
+        } else {
+          // Se não encontrou nenhuma justificativa, usar mensagem padrão
+          justification = 'Análise baseada no conteúdo do ticket';
+        }
+      }
+      
+      return {
+        priority: extractedPriority,
+        justification: justification
+      };
+    }
     
     // Fallback: tentar extrair apenas prioridade (método antigo) - APENAS se não encontrou tags
     const extractedPriority = this.extractPriority(response);
