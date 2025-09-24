@@ -209,11 +209,39 @@ export const TicketForm = () => {
     enabled: !!watchedDepartmentId,
   });
 
+  const { data: departmentAiConfigs = [] } = useQuery<AiConfiguration[]>({
+    queryKey: ['/api/ai-configurations', watchedDepartmentId, 'priority'],
+    queryFn: async () => {
+      if (!watchedDepartmentId) return [];
+      const params = new URLSearchParams({
+        department_id: watchedDepartmentId.toString(),
+        analysis_type: 'priority'
+      });
+      const response = await fetch(`/api/ai-configurations?${params.toString()}`);
+      if (!response.ok) {
+        return [];
+      }
+      const result = await response.json();
+      if (Array.isArray(result)) {
+        return result as AiConfiguration[];
+      }
+      if (Array.isArray((result as any)?.data)) {
+        return (result as any).data as AiConfiguration[];
+      }
+      return [];
+    },
+    enabled: !!watchedDepartmentId,
+  });
+
+  const hasDepartmentPriorityAiConfig = departmentAiConfigs.some(
+    (config) => config.is_active && (config.analysis_type || '').toLowerCase() === 'priority'
+  );
+
   const createTicketMutation = useMutation({
     mutationFn: async (data: InsertTicket) => {
       const aiPermissionFromCompany = company?.ai_permission === true;
       const aiPermissionFromUser = user?.company?.ai_permission === true;
-      const shouldUseAIFeedback = aiPermissionFromCompany || aiPermissionFromUser;
+      const shouldUseAIFeedback = (aiPermissionFromCompany || aiPermissionFromUser) && hasDepartmentPriorityAiConfig;
       usedAIFeedbackRef.current = shouldUseAIFeedback;
 
       if (shouldUseAIFeedback) {
