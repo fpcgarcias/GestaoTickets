@@ -538,7 +538,7 @@ const SatisfactionDashboard: React.FC = () => {
                     <p className="text-3xl font-bold text-gray-900">
                       {stats?.response_rate ? `${stats.response_rate.toFixed(1)}%` : '0%'}
                     </p>
-                    {stats?.trend?.response_rate_trend && (
+                    {stats?.trend?.response_rate_trend !== undefined && stats.trend.response_rate_trend !== 0 && (
                       stats.trend.response_rate_trend > 0 ? (
                         <TrendingUp className="h-4 w-4 text-green-600" />
                       ) : (
@@ -564,7 +564,7 @@ const SatisfactionDashboard: React.FC = () => {
                     <p className="text-3xl font-bold text-gray-900">
                       {stats?.average_rating ? stats.average_rating.toFixed(1) : '0.0'}
                     </p>
-                    {stats?.trend?.rating_trend && (
+                    {stats?.trend?.rating_trend !== undefined && stats.trend.rating_trend !== 0 && (
                       stats.trend.rating_trend > 0 ? (
                         <TrendingUp className="h-4 w-4 text-green-600" />
                       ) : (
