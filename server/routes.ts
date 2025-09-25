@@ -8683,6 +8683,106 @@ Atenciosamente,
           is_active: true,
           is_default: true,
           available_variables: JSON.stringify(['customer.name','ticket.ticket_id','ticket.title','ticket.assigned_official_name','ticket.resolved_at_formatted','survey.link','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+        },
+        {
+          name: 'Lembrete Pesquisa de Satisfacao',
+          type: 'satisfaction_survey_reminder',
+          description: 'Lembrete enviado antes da expiracao da pesquisa de satisfacao',
+          subject_template: 'Ainda da tempo! Sua pesquisa expira em {{survey.days_until_expiration}} dia(s)',
+          html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lembrete de Pesquisa de Satisfacao</title>
+</head>
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:22px;margin:0 0 12px 0;color:{{system.colors.text}};text-align:center;">Ajude-nos com seu feedback</h2>
+              <p style="font-size:16px;margin:0;text-align:center;line-height:1.6;">
+                O link da sua pesquisa expira em <strong>{{survey.days_until_expiration}} dia(s)</strong>.
+              </p>
+              <p style="font-size:15px;margin:16px 0 0 0;text-align:center;line-height:1.6;">
+                Bastam poucos cliques para compartilhar como foi o atendimento referente ao ticket <strong>{{ticket.ticket_id}}</strong>.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:130px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Atendente:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.assigned_official_name}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Resolvido em:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.resolved_at_formatted}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Expira em:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{survey.days_until_expiration}} dia(s)</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <a href="{{survey.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:6px;font-size:18px;font-weight:bold;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                Responder agora
+              </a>
+              <p style="font-size:13px;margin:16px 0 0 0;color:#666666;text-align:center;">
+                Se ja tiver respondido, desconsidere este lembrete. O link expira em {{survey.days_until_expiration}} dia(s).
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Obrigado!<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">Mensagem automatica do sistema de tickets.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+          text_template: `Ola {{customer.name}},
+
+Seu link para avaliar o ticket {{ticket.ticket_id}} expira em {{survey.days_until_expiration}} dia(s).
+
+Conte com a gente! Compartilhe seu feedback acessando:
+{{survey.link}}
+
+Resumo do ticket:
+- Titulo: {{ticket.title}}
+- Atendente: {{ticket.assigned_official_name}}
+- Resolvido em: {{ticket.resolved_at_formatted}}
+
+Obrigado por nos ajudar a melhorar continuamente.
+
+{{system.from_name}}`,
+          is_active: true,
+          is_default: true,
+          available_variables: JSON.stringify(['customer.name','ticket.ticket_id','ticket.title','ticket.assigned_official_name','ticket.resolved_at_formatted','survey.link','survey.days_until_expiration','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
         }
       ];
 

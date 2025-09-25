@@ -1,0 +1,14 @@
+﻿-- 072_add_satisfaction_survey_reminder_flags.sql
+-- Adiciona flags para controle de lembretes da pesquisa de satisfacao
+
+ALTER TYPE email_template_type ADD VALUE IF NOT EXISTS 'satisfaction_survey_reminder';
+
+ALTER TABLE satisfaction_surveys
+  ADD COLUMN IF NOT EXISTS reminder_5d_sent BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS reminder_3d_sent BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS reminder_1d_sent BOOLEAN NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN satisfaction_surveys.reminder_5d_sent IS 'Indica se o lembrete de 5 dias antes da expiracao foi enviado';
+COMMENT ON COLUMN satisfaction_surveys.reminder_3d_sent IS 'Indica se o lembrete de 3 dias antes da expiracao foi enviado';
+COMMENT ON COLUMN satisfaction_surveys.reminder_1d_sent IS 'Indica se o lembrete de 1 dia antes da expiracao foi enviado';
+

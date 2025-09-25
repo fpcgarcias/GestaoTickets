@@ -327,7 +327,8 @@ export const emailTemplateTypeEnum = pgEnum('email_template_type', [
   'system_maintenance',   // Manutenção do sistema
   'ticket_participant_added',    // Participante adicionado ao ticket
   'ticket_participant_removed',  // Participante removido do ticket
-  'satisfaction_survey'   // Pesquisa de satisfação
+  'satisfaction_survey',         // Pesquisa de satisfacao
+  'satisfaction_survey_reminder', // Lembrete da pesquisa de satisfacao
 ]);
 
 // Tabela para templates de email
@@ -478,6 +479,9 @@ export const satisfactionSurveys = pgTable("satisfaction_surveys", {
   comments: text("comments"),
   status: text("status", { enum: ['sent', 'responded', 'expired'] }).notNull().default('sent'),
   expires_at: timestamp("expires_at").notNull(),
+  reminder_5d_sent: boolean("reminder_5d_sent").default(false).notNull(),
+  reminder_3d_sent: boolean("reminder_3d_sent").default(false).notNull(),
+  reminder_1d_sent: boolean("reminder_1d_sent").default(false).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 

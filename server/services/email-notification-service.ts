@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, slaDefinitions, companies, ticketParticipants, systemSettings, ticketStatusHistory, departments, satisfactionSurveys } from '@shared/schema';
-import { eq, and, isNull, inArray, not, ne, or, gte } from 'drizzle-orm';
+import { eq, and, isNull, inArray, not, ne, or, gte, gt } from 'drizzle-orm';
 import { emailConfigService } from './email-config-service';
 import nodemailer from 'nodemailer';
 import { PriorityService } from "./priority-service";
@@ -48,6 +48,7 @@ export interface EmailNotificationContext {
     link: string;
     token: string;
     expires_at: Date;
+    days_until_expiration?: number;
   };
   digest?: {
     type: string;
@@ -3466,6 +3467,212 @@ export class EmailNotificationService {
   }
 
   // Gerar token único para pesquisa de satisfação
+
+  async checkSatisfactionSurveyReminders(companyFilter?: string): Promise<void> {
+    try {
+      const now = new Date();
+      const filterValue = companyFilter && companyFilter.trim().length > 0 ? companyFilter.trim() : '*';
+
+      const parseFilter = (filter: string): ((companyId: number) => boolean) => {
+        if (!filter || filter === '*') {
+          return () => true;
+        }
+
+        if (filter.startsWith('<>')) {
+          const excludedId = parseInt(filter.substring(2), 10);
+          return (companyId: number) => companyId !== excludedId;
+        }
+
+        if (filter.includes(',')) {
+          const allowedIds = filter
+            .split(',')
+            .map((id) => parseInt(id.trim(), 10))
+            .filter((id) => !Number.isNaN(id));
+          return (companyId: number) => allowedIds.includes(companyId);
+        }
+
+        const specificId = parseInt(filter, 10);
+        if (Number.isNaN(specificId)) {
+          return () => true;
+        }
+        return (companyId: number) => companyId === specificId;
+      };
+
+      const companyFilterFn = parseFilter(filterValue);
+
+      const rawSurveys = await db
+        .select({
+          survey_id: satisfactionSurveys.id,
+          ticket_id: tickets.id,
+          ticket_number: tickets.ticket_id,
+          ticket_title: tickets.title,
+          ticket_resolved_at: tickets.resolved_at,
+          company_id: tickets.company_id,
+          customer_name: customers.name,
+          customer_email: customers.email,
+          assigned_official_name: officials.name,
+          survey_token: satisfactionSurveys.survey_token,
+          expires_at: satisfactionSurveys.expires_at,
+          sent_at: satisfactionSurveys.sent_at,
+          reminder_5d_sent: satisfactionSurveys.reminder_5d_sent,
+          reminder_3d_sent: satisfactionSurveys.reminder_3d_sent,
+          reminder_1d_sent: satisfactionSurveys.reminder_1d_sent,
+          company_name: companies.name
+        })
+        .from(satisfactionSurveys)
+        .innerJoin(tickets, eq(tickets.id, satisfactionSurveys.ticket_id))
+        .innerJoin(customers, eq(tickets.customer_id, customers.id))
+        .innerJoin(companies, eq(companies.id, tickets.company_id))
+        .leftJoin(officials, eq(officials.id, tickets.assigned_to_id))
+        .where(
+          and(
+            eq(satisfactionSurveys.status, 'sent'),
+            gt(satisfactionSurveys.expires_at, now)
+          )
+        );
+
+      const surveys = rawSurveys.filter((survey) => {
+        if (!survey.company_id) {
+          return false;
+        }
+        return companyFilterFn(survey.company_id);
+      });
+
+      if (surveys.length === 0) {
+        return;
+      }
+
+      const reminders = [
+        { days: 5, field: 'reminder_5d_sent' as const },
+        { days: 3, field: 'reminder_3d_sent' as const },
+        { days: 1, field: 'reminder_1d_sent' as const }
+      ];
+
+      let sentCount = 0;
+
+      for (const survey of surveys) {
+        const expiresAt = survey.expires_at instanceof Date ? survey.expires_at : new Date(survey.expires_at);
+        const diffMs = expiresAt.getTime() - now.getTime();
+        if (diffMs <= 0) {
+          continue;
+        }
+
+        const daysLeft = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+
+        for (const reminder of reminders) {
+          const alreadySent = (survey as any)[reminder.field];
+          if (alreadySent) {
+            continue;
+          }
+
+          if (daysLeft === reminder.days) {
+            const sent = await this.sendSatisfactionSurveyReminder(survey, reminder.days, expiresAt);
+            if (sent) {
+              sentCount += 1;
+            }
+            break;
+          }
+        }
+      }
+
+      if (sentCount > 0) {
+        console.log('[SATISFACTION] Reminders sent: ' + sentCount);
+      }
+    } catch (error) {
+      console.error('[SATISFACTION] Error while processing survey reminders:', error);
+    }
+  }
+
+  private async sendSatisfactionSurveyReminder(
+    survey: any,
+    daysLeft: number,
+    expiresAt: Date
+  ): Promise<boolean> {
+    try {
+      if (!survey?.customer_email) {
+        console.log('[SATISFACTION] Reminder skipped: survey without customer email');
+        return false;
+      }
+
+      const baseUrl = await this.getBaseUrlForCompany(survey.company_id || undefined);
+      const surveyLink = baseUrl + '/satisfaction/' + survey.survey_token;
+
+      const resolvedAtRaw = survey.ticket_resolved_at;
+      const resolvedAt = resolvedAtRaw
+        ? (resolvedAtRaw instanceof Date ? resolvedAtRaw : new Date(resolvedAtRaw))
+        : null;
+
+      const resolvedFormatted = resolvedAt
+        ? resolvedAt.toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        : undefined;
+
+      const context: EmailNotificationContext = {
+        ticket: {
+          id: survey.ticket_id,
+          ticket_id: survey.ticket_number,
+          title: survey.ticket_title,
+          assigned_official_name: survey.assigned_official_name || 'Nao atribuido',
+          resolved_at: resolvedAt,
+          resolved_at_formatted: resolvedFormatted
+        },
+        customer: {
+          name: survey.customer_name || 'Cliente',
+          email: survey.customer_email
+        },
+        survey: {
+          link: surveyLink,
+          token: survey.survey_token,
+          expires_at: expiresAt,
+          days_until_expiration: daysLeft
+        },
+        system: {
+          company_name: survey.company_name || 'Sistema de Tickets'
+        }
+      };
+
+      const result = await this.sendEmailNotification(
+        'satisfaction_survey_reminder',
+        survey.customer_email,
+        context,
+        survey.company_id,
+        'customer'
+      );
+
+      if (result.success) {
+        const updateData: Record<string, boolean> = {};
+        if (daysLeft === 5) {
+          updateData.reminder_5d_sent = true;
+        } else if (daysLeft === 3) {
+          updateData.reminder_3d_sent = true;
+        } else if (daysLeft === 1) {
+          updateData.reminder_1d_sent = true;
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await db
+            .update(satisfactionSurveys)
+            .set(updateData)
+            .where(eq(satisfactionSurveys.id, survey.survey_id));
+        }
+
+        console.log('[SATISFACTION] Reminder for ' + daysLeft + ' day(s) sent to ' + survey.customer_email);
+        return true;
+      }
+
+      console.log('[SATISFACTION] Reminder for ' + daysLeft + ' day(s) failed for ' + survey.customer_email + ': ' + result.error);
+      return false;
+    } catch (error) {
+      console.error('[SATISFACTION] Error while sending survey reminder:', error);
+      return false;
+    }
+  }
+
   private generateSurveyToken(): string {
     const timestamp = Date.now().toString(36);
     const randomPart = Math.random().toString(36).substring(2, 15);

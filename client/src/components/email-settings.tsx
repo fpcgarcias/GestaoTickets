@@ -104,7 +104,8 @@ const EMAIL_TEMPLATE_TYPES = [
   { value: 'system_maintenance', label: 'Manutenção do Sistema' },
   { value: 'ticket_participant_added', label: 'Participante Adicionado' },
   { value: 'ticket_participant_removed', label: 'Participante Removido' },
-  { value: 'satisfaction_survey', label: 'Pesquisa de Satisfação' }
+  { value: 'satisfaction_survey', label: 'Pesquisa de Satisfação' },
+  { value: 'satisfaction_survey_reminder', label: 'Lembrete Pesquisa de Satisfação' }
 ];
 
 const PROVIDERS = [
