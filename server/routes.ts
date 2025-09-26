@@ -18218,7 +18218,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
   // Listar configurações de IA
 
-  router.get("/ai-configurations", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), getAiConfigurations);
+  router.get("/ai-configurations", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'customer']), getAiConfigurations);
 
   
 

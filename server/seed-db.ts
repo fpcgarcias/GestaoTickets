@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, tickets, customers, officials, ticketReplies, ticketStatusHistory, slaDefinitions,
-  userRoleEnum, ticketStatusEnum, ticketPriorityEnum, officialDepartments
+  userRoleEnum, ticketStatusEnum, officialDepartments
 } from "@shared/schema";
 
 async function seedDatabase() {
@@ -71,7 +71,7 @@ async function seedDatabase() {
   // Adicionar o departamento ao atendente na tabela de junção
   await db.insert(officialDepartments).values({
     official_id: official.id,
-    department: "technical"
+    department_id: 1
   });
   
   // Adicionar definições de SLA

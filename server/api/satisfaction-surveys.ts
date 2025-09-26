@@ -54,7 +54,7 @@ export async function GET(req: Request, res: Response) {
         await db
           .update(satisfactionSurveys)
           .set({ status: 'expired' })
-          .where(eq(satisfactionSurveys.id, survey.id));
+          .where(eq(satisfactionSurveys.id, survey.id as number));
       }
       
       return res.status(410).json({ message: 'Esta pesquisa de satisfação expirou' });
@@ -94,7 +94,7 @@ export async function GET(req: Request, res: Response) {
 
     if (company?.domain) {
       // Detectar tema pelo domínio (seguindo lógica do index.html)
-      if (company.domain.includes('vixbrasil.com')) {
+      if ((company as any).domain.includes('vixbrasil.com')) {
         // Tema VIX (amarelo/dourado)
         themeColors = {
           primary: '#D4A017',      // hsl(45, 93%, 47%)
@@ -103,7 +103,7 @@ export async function GET(req: Request, res: Response) {
           background: '#FFFEF7',   // hsl(45, 10%, 98%)
           text: '#2F2F1F'          // hsl(45, 20%, 15%)
         };
-      } else if (company.domain.includes('oficinamuda.com')) {
+      } else if ((company as any).domain.includes('oficinamuda.com')) {
         // Tema Oficina Muda (azul escuro)
         themeColors = {
           primary: '#005A8B',      // hsl(200, 100%, 35%)
@@ -116,7 +116,7 @@ export async function GET(req: Request, res: Response) {
     }
 
     console.log(`[📊 SATISFACTION API] ✅ Pesquisa encontrada e válida: ${token}`);
-    console.log(`[📊 SATISFACTION API] 🎨 Tema aplicado: ${company?.domain?.includes('vixbrasil.com') ? 'VIX' : company?.domain?.includes('oficinamuda.com') ? 'Oficina Muda' : 'TicketWise'}`);
+    console.log(`[📊 SATISFACTION API] 🎨 Tema aplicado: ${(company as any)?.domain?.includes('vixbrasil.com') ? 'VIX' : (company as any)?.domain?.includes('oficinamuda.com') ? 'Oficina Muda' : 'TicketWise'}`);
 
     res.json({
       survey: {
@@ -154,7 +154,7 @@ export async function POST(req: Request, res: Response) {
     if (!validationResult.success) {
       return res.status(400).json({ 
         message: 'Dados inválidos',
-        errors: validationResult.error.errors
+        errors: validationResult.error.issues
       });
     }
 
@@ -184,7 +184,7 @@ export async function POST(req: Request, res: Response) {
         await db
           .update(satisfactionSurveys)
           .set({ status: 'expired' })
-          .where(eq(satisfactionSurveys.id, survey.id));
+          .where(eq(satisfactionSurveys.id, survey.id as number));
       }
       
       return res.status(410).json({ message: 'Esta pesquisa de satisfação expirou' });

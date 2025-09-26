@@ -83,7 +83,7 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official }: Tog
               <p className="text-sm font-medium mb-1">Departamentos:</p>
               <div className="flex flex-wrap gap-1">
                 {official.departments.map((dept) => {
-                  const departmentValue = typeof dept === 'string' ? dept : dept?.department;
+                  const departmentValue = typeof dept === 'string' ? dept : (dept as any)?.department;
                   const key = typeof dept === 'string' ? dept : dept?.id || departmentValue;
                   return (
                     <Badge key={key} variant="outline" className="capitalize">

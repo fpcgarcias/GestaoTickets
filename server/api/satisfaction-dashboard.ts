@@ -50,7 +50,7 @@ export async function getSurveys(req: Request, res: Response) {
     }
 
     if (status && status !== 'all') {
-      conditions.push(eq(satisfactionSurveys.status, status as string));
+      conditions.push(eq(satisfactionSurveys.status, status as "sent" | "responded" | "expired"));
     }
 
     if (rating && rating !== 'all') {
@@ -204,7 +204,7 @@ export async function getStats(req: Request, res: Response) {
     }
 
     if (status && status !== 'all') {
-      conditions.push(eq(satisfactionSurveys.status, status as string));
+      conditions.push(eq(satisfactionSurveys.status, status as "sent" | "responded" | "expired"));
     }
 
     if (rating && rating !== 'all') {
@@ -308,7 +308,7 @@ export async function getStats(req: Request, res: Response) {
       total_sent: stats.total_sent || 0,
       total_responded: stats.total_responded || 0,
       response_rate: responseRate,
-      average_rating: stats.average_rating ? parseFloat(parseFloat(stats.average_rating).toFixed(2)) : 0,
+      average_rating: stats.average_rating ? parseFloat(parseFloat(stats.average_rating.toString()).toFixed(2)) : 0,
       ratings_breakdown: ratingsBreakdown,
       trend
     });

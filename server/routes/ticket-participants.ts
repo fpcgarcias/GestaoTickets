@@ -201,7 +201,7 @@ router.post('/:ticketId', authRequired, canAddParticipants, async (req: Request,
     if (!validationResult.success) {
       return res.status(400).json({ 
         message: "Dados inválidos",
-        errors: validationResult.error.errors
+        errors: validationResult.error.issues
       });
     }
 
@@ -325,7 +325,7 @@ router.delete('/:ticketId', authRequired, canRemoveParticipants, async (req: Req
     if (!validationResult.success) {
       return res.status(400).json({ 
         message: "Dados inválidos",
-        errors: validationResult.error.errors
+        errors: validationResult.error.issues
       });
     }
 
@@ -456,7 +456,7 @@ router.put('/:ticketId', authRequired, participantManagementRequired, async (req
     if (!validationResult.success) {
       return res.status(400).json({ 
         message: "Dados inválidos",
-        errors: validationResult.error.errors
+        errors: validationResult.error.issues
       });
     }
 

@@ -253,7 +253,7 @@ export default function Dashboard() {
   // Calcular chamados com outros status (qualquer status que não seja new, ongoing ou resolved)
   const otherStatusCount = Object.entries(ticketStats.byStatus)
     .filter(([status]) => !['new', 'ongoing', 'resolved'].includes(status))
-    .reduce((sum, [_, count]) => sum + count, 0);
+    .reduce((sum, [_, count]) => sum + (count as number), 0);
 
   // Calcular valores anteriores para comparação (removido previousOtherStatusCount - não é mais usado)
 

@@ -71,6 +71,9 @@
           themeName = 'vix';
         } else if (hostname.includes('oficinamuda.com')) {
           themeName = 'oficinaMuda';
+        } else if (hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+          // Tema padrão (roxo) para desenvolvimento local
+          themeName = 'default';
         }
         
         // Aplicar tema se encontrado
@@ -83,6 +86,36 @@
           });
           
           console.log('🎨 [THEME-PRELOAD] Tema ' + themeName + ' aplicado via HTML');
+        } else {
+          // Aplicar tema padrão se nenhum tema específico for encontrado
+          const defaultTheme = {
+            '--primary': '262 83% 58%',
+            '--primary-foreground': '210 20% 98%',
+            '--secondary': '220 14.3% 95.9%',
+            '--secondary-foreground': '220.9 39.3% 11%',
+            '--accent': '262 83% 96%',
+            '--accent-foreground': '262 83% 58%',
+            '--background': '0 0% 98%',
+            '--foreground': '224 71.4% 4.1%',
+            '--card': '0 0% 100%',
+            '--card-foreground': '224 71.4% 4.1%',
+            '--border': '220 13% 91%',
+            '--input': '220 13% 91%',
+            '--ring': '262 83% 58%',
+            '--muted': '220 14.3% 95.9%',
+            '--muted-foreground': '220 8.9% 46.1%',
+            '--popover': '0 0% 100%',
+            '--popover-foreground': '224 71.4% 4.1%',
+            '--destructive': '0 84.2% 60.2%',
+            '--destructive-foreground': '210 20% 98%',
+          };
+          
+          const root = document.documentElement;
+          Object.entries(defaultTheme).forEach(([property, value]) => {
+            root.style.setProperty(property, value);
+          });
+          
+          console.log('🎨 [THEME-PRELOAD] Tema padrão (roxo) aplicado via HTML');
         }
       })();
     </script>

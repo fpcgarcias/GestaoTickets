@@ -184,7 +184,7 @@ export async function createDepartmentPriority(req: Request, res: Response) {
       return res.status(400).json({ 
         success: false, 
         message: 'Dados inválidos', 
-        errors: validationResult.error.errors 
+        errors: validationResult.error.issues 
       });
     }
 
@@ -192,7 +192,7 @@ export async function createDepartmentPriority(req: Request, res: Response) {
 
     // Preparar dados para criação
     const priorityData: InsertDepartmentPriority = {
-      company_id: targetCompanyId,
+      company_id: targetCompanyId || 0,
       department_id: departmentId,
       name: name.trim(),
       weight,
@@ -300,7 +300,7 @@ export async function updatePriority(req: Request, res: Response) {
       return res.status(400).json({ 
         success: false, 
         message: 'Dados inválidos', 
-        errors: validationResult.error.errors 
+        errors: validationResult.error.issues 
       });
     }
 
@@ -493,11 +493,11 @@ export async function reorderPriorities(req: Request, res: Response) {
 
   const validationResult = reorderSchema.safeParse(req.body);
   if (!validationResult.success) {
-    console.log('Erro de validação:', validationResult.error.errors);
+    console.log('Erro de validação:', validationResult.error.issues);
     return res.status(400).json({ 
       success: false, 
       message: 'Dados inválidos', 
-      errors: validationResult.error.errors 
+      errors: validationResult.error.issues 
     });
   }
 
@@ -664,7 +664,7 @@ export async function createDefaultPriorities(req: Request, res: Response) {
     
     if (userRole === 'admin') {
       targetCompanyId = department.company_id;
-    } else if (['company_admin', 'manager', 'supervisor'].includes(userRole)) {
+    } else if (['company_admin', 'manager', 'supervisor'].includes(userRole || '')) {
       if (department.company_id !== userCompanyId) {
         return res.status(403).json({ 
           success: false, 
@@ -681,7 +681,7 @@ export async function createDefaultPriorities(req: Request, res: Response) {
 
     // Criar prioridades padrão usando o serviço
     const createdPriorities = await priorityService.createDefaultPrioritiesForDepartment(
-      targetCompanyId,
+      targetCompanyId || 0,
       departmentId
     );
 

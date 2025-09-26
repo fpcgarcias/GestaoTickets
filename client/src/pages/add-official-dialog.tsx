@@ -280,7 +280,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                           <CommandInput placeholder="Buscar departamento..." className="h-9" />
                           <CommandEmpty>Nenhum departamento encontrado.</CommandEmpty>
                           <CommandGroup>
-                            {availableDepartments.map((dept) => (
+                            {availableDepartments.map((dept: any) => (
                               <CommandItem
                                 key={dept.value}
                                 value={dept.value}

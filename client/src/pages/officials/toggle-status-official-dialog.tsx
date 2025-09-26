@@ -86,12 +86,12 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onSta
                   // Se dept é um objeto com propriedade 'department', pegamos essa propriedade
                   // Se não, assumimos que dept é uma string diretamente
                   const departmentValue = typeof dept === 'object' && dept !== null && 'department' in dept
-                    ? dept.department
+                    ? (dept as any).department
                     : dept;
                     
                   return (
                     <Badge key={index} variant="outline" className="capitalize">
-                      {departmentValue}
+                      {String(departmentValue)}
                     </Badge>
                   );
                 })}

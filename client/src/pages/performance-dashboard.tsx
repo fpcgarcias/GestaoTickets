@@ -6,6 +6,19 @@ import { ChartContainer } from '@/components/ui/chart';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Info } from 'lucide-react';
+import { 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+  Legend
+} from 'recharts';
 
 // Função para formatar uptime de forma legível
 const formatUptime = (seconds: number): string => {
@@ -163,17 +176,15 @@ export default function PerformanceDashboard() {
                   return acc;
                 }, {} as any)
               }}>
-                {({ ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid }) => (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={statusData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="code" />
-                      <YAxis allowDecimals={false} />
-                      <Tooltip />
-                      <Bar dataKey="count" fill="#38bdf8" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={statusData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="code" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#38bdf8" />
+                  </BarChart>
+                </ResponsiveContainer>
               </ChartContainer>
             ) : <div className="text-center text-neutral-400">Sem dados</div>}
           </CardContent>
@@ -185,19 +196,17 @@ export default function PerformanceDashboard() {
           <CardContent>
             {errorPieData.length > 0 ? (
               <ChartContainer config={{ Erros: { color: '#ef4444' }, Sucesso: { color: '#22c55e' } }}>
-                {({ ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend }) => (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <PieChart>
-                      <Pie data={errorPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
-                        {errorPieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={index === 0 ? '#ef4444' : '#22c55e'} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie data={errorPieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} label>
+                      {errorPieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={index === 0 ? '#ef4444' : '#22c55e'} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
               </ChartContainer>
             ) : <div className="text-center text-neutral-400">Sem dados</div>}
           </CardContent>

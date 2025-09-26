@@ -255,7 +255,7 @@ export class AiService {
       // Realizar análise com retry usando a configuração original e token
       const result = await this.executeWithRetry(
         () => provider.analyze(request.title, request.description, config, apiToken),
-        config.max_retries
+        config.max_retries || 3
       );
 
              // Fazer match da prioridade retornada pela IA com o banco
@@ -872,7 +872,7 @@ export class AiService {
       console.log(`[AI] Analisando prioridade com ${config.provider}/${config.model} para departamento ${departmentId}`);
       const result = await this.executeWithRetry(
         () => provider.analyze(title, description, config, apiToken),
-        config.max_retries
+        config.max_retries || 3
       );
 
              // Fazer match da prioridade retornada pela IA com o banco

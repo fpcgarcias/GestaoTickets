@@ -32,7 +32,6 @@ if (process.env.NODE_ENV === 'production') {
   // Configurar SDK do Node.js
   const sdk = new NodeSDK({
     serviceName: process.env.NEW_RELIC_APP_NAME || 'GestaoTickets',
-    serviceVersion: '1.0.0',
     
     // Instrumentações automáticas
     instrumentations: [
@@ -51,8 +50,6 @@ if (process.env.NODE_ENV === 'production') {
           enabled: true,
           // Configurações adicionais para melhor instrumentação
           enhancedDatabaseReporting: true,
-          // Capturar queries SQL completas
-          captureParameters: false, // Por segurança, não capturar parâmetros
         },
         '@opentelemetry/instrumentation-fs': {
           // Monitorar operações de arquivo (uploads)

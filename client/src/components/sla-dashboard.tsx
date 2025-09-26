@@ -26,17 +26,16 @@ import {
   PieChart
 } from 'lucide-react';
 import {
-  PieChart as RechartsPieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
   BarChart,
   Bar,
   XAxis,
   YAxis,
   Tooltip,
-  Legend
+  Legend,
+  ResponsiveContainer
 } from 'recharts';
+import { ModernPieChart } from '@/components/charts/modern-pie-chart';
+import { ModernSlaBarChart } from '@/components/charts/modern-sla-bar-chart';
 import { useAuth } from '@/hooks/use-auth';
 import { useBusinessHoursRefetchInterval } from '../hooks/use-business-hours';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -194,7 +193,7 @@ export function SLADashboard({ className }: SLADashboardProps) {
   if (!slaStats) return null;
 
   // Preparar dados para gráficos
-  const coverageData = slaStats.configurationsByDepartment.map(dept => {
+  const coverageData = slaStats.configurationsByDepartment.map((dept, index) => {
     const realMissing = slaStats.missingConfigurationAlerts.filter(a => a.departmentId === dept.departmentId).length;
     const total = dept.configurationsCount + realMissing;
     const coverage = total > 0 ? (dept.configurationsCount / total) * 100 : 0;
@@ -203,6 +202,17 @@ export function SLADashboard({ className }: SLADashboardProps) {
       coverage,
       configuracoes: dept.configurationsCount,
       faltantes: realMissing
+    };
+  });
+
+  // Preparar dados para o ModernPieChart (formato: name, value, color)
+  const coveragePieData = slaStats.configurationsByDepartment.map((dept, index) => {
+    const realMissing = slaStats.missingConfigurationAlerts.filter(a => a.departmentId === dept.departmentId).length;
+    const total = dept.configurationsCount + realMissing;
+    return {
+      name: dept.departmentName,
+      value: dept.configurationsCount,
+      color: COLORS[index % COLORS.length]
     };
   });
 
@@ -363,25 +373,10 @@ export function SLADashboard({ className }: SLADashboardProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <RechartsPieChart>
-                      <Pie
-                        data={coverageData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, coverage }) => `${name}: ${coverage.toFixed(1)}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="coverage"
-                      >
-                        {coverageData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </RechartsPieChart>
-                  </ResponsiveContainer>
+                  <ModernPieChart 
+                    data={coveragePieData} 
+                    isLoading={isStatsLoading}
+                  />
                 </CardContent>
               </Card>
 
@@ -436,21 +431,10 @@ export function SLADashboard({ className }: SLADashboardProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={complianceData}>
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip 
-                        formatter={(value, name) => [
-                          `${Number(value).toFixed(1)}%`, 
-                          name === 'resposta' ? 'SLA Resposta' : 'SLA Resolução'
-                        ]}
-                      />
-                      <Legend />
-                      <Bar dataKey="resposta" fill="#0088FE" name="Resposta" />
-                      <Bar dataKey="resolucao" fill="#00C49F" name="Resolução" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <ModernSlaBarChart 
+                    data={complianceData} 
+                    isLoading={isStatsLoading}
+                  />
                 </CardContent>
               </Card>
 

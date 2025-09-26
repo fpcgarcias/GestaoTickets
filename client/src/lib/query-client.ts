@@ -74,20 +74,6 @@ export const queryConfigs = {
 export const queryClient = new QueryClient({
   defaultOptions,
   
-  // Configurações do cliente
-  logger: {
-    log: (...args) => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[React Query]', ...args);
-      }
-    },
-    warn: (...args) => {
-      console.warn('[React Query]', ...args);
-    },
-    error: (...args) => {
-      console.error('[React Query]', ...args);
-    }
-  }
 });
 
 // Função helper para criar query keys consistentes
@@ -103,7 +89,7 @@ export const createQueryKey = (entity: string, params?: Record<string, any>) => 
         return acc;
       }, {} as Record<string, any>);
     
-    baseKey.push(sortedParams);
+    baseKey.push(JSON.stringify(sortedParams));
   }
   
   return baseKey;

@@ -209,6 +209,7 @@ export const TicketForm = () => {
     enabled: !!watchedDepartmentId,
   });
 
+  // Buscar configurações de IA para o departamento selecionado
   const { data: departmentAiConfigs = [] } = useQuery<AiConfiguration[]>({
     queryKey: ['/api/ai-configurations', watchedDepartmentId, 'priority'],
     queryFn: async () => {

@@ -1615,7 +1615,7 @@ export default function EmailSettings() {
                     console.log('Select onOpenChange chamado com:', open);
                   }}
                 >
-                  {console.log('Renderizando Select com value:', templateForm.type)}
+                  {(() => { console.log('Renderizando Select com value:', templateForm.type); return null; })()}
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>

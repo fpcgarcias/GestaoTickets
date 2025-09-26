@@ -253,7 +253,7 @@ export class DatabaseStorage implements IStorage {
 
     // Monta o array final de oficiais, agregando departamentos, dados do usuário, empresa e manager
     const officialsResult: Official[] = officialsWithUserAndTicketCount.map((row) => {
-      let manager = null;
+      let manager: Partial<Official> | undefined = undefined;
       if (row.manager_id && officialIdMap.has(row.manager_id)) {
         manager = officialIdMap.get(row.manager_id);
       }
@@ -631,11 +631,11 @@ export class DatabaseStorage implements IStorage {
     if (filters.priority && filters.priority !== 'all') {
       whereClauses.push(eq(tickets.priority, filters.priority));
     }
-    if (filters.department_id && filters.department_id !== 'all') {
+    if (filters.department_id && filters.department_id !== 0) {
       whereClauses.push(eq(tickets.department_id, filters.department_id));
     }
-    if (filters.assigned_to_id && filters.assigned_to_id !== 'all') {
-      if (filters.assigned_to_id === 'unassigned') {
+    if (filters.assigned_to_id && filters.assigned_to_id !== 0) {
+      if (filters.assigned_to_id === -1) {
       whereClauses.push(isNull(tickets.assigned_to_id));
       } else {
         whereClauses.push(eq(tickets.assigned_to_id, Number(filters.assigned_to_id)));
@@ -2142,7 +2142,10 @@ export class DatabaseStorage implements IStorage {
       } else if (officialId === official.id) {
         whereClauses.push(eq(tickets.assigned_to_id, official.id));
       } else {
-        return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
+        return { 
+          data: [] as Ticket[], 
+          pagination: { page: 1, limit: 10, total: 0, totalPages: 0, hasNext: false, hasPrev: false } 
+        } as any;
       }
       
       // FILTRO OBRIGATÓRIO POR DEPARTAMENTO

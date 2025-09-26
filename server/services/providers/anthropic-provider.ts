@@ -37,7 +37,7 @@ export class AnthropicProvider implements AiProviderInterface {
         body: JSON.stringify({
           model: config.model,
           max_tokens: config.max_tokens,
-          temperature: parseFloat(config.temperature),
+          temperature: parseFloat(config.temperature || "0.7"),
           system: systemPrompt,
           messages: [
             {
@@ -46,7 +46,7 @@ export class AnthropicProvider implements AiProviderInterface {
             }
           ]
         }),
-        signal: AbortSignal.timeout(config.timeout_seconds * 1000)
+        signal: AbortSignal.timeout((config.timeout_seconds || 30) * 1000)
       });
 
       if (!response.ok) {
@@ -81,7 +81,7 @@ export class AnthropicProvider implements AiProviderInterface {
         }
         
         return {
-          priority: config.fallback_priority,
+          priority: config.fallback_priority || "medium",
           confidence: 0,
           justification: 'Resposta vazia da IA',
           usedFallback: true,

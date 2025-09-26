@@ -1280,7 +1280,7 @@ export default function SLAConfigurations() {
                                     return acc;
                                   }, {} as Record<string, SLAConfiguration[]>);
 
-                                  const rows: JSX.Element[] = [];
+                                  const rows: React.ReactElement[] = [];
                                   let incidentCellRendered = false;
 
                                   Object.entries(byCategory).forEach(([catId, list]) => {

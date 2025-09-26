@@ -43,13 +43,13 @@ export class GoogleProvider implements AiProviderInterface {
             }]
           }],
           generationConfig: {
-            temperature: parseFloat(config.temperature),
+            temperature: parseFloat(config.temperature || "0.7"),
             maxOutputTokens: config.max_tokens,
             topK: 1,
             topP: 0.8,
           }
         }),
-        signal: AbortSignal.timeout(config.timeout_seconds * 1000)
+        signal: AbortSignal.timeout((config.timeout_seconds || 30) * 1000)
       });
 
       if (!response.ok) {
@@ -84,7 +84,7 @@ export class GoogleProvider implements AiProviderInterface {
         }
         
         return {
-          priority: config.fallback_priority,
+          priority: config.fallback_priority || "medium",
           confidence: 0,
           justification: 'Resposta vazia da IA',
           usedFallback: true,

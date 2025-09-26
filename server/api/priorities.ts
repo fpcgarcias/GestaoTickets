@@ -137,7 +137,7 @@ export async function getDepartmentPriorities(req: Request, res: Response) {
     }
 
     if (userRole !== 'admin') {
-      accessCompanyId = userCompanyId;
+      accessCompanyId = userCompanyId || null;
     }
 
     if (!accessCompanyId) {
@@ -149,7 +149,7 @@ export async function getDepartmentPriorities(req: Request, res: Response) {
 
     // Buscar prioridades com fallback
     const result = await priorityService.getDepartmentPriorities(
-      accessCompanyId || department.company_id, 
+      accessCompanyId || department.company_id || 0, 
       departmentId
     );
 

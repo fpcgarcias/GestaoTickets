@@ -129,10 +129,10 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
         confirmPassword: ''
       }));
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       toast({
         title: 'Erro ao atualizar cliente',
-        description: error.message,
+        description: error.details || error.message,
         variant: 'destructive',
       });
     },

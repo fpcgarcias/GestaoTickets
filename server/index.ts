@@ -23,9 +23,9 @@ const { fileURLToPath } = require("url") as typeof import("url");
 const { runMigrations } = await import("./migration-runner");
 const { initDb } = await import("./db");
 const pgSimple = require("connect-pg-simple") as typeof import("connect-pg-simple");
-const helmet = require("helmet") as typeof import("helmet");
-const cors = require("cors") as typeof import("cors");
-const rateLimit = require("express-rate-limit") as typeof import("express-rate-limit");
+import helmet from "helmet";
+import cors from "cors";
+import rateLimit from "express-rate-limit";
 // === IMPORTS DE SEGURANCA ===
 
 // Calcular __dirname para ES Modules

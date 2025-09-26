@@ -197,7 +197,7 @@ export default function AuthPage() {
   };
   
   return (
-    <div className="flex min-h-screen bg-gray-100 dark:bg-gray-900">
+    <div className="flex min-h-screen bg-background">
       {/* Lado esquerdo - Formulário */}
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">

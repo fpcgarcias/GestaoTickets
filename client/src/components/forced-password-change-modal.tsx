@@ -104,11 +104,12 @@ export function ForcedPasswordChangeModal({ userId, onSuccess }: ForcedPasswordC
       });
 
       onSuccess();
-    } catch (error) {
-      setErrors(prev => ({ ...prev, general: 'Erro de conexão. Tente novamente.' }));
+    } catch (error: any) {
+      const errorMessage = error.details || error.message || 'Erro ao alterar senha. Tente novamente.';
+      setErrors(prev => ({ ...prev, general: errorMessage }));
       toast({
         title: "Erro",
-        description: "Erro ao alterar senha. Tente novamente.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

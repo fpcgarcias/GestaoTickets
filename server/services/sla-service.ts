@@ -21,7 +21,7 @@ import { eq, and, desc, isNull, isNotNull, ilike } from 'drizzle-orm';
 export interface ResolvedSLA {
   responseTimeHours: number;
   resolutionTimeHours: number;
-  source: 'specific' | 'department_default' | 'company_default' | 'global_fallback';
+  source: 'specific' | 'department_default' | 'company_default' | 'global_fallback' | 'no_config';
   configId?: number;
   fallbackReason?: string;
 }
@@ -91,7 +91,7 @@ export class SLAService {
 
       if (isCategoryMode) {
         // Modo categoria: procurar apenas configs com category_id correspondente
-        resolved = await this.tryCategoryMode(params);
+        resolved = await this.tryCategoryMode(params) || this.getNoSLAResult();
         if (resolved) {
           this.setCache(cacheKey, resolved);
           this.incrementUsage(cacheKey);
@@ -126,9 +126,7 @@ export class SLAService {
 
         // Nível 4: Sem configuração - NUNCA usar fallback hardcoded
         resolved = this.getNoSLAResult();
-        if (resolved) {
-          this.setCache(cacheKey, resolved);
-        }
+        this.setCache(cacheKey, resolved);
         return resolved;
       }
 
@@ -367,11 +365,17 @@ export class SLAService {
   /**
    * Nível 4: Sem configuração - NUNCA usar fallback hardcoded
    */
-  private getNoSLAResult(): ResolvedSLA | null {
+  private getNoSLAResult(): ResolvedSLA {
     console.log(`[SLA] NENHUMA configuração de SLA encontrada - Sem SLA configurado`);
     
-    // NUNCA retornar valores hardcoded - sempre null se não encontrar configuração real
-    return null;
+    // Retornar configuração padrão quando não há SLA configurado
+    return {
+      responseTimeHours: 24,
+      resolutionTimeHours: 72,
+      source: 'no_config',
+      configId: undefined,
+      fallbackReason: 'no_configuration'
+    };
   }
 
   /**
@@ -398,7 +402,8 @@ export class SLAService {
       params.priorityName = priority;
     }
 
-    return this.resolveSLA(params);
+    const result = await this.resolveSLA(params);
+    return result || this.getNoSLAResult();
   }
 
   /**
@@ -416,7 +421,7 @@ export class SLAService {
       if (!this.cache.has(key)) {
         try {
           const params = this.parseCacheKey(key);
-          const resolved = await this.resolveSLA(params);
+          const resolved = await this.resolveSLA(params) || this.getNoSLAResult();
           this.setCache(key, resolved, this.POPULAR_CACHE_TTL);
         } catch (error) {
           console.warn(`Erro ao pré-carregar configuração ${key}:`, error);

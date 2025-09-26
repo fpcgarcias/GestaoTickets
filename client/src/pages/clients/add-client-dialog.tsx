@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,7 +46,7 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
     email: '',
     phone: '',
     company: '',
-    company_id: user?.company?.id || 0,
+    company_id: user?.company_id || user?.company?.id || 0, // Usar company_id do usuário logado
     must_change_password: true
   });
   
@@ -65,6 +65,29 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
   const [existingUser, setExistingUser] = useState<ExistingUser | null>(null);
   const [linkingUser, setLinkingUser] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+  // Definir company_id quando o usuário for carregado
+  useEffect(() => {
+    // Só executar se o usuário estiver carregado
+    if (!user) {
+      return;
+    }
+    
+    // Usar company_id do user (que vem do backend) ou company.id
+    const userCompanyId = user?.company_id || user?.company?.id;
+    
+    if (userCompanyId && formData.company_id === 0) {
+      setFormData(prev => ({
+        ...prev,
+        company_id: userCompanyId
+      }));
+    } else if (userCompanyId && formData.company_id !== userCompanyId) {
+      setFormData(prev => ({
+        ...prev,
+        company_id: userCompanyId
+      }));
+    }
+  }, [user, formData.company_id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -218,12 +241,14 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
   
   // Limpar formulário e resetar estado quando o diálogo for fechado
   const handleCloseDialog = () => {
+    const userCompanyId = user?.company_id || user?.company?.id;
+    
     setFormData({
       name: '',
       email: '',
       phone: '',
       company: '',
-      company_id: user?.company?.id || 0,
+      company_id: userCompanyId || 0,
       must_change_password: true
     });
     setClientCreated(false);
