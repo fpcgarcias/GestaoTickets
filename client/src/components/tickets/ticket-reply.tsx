@@ -100,10 +100,13 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
       // O WebSocket vai atualizar os dados automaticamente
       navigate('/tickets');
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      // Extrair a mensagem de erro do backend
+      const errorMessage = error.details || error.message || "Falha ao enviar resposta";
+      
       toast({
         title: "Erro",
-        description: error.message || "Falha ao enviar resposta",
+        description: errorMessage,
         variant: "destructive",
       });
     },
