@@ -201,6 +201,13 @@ export async function POST(req: Request, res: Response) {
       statusChanged = true;
       validatedData.status = 'reopened';
     }
+    // 🔥 VALIDAÇÃO: Se está tentando alterar de 'novo' para outro status, deve ter atendente vinculado
+    if (statusChanged && ticket.status === 'new' && !validatedData.assigned_to_id && !ticket.assigned_to_id) {
+      return res.status(400).json({ 
+        error: "Não é possível alterar status", 
+        details: "É necessário atribuir um atendente ao ticket antes de alterar o status." 
+      });
+    }
     if (statusChanged) {
       // Buscar ou criar usuário bot para IA
       let botUser = await db
