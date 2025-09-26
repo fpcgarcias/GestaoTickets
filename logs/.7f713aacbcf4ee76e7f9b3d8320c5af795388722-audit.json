@@ -6,21 +6,6 @@
     "auditLog": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\.7f713aacbcf4ee76e7f9b3d8320c5af795388722-audit.json",
     "files": [
         {
-            "date": 1757333133229,
-            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-09-08.log",
-            "hash": "d54f57bc758945ae925269606c161d7f8cdc502efa34a347ec0c960afa9f6c27"
-        },
-        {
-            "date": 1757430542538,
-            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-09-09.log",
-            "hash": "e742f1bbf8880535fc54f96966411ed5feebf095919a74e2a1f64bfbe70fad71"
-        },
-        {
-            "date": 1757525870196,
-            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-09-10.log",
-            "hash": "af8b250e8eea42faf6f5654ae3978e0974ce237f6557f5f445b040dc99c59a6c"
-        },
-        {
             "date": 1757947416076,
             "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-09-15.log",
             "hash": "eeae4ef85e2a0cb4b0e97314dd328092a3436fecb8a5937573908dbb6306a7e9"
@@ -29,6 +14,16 @@
             "date": 1758199257543,
             "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-09-18.log",
             "hash": "f8db38eb91c7c44205db56d9e1b5c42e1ce0f707b51321eb63c8cd77cecf9209"
+        },
+        {
+            "date": 1758806058728,
+            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-09-25.log",
+            "hash": "6e6cbe25d3194a4d4ed58de4a0c822879423e76c1029a1a31b998f59c89da09a"
+        },
+        {
+            "date": 1758891399238,
+            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-09-26.log",
+            "hash": "8094436f1892465ee4f1e10cdac925b1837930390f2630e182cf5d3fb460c514"
         }
     ],
     "hashType": "sha256"

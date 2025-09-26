@@ -49,6 +49,10 @@ if (process.env.NODE_ENV === 'production') {
         '@opentelemetry/instrumentation-pg': {
           // Monitorar queries PostgreSQL
           enabled: true,
+          // Configurações adicionais para melhor instrumentação
+          enhancedDatabaseReporting: true,
+          // Capturar queries SQL completas
+          captureParameters: false, // Por segurança, não capturar parâmetros
         },
         '@opentelemetry/instrumentation-fs': {
           // Monitorar operações de arquivo (uploads)
@@ -71,6 +75,12 @@ if (process.env.NODE_ENV === 'production') {
   sdk.start();
   
   console.log('✅ OpenTelemetry configurado com sucesso!');
+  console.log('🔍 Instrumentações ativas:');
+  console.log('  - Express.js: ✅');
+  console.log('  - HTTP requests: ✅');
+  console.log('  - PostgreSQL (pg): ✅');
+  console.log('  - File System: ✅');
+  console.log('📊 Métricas serão exportadas a cada 10 segundos para New Relic');
   
   // Graceful shutdown
   process.on('SIGTERM', () => {
