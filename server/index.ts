@@ -39,11 +39,31 @@ const app = express();
 
 // === TRATAMENTO DE ERROS GLOBAIS PARA EVITAR CRASHES ===
 process.on('uncaughtException', (error) => {
+  // Filtrar erros comuns que não são críticos
+  if (error.message && (
+    error.message.includes('EPIPE') || 
+    error.message.includes('ECONNRESET') ||
+    error.message.includes('ETIMEDOUT')
+  )) {
+    // Erros de conexão são normais - não logar como erro crítico
+    console.log('🔌 Conexão cliente interrompida (normal):', error.message);
+    return;
+  }
+  
   console.error('❌ UNCAUGHT EXCEPTION - Servidor não vai crashar:', error);
   // NÃO fazer process.exit() para evitar crash
 });
 
 process.on('unhandledRejection', (reason, promise) => {
+  // Filtrar rejeições relacionadas a conexões
+  if (reason && typeof reason === 'object' && 'message' in reason) {
+    const message = (reason as Error).message;
+    if (message.includes('EPIPE') || message.includes('ECONNRESET') || message.includes('ETIMEDOUT')) {
+      console.log('🔌 Promise rejeitada por conexão interrompida (normal):', message);
+      return;
+    }
+  }
+  
   console.error('❌ UNHANDLED REJECTION - Servidor não vai crashar:', reason);
   console.error('Promise:', promise);
   // NÃO fazer process.exit() para evitar crash
