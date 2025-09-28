@@ -81,28 +81,8 @@ import {
 
 
 // === IMPORTS DE SEGURANÇA ===
-
-import { 
-
-  authLimiter, 
-
-  apiLimiter, 
-
-  uploadLimiter, 
-
-  validateSchema, 
-
-  loginSchema, 
-
-  ticketSchema, 
-
-  sanitizeHtml, 
-
-  securityLogger, 
-
-  validateFileUpload
-
-} from './middleware/security';
+// NOTA: Os imports de rate limiting foram movidos para dentro de registerRoutes()
+// para evitar conflitos com trust proxy que é configurado depois
 
 
 
@@ -613,6 +593,19 @@ async function canUserReplyToTicket(
 export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   const router = express.Router();
+
+  // === IMPORTS DE SEGURANÇA (movidos para cá para evitar conflitos com trust proxy) ===
+  const { 
+    authLimiter, 
+    apiLimiter, 
+    uploadLimiter, 
+    validateSchema, 
+    loginSchema, 
+    ticketSchema, 
+    sanitizeHtml, 
+    securityLogger, 
+    validateFileUpload
+  } = await import('./middleware/security');
 
   
 
