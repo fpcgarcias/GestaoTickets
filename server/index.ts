@@ -25,7 +25,7 @@ const { initDb } = await import("./db");
 const pgSimple = require("connect-pg-simple") as typeof import("connect-pg-simple");
 import helmet from "helmet";
 import cors from "cors";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 // === IMPORTS DE SEGURANCA ===
 
 // Calcular __dirname para ES Modules
@@ -131,13 +131,8 @@ try {
       message: "Muitas tentativas. Tente novamente em 15 minutos.",
       standardHeaders: true,
       legacyHeaders: false,
-      // CONFIGURAÇÃO PARA TRUST PROXY: usar X-Forwarded-For corretamente
-      keyGenerator: (req) => {
-        // Pegar o IP real do cliente através do header X-Forwarded-For
-        const forwarded = req.headers['x-forwarded-for'] as string;
-        const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
-        return ip;
-      },
+      // USAR HELPER DO EXPRESS-RATE-LIMIT PARA IP CORRETO
+      keyGenerator: ipKeyGenerator,
       // Configurar para aceitar trust proxy
       trustProxy: true
     });
@@ -147,12 +142,8 @@ try {
       max: 50, // 50 tentativas de login por IP (muito mais generoso)
       message: "Muitas tentativas de login. Tente novamente em 15 minutos.",
       skipSuccessfulRequests: true,
-      // CONFIGURAÇÃO PARA TRUST PROXY
-      keyGenerator: (req) => {
-        const forwarded = req.headers['x-forwarded-for'] as string;
-        const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
-        return ip;
-      },
+      // USAR HELPER DO EXPRESS-RATE-LIMIT PARA IP CORRETO
+      keyGenerator: ipKeyGenerator,
       trustProxy: true
     });
 

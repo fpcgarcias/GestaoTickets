@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import Joi from 'joi';
 import { body, validationResult } from 'express-validator';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import xss from 'xss';
 import { logSecurityEvent } from '../api/security-monitoring';
 
@@ -105,12 +105,8 @@ try {
       },
       standardHeaders: true,
       legacyHeaders: false,
-      // CONFIGURAÇÃO PARA TRUST PROXY
-      keyGenerator: (req) => {
-        const forwarded = req.headers['x-forwarded-for'] as string;
-        const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
-        return ip;
-      },
+      // USAR HELPER DO EXPRESS-RATE-LIMIT PARA IP CORRETO
+      keyGenerator: ipKeyGenerator,
       trustProxy: true
     });
 
@@ -124,12 +120,8 @@ try {
       skipSuccessfulRequests: true,
       standardHeaders: true,
       legacyHeaders: false,
-      // CONFIGURAÇÃO PARA TRUST PROXY
-      keyGenerator: (req) => {
-        const forwarded = req.headers['x-forwarded-for'] as string;
-        const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
-        return ip;
-      },
+      // USAR HELPER DO EXPRESS-RATE-LIMIT PARA IP CORRETO
+      keyGenerator: ipKeyGenerator,
       trustProxy: true
     });
 
@@ -142,12 +134,8 @@ try {
       },
       standardHeaders: true,
       legacyHeaders: false,
-      // CONFIGURAÇÃO PARA TRUST PROXY
-      keyGenerator: (req) => {
-        const forwarded = req.headers['x-forwarded-for'] as string;
-        const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
-        return ip;
-      },
+      // USAR HELPER DO EXPRESS-RATE-LIMIT PARA IP CORRETO
+      keyGenerator: ipKeyGenerator,
       trustProxy: true
     });
   } else {
