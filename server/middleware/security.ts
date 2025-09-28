@@ -94,63 +94,72 @@ export const sanitizeHtml = (req: Request, res: Response, next: NextFunction) =>
 
 let apiLimiter, authLimiter, uploadLimiter;
 
-if (process.env.NODE_ENV === 'production') {
-  apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 2000, // 2000 requests por IP (muito mais generoso)
-    message: {
-      error: 'Muitas requisições da API',
-      retryAfter: '15 minutos'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    // CONFIGURAÇÃO PARA TRUST PROXY
-    keyGenerator: (req) => {
-      const forwarded = req.headers['x-forwarded-for'] as string;
-      const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
-      return ip;
-    },
-    trustProxy: true
-  });
+try {
+  if (process.env.NODE_ENV === 'production') {
+    apiLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutos
+      max: 2000, // 2000 requests por IP (muito mais generoso)
+      message: {
+        error: 'Muitas requisições da API',
+        retryAfter: '15 minutos'
+      },
+      standardHeaders: true,
+      legacyHeaders: false,
+      // CONFIGURAÇÃO PARA TRUST PROXY
+      keyGenerator: (req) => {
+        const forwarded = req.headers['x-forwarded-for'] as string;
+        const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
+        return ip;
+      },
+      trustProxy: true
+    });
 
-  authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutos  
-    max: 50, // 50 tentativas de auth por IP
-    message: {
-      error: 'Muitas tentativas de autenticação',
-      retryAfter: '15 minutos'
-    },
-    skipSuccessfulRequests: true,
-    standardHeaders: true,
-    legacyHeaders: false,
-    // CONFIGURAÇÃO PARA TRUST PROXY
-    keyGenerator: (req) => {
-      const forwarded = req.headers['x-forwarded-for'] as string;
-      const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
-      return ip;
-    },
-    trustProxy: true
-  });
+    authLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutos  
+      max: 50, // 50 tentativas de auth por IP
+      message: {
+        error: 'Muitas tentativas de autenticação',
+        retryAfter: '15 minutos'
+      },
+      skipSuccessfulRequests: true,
+      standardHeaders: true,
+      legacyHeaders: false,
+      // CONFIGURAÇÃO PARA TRUST PROXY
+      keyGenerator: (req) => {
+        const forwarded = req.headers['x-forwarded-for'] as string;
+        const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
+        return ip;
+      },
+      trustProxy: true
+    });
 
-  uploadLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 hora
-    max: 100, // 100 uploads por hora por IP (mais generoso)
-    message: {
-      error: 'Muitos uploads',
-      retryAfter: '1 hora'
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-    // CONFIGURAÇÃO PARA TRUST PROXY
-    keyGenerator: (req) => {
-      const forwarded = req.headers['x-forwarded-for'] as string;
-      const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
-      return ip;
-    },
-    trustProxy: true
-  });
-} else {
-  // Em desenvolvimento, criar middlewares vazios que não fazem nada
+    uploadLimiter = rateLimit({
+      windowMs: 60 * 60 * 1000, // 1 hora
+      max: 100, // 100 uploads por hora por IP (mais generoso)
+      message: {
+        error: 'Muitos uploads',
+        retryAfter: '1 hora'
+      },
+      standardHeaders: true,
+      legacyHeaders: false,
+      // CONFIGURAÇÃO PARA TRUST PROXY
+      keyGenerator: (req) => {
+        const forwarded = req.headers['x-forwarded-for'] as string;
+        const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
+        return ip;
+      },
+      trustProxy: true
+    });
+  } else {
+    // Em desenvolvimento, criar middlewares vazios que não fazem nada
+    apiLimiter = (req: any, res: any, next: any) => next();
+    authLimiter = (req: any, res: any, next: any) => next();
+    uploadLimiter = (req: any, res: any, next: any) => next();
+  }
+} catch (error) {
+  console.error('❌ ERRO ao configurar rate limiting no middleware:', error);
+  console.log('⚠️  Rate limiting DESABILITADO no middleware para evitar crash');
+  // Criar middlewares vazios que não fazem nada em caso de erro
   apiLimiter = (req: any, res: any, next: any) => next();
   authLimiter = (req: any, res: any, next: any) => next();
   uploadLimiter = (req: any, res: any, next: any) => next();
