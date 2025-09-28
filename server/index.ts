@@ -39,8 +39,14 @@ const app = express();
 
 // === CONFIGURAÇÕES DE PROXY ===
 // Configuração robusta para múltiplos proxies e acessos
-app.set('trust proxy', true); // Confiar em TODOS os proxies para máxima flexibilidade
-console.log('🔧 Trust proxy: Habilitado para todos os proxies');
+// Só habilitar trust proxy em produção para evitar conflitos com rate limiting
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', true); // Confiar em TODOS os proxies para máxima flexibilidade
+  console.log('🔧 Trust proxy: Habilitado para todos os proxies (produção)');
+} else {
+  app.set('trust proxy', false); // Desabilitar em desenvolvimento
+  console.log('🔧 Trust proxy: Desabilitado (desenvolvimento)');
+}
 
 // === CONFIGURAÇÕES DE SEGURANÇA ===
 
@@ -121,30 +127,36 @@ app.use(cors({
 }));
 
 // 3. Rate Limiting - MAIS PERMISSIVO para evitar bloqueios
-const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 5000, // 5000 requests por IP (muito mais generoso)
-  message: "Muitas tentativas. Tente novamente em 15 minutos.",
-  standardHeaders: true,
-  legacyHeaders: false,
-  // Não aplicar rate limiting em desenvolvimento
-  skip: () => process.env.NODE_ENV !== 'production'
-});
+// Só criar rate limiters em produção para evitar conflitos
+let generalLimiter, authLimiter;
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 50, // 50 tentativas de login por IP (muito mais generoso)
-  message: "Muitas tentativas de login. Tente novamente em 15 minutos.",
-  skipSuccessfulRequests: true,
-  // Não aplicar em desenvolvimento
-  skip: () => process.env.NODE_ENV !== 'production'
-});
-
-// Aplicar rate limiting apenas em produção
 if (process.env.NODE_ENV === 'production') {
+  generalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 5000, // 5000 requests por IP (muito mais generoso)
+    message: "Muitas tentativas. Tente novamente em 15 minutos.",
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 50, // 50 tentativas de login por IP (muito mais generoso)
+    message: "Muitas tentativas de login. Tente novamente em 15 minutos.",
+    skipSuccessfulRequests: true,
+  });
+
   app.use(generalLimiter);
+  console.log('🔒 Rate limiting: Habilitado (produção)');
+} else {
+  // Em desenvolvimento, criar middlewares vazios que não fazem nada
+  generalLimiter = (req: any, res: any, next: any) => next();
+  authLimiter = (req: any, res: any, next: any) => next();
+  console.log('🔒 Rate limiting: Desabilitado (desenvolvimento)');
 }
-// Rate limiting específico para endpoints de autenticação será aplicado nas rotas
+
+// Exportar para uso nas rotas
+export { generalLimiter, authLimiter };
 
 app.use(express.json({ limit: '10mb' })); // Limite de payload
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));

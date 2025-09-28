@@ -90,46 +90,52 @@ export const sanitizeHtml = (req: Request, res: Response, next: NextFunction) =>
 };
 
 // === RATE LIMITING MAIS PERMISSIVO ===
+// Só criar rate limiters em produção para evitar conflitos com trust proxy
 
-export const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 2000, // 2000 requests por IP (muito mais generoso)
-  message: {
-    error: 'Muitas requisições da API',
-    retryAfter: '15 minutos'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  // Não aplicar em desenvolvimento
-  skip: () => process.env.NODE_ENV !== 'production'
-});
+let apiLimiter, authLimiter, uploadLimiter;
 
-export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos  
-  max: 50, // 50 tentativas de auth por IP
-  message: {
-    error: 'Muitas tentativas de autenticação',
-    retryAfter: '15 minutos'
-  },
-  skipSuccessfulRequests: true,
-  standardHeaders: true,
-  legacyHeaders: false,
-  // Não aplicar em desenvolvimento
-  skip: () => process.env.NODE_ENV !== 'production'
-});
+if (process.env.NODE_ENV === 'production') {
+  apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 2000, // 2000 requests por IP (muito mais generoso)
+    message: {
+      error: 'Muitas requisições da API',
+      retryAfter: '15 minutos'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
 
-export const uploadLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hora
-  max: 100, // 100 uploads por hora por IP (mais generoso)
-  message: {
-    error: 'Muitos uploads',
-    retryAfter: '1 hora'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  // Não aplicar em desenvolvimento  
-  skip: () => process.env.NODE_ENV !== 'production'
-});
+  authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos  
+    max: 50, // 50 tentativas de auth por IP
+    message: {
+      error: 'Muitas tentativas de autenticação',
+      retryAfter: '15 minutos'
+    },
+    skipSuccessfulRequests: true,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  uploadLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hora
+    max: 100, // 100 uploads por hora por IP (mais generoso)
+    message: {
+      error: 'Muitos uploads',
+      retryAfter: '1 hora'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+} else {
+  // Em desenvolvimento, criar middlewares vazios que não fazem nada
+  apiLimiter = (req: any, res: any, next: any) => next();
+  authLimiter = (req: any, res: any, next: any) => next();
+  uploadLimiter = (req: any, res: any, next: any) => next();
+}
+
+export { apiLimiter, authLimiter, uploadLimiter };
 
 // === VALIDAÇÃO DE ARQUIVO ===
 export const validateFileUpload = (req: RequestWithFile, res: Response, next: NextFunction) => {
