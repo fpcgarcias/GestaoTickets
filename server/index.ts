@@ -37,6 +37,29 @@ const generateSecret = () => crypto.randomBytes(32).toString('hex');
 
 const app = express();
 
+// === TRATAMENTO DE ERROS GLOBAIS PARA EVITAR CRASHES ===
+process.on('uncaughtException', (error) => {
+  console.error('❌ UNCAUGHT EXCEPTION - Servidor não vai crashar:', error);
+  // NÃO fazer process.exit() para evitar crash
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ UNHANDLED REJECTION - Servidor não vai crashar:', reason);
+  console.error('Promise:', promise);
+  // NÃO fazer process.exit() para evitar crash
+});
+
+// Capturar erros de sintaxe e outros erros síncronos
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM recebido, encerrando graciosamente...');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT recebido, encerrando graciosamente...');
+  process.exit(0);
+});
+
 // === CONFIGURAÇÕES DE PROXY ===
 // Configuração robusta para múltiplos proxies e acessos
 app.set('trust proxy', true); // Confiar em TODOS os proxies para máxima flexibilidade
@@ -349,8 +372,23 @@ async function startServer() {
       console.log(`🔒 Middlewares de segurança ativados: Helmet, CORS, Rate Limiting`);
     });
   } catch (error) {
-    console.error('Erro ao iniciar o servidor:', error);
-    process.exit(1);
+    console.error('❌ ERRO ao iniciar o servidor:', error);
+    console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'N/A');
+    console.log('⚠️  Servidor não vai crashar - tentando continuar...');
+    
+    // NÃO fazer process.exit() - deixar o servidor tentar continuar
+    // Em vez de crashar, vamos tentar iniciar apenas o básico
+    try {
+      const PORT = process.env.PORT || 5000;
+      app.listen(PORT, () => {
+        console.log(`⚠️  Servidor iniciado em modo de recuperação na porta ${PORT}`);
+        console.log('⚠️  Algumas funcionalidades podem não estar disponíveis');
+      });
+    } catch (recoveryError) {
+      console.error('❌ Falha total na inicialização:', recoveryError);
+      // Só agora fazer exit se nem o básico funcionar
+      process.exit(1);
+    }
   }
 }
 
