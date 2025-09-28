@@ -1,6 +1,7 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiRequest, queryClient } from '@/lib/queryClient';
+import { apiRequest, queryClient, setSessionExpiredCallback } from '@/lib/queryClient';
+import { useLocation } from 'wouter';
 
 interface Company {
   id: number;
@@ -49,6 +50,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     show: false, 
     userId: null 
   });
+  const [, setLocation] = useLocation();
+
+  // Função para lidar com sessão expirada
+  const handleSessionExpired = () => {
+    console.log('🔒 [AUTH] Limpando estado de autenticação e redirecionando...');
+    setUser(null);
+    setCompany(null);
+    setError(null);
+    queryClient.setQueryData(['/api/auth/me'], null);
+    setLocation('/auth');
+  };
+
+  // Configurar callback global para sessão expirada
+  useEffect(() => {
+    setSessionExpiredCallback(handleSessionExpired);
+  }, []);
+
+  // Detecção por Visibility API - verificar sessão quando usuário volta à aba
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      // Só verificar se a aba ficou visível e há um usuário logado
+      if (!document.hidden && user) {
+        try {
+          // Fazer uma requisição simples para verificar se a sessão ainda é válida
+          await apiRequest('GET', '/api/auth/me');
+        } catch (error: any) {
+          // Se a requisição falhar com 401/403, o interceptor global já vai lidar
+          // Mas podemos adicionar um log adicional aqui se necessário
+          if (error.status === 401 || error.status === 403) {
+            console.log('🔒 [AUTH] Sessão expirada detectada via Visibility API');
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user]);
 
   const { data, isLoading: isQueryLoading, error: queryError } = useQuery({
     queryKey: ['/api/auth/me'],
@@ -120,10 +162,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       await apiRequest('POST', '/api/auth/logout', {});
-      setUser(null);
-      setCompany(null);
-      queryClient.setQueryData(['/api/auth/me'], null);
+      handleSessionExpired(); // Usar a mesma função de limpeza
     } catch (err) {
+      // Mesmo se o logout falhar no servidor, limpar o estado local
+      handleSessionExpired();
       setError(err instanceof Error ? err : new Error('Falha ao fazer logout'));
       throw err;
     }

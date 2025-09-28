@@ -1,6 +1,13 @@
 import { QueryClient } from "@tanstack/react-query";
 import { config } from "./config";
 
+// Callback global para quando a sessão expira
+let onSessionExpired: (() => void) | null = null;
+
+export function setSessionExpiredCallback(callback: () => void) {
+  onSessionExpired = callback;
+}
+
 export async function apiRequest(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
   url: string,
@@ -42,6 +49,16 @@ export async function apiRequest(
     // Logs apenas em desenvolvimento
     if (process.env.NODE_ENV === 'development') {
       console.error(`❌ [API] Erro ${method} ${fullUrl}:`, errorData.message || errorData);
+    }
+    
+    // Detectar sessão expirada (401 Unauthorized ou 403 Forbidden)
+    if (res.status === 401 || res.status === 403) {
+      console.log('🔒 [AUTH] Sessão expirada detectada, redirecionando para login...');
+      
+      // Chamar callback global se estiver definido
+      if (onSessionExpired) {
+        onSessionExpired();
+      }
     }
     
     // Criar erro personalizado que preserva todas as propriedades
