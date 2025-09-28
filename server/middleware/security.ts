@@ -104,6 +104,13 @@ if (process.env.NODE_ENV === 'production') {
     },
     standardHeaders: true,
     legacyHeaders: false,
+    // CONFIGURAÇÃO PARA TRUST PROXY
+    keyGenerator: (req) => {
+      const forwarded = req.headers['x-forwarded-for'] as string;
+      const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
+      return ip;
+    },
+    trustProxy: true
   });
 
   authLimiter = rateLimit({
@@ -116,6 +123,13 @@ if (process.env.NODE_ENV === 'production') {
     skipSuccessfulRequests: true,
     standardHeaders: true,
     legacyHeaders: false,
+    // CONFIGURAÇÃO PARA TRUST PROXY
+    keyGenerator: (req) => {
+      const forwarded = req.headers['x-forwarded-for'] as string;
+      const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
+      return ip;
+    },
+    trustProxy: true
   });
 
   uploadLimiter = rateLimit({
@@ -127,6 +141,13 @@ if (process.env.NODE_ENV === 'production') {
     },
     standardHeaders: true,
     legacyHeaders: false,
+    // CONFIGURAÇÃO PARA TRUST PROXY
+    keyGenerator: (req) => {
+      const forwarded = req.headers['x-forwarded-for'] as string;
+      const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
+      return ip;
+    },
+    trustProxy: true
   });
 } else {
   // Em desenvolvimento, criar middlewares vazios que não fazem nada

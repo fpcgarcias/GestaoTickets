@@ -39,14 +39,8 @@ const app = express();
 
 // === CONFIGURAÇÕES DE PROXY ===
 // Configuração robusta para múltiplos proxies e acessos
-// Só habilitar trust proxy em produção para evitar conflitos com rate limiting
-if (process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', true); // Confiar em TODOS os proxies para máxima flexibilidade
-  console.log('🔧 Trust proxy: Habilitado para todos os proxies (produção)');
-} else {
-  app.set('trust proxy', false); // Desabilitar em desenvolvimento
-  console.log('🔧 Trust proxy: Desabilitado (desenvolvimento)');
-}
+app.set('trust proxy', true); // Confiar em TODOS os proxies para máxima flexibilidade
+console.log('🔧 Trust proxy: Habilitado para todos os proxies');
 
 // === CONFIGURAÇÕES DE SEGURANÇA ===
 
@@ -126,33 +120,56 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept']
 }));
 
-// 3. Rate Limiting - MAIS PERMISSIVO para evitar bloqueios
-// Só criar rate limiters em produção para evitar conflitos
+// 3. Rate Limiting - COM TRATAMENTO DE ERRO PARA NÃO CRASHAR O SERVIDOR
 let generalLimiter, authLimiter;
 
-if (process.env.NODE_ENV === 'production') {
-  generalLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 5000, // 5000 requests por IP (muito mais generoso)
-    message: "Muitas tentativas. Tente novamente em 15 minutos.",
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
+try {
+  if (process.env.NODE_ENV === 'production') {
+    generalLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutos
+      max: 5000, // 5000 requests por IP (muito mais generoso)
+      message: "Muitas tentativas. Tente novamente em 15 minutos.",
+      standardHeaders: true,
+      legacyHeaders: false,
+      // CONFIGURAÇÃO PARA TRUST PROXY: usar X-Forwarded-For corretamente
+      keyGenerator: (req) => {
+        // Pegar o IP real do cliente através do header X-Forwarded-For
+        const forwarded = req.headers['x-forwarded-for'] as string;
+        const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
+        return ip;
+      },
+      // Configurar para aceitar trust proxy
+      trustProxy: true
+    });
 
-  authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 50, // 50 tentativas de login por IP (muito mais generoso)
-    message: "Muitas tentativas de login. Tente novamente em 15 minutos.",
-    skipSuccessfulRequests: true,
-  });
+    authLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutos
+      max: 50, // 50 tentativas de login por IP (muito mais generoso)
+      message: "Muitas tentativas de login. Tente novamente em 15 minutos.",
+      skipSuccessfulRequests: true,
+      // CONFIGURAÇÃO PARA TRUST PROXY
+      keyGenerator: (req) => {
+        const forwarded = req.headers['x-forwarded-for'] as string;
+        const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip;
+        return ip;
+      },
+      trustProxy: true
+    });
 
-  app.use(generalLimiter);
-  console.log('🔒 Rate limiting: Habilitado (produção)');
-} else {
-  // Em desenvolvimento, criar middlewares vazios que não fazem nada
+    app.use(generalLimiter);
+    console.log('🔒 Rate limiting: Habilitado (produção) com trust proxy');
+  } else {
+    // Em desenvolvimento, criar middlewares vazios que não fazem nada
+    generalLimiter = (req: any, res: any, next: any) => next();
+    authLimiter = (req: any, res: any, next: any) => next();
+    console.log('🔒 Rate limiting: Desabilitado (desenvolvimento)');
+  }
+} catch (error) {
+  console.error('❌ ERRO ao configurar rate limiting:', error);
+  console.log('⚠️  Rate limiting DESABILITADO para evitar crash do servidor');
+  // Criar middlewares vazios que não fazem nada em caso de erro
   generalLimiter = (req: any, res: any, next: any) => next();
   authLimiter = (req: any, res: any, next: any) => next();
-  console.log('🔒 Rate limiting: Desabilitado (desenvolvimento)');
 }
 
 // Exportar para uso nas rotas
