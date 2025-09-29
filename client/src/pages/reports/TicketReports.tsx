@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -16,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Download, CalendarIcon, Filter, ChevronDown } from 'lucide-react';
+import { Download, CalendarIcon, Filter, ChevronDown, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/hooks/use-auth';
@@ -105,7 +106,8 @@ export default function TicketReports() {
   const [filters, setFilters] = useState({
     status: searchParams.get('status') || 'all',
     priority: searchParams.get('priority') || 'all',
-    departmentId: searchParams.get('departmentId') || 'all'
+    departmentId: searchParams.get('departmentId') || 'all',
+    showInactiveOfficials: searchParams.get('showInactiveOfficials') === 'true' || false
   });
   const [departments, setDepartments] = useState<Department[]>([]);
   const [priorities, setPriorities] = useState<PriorityOption[]>([]);
@@ -137,6 +139,7 @@ export default function TicketReports() {
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
       if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
+      if (filters.showInactiveOfficials) params.append('showInactiveOfficials', 'true');
 
       const url = `/api/reports/tickets?${params}`;
       
@@ -258,7 +261,7 @@ export default function TicketReports() {
 
 
 
-  const handleFilterChange = (key: string, value: string) => {
+  const handleFilterChange = (key: string, value: string | boolean) => {
     // Atualizar os filtros locais primeiro
     setFilters(prev => {
       const newFilters = { ...prev, [key]: value };
@@ -284,6 +287,7 @@ export default function TicketReports() {
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
       if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
+      if (filters.showInactiveOfficials) params.append('showInactiveOfficials', 'true');
       params.append('format', format);
       
       // Usar método simples para todos os formatos
@@ -300,7 +304,18 @@ export default function TicketReports() {
   return (
     <div className="p-6">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
-        <h1 className="text-2xl font-bold">Relatório de Chamados</h1>
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => window.history.back()}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Button>
+          <h1 className="text-2xl font-bold">Relatório de Chamados</h1>
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button className="w-full lg:w-auto">
@@ -430,6 +445,22 @@ export default function TicketReports() {
           </div>
 
           <div className="mt-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="showInactiveOfficials"
+                checked={filters.showInactiveOfficials}
+                onCheckedChange={(checked) => handleFilterChange('showInactiveOfficials', checked === true)}
+              />
+              <label
+                htmlFor="showInactiveOfficials"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Incluir atendentes inativos
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-4">
             <Button onClick={() => {
               // Atualizar URL com os filtros atuais
               const newParams = new URLSearchParams();
@@ -440,6 +471,7 @@ export default function TicketReports() {
               if (filters.status && filters.status !== 'all') newParams.set('status', filters.status);
               if (filters.priority && filters.priority !== 'all') newParams.set('priority', filters.priority);
               if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
+              if (filters.showInactiveOfficials) newParams.set('showInactiveOfficials', 'true');
               
               setSearchParams(newParams);
               

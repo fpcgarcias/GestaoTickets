@@ -50,7 +50,7 @@ process.on('uncaughtException', (error) => {
     return;
   }
   
-  console.error('❌ UNCAUGHT EXCEPTION - Servidor não vai crashar:', error);
+  console.error('❌ UNCAUGHT EXCEPTION - Mantendo servidor em execução:', error);
   // NÃO fazer process.exit() para evitar crash
 });
 

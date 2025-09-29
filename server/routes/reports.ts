@@ -7,6 +7,9 @@ import * as schema from '@shared/schema';
 import { eq, desc, and, or, gte, lte, isNull, inArray, sql } from 'drizzle-orm';
 import * as XLSX from 'xlsx';
 import puppeteer from 'puppeteer';
+import { calculateEffectiveBusinessTime, getBusinessHoursConfig, convertStatusHistoryToPeriods } from '@shared/utils/sla-calculator';
+import { type TicketStatus } from '@shared/ticket-utils';
+import { storage } from '../storage';
 
 const router = Router();
 
@@ -949,7 +952,885 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
 
 // Performance reports
 router.get('/performance', authRequired, async (req: Request, res: Response) => {
-  res.json({ message: 'Performance reports endpoint - to be implemented' });
+  try {
+    const { startDate, endDate, start_date, end_date, departmentId, companyId, showInactiveOfficials } = req.query;
+
+    const startDateParam = (start_date || startDate) as string | undefined;
+    const endDateParam = (end_date || endDate) as string | undefined;
+    const showInactiveOfficialsParam = showInactiveOfficials === 'true';
+
+    // Build base query for tickets
+    let baseQuery = db.select({
+      id: schema.tickets.id,
+      ticket_id: schema.tickets.ticket_id,
+      status: schema.tickets.status,
+      priority: schema.tickets.priority,
+      created_at: schema.tickets.created_at,
+      first_response_at: schema.tickets.first_response_at,
+      resolved_at: schema.tickets.resolved_at,
+      sla_breached: schema.tickets.sla_breached,
+      department_id: schema.tickets.department_id,
+      assigned_to_id: schema.tickets.assigned_to_id,
+      company_id: schema.tickets.company_id
+    }).from(schema.tickets);
+
+    // Role-based filters (same logic as /tickets)
+    const userId = req.session.userId;
+    const userRole = req.session.userRole as string;
+
+    if (!userId || !userRole) {
+      return res.status(401).json({ message: 'Usuário não autenticado' });
+    }
+
+    const roleConditions: any[] = [];
+
+    if (userRole === 'admin') {
+      // No additional filters
+    } else if (userRole === 'company_admin') {
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+      if (!user || !user.company_id) {
+        return res.status(403).json({ message: 'Usuário sem empresa definida' });
+      }
+      roleConditions.push(eq(schema.tickets.company_id, user.company_id));
+    } else if (userRole === 'manager') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Manager sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      const subordinates = await db.select().from(schema.officials)
+        .where(eq(schema.officials.manager_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(schema.tickets.assigned_to_id)
+      );
+      roleConditions.push(and(inArray(schema.tickets.department_id, departmentIds), assignmentFilter));
+    } else if (userRole === 'supervisor') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Supervisor sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      const subordinates = await db.select().from(schema.officials)
+        .where(eq(schema.officials.supervisor_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(schema.tickets.assigned_to_id)
+      );
+      roleConditions.push(and(inArray(schema.tickets.department_id, departmentIds), assignmentFilter));
+    } else if (userRole === 'support') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Support sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        isNull(schema.tickets.assigned_to_id)
+      );
+      roleConditions.push(and(inArray(schema.tickets.department_id, departmentIds), assignmentFilter));
+    } else if (userRole === 'customer') {
+      const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
+      if (!customer) {
+        return res.status(403).json({ message: 'Customer não encontrado' });
+      }
+      roleConditions.push(eq(schema.tickets.customer_id, customer.id));
+    } else {
+      return res.status(403).json({ message: 'Role não reconhecido' });
+    }
+
+    const additionalFilters: any[] = [];
+    if (startDateParam) {
+      additionalFilters.push(gte(schema.tickets.created_at, new Date(startDateParam)));
+    }
+    if (endDateParam) {
+      additionalFilters.push(lte(schema.tickets.created_at, new Date(endDateParam)));
+    }
+    if (departmentId) {
+      additionalFilters.push(eq(schema.tickets.department_id, Number(departmentId)));
+    }
+    if (companyId) {
+      additionalFilters.push(eq(schema.tickets.company_id, Number(companyId)));
+    }
+
+    // Build where clause safely
+    const allConditions = [];
+    
+    if (roleConditions.length > 0) {
+      const validRoleConditions = roleConditions.filter(condition => condition !== undefined && condition !== null);
+      if (validRoleConditions.length > 0) {
+        allConditions.push(and(...validRoleConditions));
+      }
+    }
+    
+    if (additionalFilters.length > 0) {
+      const validAdditionalFilters = additionalFilters.filter(filter => filter !== undefined && filter !== null);
+      if (validAdditionalFilters.length > 0) {
+        allConditions.push(and(...validAdditionalFilters));
+      }
+    }
+    
+    const whereClause = allConditions.length > 0 ? and(...allConditions) : undefined;
+
+    // Validate schema objects before using them
+    if (!schema || !schema.tickets) {
+      throw new Error('Schema de tickets não encontrado');
+    }
+
+    // Define the select fields object with validation
+    const selectFields = Object.fromEntries(
+      Object.entries({
+        id: schema.tickets.id,
+        assigned_to_id: schema.tickets.assigned_to_id,
+        department_id: schema.tickets.department_id,
+        created_at: schema.tickets.created_at,
+        first_response_at: schema.tickets.first_response_at,
+        resolved_at: schema.tickets.resolved_at
+      }).filter(([key, value]) => value !== undefined && value !== null)
+    );
+
+    // Validate that we have valid select fields
+    if (!selectFields || Object.keys(selectFields).length === 0) {
+      throw new Error('Campos de seleção inválidos para tickets');
+    }
+
+    // Build the base query with validation
+    let ticketsQuery = db.select(selectFields).from(schema.tickets);
+    
+    // Apply where clause if it exists
+    if (whereClause) {
+      ticketsQuery = ticketsQuery.where(whereClause);
+    }
+    
+    const tickets = await ticketsQuery;
+
+    // Collect IDs first
+    const ticketIds = tickets.map(t => t.id);
+
+    // Fetch status history for all tickets to calculate effective business time
+    let statusHistories: any[] = [];
+    if (ticketIds.length > 0) {
+      // Validate schema before using it
+      if (!schema.ticketStatusHistory) {
+        throw new Error('Schema de histórico de status não encontrado');
+      }
+
+      const statusHistorySelectFields = Object.fromEntries(
+        Object.entries({
+          ticket_id: schema.ticketStatusHistory.ticket_id,
+          status: schema.ticketStatusHistory.status,
+          created_at: schema.ticketStatusHistory.created_at
+        }).filter(([key, value]) => value !== undefined && value !== null)
+      );
+      
+      if (Object.keys(statusHistorySelectFields).length === 0) {
+        throw new Error('Campos de seleção inválidos para histórico de status');
+      }
+      
+      statusHistories = await db.select(statusHistorySelectFields)
+        .from(schema.ticketStatusHistory)
+        .where(inArray(schema.ticketStatusHistory.ticket_id, ticketIds))
+        .orderBy(schema.ticketStatusHistory.created_at);
+    }
+
+    // Group status history by ticket
+    const statusHistoryByTicket = new Map<number, Array<{ status: TicketStatus; created_at: Date }>>();
+    statusHistories.forEach(sh => {
+      const arr = statusHistoryByTicket.get(sh.ticket_id) || [];
+      arr.push({ status: sh.status as TicketStatus, created_at: sh.created_at });
+      statusHistoryByTicket.set(sh.ticket_id, arr);
+    });
+
+    // Get business hours configuration
+    const businessHours = getBusinessHoursConfig();
+    const deptIds = Array.from(new Set(tickets.map(t => t.department_id).filter(Boolean))) as number[];
+    const officialIds = Array.from(new Set(tickets.map(t => t.assigned_to_id).filter(Boolean))) as number[];
+
+    // Fetch lookup data
+    let departments: any[] = [];
+    if (deptIds.length > 0) {
+      // Validate schema before using it
+      if (!schema.departments) {
+        throw new Error('Schema de departamentos não encontrado');
+      }
+
+      const departmentSelectFields = Object.fromEntries(
+        Object.entries({
+          id: schema.departments.id,
+          name: schema.departments.name
+        }).filter(([key, value]) => value !== undefined && value !== null)
+      );
+      
+      if (Object.keys(departmentSelectFields).length === 0) {
+        throw new Error('Campos de seleção inválidos para departamentos');
+      }
+      
+      departments = await db.select(departmentSelectFields)
+        .from(schema.departments)
+        .where(inArray(schema.departments.id, deptIds));
+    }
+
+    let officials: any[] = [];
+    if (officialIds.length > 0) {
+      // Validate schema before using it
+      if (!schema.officials) {
+        throw new Error('Schema de funcionários não encontrado');
+      }
+
+      const officialSelectFields = Object.fromEntries(
+        Object.entries({
+          id: schema.officials.id,
+          name: schema.officials.name,
+          email: schema.officials.email
+        }).filter(([key, value]) => value !== undefined && value !== null)
+      );
+      
+      if (Object.keys(officialSelectFields).length === 0) {
+        throw new Error('Campos de seleção inválidos para funcionários');
+      }
+      
+      officials = await db.select(officialSelectFields)
+        .from(schema.officials)
+        .where(inArray(schema.officials.id, officialIds));
+    }
+
+    let surveys: any[] = [];
+    if (ticketIds.length > 0) {
+      // Validate schema before using it
+      if (!schema.satisfactionSurveys) {
+        throw new Error('Schema de pesquisas de satisfação não encontrado');
+      }
+
+      const surveySelectFields = Object.fromEntries(
+        Object.entries({
+          ticket_id: schema.satisfactionSurveys.ticket_id,
+          rating: schema.satisfactionSurveys.rating,
+          responded_at: schema.satisfactionSurveys.responded_at
+        }).filter(([key, value]) => value !== undefined && value !== null)
+      );
+      
+      if (Object.keys(surveySelectFields).length === 0) {
+        throw new Error('Campos de seleção inválidos para pesquisas de satisfação');
+      }
+      
+      surveys = await db.select(surveySelectFields)
+        .from(schema.satisfactionSurveys)
+        .where(inArray(schema.satisfactionSurveys.ticket_id, ticketIds));
+    }
+
+    // As funções helper foram removidas - agora usamos as funções do storage que são as mesmas do dashboard
+
+    // Group by official
+    const officialMap = new Map(officials.map(o => [o.id, { name: o.name, email: o.email }]));
+    const ticketsByOfficial = new Map<number, typeof tickets>();
+    tickets.forEach(t => {
+      if (!t.assigned_to_id) return;
+      const arr = ticketsByOfficial.get(t.assigned_to_id) || [];
+      (arr as any).push(t);
+      ticketsByOfficial.set(t.assigned_to_id, arr as any);
+    });
+
+    const surveysByTicket = new Map<number, { rating: number | null; responded_at: Date | null }[]>();
+    surveys.forEach(s => {
+      const arr = surveysByTicket.get(s.ticket_id) || [];
+      arr.push({ rating: s.rating, responded_at: s.responded_at });
+      surveysByTicket.set(s.ticket_id, arr);
+    });
+
+    // Calcular métricas por atendente usando as mesmas funções do dashboard
+    const officialsMetrics = await Promise.all(
+      Array.from(ticketsByOfficial.entries()).map(async ([officialId, ts]) => {
+        const ticketsAssigned = ts.length;
+        const resolvedTickets = ts.filter(t => t.resolved_at).length;
+        
+        // Usar as mesmas funções do dashboard para garantir consistência
+        const avgFirstResponseHours = await storage.getAverageFirstResponseTimeByUserRole(
+          userId, 
+          userRole, 
+          officialId, // officialId específico
+          startDateParam ? new Date(startDateParam) : undefined,
+          endDateParam ? new Date(endDateParam) : undefined,
+          departmentId ? Number(departmentId) : undefined
+        );
+        
+        const avgResolutionHours = await storage.getAverageResolutionTimeByUserRole(
+          userId, 
+          userRole, 
+          officialId, // officialId específico
+          startDateParam ? new Date(startDateParam) : undefined,
+          endDateParam ? new Date(endDateParam) : undefined,
+          departmentId ? Number(departmentId) : undefined
+        );
+
+        // Satisfaction average for this official (tickets currently assigned to the official)
+        let ratings: number[] = [];
+        ts.forEach(t => {
+          const entries = surveysByTicket.get(t.id) || [];
+          entries.forEach(e => { if (e.rating != null && e.responded_at) ratings.push(e.rating as number); });
+        });
+        const satisfactionAvg = ratings.length > 0 ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100 : null;
+
+        return {
+          official_id: officialId,
+          name: officialMap.get(officialId)?.name || 'N/A',
+          email: officialMap.get(officialId)?.email || '',
+          tickets_assigned: ticketsAssigned,
+          tickets_resolved: resolvedTickets,
+          avg_first_response_time_hours: avgFirstResponseHours || null,
+          avg_resolution_time_hours: avgResolutionHours || null,
+          satisfaction_avg: satisfactionAvg
+        };
+      })
+    );
+    
+    // Ordenar por tickets resolvidos
+    officialsMetrics.sort((a, b) => (b.tickets_resolved - a.tickets_resolved));
+
+    // Group by department
+    const departmentMap = new Map(departments.map(d => [d.id, d.name]));
+    const ticketsByDept = new Map<number, typeof tickets>();
+    tickets.forEach(t => {
+      if (!t.department_id) return;
+      const arr = ticketsByDept.get(t.department_id) || [];
+      (arr as any).push(t);
+      ticketsByDept.set(t.department_id, arr as any);
+    });
+
+    // Calcular métricas por departamento usando as mesmas funções do dashboard
+    const departmentsMetrics = await Promise.all(
+      Array.from(ticketsByDept.entries()).map(async ([deptId, ts]) => {
+        const total = ts.length;
+        const resolved = ts.filter(t => t.resolved_at).length;
+        
+        // Usar as mesmas funções do dashboard para garantir consistência
+        const avgFirstResponseHours = await storage.getAverageFirstResponseTimeByUserRole(
+          userId, 
+          userRole, 
+          undefined, // officialId - usar undefined para todos os atendentes do departamento
+          startDateParam ? new Date(startDateParam) : undefined,
+          endDateParam ? new Date(endDateParam) : undefined,
+          deptId // departmentId específico
+        );
+        
+        const avgResolutionHours = await storage.getAverageResolutionTimeByUserRole(
+          userId, 
+          userRole, 
+          undefined, // officialId - usar undefined para todos os atendentes do departamento
+          startDateParam ? new Date(startDateParam) : undefined,
+          endDateParam ? new Date(endDateParam) : undefined,
+          deptId // departmentId específico
+        );
+
+        // Satisfaction average for this department
+        let ratings: number[] = [];
+        ts.forEach(t => {
+          const entries = surveysByTicket.get(t.id) || [];
+          entries.forEach(e => { if (e.rating != null && e.responded_at) ratings.push(e.rating as number); });
+        });
+        const satisfactionAvg = ratings.length > 0 ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100 : null;
+
+        return {
+          department_id: deptId,
+          department_name: departmentMap.get(deptId) || 'N/A',
+          tickets: total,
+          resolved_tickets: resolved,
+          avg_first_response_time_hours: avgFirstResponseHours || null,
+          avg_resolution_time_hours: avgResolutionHours || null,
+          satisfaction_avg: satisfactionAvg
+        };
+      })
+    );
+    
+    // Ordenar por tickets resolvidos
+    departmentsMetrics.sort((a, b) => (b.resolved_tickets - a.resolved_tickets));
+
+    // Summary - USAR AS MESMAS FUNÇÕES DO DASHBOARD
+    const totalTickets = tickets.length;
+    const resolvedTickets = tickets.filter(t => t.resolved_at).length;
+    
+    // Usar as mesmas funções do dashboard para garantir consistência
+    const avgFirstResponseTimeHours = await storage.getAverageFirstResponseTimeByUserRole(
+      userId, 
+      userRole, 
+      undefined, // officialId - usar undefined para todos os atendentes no resumo
+      startDateParam ? new Date(startDateParam) : undefined,
+      endDateParam ? new Date(endDateParam) : undefined,
+      departmentId ? Number(departmentId) : undefined
+    );
+    
+    const avgResolutionTimeHours = await storage.getAverageResolutionTimeByUserRole(
+      userId, 
+      userRole, 
+      undefined, // officialId - usar undefined para todos os atendentes no resumo
+      startDateParam ? new Date(startDateParam) : undefined,
+      endDateParam ? new Date(endDateParam) : undefined,
+      departmentId ? Number(departmentId) : undefined
+    );
+    
+    const summary = {
+      total_tickets: totalTickets,
+      resolved_tickets: resolvedTickets,
+      avg_first_response_time_hours: avgFirstResponseTimeHours || null,
+      avg_resolution_time_hours: avgResolutionTimeHours || null,
+      satisfaction_avg: (() => {
+        let ratings: number[] = [];
+        tickets.forEach(t => {
+          const entries = surveysByTicket.get(t.id) || [];
+          entries.forEach(e => { if (e.rating != null && e.responded_at) ratings.push(e.rating as number); });
+        });
+        return ratings.length > 0 ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100 : null;
+      })()
+    };
+
+    return res.json({
+      summary,
+      officials: officialsMetrics,
+      departments: departmentsMetrics
+    });
+  } catch (error) {
+    console.error('Erro ao gerar relatório de performance:', error);
+    return res.status(500).json({ message: 'Erro ao gerar relatório de performance' });
+  }
+});
+
+// Export performance report to multiple formats
+router.get('/performance/export', authRequired, async (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate, start_date, end_date, departmentId, companyId, showInactiveOfficials, format = 'csv' } = req.query;
+    
+    const startDateParam = (start_date || startDate) as string | undefined;
+    const endDateParam = (end_date || endDate) as string | undefined;
+    const departmentIdParam = departmentId as string | undefined;
+    const companyIdParam = companyId as string | undefined;
+    const showInactiveOfficialsParam = showInactiveOfficials === 'true';
+
+    // Build base query for tickets - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
+    let baseQuery = db.select({
+      id: schema.tickets.id,
+      ticket_id: schema.tickets.ticket_id,
+      status: schema.tickets.status,
+      priority: schema.tickets.priority,
+      created_at: schema.tickets.created_at,
+      first_response_at: schema.tickets.first_response_at,
+      resolved_at: schema.tickets.resolved_at,
+      sla_breached: schema.tickets.sla_breached,
+      department_id: schema.tickets.department_id,
+      assigned_to_id: schema.tickets.assigned_to_id,
+      company_id: schema.tickets.company_id
+    }).from(schema.tickets);
+
+    // Role-based filters - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
+    const userId = req.session.userId;
+    const userRole = req.session.userRole as string;
+
+    if (!userId || !userRole) {
+      return res.status(401).json({ message: 'Usuário não autenticado' });
+    }
+
+    const roleConditions: any[] = [];
+
+    if (userRole === 'admin') {
+      // No additional filters
+    } else if (userRole === 'company_admin') {
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+      if (!user || !user.company_id) {
+        return res.status(403).json({ message: 'Usuário sem empresa definida' });
+      }
+      roleConditions.push(eq(schema.tickets.company_id, user.company_id));
+    } else if (userRole === 'manager') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Manager sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      // Buscar subordinados do manager
+      const subordinates = await db.select().from(schema.officials)
+        .where(eq(schema.officials.manager_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      
+      // Manager vê: tickets dos seus departamentos E (atribuídos a ele OU subordinados OU não atribuídos)
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(schema.tickets.assigned_to_id)
+      );
+      
+      roleConditions.push(
+        and(
+          inArray(schema.tickets.department_id, departmentIds),
+          assignmentFilter
+        )
+      );
+      
+    } else if (userRole === 'supervisor') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Supervisor sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      
+      // Buscar subordinados do supervisor
+      const subordinates = await db.select().from(schema.officials)
+        .where(eq(schema.officials.supervisor_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(schema.tickets.assigned_to_id)
+      );
+      
+      roleConditions.push(
+        and(
+          inArray(schema.tickets.department_id, departmentIds),
+          assignmentFilter
+        )
+      );
+      
+    } else if (userRole === 'support') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Support sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        isNull(schema.tickets.assigned_to_id)
+      );
+      roleConditions.push(and(inArray(schema.tickets.department_id, departmentIds), assignmentFilter));
+    } else if (userRole === 'customer') {
+      const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
+      if (!customer) {
+        return res.status(403).json({ message: 'Customer não encontrado' });
+      }
+      roleConditions.push(eq(schema.tickets.customer_id, customer.id));
+    } else {
+      return res.status(403).json({ message: 'Role não reconhecido' });
+    }
+
+    // Apply additional filters - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
+    const additionalFilters: any[] = [];
+    
+    if (startDateParam) {
+      additionalFilters.push(gte(schema.tickets.created_at, new Date(startDateParam)));
+    }
+    
+    if (endDateParam) {
+      additionalFilters.push(lte(schema.tickets.created_at, new Date(endDateParam)));
+    }
+    
+    if (departmentIdParam) {
+      additionalFilters.push(eq(schema.tickets.department_id, Number(departmentIdParam)));
+    }
+    
+    if (companyIdParam) {
+      additionalFilters.push(eq(schema.tickets.company_id, Number(companyIdParam)));
+    }
+
+    // Build where clause safely - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
+    const allConditions = [];
+    
+    if (roleConditions.length > 0) {
+      allConditions.push(and(...roleConditions));
+    }
+    
+    if (additionalFilters.length > 0) {
+      allConditions.push(and(...additionalFilters));
+    }
+
+    // Execute query - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
+    const tickets = await baseQuery
+      .where(allConditions.length > 0 ? and(...allConditions) : undefined)
+      .orderBy(desc(schema.tickets.created_at));
+
+    // Group tickets by assigned user - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
+    const ticketsByOfficial = new Map<number | null, typeof tickets>();
+    tickets.forEach(ticket => {
+      const officialId = ticket.assigned_to_id;
+      if (!ticketsByOfficial.has(officialId)) {
+        ticketsByOfficial.set(officialId, []);
+      }
+      ticketsByOfficial.get(officialId)!.push(ticket);
+    });
+
+    // Buscar dados dos atendentes - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
+    const officialIds = Array.from(new Set(tickets.map(t => t.assigned_to_id).filter(Boolean))) as number[];
+    
+    let officials: any[] = [];
+    if (officialIds.length > 0) {
+      const officialSelectFields = Object.fromEntries(
+        Object.entries({
+          id: schema.officials.id,
+          name: schema.officials.name,
+          email: schema.officials.email
+        }).filter(([key, value]) => value !== undefined && value !== null)
+      );
+      
+      if (Object.keys(officialSelectFields).length > 0) {
+        officials = await db.select(officialSelectFields)
+          .from(schema.officials)
+          .where(inArray(schema.officials.id, officialIds));
+      }
+    }
+
+    // Buscar dados de satisfação - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
+    const ticketIds = tickets.map(t => t.id);
+    let surveys: any[] = [];
+    if (ticketIds.length > 0) {
+      const surveySelectFields = Object.fromEntries(
+        Object.entries({
+          ticket_id: schema.satisfactionSurveys.ticket_id,
+          rating: schema.satisfactionSurveys.rating,
+          responded_at: schema.satisfactionSurveys.responded_at
+        }).filter(([key, value]) => value !== undefined && value !== null)
+      );
+      
+      if (Object.keys(surveySelectFields).length > 0) {
+        surveys = await db.select(surveySelectFields)
+          .from(schema.satisfactionSurveys)
+          .where(inArray(schema.satisfactionSurveys.ticket_id, ticketIds));
+      }
+    }
+
+    // Mapear dados - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
+    const officialMap = new Map(officials.map(o => [o.id, { name: o.name, email: o.email }]));
+    const surveysByTicket = new Map<number, { rating: number | null; responded_at: Date | null }[]>();
+    surveys.forEach(s => {
+      const arr = surveysByTicket.get(s.ticket_id) || [];
+      arr.push({ rating: s.rating, responded_at: s.responded_at });
+      surveysByTicket.set(s.ticket_id, arr);
+    });
+
+    // Calcular métricas por atendente usando as mesmas funções do dashboard - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
+    const officialsMetrics = await Promise.all(
+      Array.from(ticketsByOfficial.entries()).map(async ([officialId, ts]) => {
+        const ticketsAssigned = ts.length;
+        const resolvedTickets = ts.filter(t => t.resolved_at).length;
+        
+        // Usar as mesmas funções do dashboard para garantir consistência
+        const avgFirstResponseHours = await storage.getAverageFirstResponseTimeByUserRole(
+          userId, 
+          userRole, 
+          officialId, // officialId específico
+          startDateParam ? new Date(startDateParam) : undefined,
+          endDateParam ? new Date(endDateParam) : undefined,
+          departmentIdParam ? Number(departmentIdParam) : undefined
+        );
+        
+        const avgResolutionHours = await storage.getAverageResolutionTimeByUserRole(
+          userId, 
+          userRole, 
+          officialId, // officialId específico
+          startDateParam ? new Date(startDateParam) : undefined,
+          endDateParam ? new Date(endDateParam) : undefined,
+          departmentIdParam ? Number(departmentIdParam) : undefined
+        );
+
+        // Satisfaction average for this official (tickets currently assigned to the official)
+        let ratings: number[] = [];
+        ts.forEach(t => {
+          const entries = surveysByTicket.get(t.id) || [];
+          entries.forEach(e => { if (e.rating != null && e.responded_at) ratings.push(e.rating as number); });
+        });
+        const satisfactionAvg = ratings.length > 0 ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100 : null;
+
+        return {
+          official_id: officialId,
+          official_name: officialId ? (officialMap.get(officialId)?.name || 'Atendente') : 'Não atribuído',
+          official_active: true, // Simplificado para export
+          tickets_assigned: ticketsAssigned,
+          resolved_tickets: resolvedTickets,
+          avg_first_response_time_hours: avgFirstResponseHours || null,
+          avg_resolution_time_hours: avgResolutionHours || null,
+          satisfaction_avg: satisfactionAvg
+        };
+      })
+    );
+
+    // Filter out inactive officials if needed - APÓS O CÁLCULO
+    let filteredOfficialsMetrics = officialsMetrics;
+    if (!showInactiveOfficialsParam) {
+      filteredOfficialsMetrics = officialsMetrics.filter(official => 
+        official.official_active === true
+      );
+    }
+
+    // Generate data for export
+    const exportHeaders = [
+      'Atendente',
+      'Status',
+      'Tickets Atribuídos',
+      'Tickets Resolvidos',
+      'Tempo Médio 1ª Resposta (h)',
+      'Tempo Médio Resolução (h)',
+      'Satisfação Média'
+    ];
+
+    // Função para formatar tempo igual ao dashboard (TimeMetricCard)
+    const formatTime = (hours: number): string => {
+      if (hours === 0) return '0h';
+      
+      if (hours < 1) {
+        const minutes = Math.round(hours * 60);
+        return `${minutes}min`;
+      }
+      
+      if (hours < 24) {
+        const wholeHours = Math.floor(hours);
+        const minutes = Math.round((hours - wholeHours) * 60);
+        return minutes > 0 ? `${wholeHours}h ${minutes}min` : `${wholeHours}h`;
+      }
+      
+      return `${Math.round(hours)}h`;
+    };
+
+    const exportRows = filteredOfficialsMetrics.map(official => [
+      official.official_name,
+      official.official_active === true ? 'Ativo' : 'Inativo',
+      official.tickets_assigned,
+      official.resolved_tickets,
+      official.avg_first_response_time_hours ? formatTime(official.avg_first_response_time_hours) : '-',
+      official.avg_resolution_time_hours ? formatTime(official.avg_resolution_time_hours) : '-',
+      official.satisfaction_avg ? Math.round(official.satisfaction_avg * 10) / 10 : '-'
+    ]);
+
+    // Generate output based on format
+    const exportFormat = (format as string).toLowerCase();
+    
+    if (exportFormat === 'excel') {
+      // Excel export with proper formatting
+      const workbook = XLSX.utils.book_new();
+      
+      // Prepare data with proper types for Excel
+      const excelData = [
+        exportHeaders,
+        ...exportRows
+      ];
+      
+      const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+      
+      // Set column widths
+      worksheet['!cols'] = [
+        { width: 25 }, // Atendente
+        { width: 10 }, // Status
+        { width: 15 }, // Tickets Atribuídos
+        { width: 15 }, // Tickets Resolvidos
+        { width: 20 }, // Tempo Médio 1ª Resposta
+        { width: 20 }, // Tempo Médio Resolução
+        { width: 15 }  // Satisfação Média
+      ];
+      
+      // Style header row
+      const headerRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+      for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!worksheet[cellAddress]) continue;
+        worksheet[cellAddress].s = {
+          font: { bold: true },
+          fill: { fgColor: { rgb: 'E0E0E0' } }
+        };
+      }
+      
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Relatório Performance');
+      
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=relatorio-performance.xlsx');
+      return res.end(buffer);
+      
+    } else if (exportFormat === 'pdf') {
+      // PDF export with proper binary handling
+      console.log('Starting PDF generation for performance report...');
+      const htmlContent = generatePDFHTML(exportHeaders, exportRows);
+      console.log('HTML content generated, length:', htmlContent.length);
+      
+      let browser;
+      try {
+        browser = await puppeteer.launch({
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+        
+        const page = await browser.newPage();
+        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+        
+        const pdfBuffer = await page.pdf({
+          format: 'A4',
+          landscape: true,
+          printBackground: true,
+          margin: {
+            top: '20mm',
+            right: '15mm',
+            bottom: '20mm',
+            left: '15mm'
+          }
+        });
+        
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio-performance.pdf');
+        return res.end(pdfBuffer);
+        
+      } catch (pdfError) {
+        console.error('PDF generation error:', pdfError);
+        throw pdfError;
+      } finally {
+        if (browser) {
+          await browser.close();
+        }
+      }
+      
+    } else {
+      // Default to CSV
+      const csvContent = [
+        exportHeaders.join(','),
+        ...exportRows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+      
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename=relatorio-performance.csv');
+      return res.end(csvContent);
+    }
+
+  } catch (error) {
+    console.error('Error exporting performance report:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // SLA reports
