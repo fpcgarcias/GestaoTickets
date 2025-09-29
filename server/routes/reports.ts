@@ -77,7 +77,7 @@ function formatarDataHora(dataInput: string | Date): string {
 }
 
 // Function to generate HTML content for PDF export
-function generatePDFHTML(headers: string[], rows: any[][]): string {
+function generatePDFHTML(headers: string[], rows: any[][], reportTitle: string = 'Relatório de Chamados'): string {
   // Format data for better PDF display with proper translations
   const tableRows = rows.map(row => {
     const formattedRow = row.map((cell, index) => {
@@ -121,7 +121,7 @@ function generatePDFHTML(headers: string[], rows: any[][]): string {
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Relatório de Chamados</title>
+      <title>${reportTitle}</title>
       <style>
         body { 
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; 
@@ -200,7 +200,7 @@ function generatePDFHTML(headers: string[], rows: any[][]): string {
       </style>
     </head>
     <body>
-      <h1>📋 Relatório de Chamados</h1>
+      <h1>📋 ${reportTitle}</h1>
       <table>
         <thead>
           <tr>${headers.map(header => `<th>${header}</th>`).join('')}</tr>
@@ -1777,7 +1777,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
     } else if (exportFormat === 'pdf') {
       // PDF export with proper binary handling
       console.log('Starting PDF generation for performance report...');
-      const htmlContent = generatePDFHTML(exportHeaders, exportRows);
+      const htmlContent = generatePDFHTML(exportHeaders, exportRows, 'Relatório de Performance');
       console.log('HTML content generated, length:', htmlContent.length);
       
       let browser;
