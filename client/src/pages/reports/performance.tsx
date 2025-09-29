@@ -13,6 +13,7 @@ import { Download, CalendarIcon, Filter, ChevronDown, ArrowLeft } from 'lucide-r
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/hooks/use-auth';
+import { PerformanceBarChart } from '@/components/charts/performance-bar-chart';
 
 // Função utilitária para normalizar prioridade (primeira letra maiúscula, resto minúsculo)
 // IGUAL ao dashboard.tsx para consistência total
@@ -120,6 +121,18 @@ export default function PerformanceReports() {
   });
   const [departments, setDepartments] = useState<Department[]>([]);
   const [canViewDepartments, setCanViewDepartments] = useState(false);
+  
+  // Estado para ordenação do gráfico
+  const [sortBy, setSortBy] = useState<string>('tickets_desc');
+  
+  // Opções de ordenação
+  const sortOptions = [
+    { value: 'tickets_desc', label: 'Tickets Resolvidos (↓)' },
+    { value: 'tickets_asc', label: 'Tickets Resolvidos (↑)' },
+    { value: 'satisfaction_desc', label: 'Satisfação (↓)' },
+    { value: 'satisfaction_asc', label: 'Satisfação (↑)' },
+    { value: 'name', label: 'Nome (A-Z)' }
+  ];
 
   // Buscar dados apenas na montagem inicial
   useEffect(() => {
@@ -252,6 +265,45 @@ export default function PerformanceReports() {
   const filteredOfficials = data?.officials?.filter(official => 
     filters.showInactiveOfficials || official.is_active !== false
   ) || [];
+
+  // Processar dados para o gráfico com ordenação
+  const chartData = React.useMemo(() => {
+    if (!data?.officials || data.officials.length === 0) return [];
+    
+    // Aplicar o mesmo filtro de atendentes inativos que a tabela usa
+    const officialsForChart = data.officials.filter(official => 
+      filters.showInactiveOfficials || official.is_active !== false
+    );
+    
+    let sortedOfficials = [...officialsForChart];
+    
+    // Aplicar ordenação
+    switch (sortBy) {
+      case 'tickets_desc':
+        sortedOfficials.sort((a, b) => b.tickets_resolved - a.tickets_resolved);
+        break;
+      case 'tickets_asc':
+        sortedOfficials.sort((a, b) => a.tickets_resolved - b.tickets_resolved);
+        break;
+      case 'satisfaction_desc':
+        sortedOfficials.sort((a, b) => (b.satisfaction_avg || 0) - (a.satisfaction_avg || 0));
+        break;
+      case 'satisfaction_asc':
+        sortedOfficials.sort((a, b) => (a.satisfaction_avg || 0) - (b.satisfaction_avg || 0));
+        break;
+      case 'name':
+        sortedOfficials.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+        break;
+      default:
+        sortedOfficials.sort((a, b) => b.tickets_resolved - a.tickets_resolved);
+    }
+    
+    return sortedOfficials.map(official => ({
+      name: official.name,
+      ticketsResolvidos: official.tickets_resolved,
+      satisfacao: official.satisfaction_avg || 0
+    }));
+  }, [data?.officials, filters.showInactiveOfficials, sortBy]);
 
   return (
     <div className="p-6">
@@ -438,6 +490,40 @@ export default function PerformanceReports() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Gráfico de Performance dos Atendentes */}
+      <Card className="mb-6">
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Performance dos Atendentes</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">Comparativo entre tickets resolvidos e satisfação</p>
+            </div>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {sortOptions.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <div className="min-w-[600px]">
+              <PerformanceBarChart 
+                data={chartData} 
+                isLoading={loading}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Tabela de Performance por Atendente */}
       <Card className="mb-6">
