@@ -50,6 +50,11 @@ export default function TicketsIndex() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Garantir que a página sempre abra no topo
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState('this-month');
   const [includeOpenOutsidePeriod, setIncludeOpenOutsidePeriod] = useState(true);

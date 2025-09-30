@@ -26,6 +26,37 @@ export class OpenAiProvider implements AiProviderInterface {
       // Configurar o endpoint
       const endpoint = config.api_endpoint || 'https://api.openai.com/v1/chat/completions';
       
+      // Configurar parâmetros para GPT-5 (estrutura unificada)
+      const requestBody: any = {
+        model: config.model,
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
+          },
+          {
+            role: 'user',
+            content: userPrompt
+          }
+        ],
+        // GPT-5 usa max_completion_tokens ao invés de max_tokens
+        max_completion_tokens: config.max_completion_tokens || config.max_tokens || 1500,
+        // Parâmetros obrigatórios do GPT-5
+        reasoning_effort: config.reasoning_effort || 'medium',
+        verbosity: config.verbosity || 'medium',
+        // GPT-5 força temperatura = 1 (não configurável)
+        temperature: 1
+      };
+
+      console.log(`[OpenAI] Fazendo requisição para ${config.model}:`, {
+        endpoint: config.api_endpoint,
+        model: config.model,
+        max_completion_tokens: requestBody.max_completion_tokens,
+        temperature: requestBody.temperature,
+        reasoning_effort: requestBody.reasoning_effort,
+        verbosity: requestBody.verbosity
+      });
+
       // Fazer a requisição para a OpenAI
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -33,22 +64,8 @@ export class OpenAiProvider implements AiProviderInterface {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiToken}`,
         },
-        body: JSON.stringify({
-          model: config.model,
-          messages: [
-            {
-              role: 'system',
-              content: systemPrompt
-            },
-            {
-              role: 'user',
-              content: userPrompt
-            }
-          ],
-          temperature: parseFloat(config.temperature || '0.7'),
-          max_tokens: config.max_tokens || 1000,
-        }),
-        signal: AbortSignal.timeout((config.timeout_seconds || 30) * 1000)
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout((config.timeout_seconds || 60) * 1000)
       });
 
       if (!response.ok) {
@@ -59,8 +76,6 @@ export class OpenAiProvider implements AiProviderInterface {
       }
 
       const data = await response.json();
-      
-
       
       // Extrair a resposta
       const aiResponse = data.choices[0]?.message?.content?.trim() || '';

@@ -36,6 +36,8 @@ import dashboardRouter from './routes/dashboard';
 
 import logsRouter from './routes/logs';
 
+import * as aiSuggestionsAPI from './api/ai-suggestions';
+
 import ticketParticipantsRouter from './routes/ticket-participants';
 
 import reportsRouter from './routes/reports';
@@ -18953,7 +18955,10 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   app.use("/api/ticket-participants", ticketParticipantsRouter);
 
-  
+// Registrar rotas de AI Suggestions
+app.post("/api/ai-suggestions", aiSuggestionsAPI.generateSuggestion);
+app.post("/api/ai-suggestions/:id/feedback", aiSuggestionsAPI.recordFeedback);
+app.get("/api/ai-suggestions/ticket/:ticketId", aiSuggestionsAPI.getSuggestionHistory);
 
   // Registrar rotas de relatórios
 

@@ -572,47 +572,17 @@ export class AiService {
 
   private async getActiveAiConfiguration(
     companyId: number,
-    departmentId: number, // Agora obrigatório
-    analysisType: string, // Novo parâmetro obrigatório
+    departmentId: number,
+    analysisType: string,
     dbInstance: any = null
   ): Promise<AiConfiguration | null> {
     try {
       const database = dbInstance || db;
       
-      // Verificar se a empresa tem permissão para usar IA
-      const [company] = await database
-        .select({ ai_permission: schema.companies.ai_permission })
-        .from(schema.companies)
-        .where(eq(schema.companies.id, companyId))
-        .limit(1);
-
-      if (!company?.ai_permission) {
-        console.log(`[AI] Empresa ${companyId} não tem permissão para usar IA`);
-        return null;
-      }
-
-      // 1. Buscar configuração específica da empresa + departamento + analysis_type (ativa e padrão)
-      const [specificConfig] = await database
-        .select()
-        .from(schema.aiConfigurations)
-        .where(
-          and(
-            eq(schema.aiConfigurations.company_id, companyId),
-            eq(schema.aiConfigurations.department_id, departmentId),
-            eq(schema.aiConfigurations.analysis_type, analysisType),
-            eq(schema.aiConfigurations.is_active, true),
-            eq(schema.aiConfigurations.is_default, true)
-          )
-        )
-        .limit(1);
-
-      if (specificConfig) {
-        console.log(`[AI] Usando configuração específica padrão: empresa ${companyId}, departamento ${departmentId}, analysis_type ${analysisType}`);
-        return specificConfig;
-      }
-
-      // 2. Buscar qualquer configuração ativa da empresa + departamento + analysis_type
-      const [anySpecificConfig] = await database
+      console.log(`🔍 Buscando configuração de IA para departamento: ${departmentId} empresa: ${companyId} tipo: ${analysisType}`);
+      
+      // Buscar APENAS configuração específica do departamento + analysis_type
+      const [config] = await database
         .select()
         .from(schema.aiConfigurations)
         .where(
@@ -625,72 +595,12 @@ export class AiService {
         )
         .limit(1);
 
-      if (anySpecificConfig) {
-        console.log(`[AI] Usando configuração específica ativa: empresa ${companyId}, departamento ${departmentId}, analysis_type ${analysisType}`);
-        return anySpecificConfig;
+      if (config) {
+        console.log(`🔍 Configuração encontrada: departamento ${departmentId} tipo ${analysisType}`);
+        return config;
       }
 
-      // 3. Buscar configuração geral da empresa (sem departamento específico) + analysis_type
-      const [companyConfig] = await database
-        .select()
-        .from(schema.aiConfigurations)
-        .where(
-          and(
-            eq(schema.aiConfigurations.company_id, companyId),
-            isNull(schema.aiConfigurations.department_id),
-            eq(schema.aiConfigurations.analysis_type, analysisType),
-            eq(schema.aiConfigurations.is_active, true)
-          )
-        )
-        .orderBy(schema.aiConfigurations.is_default)
-        .limit(1);
-
-      if (companyConfig) {
-        console.log(`[AI] Usando configuração geral da empresa: ${companyId}, analysis_type ${analysisType}`);
-        return companyConfig;
-      }
-
-      // 4. Buscar configuração global específica por departamento (sem empresa, mas com departamento) + analysis_type
-      const [globalDepartmentConfig] = await database
-        .select()
-        .from(schema.aiConfigurations)
-        .where(
-          and(
-            isNull(schema.aiConfigurations.company_id),
-            eq(schema.aiConfigurations.department_id, departmentId),
-            eq(schema.aiConfigurations.analysis_type, analysisType),
-            eq(schema.aiConfigurations.is_active, true)
-          )
-        )
-        .orderBy(schema.aiConfigurations.is_default)
-        .limit(1);
-
-      if (globalDepartmentConfig) {
-        console.log(`[AI] Usando configuração global específica por departamento: ${departmentId}, analysis_type ${analysisType}`);
-        return globalDepartmentConfig;
-      }
-
-      // 5. Fallback: buscar configuração global (sem empresa e sem departamento) + analysis_type
-      const [globalConfig] = await database
-        .select()
-        .from(schema.aiConfigurations)
-        .where(
-          and(
-            isNull(schema.aiConfigurations.company_id),
-            isNull(schema.aiConfigurations.department_id),
-            eq(schema.aiConfigurations.analysis_type, analysisType),
-            eq(schema.aiConfigurations.is_active, true)
-          )
-        )
-        .orderBy(schema.aiConfigurations.is_default)
-        .limit(1);
-
-      if (globalConfig) {
-        console.log(`[AI] Usando configuração global (fallback), analysis_type ${analysisType}`);
-        return globalConfig;
-      }
-
-      console.log(`[AI] Nenhuma configuração de IA encontrada para empresa ${companyId}, departamento ${departmentId}, analysis_type ${analysisType}`);
+      console.log(`🔍 Configuração NÃO encontrada para departamento ${departmentId} tipo ${analysisType}`);
       return null;
 
     } catch (error) {

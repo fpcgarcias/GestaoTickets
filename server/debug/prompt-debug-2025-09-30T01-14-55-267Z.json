@@ -1,0 +1,81 @@
+{
+  "timestamp": "2025-09-30T01:14:55.267Z",
+  "ticketId": 1167,
+  "ticketTitle": "Minha VPN não funciona",
+  "similarTicketsCount": 10,
+  "similarTickets": [
+    {
+      "id": 1050,
+      "title": "SEM ACESSO",
+      "description": "Bom dia!\n\nEstou sem acesso ao e-mail e ao teams, quando entro, aparece as imagens em anexo. Tentei colocar a minha senha padrão no e-mail mas não está indo.\n\nSe puderem verificar com urgência porque não consigo ver nada de hoje e do outros dias.",
+      "resolution": "Feito",
+      "hasResolution": true
+    },
+    {
+      "id": 1110,
+      "title": "ESTRUTURA NOVA - PATRICIA FARIA BUELONI – Coordenador de Desenvolvimento de Produto ",
+      "description": "Boa tarde,\n \nInformo que em breve teremos uma nova funcionária – PATRICIA FARIA BUELONI – Coordenador de Desenvolvimento de Produto – (previsão para início 01/10/2025). \n\nTrabalhará na unidade de São Paulo. \n\nSerá necessário criar acessos para ela, utilizando como usuário espelho Patricia Andrade. (Notebook, Teams, LINX, Pacote Office, e-mail etc.). \n\nEm participantes copio o gestor Max Oliveira para esclarecerem dúvidas caso necessário.\n\n",
+      "resolution": "Chamado resolvido",
+      "hasResolution": true
+    },
+    {
+      "id": 1094,
+      "title": "Alteração de acesso para o novo Assistente de Controle Financeiro - Flavio Garrido Torres",
+      "description": "Boa tarde,\nSolicitamos chamado para disponibilização de note e acessos para o novo Assistente de Controle Financeiro - Ryan Azevedo, porém este candidato declinou da vaga e será necessário novos acessos para o candidato substituto Flavio Garrido Torres que será admitido em 17/9 para o mesmo setor e função. Agradeço por favor, a criação de novos acessos para utilização no mesmo note que foi disponibilizado para o candidato Ryan.\nObrigada.",
+      "resolution": "entregue",
+      "hasResolution": true
+    },
+    {
+      "id": 1042,
+      "title": "ESTRUTURA NOVA - Ana Costa  – Coordenador de Estilo",
+      "description": "Informo que em breve teremos uma nova funcionária – Ana Costa  – Coordenador de Estilo – (previsão para início 02/10/2025). \n \nSerá necessário criar acessos para ela, utilizando como usuário espelho Luiza Duque. (MAC, Teams, Pacote Adobe, LINX, Pacote Office, e-mail etc.). \n\nEm participantes copio a Daniela Silva do DP para confirmar a data de início e a gestora Marcela Coimbra para esclarecerem dúvidas caso necessário.\n",
+      "resolution": "Resolvido",
+      "hasResolution": true
+    },
+    {
+      "id": 1010,
+      "title": "COMPUTADOR DA ESTAGIÁRIA",
+      "description": "A estagiária iniciou na empresa dia 08/09 e desde então sua máquina apresenta vários problemas, além da lentidão, que está impedindo de trabalhar. ",
+      "resolution": "Bom dia, pode trazer o note para avaliarmos mais a fundo, por favor?",
+      "hasResolution": true
+    },
+    {
+      "id": 1160,
+      "title": "Teste do sistema",
+      "description": "Teste de abertura do chamado no sistema depois da atualização para React 19.",
+      "resolution": "Ticket resolvido",
+      "hasResolution": true
+    },
+    {
+      "id": 1092,
+      "title": "Não estou encontrando Impressora ",
+      "description": "Olá boa tarde \n\nnão estou conseguindo encontrar a impressora poderia me ajudar por favor ",
+      "resolution": "Olá boa tarde \n\nA impressora foi reconfigurada novamente e a mesma voltou ao normal ",
+      "hasResolution": true
+    },
+    {
+      "id": 971,
+      "title": "Sem acesso rede - pasta e-commerce",
+      "description": "Após a queda de internet ontem, fiquei  sem acesso à pasta do e-commerce.",
+      "resolution": "Acesso restaurado.",
+      "hasResolution": true
+    },
+    {
+      "id": 1133,
+      "title": "Problema com pasta na rede ",
+      "description": "boa tarde \n\nPoderiam me ajudar as minhas pastas na rede estão todas com X vermelho ",
+      "resolution": "Olá boa tarde \n\nO notebook estava fora da rede corporativa e sem cabo de rede o mesmo foi colocado na rede correta e as pastas voltaram ao normal ",
+      "hasResolution": true
+    },
+    {
+      "id": 1121,
+      "title": "Novo numero de telefone CRM ",
+      "description": "Olá, pessoal. Tudo bem?\n\nEstamos em processo de integração com um novo fornecedor de WhatsApp e encontramos dificuldades para migrar o número atual. Após conversas com o fornecedor, entendemos que a solução mais adequada é a aquisição de um novo número de telefone.\n\nDessa forma, solicito a compra de um novo número.\nA Flavia, minha gestora, já está incluída neste chamado e fará a aprovação da solicitação.\n\nObrigada desde já pela ajuda",
+      "resolution": "Chamado resolvido",
+      "hasResolution": true
+    }
+  ],
+  "template": "TICKET ATUAL:\n- Título: {ticket_title}\n- Descrição: {ticket_description}\n- Tipo: {ticket_type}\n- Categoria: {ticket_category}\n- Departamento: {department_name}\n\nCASOS SIMILARES ENCONTRADOS ({similar_count}):\n{similar_tickets_data}\n\nAnalise os casos similares e gere uma sugestão de resolução estruturada.",
+  "processedPrompt": "TICKET ATUAL:\n- Título: Minha VPN não funciona\n- Descrição: VPN não está funcionando, impedindo o acesso de outros usuários.\n- Tipo: N/A\n- Categoria: N/A\n- Departamento: N/A\n\nCASOS SIMILARES ENCONTRADOS (10):\n1. Título: SEM ACESSO\n   Descrição: Bom dia!\n\nEstou sem acesso ao e-mail e ao teams, quando entro, aparece as imagens em anexo. Tentei colocar a minha senha padrão no e-mail mas não está indo.\n\nSe puderem verificar com urgência porque não consigo ver nada de hoje e do outros dias.\n   Resolução: Feito\n\n2. Título: ESTRUTURA NOVA - PATRICIA FARIA BUELONI – Coordenador de Desenvolvimento de Produto \n   Descrição: Boa tarde,\n \nInformo que em breve teremos uma nova funcionária – PATRICIA FARIA BUELONI – Coordenador de Desenvolvimento de Produto – (previsão para início 01/10/2025). \n\nTrabalhará na unidade de São Paulo. \n\nSerá necessário criar acessos para ela, utilizando como usuário espelho Patricia Andrade. (Notebook, Teams, LINX, Pacote Office, e-mail etc.). \n\nEm participantes copio o gestor Max Oliveira para esclarecerem dúvidas caso necessário.\n\n\n   Resolução: Chamado resolvido\n\n3. Título: Alteração de acesso para o novo Assistente de Controle Financeiro - Flavio Garrido Torres\n   Descrição: Boa tarde,\nSolicitamos chamado para disponibilização de note e acessos para o novo Assistente de Controle Financeiro - Ryan Azevedo, porém este candidato declinou da vaga e será necessário novos acessos para o candidato substituto Flavio Garrido Torres que será admitido em 17/9 para o mesmo setor e função. Agradeço por favor, a criação de novos acessos para utilização no mesmo note que foi disponibilizado para o candidato Ryan.\nObrigada.\n   Resolução: entregue\n\n4. Título: ESTRUTURA NOVA - Ana Costa  – Coordenador de Estilo\n   Descrição: Informo que em breve teremos uma nova funcionária – Ana Costa  – Coordenador de Estilo – (previsão para início 02/10/2025). \n \nSerá necessário criar acessos para ela, utilizando como usuário espelho Luiza Duque. (MAC, Teams, Pacote Adobe, LINX, Pacote Office, e-mail etc.). \n\nEm participantes copio a Daniela Silva do DP para confirmar a data de início e a gestora Marcela Coimbra para esclarecerem dúvidas caso necessário.\n\n   Resolução: Resolvido\n\n5. Título: COMPUTADOR DA ESTAGIÁRIA\n   Descrição: A estagiária iniciou na empresa dia 08/09 e desde então sua máquina apresenta vários problemas, além da lentidão, que está impedindo de trabalhar. \n   Resolução: Bom dia, pode trazer o note para avaliarmos mais a fundo, por favor?\n\n6. Título: Teste do sistema\n   Descrição: Teste de abertura do chamado no sistema depois da atualização para React 19.\n   Resolução: Ticket resolvido\n\n7. Título: Não estou encontrando Impressora \n   Descrição: Olá boa tarde \n\nnão estou conseguindo encontrar a impressora poderia me ajudar por favor \n   Resolução: Olá boa tarde \n\nA impressora foi reconfigurada novamente e a mesma voltou ao normal \n\n8. Título: Sem acesso rede - pasta e-commerce\n   Descrição: Após a queda de internet ontem, fiquei  sem acesso à pasta do e-commerce.\n   Resolução: Acesso restaurado.\n\n9. Título: Problema com pasta na rede \n   Descrição: boa tarde \n\nPoderiam me ajudar as minhas pastas na rede estão todas com X vermelho \n   Resolução: Olá boa tarde \n\nO notebook estava fora da rede corporativa e sem cabo de rede o mesmo foi colocado na rede correta e as pastas voltaram ao normal \n\n10. Título: Novo numero de telefone CRM \n   Descrição: Olá, pessoal. Tudo bem?\n\nEstamos em processo de integração com um novo fornecedor de WhatsApp e encontramos dificuldades para migrar o número atual. Após conversas com o fornecedor, entendemos que a solução mais adequada é a aquisição de um novo número de telefone.\n\nDessa forma, solicito a compra de um novo número.\nA Flavia, minha gestora, já está incluída neste chamado e fará a aprovação da solicitação.\n\nObrigada desde já pela ajuda\n   Resolução: Chamado resolvido\n\nAnalise os casos similares e gere uma sugestão de resolução estruturada.",
+  "promptLength": 3954
+}

@@ -32,6 +32,8 @@ import { FileUpload } from './file-upload';
 import { useAuth } from '@/hooks/use-auth';
 import { getStatusConfig, type TicketStatus } from '@shared/ticket-utils';
 import { TicketTransferDialog } from './TicketTransferDialog';
+import { AISuggestionCard } from './ai-suggestion-card';
+import { useAISuggestions } from '@/hooks/use-ai-suggestions';
 
 interface TicketReplyFormProps {
   ticket: Ticket;
@@ -43,6 +45,18 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const [transferOpen, setTransferOpen] = React.useState(false);
+  
+  // Hook para sugestões de IA
+  const {
+    aiConfig,
+    isLoadingConfig,
+    suggestions,
+    generateSuggestion,
+    isGenerating,
+    canUseAI,
+    hasSuggestions,
+    latestSuggestion
+  } = useAISuggestions(ticket.id, ticket.department_id || 0);
   
   // 🔥 CORREÇÃO: Determinar se o usuário é cliente NESTE TICKET específico
   // Só é cliente se o role for 'customer' E for o criador do ticket
@@ -141,6 +155,17 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     replyMutation.mutate(requestData as any);
   };
 
+  // Função para solicitar sugestão de IA
+  const handleRequestSuggestion = () => {
+    if (!user?.id || !ticket.department_id) return;
+    
+    generateSuggestion({
+      ticket_id: ticket.id,
+      user_id: user.id,
+      department_id: ticket.department_id
+    });
+  };
+
   // Função para encontrar o nome do atendente atual
   const getCurrentOfficialName = () => {
     if (!ticket.assigned_to_id) return 'Não atribuído';
@@ -164,12 +189,34 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-medium">Responder ao Chamado</h3>
-          {/* Botão Transferir: oculto apenas para customer */}
-          {user?.role !== 'customer' && (
-            <Button variant="secondary" onClick={() => setTransferOpen(true)}>
-              Transferir Chamado
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {/* Botão IA: apenas para atendentes com IA habilitada */}
+            {user?.role !== 'customer' && canUseAI && (
+              <Button 
+                variant="outline" 
+                onClick={handleRequestSuggestion}
+                disabled={isGenerating}
+                className="flex items-center gap-2"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Gerando...
+                  </>
+                ) : (
+                  <>
+                    🤖 Preciso de ajuda
+                  </>
+                )}
+              </Button>
+            )}
+            {/* Botão Transferir: oculto apenas para customer */}
+            {user?.role !== 'customer' && (
+              <Button variant="secondary" onClick={() => setTransferOpen(true)}>
+                Transferir Chamado
+              </Button>
+            )}
+          </div>
         </div>
         {/* Contexto do Chamado: Departamento / Tipo / Categoria (sem dependência do FormContext) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
@@ -379,6 +426,20 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
             </div>
           </form>
         </Form>
+        
+        {/* Sugestões de IA - Seção separada após o formulário */}
+        {hasSuggestions && latestSuggestion && (
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <h4 className="text-sm font-medium text-gray-900 mb-4">💡 Sugestão de Resolução</h4>
+            <AISuggestionCard 
+              suggestion={latestSuggestion}
+              onFeedback={(suggestionId, rating) => {
+                // O feedback é gerenciado pelo próprio componente AISuggestionCard
+              }}
+            />
+          </div>
+        )}
+        
         {/* Modal de Transferência */}
         <TicketTransferDialog 
           open={transferOpen}

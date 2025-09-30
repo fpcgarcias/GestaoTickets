@@ -41,6 +41,9 @@ export async function getAiConfigurations(req: Request, res: Response) {
         is_default: schema.aiConfigurations.is_default,
         temperature: schema.aiConfigurations.temperature,
         max_tokens: schema.aiConfigurations.max_tokens,
+        max_completion_tokens: schema.aiConfigurations.max_completion_tokens,
+        reasoning_effort: schema.aiConfigurations.reasoning_effort,
+        verbosity: schema.aiConfigurations.verbosity,
         timeout_seconds: schema.aiConfigurations.timeout_seconds,
         max_retries: schema.aiConfigurations.max_retries,
         fallback_priority: schema.aiConfigurations.fallback_priority,
@@ -106,6 +109,9 @@ export async function createAiConfiguration(req: Request, res: Response) {
       department_id,
       temperature,
       max_tokens,
+      max_completion_tokens,
+      reasoning_effort,
+      verbosity,
       timeout_seconds,
       max_retries,
       fallback_priority,
@@ -132,15 +138,16 @@ export async function createAiConfiguration(req: Request, res: Response) {
       });
     }
 
-    const [modelSetting] = await db
+    const modelSettings = await db
       .select({ value: schema.systemSettings.value })
       .from(schema.systemSettings)
-      .where(eq(schema.systemSettings.key, `ai_${provider}_model`))
-      .limit(1);
+      .where(eq(schema.systemSettings.key, `ai_${provider}_model`));
 
-    if (!modelSetting || modelSetting.value !== model) {
+    const availableModels = modelSettings.map(setting => setting.value);
+    
+    if (availableModels.length === 0 || !availableModels.includes(model)) {
       return res.status(400).json({ 
-        message: `Modelo ${model} não está disponível para o provedor ${provider}. Entre em contato com o administrador.` 
+        message: `Modelo ${model} não está disponível para o provedor ${provider}. Modelos disponíveis: ${availableModels.join(', ')}. Entre em contato com o administrador.` 
       });
     }
     if (!department_id) {
@@ -186,10 +193,13 @@ export async function createAiConfiguration(req: Request, res: Response) {
         department_id,
         company_id: targetCompanyId,
         temperature: temperature,
-      max_tokens: max_tokens,
-      timeout_seconds: timeout_seconds,
-      max_retries: max_retries,
-      fallback_priority: fallback_priority,
+        max_tokens: max_tokens,
+        max_completion_tokens: max_completion_tokens,
+        reasoning_effort: reasoning_effort,
+        verbosity: verbosity,
+        timeout_seconds: timeout_seconds,
+        max_retries: max_retries,
+        fallback_priority: fallback_priority,
         is_active: is_active !== undefined ? is_active : true,
         is_default: is_default || false,
         created_by_id: userId,
@@ -315,6 +325,8 @@ export async function updateAiConfiguration(req: Request, res: Response) {
     const userId = req.session.userId;
     const userRole = req.session?.userRole;
     const userCompanyId = req.session?.companyId;
+    
+
     if (isNaN(configurationId)) {
       return res.status(400).json({ message: "ID de configuração inválido" });
     }
@@ -336,6 +348,9 @@ export async function updateAiConfiguration(req: Request, res: Response) {
       department_id,
       temperature,
       max_tokens,
+      max_completion_tokens,
+      reasoning_effort,
+      verbosity,
       timeout_seconds,
       max_retries,
       fallback_priority,
@@ -365,15 +380,16 @@ export async function updateAiConfiguration(req: Request, res: Response) {
         });
       }
 
-      const [modelSetting] = await db
+      const modelSettings = await db
         .select({ value: schema.systemSettings.value })
         .from(schema.systemSettings)
-        .where(eq(schema.systemSettings.key, `ai_${provider}_model`))
-        .limit(1);
+        .where(eq(schema.systemSettings.key, `ai_${provider}_model`));
 
-      if (!modelSetting || modelSetting.value !== model) {
+      const availableModels = modelSettings.map(setting => setting.value);
+      
+      if (availableModels.length === 0 || !availableModels.includes(model)) {
         return res.status(400).json({ 
-          message: `Modelo ${model} não está disponível para o provedor ${provider}. Entre em contato com o administrador.` 
+          message: `Modelo ${model} não está disponível para o provedor ${provider}. Modelos disponíveis: ${availableModels.join(', ')}. Entre em contato com o administrador.` 
         });
       }
     }
@@ -417,6 +433,9 @@ export async function updateAiConfiguration(req: Request, res: Response) {
         company_id: targetCompanyId,
         temperature,
         max_tokens,
+        max_completion_tokens,
+        reasoning_effort,
+        verbosity,
         timeout_seconds,
         max_retries,
         fallback_priority,
@@ -477,29 +496,41 @@ export async function getAiProviders(req: Request, res: Response) {
       if (key.startsWith('ai_') && key.endsWith('_provider')) {
         const providerName = key.replace('ai_', '').replace('_provider', '');
         if (!providersData[providerName]) {
-          providersData[providerName] = {};
+          providersData[providerName] = { models: [] };
         }
         providersData[providerName].name = provider.value;
         providersData[providerName].key = providerName; // Chave para usar no frontend
       } else if (key.startsWith('ai_') && key.endsWith('_model')) {
         const providerName = key.replace('ai_', '').replace('_model', '');
         if (!providersData[providerName]) {
-          providersData[providerName] = {};
+          providersData[providerName] = { models: [] };
         }
-        providersData[providerName].model = provider.value;
+        providersData[providerName].models.push(provider.value);
       } else if (key.startsWith('ai_') && key.endsWith('_endpoint')) {
         const providerName = key.replace('ai_', '').replace('_endpoint', '');
         if (!providersData[providerName]) {
-          providersData[providerName] = {};
+          providersData[providerName] = { models: [] };
         }
         providersData[providerName].endpoint = provider.value;
       }
     });
 
-    // Retornar apenas provedores que têm nome e modelo configurados
-    const availableProviders = Object.values(providersData).filter(
-      (provider: any) => provider.name && provider.model
-    );
+    // Criar uma lista de provedores com TODOS os modelos
+    const availableProviders: any[] = [];
+    
+    Object.entries(providersData).forEach(([providerKey, providerData]) => {
+      if (providerData.name && providerData.models && providerData.models.length > 0) {
+        // Para cada modelo, criar uma entrada separada
+        providerData.models.forEach((model: string) => {
+          availableProviders.push({
+            name: providerData.name,
+            key: providerKey,
+            model: model,
+            endpoint: providerData.endpoint || ''
+          });
+        });
+      }
+    });
 
     res.json(availableProviders);
   } catch (error) {
@@ -530,39 +561,51 @@ export async function getAiProvidersAdmin(req: Request, res: Response) {
         )
       );
 
-    // Organizar os dados por provedor
-    const providersData: Record<string, any> = {};
+    // Separar modelos de outros dados
+    const models: string[] = [];
+    const providerInfo: Record<string, any> = {};
     
     settings.forEach(setting => {
       const key = setting.key;
-      if (key.startsWith('ai_') && key.endsWith('_provider')) {
+      if (key.startsWith('ai_') && key.endsWith('_model')) {
+        // CADA linha de modelo vira um objeto separado
+        models.push(setting.value);
+      } else if (key.startsWith('ai_') && key.endsWith('_provider')) {
         const providerName = key.replace('ai_', '').replace('_provider', '');
-        if (!providersData[providerName]) {
-          providersData[providerName] = {};
+        if (!providerInfo[providerName]) {
+          providerInfo[providerName] = {};
         }
-        providersData[providerName].name = setting.value;
-      } else if (key.startsWith('ai_') && key.endsWith('_model')) {
-        const providerName = key.replace('ai_', '').replace('_model', '');
-        if (!providersData[providerName]) {
-          providersData[providerName] = {};
-        }
-        providersData[providerName].model = setting.value;
+        providerInfo[providerName].name = setting.value;
       } else if (key.startsWith('ai_') && key.endsWith('_endpoint')) {
         const providerName = key.replace('ai_', '').replace('_endpoint', '');
-        if (!providersData[providerName]) {
-          providersData[providerName] = {};
+        if (!providerInfo[providerName]) {
+          providerInfo[providerName] = {};
         }
-        providersData[providerName].endpoint = setting.value;
+        providerInfo[providerName].endpoint = setting.value;
       } else if (key.startsWith('ai_') && key.endsWith('_token')) {
         const providerName = key.replace('ai_', '').replace('_token', '');
-        if (!providersData[providerName]) {
-          providersData[providerName] = {};
+        if (!providerInfo[providerName]) {
+          providerInfo[providerName] = {};
         }
-        providersData[providerName].token = setting.value;
+        providerInfo[providerName].token = setting.value;
       }
     });
 
-    res.json(Object.values(providersData));
+    // Criar 1 objeto por modelo (1 linha por modelo)
+    const providers: any[] = [];
+    const providerName = Object.keys(providerInfo)[0] || 'openai';
+    const info = providerInfo[providerName] || {};
+    
+    models.forEach(model => {
+      providers.push({
+        name: info.name || providerName,
+        model: model,
+        endpoint: info.endpoint || '',
+        token: info.token || ''
+      });
+    });
+
+    res.json(providers);
   } catch (error) {
     console.error('Erro ao buscar provedores de IA (admin):', error);
     res.status(500).json({ message: "Falha ao buscar provedores de IA", error: String(error) });
@@ -584,22 +627,81 @@ export async function updateAiProvidersAdmin(req: Request, res: Response) {
       return res.status(400).json({ message: "Dados inválidos. Esperado array de provedores." });
     }
 
-    // Atualizar cada provedor
+    // 1. BUSCAR TODOS os registros de AI existentes no banco
+    const existingSettings = await db
+      .select()
+      .from(schema.systemSettings)
+      .where(like(schema.systemSettings.key, 'ai_%'));
+
+    // 2. CRIAR SET com os modelos que DEVEM EXISTIR (vindos do frontend)
+    const modelsToKeep = new Set<string>();
+    providers.forEach(p => {
+      if (p.name && p.model) {
+        modelsToKeep.add(`${p.name}|${p.model}`);
+      }
+    });
+
+    // 3. DELETAR APENAS os modelos que NÃO ESTÃO na lista (foram removidos)
+    const modelsInDb = new Map<string, any[]>();
+    existingSettings.forEach(setting => {
+      const match = setting.key.match(/^ai_([^_]+)_model$/);
+      if (match) {
+        const providerName = match[1];
+        const key = `${providerName}|${setting.value}`;
+        if (!modelsInDb.has(key)) {
+          modelsInDb.set(key, []);
+        }
+        modelsInDb.get(key)!.push(setting);
+      }
+    });
+
+    // Deletar modelos que foram removidos
+    for (const [key, settings] of modelsInDb) {
+      if (!modelsToKeep.has(key)) {
+        const [providerName, model] = key.split('|');
+        // Deletar APENAS esse modelo específico
+        await db
+          .delete(schema.systemSettings)
+          .where(
+            and(
+              eq(schema.systemSettings.key, `ai_${providerName}_model`),
+              eq(schema.systemSettings.value, model)
+            )
+          );
+      }
+    }
+
+    // 4. INSERIR ou ATUALIZAR cada provedor
     for (const provider of providers) {
       const { name, model, endpoint, token } = provider;
       
-      if (name) {
-        await saveSystemSetting(`ai_${name}_provider`, name);
+      if (!name || !model || !token) {
+        continue;
       }
-      if (model) {
-        await saveSystemSetting(`ai_${name}_model`, model);
+
+      // Verificar se já existe esse modelo específico
+      const [existingModel] = await db
+        .select()
+        .from(schema.systemSettings)
+        .where(
+          and(
+            eq(schema.systemSettings.key, `ai_${name}_model`),
+            eq(schema.systemSettings.value, model)
+          )
+        )
+        .limit(1);
+
+      if (!existingModel) {
+        // NÃO EXISTE: INSERE NOVO
+        await db.insert(schema.systemSettings).values({ key: `ai_${name}_model`, value: model });
       }
+      
+      // Atualizar/inserir provider, endpoint e token (sempre atualiza)
+      await saveSystemSetting(`ai_${name}_provider`, name);
       if (endpoint) {
         await saveSystemSetting(`ai_${name}_endpoint`, endpoint);
       }
-      if (token) {
-        await saveSystemSetting(`ai_${name}_token`, token);
-      }
+      await saveSystemSetting(`ai_${name}_token`, token);
     }
 
     res.json({ message: "Provedores atualizados com sucesso" });

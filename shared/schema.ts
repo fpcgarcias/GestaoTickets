@@ -373,10 +373,15 @@ export const aiConfigurations = pgTable("ai_configurations", {
   user_prompt_template: text("user_prompt_template").notNull(), // Template com {titulo} e {descricao}
   
   // Configurações técnicas
-  temperature: text("temperature").default("0.1"), // Stored as text for precision
-  max_tokens: integer("max_tokens").default(100),
-  timeout_seconds: integer("timeout_seconds").default(30),
+  temperature: text("temperature").default("1"), // GPT-5 forces temperature to 1
+  max_tokens: integer("max_tokens").default(100), // Deprecated - kept for backward compatibility
+  max_completion_tokens: integer("max_completion_tokens").default(1500), // GPT-5 uses this instead of max_tokens
+  timeout_seconds: integer("timeout_seconds").default(60), // GPT-5 needs more time for reasoning
   max_retries: integer("max_retries").default(3),
+  
+  // GPT-5 specific parameters
+  reasoning_effort: text("reasoning_effort").default("medium"), // minimal, low, medium, high
+  verbosity: text("verbosity").default("medium"), // low, medium, high
   
   // Configurações de fallback
   fallback_priority: text("fallback_priority").default("MÉDIA"), // TEXT para prioridades dinâmicas
@@ -971,3 +976,52 @@ export const satisfactionSurveysRelations = relations(satisfactionSurveys, ({ on
     references: [companies.id],
   }),
 }));
+
+// Tabela para armazenar sugestões de IA geradas
+export const aiSuggestions = pgTable("ai_suggestions", {
+  id: serial("id").primaryKey(),
+  ticket_id: integer("ticket_id").notNull().references(() => tickets.id, { onDelete: "cascade" }),
+  user_id: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  department_id: integer("department_id").references(() => departments.id, { onDelete: "cascade" }),
+  
+  // Dados da análise
+  similar_tickets_count: integer("similar_tickets_count").notNull().default(0),
+  success_rate: text("success_rate").default("0.00"), // DECIMAL como text para precisão
+  confidence_score: text("confidence_score").default("0.00"), // DECIMAL como text para precisão
+  
+  // Tipo de sugestão
+  suggestion_type: text("suggestion_type").notNull().default("similar_cases"),
+  
+  // Dados da IA
+  prompt_used: text("prompt_used"),
+  ai_response: text("ai_response"),
+  structured_suggestion: text("structured_suggestion"), // JSONB como text
+  
+  // Feedback do usuário
+  feedback_rating: integer("feedback_rating"),
+  feedback_comment: text("feedback_comment"),
+  
+  // Metadados
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Tabela para logs de auditoria das sugestões
+export const aiSuggestionLogs = pgTable("ai_suggestion_logs", {
+  id: serial("id").primaryKey(),
+  suggestion_id: integer("suggestion_id").notNull().references(() => aiSuggestions.id, { onDelete: "cascade" }),
+  action: text("action").notNull(),
+  details: text("details"), // JSONB como text
+  user_id: integer("user_id").references(() => users.id, { onDelete: "set null" }),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Schemas de inserção para as novas tabelas
+export const insertAiSuggestionSchema = createInsertSchema(aiSuggestions);
+export const insertAiSuggestionLogSchema = createInsertSchema(aiSuggestionLogs);
+
+// Tipos TypeScript
+export type InsertAiSuggestion = z.infer<typeof insertAiSuggestionSchema>;
+export type InsertAiSuggestionLog = z.infer<typeof insertAiSuggestionLogSchema>;
+export type AiSuggestion = typeof aiSuggestions.$inferSelect;
+export type AiSuggestionLog = typeof aiSuggestionLogs.$inferSelect;

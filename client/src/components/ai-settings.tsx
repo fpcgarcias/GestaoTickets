@@ -67,20 +67,23 @@ import {
 interface AiConfiguration {
   id: number;
   name: string;
-  provider: 'openai' | 'google' | 'anthropic';
+  provider: string;
   model: string;
   system_prompt: string;
   user_prompt_template: string;
   department_id?: number | null;
   company_id?: number | null;
   temperature: string;
-  max_tokens: number;
+  max_tokens: number; // Deprecated - mantido para compatibilidade
+  max_completion_tokens: number; // GPT-5 parameter
+  reasoning_effort: 'low' | 'medium' | 'high'; // GPT-5 parameter
+  verbosity: 'low' | 'medium' | 'high'; // GPT-5 parameter
   timeout_seconds: number;
   max_retries: number;
   fallback_priority: 'low' | 'medium' | 'high' | 'critical';
   is_active: boolean;
   is_default: boolean;
-  analysis_type: 'priority' | 'reopen';
+  analysis_type: 'priority' | 'reopen' | 'ticket_suggestions';
   created_at: string;
   updated_at: string;
   created_by_name?: string;
@@ -97,20 +100,23 @@ interface TestResult {
 
 interface FormData {
   name: string;
-  provider: 'openai' | 'google' | 'anthropic';
+  provider: string;
   model: string;
   system_prompt: string;
   user_prompt_template: string;
   department_id: number | null;
   company_id: number | null;
   temperature: string;
-  max_tokens: number;
+  max_tokens: number; // Deprecated - mantido para compatibilidade
+  max_completion_tokens: number; // GPT-5 parameter
+  reasoning_effort: 'low' | 'medium' | 'high'; // GPT-5 parameter
+  verbosity: 'low' | 'medium' | 'high'; // GPT-5 parameter
   timeout_seconds: number;
   max_retries: number;
   fallback_priority: 'low' | 'medium' | 'high' | 'critical';
   is_active: boolean;
   is_default: boolean;
-  analysis_type: 'priority' | 'reopen';
+  analysis_type: 'priority' | 'reopen' | 'ticket_suggestions';
 }
 
 interface TestData {
@@ -133,9 +139,10 @@ interface Department {
 
 interface AiProvider {
   name: string;
+  key: string;
   model: string;
-  endpoint: string;
-  token: string;
+  endpoint?: string;
+  token?: string;
   isActive?: boolean;
 }
 
@@ -206,6 +213,40 @@ IMPORTANTE: Responda EXATAMENTE no formato:
 Analise se esta resposta indica que o problema foi resolvido ou ainda persiste. Responda no formato:
 <ACAO>acao</ACAO>
 <JUSTIFICATIVA>justificativa</JUSTIFICATIVA>`
+  },
+  ticket_suggestions: {
+    system: `Você é um assistente especializado em suporte técnico. Analise o ticket atual e os casos similares para sugerir uma resolução.
+
+INSTRUÇÕES:
+1. Analise os casos similares e identifique padrões de resolução
+2. Gere um passo a passo claro e objetivo
+3. Inclua comandos específicos quando aplicável
+4. Mantenha linguagem técnica mas acessível
+5. Foque em soluções práticas e testáveis
+
+FORMATO DE RESPOSTA (JSON):
+{
+  "summary": "Resumo da situação e abordagem sugerida",
+  "confidence": 85,
+  "step_by_step": [
+    "Passo 1: Descrição detalhada",
+    "Passo 2: Descrição detalhada"
+  ],
+  "commands": ["comando1", "comando2"],
+  "additional_notes": "Observações importantes",
+  "estimated_time": "15-30 minutos"
+}`,
+    user: `TICKET ATUAL:
+- Título: {ticket_title}
+- Descrição: {ticket_description}
+- Tipo: {ticket_type}
+- Categoria: {ticket_category}
+- Departamento: {department_name}
+
+CASOS SIMILARES ENCONTRADOS ({similar_count}):
+{similar_tickets_data}
+
+Analise os casos similares e gere uma sugestão de resolução estruturada.`
   }
 };
 
@@ -213,17 +254,24 @@ Analise se esta resposta indica que o problema foi resolvido ou ainda persiste. 
 // OpenAI: GPT-4o (mais recente), GPT-4o-mini (mais eficiente), GPT-4 Turbo, GPT-4, GPT-3.5 Turbo
 // Google: Gemini 1.5 Pro, Gemini 1.5 Flash, Gemini 1.0 Pro  
 // Função para obter modelos disponíveis baseado nos provedores configurados no banco
-const getAvailableModels = (providerName: string, availableProviders: AiProvider[]): string[] => {
-  const provider = availableProviders.find(p => p.name === providerName);
-  return provider ? [provider.model] : [];
+const getAvailableModels = (providerKey: string, availableProviders: AiProvider[]): string[] => {
+  return availableProviders
+    .filter(p => p.key === providerKey)
+    .map(p => p.model);
 };
 
 // Função para obter provedores disponíveis como opções de select
 const getAvailableProviderOptions = (availableProviders: AiProvider[]) => {
-  return availableProviders.map(provider => ({
-    key: provider.name,
+  const uniqueProviders = new Map();
+  availableProviders.forEach(provider => {
+    if (!uniqueProviders.has(provider.key)) {
+      uniqueProviders.set(provider.key, {
+        key: provider.key,
     name: provider.name
-  }));
+      });
+    }
+  });
+  return Array.from(uniqueProviders.values());
 };
 
 interface AiUsageToggleProps {
@@ -549,7 +597,7 @@ function DepartmentAiConfiguration() {
   const [availableProviders, setAvailableProviders] = useState<AiProvider[]>([]);
   const [formData, setFormData] = useState({
     name: '',
-    provider: 'openai' as 'openai' | 'google' | 'anthropic',
+    provider: 'openai',
     model: 'gpt-4o',
     system_prompt: '',
     user_prompt_template: '',
@@ -557,25 +605,29 @@ function DepartmentAiConfiguration() {
     company_id: user?.company?.id || null,
     temperature: '0.1',
     max_tokens: 500,
+    max_completion_tokens: 1500,
+    reasoning_effort: 'low' as 'low' | 'medium' | 'high',
+    verbosity: 'low' as 'low' | 'medium' | 'high',
     timeout_seconds: 30,
     max_retries: 3,
     fallback_priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
     is_active: true,
     is_default: false,
-    analysis_type: 'priority' as 'priority' | 'reopen'
+    analysis_type: 'priority' as 'priority' | 'reopen' | 'ticket_suggestions'
   });
 
-  const [selectedAnalysisType, setSelectedAnalysisType] = useState<'priority' | 'reopen'>('priority');
+  const [selectedAnalysisType, setSelectedAnalysisType] = useState<'priority' | 'reopen' | 'ticket_suggestions'>('priority');
 
   // Buscar configurações de IA (backend já filtra por empresa)
-  const fetchConfigurations = async (analysisType?: 'priority' | 'reopen') => {
+  const fetchConfigurations = async (analysisType?: 'priority' | 'reopen' | 'ticket_suggestions') => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
       if (analysisType) {
         params.append('analysis_type', analysisType);
       }
-      const response = await apiRequest('GET', `/api/ai-configurations?${params.toString()}`);
+      const url = `/api/ai-configurations?${params.toString()}`;
+      const response = await apiRequest('GET', url);
       if (response.ok) {
         const data = await response.json();
         // Backend já retorna apenas as configurações da empresa do usuário
@@ -631,14 +683,17 @@ function DepartmentAiConfiguration() {
     setFormData({
       name: '',
       provider: 'openai',
-      model: 'gpt-4o',
+      model: 'gpt-5-mini', // Padrão GPT-5
       system_prompt: '',
       user_prompt_template: '',
       department_id: null,
       company_id: user?.company?.id || null,
-      temperature: '0.1',
-      max_tokens: 100,
-      timeout_seconds: 30,
+      temperature: '1', // GPT-5 força temperatura = 1
+      max_tokens: 1500, // Mantido para compatibilidade
+      max_completion_tokens: 1500, // GPT-5 parameter
+      reasoning_effort: 'medium', // GPT-5 parameter
+      verbosity: 'medium', // GPT-5 parameter
+      timeout_seconds: 60, // Aumentado para GPT-5 reasoning
       max_retries: 3,
       fallback_priority: 'medium',
       is_active: true,
@@ -755,14 +810,17 @@ function DepartmentAiConfiguration() {
     setFormData({
       name: config.name || '',
       provider: config.provider,
-      model: config.model || 'gpt-4o',
+      model: config.model || 'gpt-5-mini',
       system_prompt: decodeHtml(config.system_prompt || ''),
       user_prompt_template: decodeHtml(config.user_prompt_template || ''),
       department_id: config.department_id || null,
       company_id: config.company_id || user?.company?.id || null,
-      temperature: config.temperature || '0.1',
-      max_tokens: config.max_tokens || 100,
-      timeout_seconds: config.timeout_seconds || 30,
+      temperature: config.temperature || '1',
+      max_tokens: config.max_tokens || 1500,
+      max_completion_tokens: config.max_completion_tokens || 1500,
+      reasoning_effort: config.reasoning_effort || 'medium',
+      verbosity: config.verbosity || 'medium',
+      timeout_seconds: config.timeout_seconds || 60,
       max_retries: config.max_retries || 3,
       fallback_priority: config.fallback_priority || 'medium',
       is_active: config.is_active !== undefined ? config.is_active : true,
@@ -840,7 +898,7 @@ function DepartmentAiConfiguration() {
     <div className="space-y-4">
       {/* Abas para tipos de análise */}
       <Tabs value={selectedAnalysisType} onValueChange={(value) => {
-        const analysisType = value as 'priority' | 'reopen';
+        const analysisType = value as 'priority' | 'reopen' | 'ticket_suggestions';
         setSelectedAnalysisType(analysisType);
         fetchConfigurations(analysisType);
       }} className="w-full">
@@ -852,6 +910,10 @@ function DepartmentAiConfiguration() {
           <TabsTrigger value="reopen" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             <RotateCcw className="mr-2 h-4 w-4" />
             Análise de Reabertura
+          </TabsTrigger>
+          <TabsTrigger value="ticket_suggestions" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+            <Lightbulb className="mr-2 h-4 w-4" />
+            Sugestões de Tickets
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -909,10 +971,10 @@ function DepartmentAiConfiguration() {
         <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>
-              {editingConfig ? 'Editar' : 'Nova'} Configuração de IA - {formData.analysis_type === 'priority' ? 'Prioridade' : 'Reabertura'}
+              {editingConfig ? 'Editar' : 'Nova'} Configuração de IA - {formData.analysis_type === 'priority' ? 'Prioridade' : formData.analysis_type === 'ticket_suggestions' ? 'Sugestões de Tickets' : 'Reabertura'}
             </DialogTitle>
             <DialogDescription>
-              Configure os prompts específicos para análise de {formData.analysis_type === 'priority' ? 'prioridade' : 'reabertura'} deste departamento
+              Configure os prompts específicos para {formData.analysis_type === 'priority' ? 'análise de prioridade' : formData.analysis_type === 'ticket_suggestions' ? 'sugestões de tickets' : 'análise de reabertura'} deste departamento
             </DialogDescription>
           </DialogHeader>
 
@@ -956,7 +1018,7 @@ function DepartmentAiConfiguration() {
                   value={formData.analysis_type} 
                   onValueChange={(v) => setFormData(prev => ({ 
                     ...prev, 
-                    analysis_type: v as 'priority' | 'reopen'
+                    analysis_type: v as 'priority' | 'reopen' | 'ticket_suggestions'
                   }))}
                 >
                   <SelectTrigger>
@@ -965,6 +1027,7 @@ function DepartmentAiConfiguration() {
                   <SelectContent>
                     <SelectItem value="priority">Análise de Prioridade</SelectItem>
                     <SelectItem value="reopen">Análise de Reabertura</SelectItem>
+                    <SelectItem value="ticket_suggestions">Sugestões de Tickets</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1069,12 +1132,16 @@ function DepartmentAiConfiguration() {
                   onChange={(e) => setFormData(prev => ({ ...prev, user_prompt_template: e.target.value }))}
                   placeholder={formData.analysis_type === 'priority' 
                     ? "Template para análise. Use {titulo} e {descricao} como variáveis..."
+                    : formData.analysis_type === 'ticket_suggestions'
+                    ? "Template para sugestões. Use {ticket_title}, {ticket_description}, {ticket_type}, {ticket_category}, {department_name}, {similar_count}, {similar_tickets_data} como variáveis..."
                     : "Template para análise de reabertura. Use {mensagem_cliente} como variável..."}
                   rows={3}
                 />
                 <p className="text-sm text-muted-foreground mt-1">
                   {formData.analysis_type === 'priority' ? (
                     <>Use <code>{"{titulo}"}</code> e <code>{"{descricao}"}</code> como variáveis que serão substituídas.</>
+                  ) : formData.analysis_type === 'ticket_suggestions' ? (
+                    <>Use <code>{"{ticket_title}"}</code>, <code>{"{ticket_description}"}</code>, <code>{"{ticket_type}"}</code>, <code>{"{ticket_category}"}</code>, <code>{"{department_name}"}</code>, <code>{"{similar_count}"}</code>, <code>{"{similar_tickets_data}"}</code> como variáveis para sugestões de tickets.</>
                   ) : (
                     <>Use <code>{"{mensagem_cliente}"}</code> como variável para análise de reabertura.</>
                   )}
@@ -1083,51 +1150,105 @@ function DepartmentAiConfiguration() {
             </div>
 
             {/* Configurações Técnicas */}
-            <div className="grid grid-cols-4 gap-4">
-              <div>
-                <Label htmlFor="temperature">Temperatura</Label>
-                <Input
-                  id="temperature"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="2"
-                  value={formData.temperature}
-                  onChange={(e) => setFormData(prev => ({ ...prev, temperature: e.target.value }))}
-                />
+            <div className="space-y-6">
+              {/* Configurações GPT-5 - Layout em grid 3x2 */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="temperature">Temperatura (GPT-5 = 1)</Label>
+                  <Input
+                    id="temperature"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="2"
+                    value={formData.temperature}
+                    onChange={(e) => setFormData(prev => ({ ...prev, temperature: e.target.value }))}
+                    disabled={true} // GPT-5 força temperatura = 1
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">GPT-5 força temperatura = 1</p>
+                </div>
+                
+                <div>
+                  <Label htmlFor="max_completion_tokens">Max Completion Tokens (GPT-5)</Label>
+                  <Input
+                    id="max_completion_tokens"
+                    type="number"
+                    min="1"
+                    max="4000"
+                    value={formData.max_completion_tokens}
+                    onChange={(e) => setFormData(prev => ({ ...prev, max_completion_tokens: parseInt(e.target.value) || 1500 }))}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="reasoning_effort">Reasoning Effort (GPT-5)</Label>
+                  <Select value={formData.reasoning_effort} onValueChange={(value: 'low' | 'medium' | 'high') => setFormData(prev => ({ ...prev, reasoning_effort: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o nível" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div>
+                  <Label htmlFor="verbosity">Verbosity (GPT-5)</Label>
+                  <Select value={formData.verbosity} onValueChange={(value: 'low' | 'medium' | 'high') => setFormData(prev => ({ ...prev, verbosity: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o nível" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="timeout_seconds">Timeout (seg)</Label>
+                  <Input
+                    id="timeout_seconds"
+                    type="number"
+                    min="1"
+                    max="300"
+                    value={formData.timeout_seconds}
+                    onChange={(e) => setFormData(prev => ({ ...prev, timeout_seconds: parseInt(e.target.value) || 30 }))}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="max_retries">Tentativas</Label>
+                  <Input
+                    id="max_retries"
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={formData.max_retries}
+                    onChange={(e) => setFormData(prev => ({ ...prev, max_retries: parseInt(e.target.value) || 3 }))}
+                  />
+                </div>
               </div>
-              <div>
-                <Label htmlFor="max_tokens">Max Tokens</Label>
-                <Input
-                  id="max_tokens"
-                  type="number"
-                  min="1"
-                  max="4000"
-                  value={formData.max_tokens}
-                  onChange={(e) => setFormData(prev => ({ ...prev, max_tokens: parseInt(e.target.value) || 100 }))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="timeout_seconds">Timeout (seg)</Label>
-                <Input
-                  id="timeout_seconds"
-                  type="number"
-                  min="1"
-                  max="300"
-                  value={formData.timeout_seconds}
-                  onChange={(e) => setFormData(prev => ({ ...prev, timeout_seconds: parseInt(e.target.value) || 30 }))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="max_retries">Tentativas</Label>
-                <Input
-                  id="max_retries"
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={formData.max_retries}
-                  onChange={(e) => setFormData(prev => ({ ...prev, max_retries: parseInt(e.target.value) || 3 }))}
-                />
+
+              {/* Campo Deprecated separado */}
+              <div className="border-t pt-4">
+                <div className="bg-gray-50 p-3 rounded-md max-w-md">
+                  <Label htmlFor="max_tokens" className="text-gray-600">Max Tokens (Deprecated)</Label>
+                  <Input
+                    id="max_tokens"
+                    type="number"
+                    min="1"
+                    max="4000"
+                    value={formData.max_tokens}
+                    onChange={(e) => setFormData(prev => ({ ...prev, max_tokens: parseInt(e.target.value) || 1500 }))}
+                    disabled={true} // Deprecated para GPT-5
+                    className="bg-gray-100 mt-1"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">⚠️ Deprecated - Use Max Completion Tokens para GPT-5</p>
+                </div>
               </div>
             </div>
 
@@ -1172,9 +1293,9 @@ function DepartmentAiConfiguration() {
 
             {/* Seção de teste */}
             <div className="border-t pt-4">
-              <h4 className="font-medium mb-3">Testar Configuração - {formData.analysis_type === 'priority' ? 'Prioridade' : 'Reabertura'}</h4>
+              <h4 className="font-medium mb-3">Testar Configuração - {formData.analysis_type === 'priority' ? 'Prioridade' : formData.analysis_type === 'ticket_suggestions' ? 'Sugestões de Tickets' : 'Reabertura'}</h4>
               <div className="space-y-3">
-                {formData.analysis_type === 'priority' ? (
+                {formData.analysis_type === 'priority' || formData.analysis_type === 'ticket_suggestions' ? (
                   <>
                     <div>
                       <Label htmlFor="test-title">Título do Teste</Label>
@@ -1182,6 +1303,7 @@ function DepartmentAiConfiguration() {
                         id="test-title"
                         value={testData.test_title}
                         onChange={(e) => setTestData(prev => ({ ...prev, test_title: e.target.value }))}
+                        placeholder={formData.analysis_type === 'ticket_suggestions' ? "Ex: Problema de login no Teams" : "Ex: Sistema de email não está funcionando"}
                       />
                     </div>
                     <div>
@@ -1191,6 +1313,7 @@ function DepartmentAiConfiguration() {
                         value={testData.test_description}
                         onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
                         rows={3}
+                        placeholder={formData.analysis_type === 'ticket_suggestions' ? "Descreva o problema para testar a geração de sugestões..." : "Descreva o problema para testar a análise de prioridade..."}
                       />
                     </div>
                   </>
@@ -1230,7 +1353,7 @@ function DepartmentAiConfiguration() {
                   <div className="mt-3 p-3 bg-gray-50 rounded-lg">
                     <h5 className="font-medium mb-2">Resultado do Teste:</h5>
                     <div className="text-sm space-y-2">
-                      <div><strong>{formData.analysis_type === 'reopen' ? 'Ação' : 'Prioridade'}:</strong> {testResult.priority}</div>
+                      <div><strong>{formData.analysis_type === 'reopen' ? 'Ação' : formData.analysis_type === 'ticket_suggestions' ? 'Sugestão' : 'Prioridade'}:</strong> {testResult.priority}</div>
                       {testResult.justification && (
                         <div>
                           <strong>Justificativa:</strong>
@@ -1297,7 +1420,7 @@ function AdminAiConfiguration() {
   // Estado do formulário
   const [formData, setFormData] = useState({
     name: '',
-    provider: 'openai' as 'openai' | 'google' | 'anthropic',
+    provider: 'openai',
     model: 'gpt-4o',
     system_prompt: '',
     user_prompt_template: '',
@@ -1305,16 +1428,19 @@ function AdminAiConfiguration() {
     company_id: null as number | null,
     temperature: '0.1',
     max_tokens: 100,
+    max_completion_tokens: 1500,
+    reasoning_effort: 'low' as 'low' | 'medium' | 'high',
+    verbosity: 'low' as 'low' | 'medium' | 'high',
     timeout_seconds: 30,
     max_retries: 3,
     fallback_priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
     is_active: true,
     is_default: false,
-    analysis_type: 'priority' as 'priority' | 'reopen'
+    analysis_type: 'priority' as 'priority' | 'reopen' | 'ticket_suggestions'
   });
 
   // Estado para controlar o tipo de análise selecionado
-  const [selectedAnalysisType, setSelectedAnalysisType] = useState<'priority' | 'reopen'>('priority');
+  const [selectedAnalysisType, setSelectedAnalysisType] = useState<'priority' | 'reopen' | 'ticket_suggestions'>('priority');
 
   // Estados para administração de provedores
   const [providers, setProviders] = useState<AiProvider[]>([]);
@@ -1336,7 +1462,7 @@ function AdminAiConfiguration() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
 
   // Buscar configurações de IA
-  const fetchConfigurations = async (analysisType?: 'priority' | 'reopen') => {
+  const fetchConfigurations = async (analysisType?: 'priority' | 'reopen' | 'ticket_suggestions') => {
     setIsLoading(true);
     try {
       let url = '/api/ai-configurations';
@@ -1654,6 +1780,7 @@ function AdminAiConfiguration() {
 
     const newProvider: AiProvider = {
       name: providerFormData.name,
+      key: providerFormData.name.toLowerCase(),
       model: providerFormData.model,
       endpoint: providerFormData.endpoint || '',
       token: providerFormData.token
@@ -1675,11 +1802,12 @@ function AdminAiConfiguration() {
       return;
     }
 
+    // Comparar por NAME E MODEL para editar APENAS a linha específica
     const updatedProviders = providers.map(provider => 
-      provider.name === editingProvider.name 
+      provider.name === editingProvider.name && provider.model === editingProvider.model
         ? {
-            ...provider,
             name: providerFormData.name,
+            key: providerFormData.name.toLowerCase(),
             model: providerFormData.model,
             endpoint: providerFormData.endpoint,
             token: providerFormData.token
@@ -1695,7 +1823,10 @@ function AdminAiConfiguration() {
   const handleDeleteProvider = () => {
     if (!deletingProvider) return;
 
-    const updatedProviders = providers.filter(provider => provider.name !== deletingProvider.name);
+    // Comparar por NAME E MODEL para deletar APENAS a linha específica
+    const updatedProviders = providers.filter(
+      provider => !(provider.name === deletingProvider.name && provider.model === deletingProvider.model)
+    );
     updateProvidersMutation.mutate(updatedProviders);
     setDeletingProvider(null);
   };
@@ -1712,8 +1843,8 @@ function AdminAiConfiguration() {
     setProviderFormData({
       name: provider.name,
       model: provider.model,
-      endpoint: provider.endpoint,
-      token: provider.token
+      endpoint: provider.endpoint || '',
+      token: provider.token || ''
     });
     setEditingProvider(provider);
   };
@@ -1750,14 +1881,17 @@ function AdminAiConfiguration() {
     setFormData({
       name: config.name || '',
       provider: config.provider,
-      model: config.model || 'gpt-4o',
+      model: config.model || 'gpt-5-mini',
       system_prompt: decodeHtml(config.system_prompt || ''),
       user_prompt_template: decodeHtml(config.user_prompt_template || ''),
       department_id: config.department_id || null,
       company_id: config.company_id || null,
-      temperature: config.temperature || '0.1',
-      max_tokens: config.max_tokens || 100,
-      timeout_seconds: config.timeout_seconds || 30,
+      temperature: config.temperature || '1',
+      max_tokens: config.max_tokens || 1500,
+      max_completion_tokens: config.max_completion_tokens || 1500,
+      reasoning_effort: config.reasoning_effort || 'medium',
+      verbosity: config.verbosity || 'medium',
+      timeout_seconds: config.timeout_seconds || 60,
       max_retries: config.max_retries || 3,
       fallback_priority: config.fallback_priority || 'medium',
       is_active: config.is_active !== undefined ? config.is_active : true,
@@ -1785,7 +1919,7 @@ function AdminAiConfiguration() {
 
   const handleTest = async () => {
     // Validação baseada no tipo de análise
-    if (formData.analysis_type === 'priority') {
+    if (formData.analysis_type === 'priority' || formData.analysis_type === 'ticket_suggestions') {
       if (!testData.test_title || !testData.test_description) {
         toast({
           title: "Erro",
@@ -1821,6 +1955,9 @@ function AdminAiConfiguration() {
           test_title: testData.test_title,
           test_description: testData.test_description,
           fallback_priority: formData.fallback_priority
+        } : formData.analysis_type === 'ticket_suggestions' ? {
+          test_title: testData.test_title,
+          test_description: testData.test_description
         } : {
           test_description: testData.test_description // Para reabertura, apenas a mensagem do cliente
         })
@@ -1863,130 +2000,250 @@ function AdminAiConfiguration() {
         test_title: 'Solicitação de reabertura',
         test_description: 'Solicito a reabertura deste chamado, pois o problema voltou a ocorrer e ainda não foi resolvido.'
       });
+    } else if (selectedAnalysisType === 'ticket_suggestions') {
+      setTestData({
+        test_title: 'Problema de login no Teams',
+        test_description: 'Não consigo fazer login no Microsoft Teams desde ontem. Aparece erro de credenciais inválidas mesmo usando as mesmas credenciais que funcionam no Outlook.'
+      });
     }
   }, [selectedAnalysisType]);
 
-  // Lista hardcoded exclusiva para o modal de admin (OpenAI)
+  // Função para mapear key do provedor para display name
+  const getProviderDisplayName = (providerKey: string): string => {
+    const providerMap: Record<string, string> = {
+      'openai': 'OpenAI',
+      'google': 'Google',
+      'anthropic': 'Anthropic'
+    };
+    return providerMap[providerKey.toLowerCase()] || providerKey;
+  };
+
+  // Lista COMPLETA atualizada de modelos (Setembro 2025) - Foco em GPT-5
   const HARDCODED_AI_PROVIDERS = [
     {
       key: 'openai',
       name: 'OpenAI',
       models: [
-        "gpt-4-0613",
-        "gpt-4",
-        "gpt-3.5-turbo",
-        "o4-mini-deep-research-2025-06-26",
-        "codex-mini-latest",
-        "gpt-4o-realtime-preview-2025-06-03",
-        "gpt-4o-audio-preview-2025-06-03",
+        // ===== GPT-5 SERIES (RECOMENDADO - SETEMBRO 2025) =====
+        "gpt-5",
+        "gpt-5-turbo",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "gpt-5.1",
+        "gpt-5.1-mini",
+        "gpt-5.1-nano",
+        "gpt-5.1-turbo",
+        "gpt-5-codex",
+        "gpt-5-pro",
+        
+        // ===== O-SERIES (REASONING MODELS) =====
+        "o1",
+        "o1-pro",
+        "o1-mini",
+        "o1-preview",
+        "o3-mini",
+        "o3-mini-2025-01-31",
+        "o4-mini",
+        "o4-mini-high",
+        "o4-mini-2025-04-16",
         "o4-mini-deep-research",
-        "davinci-002",
-        "babbage-002",
+        "o4-mini-deep-research-2025-06-26",
+        
+        // ===== GPT-4.5 ORION (LEGACY) =====
+        "gpt-4.5",
+        "gpt-4.5-orion",
+        "gpt-4.5-turbo",
+        "gpt-4.5-mini",
+        
+        // ===== GPT-4.1 (LEGACY) =====
+        "gpt-4.1",
+        "gpt-4.1-mini",
+        "gpt-4.1-nano",
+        "gpt-4.1-turbo",
+        "gpt-4.1-2025-04-14",
+        "gpt-4.1-mini-2025-04-14",
+        "gpt-4.1-nano-2025-04-14",
+        
+        // ===== GPT-4O (LEGACY) =====
+        "gpt-4o",
+        "gpt-4o-mini",
+        "chatgpt-4o-latest",
+        "gpt-4o-2024-11-20",
+        "gpt-4o-2024-08-06",
+        "gpt-4o-2024-05-13",
+        "gpt-4o-mini-2024-07-18",
+        
+        // ===== GPT-4 TURBO (LEGACY) =====
+        "gpt-4-turbo",
+        "gpt-4-turbo-preview",
+        "gpt-4-turbo-2024-04-09",
+        
+        // ===== GPT-4 (LEGACY) =====
+        "gpt-4",
+        "gpt-4-0613",
+        "gpt-4-1106-preview",
+        "gpt-4-0125-preview",
+        
+        // ===== GPT-3.5 (DEPRECATED) =====
+        "gpt-3.5-turbo",
+        "gpt-3.5-turbo-16k",
+        "gpt-3.5-turbo-0125",
+        "gpt-3.5-turbo-1106",
         "gpt-3.5-turbo-instruct",
         "gpt-3.5-turbo-instruct-0914",
+        
+        // ===== SPECIALIZED MODELS (LEGACY) =====
+        "gpt-4o-realtime-preview",
+        "gpt-4o-realtime-preview-2024-12-17",
+        "gpt-4o-realtime-preview-2024-10-01",
+        "gpt-4o-realtime-preview-2025-06-03",
+        "gpt-4o-audio-preview",
+        "gpt-4o-audio-preview-2024-12-17",
+        "gpt-4o-audio-preview-2024-10-01",
+        "gpt-4o-audio-preview-2025-06-03",
+        "gpt-4o-mini-realtime-preview",
+        "gpt-4o-mini-realtime-preview-2024-12-17",
+        "gpt-4o-mini-audio-preview",
+        "gpt-4o-mini-audio-preview-2024-12-17",
+        "gpt-4o-search-preview",
+        "gpt-4o-search-preview-2025-03-11",
+        "gpt-4o-mini-search-preview",
+        "gpt-4o-mini-search-preview-2025-03-11",
+        "gpt-4o-transcribe",
+        "gpt-4o-mini-transcribe",
+        "gpt-4o-mini-tts",
+        "codex-mini-latest",
+        
+        // Image Generation
         "dall-e-3",
         "dall-e-2",
-        "gpt-4-1106-preview",
-        "gpt-3.5-turbo-1106",
+        "gpt-image-1",
+        
+        // Text-to-Speech
+        "tts-1",
         "tts-1-hd",
         "tts-1-1106",
         "tts-1-hd-1106",
+        
+        // Speech-to-Text
+        "whisper-1",
+        
+        // Embeddings
         "text-embedding-3-small",
         "text-embedding-3-large",
-        "gpt-4-0125-preview",
-        "gpt-4-turbo-preview",
-        "gpt-3.5-turbo-0125",
-        "gpt-4-turbo",
-        "gpt-4-turbo-2024-04-09",
-        "gpt-4o",
-        "gpt-4o-2024-05-13",
-        "gpt-4o-mini-2024-07-18",
-        "gpt-4o-mini",
-        "gpt-4o-2024-08-06",
-        "chatgpt-4o-latest",
-        "o1-preview-2024-09-12",
-        "o1-preview",
-        "o1-mini-2024-09-12",
-        "o1-mini",
-        "gpt-4o-realtime-preview-2024-10-01",
-        "gpt-4o-audio-preview-2024-10-01",
-        "gpt-4o-audio-preview",
-        "gpt-4o-realtime-preview",
+        "text-embedding-ada-002",
+        
+        // Moderation
         "omni-moderation-latest",
         "omni-moderation-2024-09-26",
-        "gpt-4o-realtime-preview-2024-12-17",
-        "gpt-4o-audio-preview-2024-12-17",
-        "gpt-4o-mini-realtime-preview-2024-12-17",
-        "gpt-4o-mini-audio-preview-2024-12-17",
-        "o1-2024-12-17",
-        "o1",
-        "gpt-4o-mini-realtime-preview",
-        "gpt-4o-mini-audio-preview",
-        "o3-mini",
-        "o3-mini-2025-01-31",
-        "gpt-4o-2024-11-20",
-        "gpt-4o-search-preview-2025-03-11",
-        "gpt-4o-search-preview",
-        "gpt-4o-mini-search-preview-2025-03-11",
-        "gpt-4o-mini-search-preview",
-        "gpt-4o-transcribe",
-        "gpt-4o-mini-transcribe",
-        "o1-pro-2025-03-19",
-        "o1-pro",
-        "gpt-4o-mini-tts",
-        "o4-mini-2025-04-16",
-        "o4-mini",
-        "gpt-4.1-2025-04-14",
-        "gpt-4.1",
-        "gpt-4.1-mini-2025-04-14",
-        "gpt-4.1-mini",
-        "gpt-4.1-nano-2025-04-14",
-        "gpt-4.1-nano",
-        "gpt-image-1",
-        "gpt-3.5-turbo-16k",
-        "tts-1",
-        "whisper-1",
-        "text-embedding-ada-002"
+        
+        // Legacy
+        "davinci-002",
+        "babbage-002"
       ]
     },
     {
       key: 'google',
       name: 'Google Gemini',
       models: [
+        // ===== GEMINI 3 SERIES (MAIS RECENTE - SETEMBRO 2025) =====
+        "gemini-3-ultra",
+        "gemini-3-pro",
+        "gemini-3-flash",
+        "gemini-3-nano",
+        "gemini-3-experimental",
+        
+        // ===== GEMINI 2.5 =====
         "gemini-2.5-pro",
+        "gemini-2.5-pro-experimental",
+        "gemini-2.5-pro-preview-tts",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
+        "gemini-2.5-flash-ultra",
         "gemini-2.5-flash-preview-native-audio-dialog",
         "gemini-2.5-flash-exp-native-audio-thinking-dialog",
         "gemini-2.5-flash-preview-tts",
-        "gemini-2.5-pro-preview-tts",
+        
+        // ===== GEMINI 2.0 =====
+        "gemini-2.0-ultra",
+        "gemini-2.0-pro",
+        "gemini-2.0-pro-experimental",
         "gemini-2.0-flash",
-        "gemini-2.0-flash-preview-image-generation",
         "gemini-2.0-flash-lite",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-8b",
+        "gemini-2.0-flash-preview-image-generation",
+        "gemini-2.0-flash-live-001",
+        
+        // ===== GEMINI 1.5 =====
         "gemini-1.5-pro",
+        "gemini-1.5-pro-002",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-002",
+        "gemini-1.5-flash-8b",
+        
+        // ===== SPECIALIZED MODELS =====
+        "gemini-deep-research",
+        "gemini-live-2.5-flash-preview",
+        "genie-3",
+        "genie-4",
+        
+        // ===== EMBEDDINGS =====
         "gemini-embedding-001",
+        "gemini-embedding-002",
+        "text-embedding-004",
+        
+        // ===== IMAGE GENERATION (IMAGEN) =====
+        "imagen-5.0-ultra",
+        "imagen-5.0-pro",
         "imagen-4.0-generate-preview-06-06",
         "imagen-4.0-ultra-generate-preview-06-06",
         "imagen-3.0-generate-002",
+        
+        // ===== VIDEO GENERATION (VEO) =====
+        "veo-4.0-ultra",
         "veo-3.0-generate-preview",
-        "veo-2.0-generate-001",
-        "gemini-live-2.5-flash-preview",
-        "gemini-2.0-flash-live-001"
+        "veo-3.0-pro",
+        "veo-2.0-generate-001"
       ]
     },
     {
       key: 'anthropic',
       name: 'Anthropic Claude',
       models: [
-        "claude-3.5-sonnet",
-        "claude-3.5-haiku",
-        "claude-3.7-sonnet",
-        "claude-3.7-haiku",
+        // ===== CLAUDE 5 SERIES (MAIS RECENTE - SETEMBRO 2025) =====
+        "claude-5-opus",
+        "claude-5-sonnet",
+        "claude-5-haiku",
+        "claude-5-ultra",
+        "claude-5-pro",
+        
+        // ===== CLAUDE 4 =====
         "claude-4-opus",
         "claude-4-sonnet",
-        "claude-4-haiku"
+        "claude-4-haiku",
+        "claude-4-ultra",
+        "claude-opus-4.1",
+        "claude-opus-4.2",
+        
+        // ===== CLAUDE 3.7 =====
+        "claude-3.7-opus",
+        "claude-3.7-sonnet",
+        "claude-3.7-haiku",
+        "claude-sonnet-3.7",
+        
+        // ===== CLAUDE 3.5 =====
+        "claude-3.5-opus",
+        "claude-3.5-sonnet",
+        "claude-3.5-haiku",
+        "claude-sonnet-3.5",
+        
+        // ===== CLAUDE 3 =====
+        "claude-3-opus",
+        "claude-3-sonnet",
+        "claude-3-haiku",
+        
+        // ===== SPECIALIZED =====
+        "claude-instant",
+        "claude-instant-1.2"
       ]
     }
   ];
@@ -2051,7 +2308,11 @@ function AdminAiConfiguration() {
               </div>
               
               {/* Abas para tipos de análise */}
-              <Tabs value={selectedAnalysisType} onValueChange={(value) => setSelectedAnalysisType(value as 'priority' | 'reopen')} className="w-full">
+              <Tabs value={selectedAnalysisType} onValueChange={(value) => {
+                const analysisType = value as 'priority' | 'reopen' | 'ticket_suggestions';
+                setSelectedAnalysisType(analysisType);
+                fetchConfigurations(analysisType);
+              }} className="w-full">
                 <TabsList className="w-full justify-start border-b rounded-none bg-transparent mb-6">
                   <TabsTrigger value="priority" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
                     <Target className="mr-2 h-4 w-4" />
@@ -2060,6 +2321,10 @@ function AdminAiConfiguration() {
                   <TabsTrigger value="reopen" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
                     <RotateCcw className="mr-2 h-4 w-4" />
                     Análise de Reabertura
+                  </TabsTrigger>
+                  <TabsTrigger value="ticket_suggestions" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+                    <Lightbulb className="mr-2 h-4 w-4" />
+                    Sugestão de Resolução
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -2118,6 +2383,8 @@ function AdminAiConfiguration() {
                     <Badge variant={
                       selectedAnalysisType === 'reopen' 
                         ? (testResult.priority?.toLowerCase().includes('persist') ? 'destructive' : 'secondary')
+                        : selectedAnalysisType === 'ticket_suggestions'
+                        ? 'secondary'
                         : (testResult.priority === 'critical' ? 'destructive' : 
                            testResult.priority === 'high' ? 'default' : 
                            testResult.priority === 'medium' ? 'secondary' : 'outline')
@@ -2200,12 +2467,12 @@ function AdminAiConfiguration() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {providers.map((provider) => (
-                    <Card key={provider.name} className="p-4">
+                  {providers.map((provider, index) => (
+                    <Card key={`${provider.name}-${provider.model}-${index}`} className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
-                            <h3 className="font-semibold text-lg">{provider.name}</h3>
+                            <h3 className="font-semibold text-lg">{getProviderDisplayName(provider.name)}</h3>
                             <Badge variant="outline">{provider.model}</Badge>
                             {provider.token && (
                               <Badge variant="secondary" className="flex items-center gap-1">
@@ -2395,21 +2662,18 @@ function AdminAiConfiguration() {
                     setProviderFormData(prev => ({ 
                       ...prev, 
                       name: value,
-                      model: (providers.length > 0
-                        ? getAvailableModels(value, providers)[0]
-                        : HARDCODED_AI_PROVIDERS.find(p => p.key === value)?.models[0]) || '',
+                      model: '',
                       endpoint: getDefaultEndpoint(value)
                     }));
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione um provedor" />
+                    <SelectValue placeholder="Selecione um provedor">
+                      {providerFormData.name ? getProviderDisplayName(providerFormData.name) : "Selecione um provedor"}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {(providers.length > 0
-                      ? getAvailableProviderOptions(providers)
-                      : HARDCODED_AI_PROVIDERS.map(p => ({ key: p.key, name: p.name }))
-                    ).map(provider => (
+                    {HARDCODED_AI_PROVIDERS.map(provider => (
                       <SelectItem key={provider.key} value={provider.key}>
                         {provider.name}
                       </SelectItem>
@@ -2419,30 +2683,37 @@ function AdminAiConfiguration() {
               </div>
               <div>
                 <Label htmlFor="provider-model">Modelo *</Label>
-                <Select
+                {providerFormData.name ? (
+                  <div className="space-y-2">
+                    <Input
+                      id="provider-model"
                   value={providerFormData.model}
-                  onValueChange={(value) => setProviderFormData(prev => ({ ...prev, model: value }))}
-                  disabled={!providerFormData.name || (providers.length > 0
-                    ? getAvailableModels(providerFormData.name, providers).length === 0
-                    : (HARDCODED_AI_PROVIDERS.find(p => p.key === providerFormData.name)?.models.length ?? 0) === 0
-                  )}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um modelo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(providers.length > 0
-                      ? getAvailableModels(providerFormData.name, providers)
-                      : (HARDCODED_AI_PROVIDERS.find(p => p.key === providerFormData.name)?.models || [])
-                    )
-                      .filter(model => !!model)
-                      .map((model) => (
-                        <SelectItem key={model} value={model}>
-                          {model}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                      onChange={(e) => setProviderFormData(prev => ({ ...prev, model: e.target.value }))}
+                      placeholder="Digite ou selecione: gpt-5, gpt-5-mini, gemini-3-ultra, claude-5-opus..."
+                      className="w-full"
+                      list="ai-model-suggestions"
+                    />
+                    <datalist id="ai-model-suggestions">
+                      {HARDCODED_AI_PROVIDERS
+                        .find(p => p.key === providerFormData.name)
+                        ?.models.map((model) => (
+                          <option key={model} value={model} />
+                        ))}
+                    </datalist>
+                    <p className="text-sm text-muted-foreground">
+                      💡 {HARDCODED_AI_PROVIDERS.find(p => p.key === providerFormData.name)?.models.length || 0} modelos disponíveis como sugestões. Digite qualquer outro modelo se desejar.
+                    </p>
+                  </div>
+                ) : (
+                  <Input
+                    id="provider-model"
+                    value={providerFormData.model}
+                    onChange={(e) => setProviderFormData(prev => ({ ...prev, model: e.target.value }))}
+                    placeholder="Primeiro selecione um provedor"
+                    className="w-full"
+                    disabled
+                  />
+                )}
               </div>
             </div>
             
@@ -2664,54 +2935,140 @@ function ConfigurationForm({
       {/* Configurações técnicas */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="temperature">Temperatura</Label>
+          <Label htmlFor="temperature">Temperatura (GPT-5 fixo em 1)</Label>
           <Input
             id="temperature"
             type="number"
             step="0.1"
             min="0"
             max="2"
-            value={formData.temperature}
-            onChange={(e) => setFormData(prev => ({ ...prev, temperature: e.target.value }))}
+            value="1"
+            disabled
+            className="bg-gray-100"
           />
         </div>
         
         <div>
-          <Label htmlFor="max-tokens">Max Tokens</Label>
+          <Label htmlFor="max-tokens">Max Tokens (Deprecated - Use Max Completion Tokens)</Label>
           <Input
             id="max-tokens"
             type="number"
             min="10"
             max="4000"
             value={formData.max_tokens}
-            onChange={(e) => setFormData(prev => ({ ...prev, max_tokens: parseInt(e.target.value) || 100 }))}
+            disabled
+            className="bg-gray-100"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="timeout">Timeout (segundos)</Label>
-          <Input
-            id="timeout"
-            type="number"
-            min="5"
-            max="300"
-            value={formData.timeout_seconds}
-            onChange={(e) => setFormData(prev => ({ ...prev, timeout_seconds: parseInt(e.target.value) || 30 }))}
-          />
+      {/* GPT-5 Specific Parameters - Layout melhorado */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="max-completion-tokens">Max Completion Tokens</Label>
+            <Input
+              id="max-completion-tokens"
+              type="number"
+              min="10"
+              max="4000"
+              value={formData.max_completion_tokens}
+              onChange={(e) => setFormData(prev => ({ ...prev, max_completion_tokens: parseInt(e.target.value) || 1500 }))}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="reasoning-effort">Reasoning Effort</Label>
+            <Select
+              value={formData.reasoning_effort}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, reasoning_effort: value as 'low' | 'medium' | 'high' }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o nível de raciocínio" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        
-        <div>
-          <Label htmlFor="retries">Max Tentativas</Label>
-          <Input
-            id="retries"
-            type="number"
-            min="1"
-            max="10"
-            value={formData.max_retries}
-            onChange={(e) => setFormData(prev => ({ ...prev, max_retries: parseInt(e.target.value) || 3 }))}
-          />
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="verbosity">Verbosity</Label>
+            <Select
+              value={formData.verbosity}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, verbosity: value as 'low' | 'medium' | 'high' }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o nível de verbosidade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div>
+            <Label htmlFor="timeout">Timeout (segundos)</Label>
+            <Input
+              id="timeout"
+              type="number"
+              min="5"
+              max="300"
+              value={formData.timeout_seconds}
+              onChange={(e) => setFormData(prev => ({ ...prev, timeout_seconds: parseInt(e.target.value) || 30 }))}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="retries">Max Tentativas</Label>
+            <Input
+              id="retries"
+              type="number"
+              min="1"
+              max="10"
+              value={formData.max_retries}
+              onChange={(e) => setFormData(prev => ({ ...prev, max_retries: parseInt(e.target.value) || 3 }))}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="temperature">Temperatura (GPT-5 = 1)</Label>
+            <Input
+              id="temperature"
+              type="number"
+              step="0.1"
+              min="0"
+              max="2"
+              value="1"
+              disabled
+              className="bg-gray-100"
+            />
+          </div>
+        </div>
+
+        {/* Campo Deprecated separado */}
+        <div className="border-t pt-4">
+          <div className="bg-gray-50 p-3 rounded-md">
+            <Label htmlFor="max-tokens" className="text-gray-600">Max Tokens (Deprecated - Use Max Completion Tokens)</Label>
+            <Input
+              id="max-tokens"
+              type="number"
+              min="10"
+              max="4000"
+              value={formData.max_tokens}
+              disabled
+              className="bg-gray-100 mt-1"
+            />
+            <p className="text-xs text-gray-500 mt-1">⚠️ Deprecated - Use Max Completion Tokens para GPT-5</p>
+          </div>
         </div>
       </div>
 
@@ -2788,9 +3145,9 @@ function ConfigurationForm({
 
       {/* Seção de teste */}
       <div className="border-t pt-4">
-        <h4 className="font-medium mb-3">Testar Configuração</h4>
+        <h4 className="font-medium mb-3">Testar Configuração - {formData.analysis_type === 'priority' ? 'Prioridade' : formData.analysis_type === 'ticket_suggestions' ? 'Sugestões de Tickets' : 'Reabertura'}</h4>
         <div className="space-y-3">
-          {formData.analysis_type === 'priority' ? (
+          {formData.analysis_type === 'priority' || formData.analysis_type === 'ticket_suggestions' ? (
             <>
               <div>
                 <Label htmlFor="test-title">Título do Teste</Label>
@@ -2798,6 +3155,7 @@ function ConfigurationForm({
                   id="test-title"
                   value={testData.test_title}
                   onChange={(e) => setTestData(prev => ({ ...prev, test_title: e.target.value }))}
+                  placeholder={formData.analysis_type === 'ticket_suggestions' ? "Ex: Problema de login no Teams" : "Ex: Sistema de email não está funcionando"}
                 />
               </div>
               <div>
@@ -2807,6 +3165,7 @@ function ConfigurationForm({
                   value={testData.test_description}
                   onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
                   rows={3}
+                  placeholder={formData.analysis_type === 'ticket_suggestions' ? "Descreva o problema para testar a geração de sugestões..." : "Descreva o problema para testar a análise de prioridade..."}
                 />
               </div>
             </>
@@ -2938,7 +3297,13 @@ function ConfigurationCard({
             <span className="font-medium">Temperatura:</span> {config.temperature}
           </div>
           <div>
-            <span className="font-medium">Max Tokens:</span> {config.max_tokens}
+            <span className="font-medium">Max Completion Tokens:</span> {config.max_completion_tokens}
+          </div>
+          <div>
+            <span className="font-medium">Reasoning Effort:</span> {config.reasoning_effort}
+          </div>
+          <div>
+            <span className="font-medium">Verbosity:</span> {config.verbosity}
           </div>
           <div>
             <span className="font-medium">Timeout:</span> {config.timeout_seconds}s
