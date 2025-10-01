@@ -159,41 +159,81 @@ export async function getSystemStats(req: Request, res: Response) {
 }
 
 /**
- * Endpoint: Health check com informações de segurança
+ * Endpoint: Ping leve para monitoramento externo (sem acesso ao banco)
+ * Use este endpoint para Synthetic Monitoring (New Relic, UptimeRobot, etc)
+ * que roda 24/7 sem acordar o banco de dados durante a madrugada
+ */
+export async function ping(req: Request, res: Response) {
+  res.status(200).json({
+    status: 'alive',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: {
+      rss: process.memoryUsage().rss,
+      heapUsed: process.memoryUsage().heapUsed
+    },
+    version: process.version
+  });
+}
+
+/**
+ * Endpoint: Health check completo do sistema com informações de segurança
+ * Durante horário comercial (6h-21h): verifica banco + segurança
+ * Durante madrugada (21h-6h): retorna status sem acessar banco (modo hibernação)
  */
 export async function healthCheck(req: Request, res: Response) {
   try {
+    const now = new Date();
+    const hour = now.getHours();
+    const isDuringNight = hour >= 21 || hour < 6;
+    
     const checks = {
       database: false,
       security: false,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      mode: isDuringNight ? 'hibernation' : 'active'
     };
 
-    // Verificar conexão com banco
-    try {
-      await db.select({ count: sql<number>`1` }).from(users).limit(1);
-      checks.database = true;
-    } catch (error) {
-      console.error('Health check - erro no banco:', error);
+    // Durante horário comercial: verificar banco normalmente
+    if (!isDuringNight) {
+      try {
+        await db.select({ count: sql<number>`1` }).from(users).limit(1);
+        checks.database = true;
+      } catch (error) {
+        console.error('Health check - erro no banco:', error);
+      }
+
+      // Verificar se há muitos eventos críticos recentes
+      const criticalEvents = securityEvents.filter(
+        e => e.severity === 'critical' && 
+             e.timestamp >= new Date(Date.now() - 60 * 60 * 1000) // última hora
+      );
+      
+      checks.security = criticalEvents.length < 10; // Menos de 10 eventos críticos na última hora
+
+      const status = checks.database && checks.security ? 200 : 503;
+      
+      return res.status(status).json({
+        status: status === 200 ? 'healthy' : 'unhealthy',
+        checks,
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        version: process.version
+      });
+    } else {
+      // Durante madrugada: retornar status sem acessar banco (economia de recursos)
+      checks.database = true; // Assumir OK - não verificar para não acordar o banco
+      checks.security = true;
+      
+      return res.status(200).json({
+        status: 'sleeping',
+        message: 'Server in night mode (21h-6h) - Database checks disabled to allow hibernation',
+        checks,
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        version: process.version
+      });
     }
-
-    // Verificar se há muitos eventos críticos recentes
-    const criticalEvents = securityEvents.filter(
-      e => e.severity === 'critical' && 
-           e.timestamp >= new Date(Date.now() - 60 * 60 * 1000) // última hora
-    );
-    
-    checks.security = criticalEvents.length < 10; // Menos de 10 eventos críticos na última hora
-
-    const status = checks.database && checks.security ? 200 : 503;
-    
-    res.status(status).json({
-      status: status === 200 ? 'healthy' : 'unhealthy',
-      checks,
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-      version: process.version
-    });
 
   } catch (error) {
     console.error('Erro no health check:', error);

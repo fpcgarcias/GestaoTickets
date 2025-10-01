@@ -72,6 +72,7 @@ const getPriorityIcon = (priority: string, type: 'old' | 'new'): string => {
 import { TicketReply, TicketStatusHistory } from '@shared/schema';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { TextWithBreakAll } from '@/components/ui/text-with-links';
   import { MessageSquare, RefreshCw, User, AlertTriangle } from 'lucide-react';
 
 interface TicketHistoryProps {
@@ -121,7 +122,7 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
           </div>
           
           <div className="mt-2 p-3 bg-gray-50 rounded-lg text-gray-700 text-sm border-l-3 border-l-blue-400">
-            {reply.message}
+            <TextWithBreakAll text={reply.message} />
           </div>
           
           <div className="flex gap-2 mt-2">

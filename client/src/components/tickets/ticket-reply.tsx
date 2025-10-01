@@ -172,7 +172,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
           )}
         </div>
         {/* Contexto do Chamado: Departamento / Tipo / Categoria (sem dependência do FormContext) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
           <div className="space-y-2">
             <div className="text-sm font-medium">Departamento</div>
             <Input
@@ -201,7 +201,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <FormItem>
                 <FormLabel>E-mail do Cliente</FormLabel>
                 <Input 

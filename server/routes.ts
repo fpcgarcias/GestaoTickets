@@ -106,6 +106,8 @@ import {
 
   getSystemStats,
 
+  ping,
+
   healthCheck,
 
   clearSecurityLogs,
@@ -18131,7 +18133,15 @@ Obrigado por nos ajudar a melhorar continuamente.
 
   
 
-  // Health check público
+  // Ping leve para monitoramento externo 24/7 (New Relic, UptimeRobot, etc)
+
+  // NÃO acessa banco - use este para Synthetic Monitoring
+
+  router.get("/ping", ping);
+
+  
+
+  // Health check completo (verifica banco durante 6h-21h, modo hibernação 21h-6h)
 
   router.get("/health", healthCheck);
 

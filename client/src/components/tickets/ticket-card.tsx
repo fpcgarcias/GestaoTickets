@@ -157,12 +157,12 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
   return (
     <Card className="ticket-card hover:shadow-md transition-all">
       <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center">
             <StatusDot status={status} className="mr-2" />
             <span className="font-medium text-neutral-800">Ticket# {ticketId}</span>
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center flex-wrap gap-2">
             {priority && (
               <PriorityBadge 
                 priority={priority}
@@ -184,8 +184,8 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
         </div>
         
         <div className="mb-3">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-lg font-medium">{title}</h3>
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+            <h3 className="text-lg font-medium break-words">{title}</h3>
             <StatusBadge status={status} />
           </div>
           <p className="text-neutral-600 line-clamp-2">{description}</p>
@@ -203,7 +203,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
           )}
         </div>
         
-        <div className="flex justify-between items-center mt-3 pt-3 border-t border-neutral-100">
+        <div className="flex justify-between items-center mt-3 pt-3 border-t border-neutral-100 flex-wrap gap-3">
           <div className="flex items-center">
             <Avatar className="w-7 h-7 mr-2">
               <AvatarImage src={customer.avatar_url || ""} alt={customer.name} />
@@ -212,7 +212,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
             <span className="text-sm text-neutral-700">{customer.name || 'Cliente não informado'}</span>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {isCustomerForThisTicket ? (
               // Para clientes: dropdown bloqueado
               <div className="flex items-center gap-2">

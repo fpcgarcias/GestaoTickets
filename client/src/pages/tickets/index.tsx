@@ -274,7 +274,7 @@ export default function TicketsIndex() {
       <div className="space-y-4 mb-6">
         {/* Primeira linha: Busca e Período */}
         <div className="flex flex-wrap items-center gap-4">
-          <div className="relative w-64">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
             <Input 
               placeholder="Buscar chamado" 
@@ -338,7 +338,7 @@ export default function TicketsIndex() {
                 }
               }}
             >
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Período" />
               </SelectTrigger>
               <SelectContent>
@@ -364,7 +364,7 @@ export default function TicketsIndex() {
               }
             }}
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Departamento" />
             </SelectTrigger>
             <SelectContent>
@@ -385,7 +385,7 @@ export default function TicketsIndex() {
             onValueChange={handleFilterChange(setPriorityFilter)}
             disabled={prioritiesLoading}
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder={prioritiesLoading ? "Carregando..." : "Prioridade"} />
             </SelectTrigger>
             <SelectContent>
@@ -409,7 +409,7 @@ export default function TicketsIndex() {
             value={statusFilter}
             onValueChange={handleFilterChange(setStatusFilter)}
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Todos os Status" />
             </SelectTrigger>
             <SelectContent>
@@ -431,7 +431,7 @@ export default function TicketsIndex() {
             value={assignedToFilter}
             onValueChange={handleFilterChange(setAssignedToFilter)}
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Atendente" />
             </SelectTrigger>
             <SelectContent>
