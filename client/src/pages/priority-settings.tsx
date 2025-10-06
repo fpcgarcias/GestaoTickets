@@ -29,6 +29,7 @@ import { queryClient } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { motion, Reorder } from 'framer-motion';
+import { useI18n } from '@/i18n';
 
 // Interfaces
 interface Department {
@@ -79,6 +80,7 @@ const DEFAULT_COLORS = [
 export default function PrioritySettings() {
   const { toast } = useToast();
   const { user, company: userCompany, isLoading: isLoadingAuth } = useAuth();
+  const { formatMessage } = useI18n();
   
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>(
     (['manager', 'company_admin', 'supervisor'].includes(user?.role || '')) && userCompany?.id ? userCompany.id : undefined
@@ -153,13 +155,13 @@ export default function PrioritySettings() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Prioridade criada com sucesso!" });
+      toast({ title: formatMessage('priorities.add_priority_dialog.created_success'), description: formatMessage('priorities.add_priority_dialog.created_success') });
       refetchPriorities();
       setIsAddDialogOpen(false);
       resetForm();
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: formatMessage('priorities.add_priority_dialog.error_title'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -178,14 +180,14 @@ export default function PrioritySettings() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Prioridade atualizada com sucesso!" });
+      toast({ title: formatMessage('priorities.edit_priority_dialog.updated_success'), description: formatMessage('priorities.edit_priority_dialog.updated_success') });
       refetchPriorities();
       setIsEditDialogOpen(false);
       setEditingPriority(null);
       resetForm();
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: formatMessage('priorities.edit_priority_dialog.error_title'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -202,11 +204,11 @@ export default function PrioritySettings() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Prioridade excluída com sucesso!" });
+      toast({ title: formatMessage('priorities.delete_priority_dialog.deleted_success'), description: formatMessage('priorities.delete_priority_dialog.deleted_success') });
       refetchPriorities();
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: formatMessage('priorities.delete_priority_dialog.error_title'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -225,11 +227,11 @@ export default function PrioritySettings() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Prioridades reordenadas com sucesso!" });
+      toast({ title: formatMessage('priorities.reorder_success'), description: formatMessage('priorities.reorder_success') });
       refetchPriorities();
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: formatMessage('priorities.reorder_error'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -246,11 +248,11 @@ export default function PrioritySettings() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Prioridades padrão criadas com sucesso!" });
+      toast({ title: formatMessage('priorities.defaults_created_success'), description: formatMessage('priorities.defaults_created_success') });
       refetchPriorities();
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: formatMessage('priorities.defaults_created_error'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -284,7 +286,7 @@ export default function PrioritySettings() {
 
   const handleAddPriority = () => {
     if (!formData.name.trim()) {
-      toast({ title: "Erro", description: "Nome da prioridade é obrigatório", variant: "destructive" });
+      toast({ title: formatMessage('priorities.add_priority_dialog.error_title'), description: formatMessage('priorities.add_priority_dialog.name_required'), variant: "destructive" });
       return;
     }
 
@@ -292,8 +294,8 @@ export default function PrioritySettings() {
     const existingWeights = currentPriorities.map(p => p.weight);
     if (existingWeights.includes(formData.weight)) {
       toast({ 
-        title: "Erro", 
-        description: `Já existe uma prioridade com peso ${formData.weight}. Escolha um peso diferente.`, 
+        title: formatMessage('priorities.add_priority_dialog.error_title'), 
+        description: formatMessage('priorities.add_priority_dialog.weight_duplicate', { weight: formData.weight }), 
         variant: "destructive" 
       });
       return;
@@ -303,8 +305,8 @@ export default function PrioritySettings() {
     const existingNames = currentPriorities.map(p => p.name.toLowerCase());
     if (existingNames.includes(formData.name.trim().toLowerCase())) {
       toast({ 
-        title: "Erro", 
-        description: `Já existe uma prioridade com o nome "${formData.name.trim()}". Escolha um nome diferente.`, 
+        title: formatMessage('priorities.add_priority_dialog.error_title'), 
+        description: formatMessage('priorities.add_priority_dialog.name_duplicate', { name: formData.name.trim() }), 
         variant: "destructive" 
       });
       return;
@@ -321,7 +323,7 @@ export default function PrioritySettings() {
     if (!editingPriority) return;
     
     if (!formData.name.trim()) {
-      toast({ title: "Erro", description: "Nome da prioridade é obrigatório", variant: "destructive" });
+      toast({ title: formatMessage('priorities.edit_priority_dialog.error_title'), description: formatMessage('priorities.edit_priority_dialog.name_required'), variant: "destructive" });
       return;
     }
 
@@ -331,8 +333,8 @@ export default function PrioritySettings() {
       .map(p => p.weight);
     if (existingWeights.includes(formData.weight)) {
       toast({ 
-        title: "Erro", 
-        description: `Já existe uma prioridade com peso ${formData.weight}. Escolha um peso diferente.`, 
+        title: formatMessage('priorities.edit_priority_dialog.error_title'), 
+        description: formatMessage('priorities.edit_priority_dialog.weight_duplicate', { weight: formData.weight }), 
         variant: "destructive" 
       });
       return;
@@ -344,8 +346,8 @@ export default function PrioritySettings() {
       .map(p => p.name.toLowerCase());
     if (existingNames.includes(formData.name.trim().toLowerCase())) {
       toast({ 
-        title: "Erro", 
-        description: `Já existe uma prioridade com o nome "${formData.name.trim()}". Escolha um nome diferente.`, 
+        title: formatMessage('priorities.edit_priority_dialog.error_title'), 
+        description: formatMessage('priorities.edit_priority_dialog.name_duplicate', { name: formData.name.trim() }), 
         variant: "destructive" 
       });
       return;
@@ -414,8 +416,8 @@ export default function PrioritySettings() {
           <CardContent className="flex items-center justify-center py-12">
             <div className="text-center">
               <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Acesso Negado</h3>
-              <p className="text-muted-foreground">Você não tem permissão para acessar as configurações de prioridades.</p>
+              <h3 className="text-lg font-semibold mb-2">{formatMessage('priorities.access_denied')}</h3>
+              <p className="text-muted-foreground">{formatMessage('priorities.no_permission')}</p>
             </div>
           </CardContent>
         </Card>
@@ -429,7 +431,7 @@ export default function PrioritySettings() {
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
           <SettingsIcon className="h-6 w-6" />
-          <h1 className="text-2xl font-bold">Configuração de Prioridades</h1>
+          <h1 className="text-2xl font-bold">{formatMessage('priorities.title')}</h1>
         </div>
       </div>
 
@@ -438,10 +440,10 @@ export default function PrioritySettings() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5" />
-            Seleção de Contexto
+            {formatMessage('priorities.context_selection')}
           </CardTitle>
           <CardDescription>
-            Escolha a empresa e departamento para configurar as prioridades
+            {formatMessage('priorities.context_description')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -449,7 +451,7 @@ export default function PrioritySettings() {
             {/* Seletor de Empresa (apenas para admin) */}
             {user.role === 'admin' && (
               <div className="space-y-2">
-                <Label>Empresa</Label>
+                <Label>{formatMessage('priorities.company')}</Label>
                 <Select
                   value={selectedCompanyId?.toString() || ''}
                   onValueChange={(value) => {
@@ -458,7 +460,7 @@ export default function PrioritySettings() {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma empresa" />
+                    <SelectValue placeholder={formatMessage('priorities.select_company')} />
                   </SelectTrigger>
                   <SelectContent>
                     {companies?.map((company) => (
@@ -473,7 +475,7 @@ export default function PrioritySettings() {
             
             {/* Seletor de Departamento */}
             <div className="space-y-2">
-              <Label>Departamento</Label>
+              <Label>{formatMessage('priorities.department')}</Label>
               <Select
                 value={selectedDepartmentId?.toString() || ''}
                 onValueChange={(value) => setSelectedDepartmentId(parseInt(value))}
@@ -483,10 +485,10 @@ export default function PrioritySettings() {
                   <SelectValue 
                     placeholder={
                       isLoadingDepartments 
-                        ? "Carregando departamentos..." 
+                        ? formatMessage('priorities.loading_departments')
                         : !departments?.length 
-                          ? "Nenhum departamento encontrado"
-                          : "Selecione um departamento"
+                          ? formatMessage('priorities.no_departments_found')
+                          : formatMessage('priorities.select_department')
                     } 
                   />
                 </SelectTrigger>
@@ -513,15 +515,15 @@ export default function PrioritySettings() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   <Palette className="h-5 w-5" />
-                  Prioridades do Departamento
+                  {formatMessage('priorities.department_priorities')}
                   {currentDepartment && (
                     <Badge variant="outline">{currentDepartment.name}</Badge>
                   )}
                 </CardTitle>
                 <CardDescription>
                   {isUsingDefaults 
-                    ? "Usando prioridades padrão (não customizadas). Você pode criar prioridades personalizadas ou usar as padrões."
-                    : "Prioridades personalizadas configuradas. Arraste para reordenar."
+                    ? formatMessage('priorities.using_defaults')
+                    : formatMessage('priorities.custom_priorities')
                   }
                 </CardDescription>
               </div>
@@ -534,7 +536,7 @@ export default function PrioritySettings() {
                     variant="outline"
                   >
                     {createDefaultsMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                    Criar Padrões
+                    {formatMessage('priorities.create_defaults')}
                   </Button>
                 )}
                 
@@ -542,45 +544,45 @@ export default function PrioritySettings() {
                   <DialogTrigger asChild>
                     <Button>
                       <Plus className="h-4 w-4 mr-2" />
-                      Nova Prioridade
+                      {formatMessage('priorities.new_priority')}
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Adicionar Nova Prioridade</DialogTitle>
+                      <DialogTitle>{formatMessage('priorities.add_priority_dialog.title')}</DialogTitle>
                       <DialogDescription>
-                        Configure uma nova prioridade para este departamento
+                        {formatMessage('priorities.add_priority_dialog.description')}
                       </DialogDescription>
                     </DialogHeader>
                     
                     <div className="space-y-4 py-4">
                       <div className="space-y-2">
-                        <Label htmlFor="name">Nome da Prioridade</Label>
+                        <Label htmlFor="name">{formatMessage('priorities.add_priority_dialog.name')}</Label>
                         <Input
                           id="name"
                           value={formData.name}
                           onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                          placeholder="Ex: Super Urgente"
+                          placeholder={formatMessage('priorities.add_priority_dialog.name_placeholder')}
                         />
                       </div>
                       
                       <div className="space-y-2">
-                        <Label htmlFor="weight">Nível (Peso)</Label>
+                        <Label htmlFor="weight">{formatMessage('priorities.add_priority_dialog.weight')}</Label>
                         <Input
                           id="weight"
                           type="number"
                           min={1}
                           value={formData.weight}
                           onChange={(e) => setFormData(prev => ({ ...prev, weight: parseInt(e.target.value) || 1 }))}
-                          placeholder="1"
+                          placeholder={formatMessage('priorities.add_priority_dialog.weight_placeholder')}
                         />
                         <p className="text-xs text-muted-foreground">
-                          Número maior = maior prioridade. Pesos já usados: {currentPriorities.map(p => p.weight).sort((a, b) => a - b).join(', ')}
+                          {formatMessage('priorities.add_priority_dialog.weight_help', { weights: currentPriorities.map(p => p.weight).sort((a, b) => a - b).join(', ') })}
                         </p>
                       </div>
                       
                       <div className="space-y-2">
-                        <Label>Cor</Label>
+                        <Label>{formatMessage('priorities.add_priority_dialog.color')}</Label>
                         <div className="flex gap-2 flex-wrap">
                           {DEFAULT_COLORS.map((color) => (
                             <button
@@ -602,20 +604,20 @@ export default function PrioritySettings() {
                             className="w-12 h-8 p-0 border-0"
                           />
                           <span className="text-sm text-muted-foreground">
-                            Ou escolha uma cor personalizada
+                            {formatMessage('priorities.add_priority_dialog.custom_color')}
                           </span>
                         </div>
                       </div>
                       
                       {/* Preview */}
                       <div className="border rounded-lg p-4 space-y-3">
-                        <Label>Preview</Label>
+                        <Label>{formatMessage('priorities.add_priority_dialog.preview')}</Label>
                         <div className="pt-2">
                           <Badge 
                             style={{ backgroundColor: formData.color, color: '#fff' }}
                             className="text-white px-3 py-1"
                           >
-                            {formData.name || 'Nome da Prioridade'}
+                            {formData.name || formatMessage('priorities.add_priority_dialog.preview_placeholder')}
                           </Badge>
                         </div>
                       </div>
@@ -629,14 +631,14 @@ export default function PrioritySettings() {
                           resetForm();
                         }}
                       >
-                        Cancelar
+                        {formatMessage('priorities.add_priority_dialog.cancel')}
                       </Button>
                       <Button
                         onClick={handleAddPriority}
                         disabled={createPriorityMutation.isPending}
                       >
                         {createPriorityMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                        Criar
+                        {formatMessage('priorities.add_priority_dialog.create')}
                       </Button>
                     </div>
                   </DialogContent>
@@ -653,7 +655,7 @@ export default function PrioritySettings() {
             ) : currentPriorities.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Palette className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Nenhuma prioridade configurada para este departamento</p>
+                <p>{formatMessage('priorities.no_priorities')}</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -686,11 +688,11 @@ export default function PrioritySettings() {
                               {priority.name}
                             </Badge>
                             <span className="text-sm text-gray-500">
-                              Peso: {priority.weight}
+                              {formatMessage('priorities.weight', { weight: priority.weight })}
                             </span>
                             {isUsingDefaults && (
                               <Badge variant="outline" className="text-xs">
-                                Padrão
+                                {formatMessage('priorities.default_badge')}
                               </Badge>
                             )}
                           </div>
@@ -718,19 +720,18 @@ export default function PrioritySettings() {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                <AlertDialogTitle>{formatMessage('priorities.delete_priority_dialog.title')}</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Tem certeza que deseja excluir a prioridade "{priority.name}"? 
-                                  Esta ação não pode ser desfeita.
+                                  {formatMessage('priorities.delete_priority_dialog.description', { name: priority.name })}
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogCancel>{formatMessage('priorities.delete_priority_dialog.cancel')}</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => deletePriorityMutation.mutate(priority.id)}
                                   className="bg-red-600 hover:bg-red-700"
                                 >
-                                  Excluir
+                                  {formatMessage('priorities.delete_priority_dialog.delete')}
                                 </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
@@ -750,40 +751,40 @@ export default function PrioritySettings() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Prioridade</DialogTitle>
+            <DialogTitle>{formatMessage('priorities.edit_priority_dialog.title')}</DialogTitle>
             <DialogDescription>
-              Modifique as configurações da prioridade selecionada
+              {formatMessage('priorities.edit_priority_dialog.description')}
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Nome da Prioridade</Label>
+              <Label htmlFor="edit-name">{formatMessage('priorities.edit_priority_dialog.name')}</Label>
               <Input
                 id="edit-name"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Ex: Super Urgente"
+                placeholder={formatMessage('priorities.edit_priority_dialog.name_placeholder')}
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="edit-weight">Nível (Peso)</Label>
-                              <Input
-                  id="edit-weight"
-                  type="number"
-                  min={1}
-                  value={formData.weight}
-                  onChange={(e) => setFormData(prev => ({ ...prev, weight: parseInt(e.target.value) || 1 }))}
-                  placeholder="1"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Número maior = maior prioridade. Pesos já usados: {currentPriorities.filter(p => p.id !== editingPriority?.id).map(p => p.weight).sort((a, b) => a - b).join(', ')}
-                </p>
+              <Label htmlFor="edit-weight">{formatMessage('priorities.edit_priority_dialog.weight')}</Label>
+              <Input
+                id="edit-weight"
+                type="number"
+                min={1}
+                value={formData.weight}
+                onChange={(e) => setFormData(prev => ({ ...prev, weight: parseInt(e.target.value) || 1 }))}
+                placeholder={formatMessage('priorities.edit_priority_dialog.weight_placeholder')}
+              />
+              <p className="text-xs text-muted-foreground">
+                {formatMessage('priorities.edit_priority_dialog.weight_help', { weights: currentPriorities.filter(p => p.id !== editingPriority?.id).map(p => p.weight).sort((a, b) => a - b).join(', ') })}
+              </p>
             </div>
             
             <div className="space-y-2">
-              <Label>Cor</Label>
+              <Label>{formatMessage('priorities.edit_priority_dialog.color')}</Label>
               <div className="flex gap-2 flex-wrap">
                 {DEFAULT_COLORS.map((color) => (
                   <button
@@ -805,23 +806,23 @@ export default function PrioritySettings() {
                   className="w-12 h-8 p-0 border-0"
                 />
                 <span className="text-sm text-muted-foreground">
-                  Ou escolha uma cor personalizada
+                  {formatMessage('priorities.edit_priority_dialog.custom_color')}
                 </span>
               </div>
             </div>
             
-                         {/* Preview */}
-             <div className="border rounded-lg p-4 space-y-3">
-               <Label>Preview</Label>
-               <div className="pt-2">
-                 <Badge 
-                   style={{ backgroundColor: formData.color, color: '#fff' }}
-                   className="text-white px-3 py-1"
-                 >
-                   {formData.name || 'Nome da Prioridade'}
-                 </Badge>
-               </div>
-             </div>
+            {/* Preview */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <Label>{formatMessage('priorities.edit_priority_dialog.preview')}</Label>
+              <div className="pt-2">
+                <Badge 
+                  style={{ backgroundColor: formData.color, color: '#fff' }}
+                  className="text-white px-3 py-1"
+                >
+                  {formData.name || formatMessage('priorities.edit_priority_dialog.preview_placeholder')}
+                </Badge>
+              </div>
+            </div>
            </div>
           
           <div className="flex justify-end gap-2">
@@ -833,14 +834,14 @@ export default function PrioritySettings() {
                 resetForm();
               }}
             >
-              Cancelar
+              {formatMessage('priorities.edit_priority_dialog.cancel')}
             </Button>
             <Button
               onClick={handleEditPriority}
               disabled={editPriorityMutation.isPending}
             >
               {editPriorityMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Salvar
+              {formatMessage('priorities.edit_priority_dialog.save')}
             </Button>
           </div>
         </DialogContent>
