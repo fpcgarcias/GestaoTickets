@@ -913,12 +913,12 @@
     "include_previous": "Incluir abertos de períodos anteriores",
     "tabs": {
       "all": "Todos os Chamados",
-      "new": "Novos",
-      "ongoing": "Em Andamento",
-      "suspended": "Suspensos",
-      "waiting_customer": "Aguardando Cliente",
-      "escalated": "Escalados",
-      "resolved": "Resolvidos"
+      "new": "🆕 Novos",
+      "ongoing": "⚡ Em Andamento",
+      "suspended": "⏸️ Suspensos",
+      "waiting_customer": "⏳ Aguardando Cliente",
+      "escalated": "🚨 Escalados",
+      "resolved": "✅ Resolvidos"
     },
     "no_tickets": "Nenhum chamado encontrado",
     "no_tickets_search": "Tente ajustar seus termos de busca",

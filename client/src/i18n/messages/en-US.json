@@ -913,12 +913,12 @@
     "include_previous": "Include opened from previous periods",
     "tabs": {
       "all": "All Tickets",
-      "new": "New",
-      "ongoing": "Ongoing",
-      "suspended": "Suspended",
-      "waiting_customer": "Waiting Customer",
-      "escalated": "Escalated",
-      "resolved": "Resolved"
+      "new": "🆕 New",
+      "ongoing": "⚡ Ongoing",
+      "suspended": "⏸️ Suspended",
+      "waiting_customer": "⏳ Waiting Customer",
+      "escalated": "🚨 Escalated",
+      "resolved": "✅ Resolved"
     },
     "no_tickets": "No tickets found",
     "no_tickets_search": "Try adjusting your search terms",
