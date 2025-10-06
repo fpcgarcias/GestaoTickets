@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, UserX, UserCheck, UserCog } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useI18n } from '@/i18n';
 import { Official } from '@shared/schema';
 import { Badge } from "@/components/ui/badge";
 
@@ -17,6 +18,7 @@ interface ToggleStatusOfficialDialogProps {
 
 export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onStatusChanged }: ToggleStatusOfficialDialogProps) {
   const { toast } = useToast();
+  const { formatMessage } = useI18n();
   const queryClient = useQueryClient();
   const [processing, setProcessing] = useState(false);
 
@@ -32,16 +34,16 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onSta
       onOpenChange(false);
       if (onStatusChanged) onStatusChanged();
       toast({
-        title: data.is_active ? "Atendente ativado" : "Atendente desativado",
+        title: data.is_active ? formatMessage('officials.toggle_status_dialog.activated_success') : formatMessage('officials.toggle_status_dialog.deactivated_success'),
         description: data.is_active 
-          ? "O atendente foi ativado com sucesso." 
-          : "O atendente foi desativado com sucesso.",
+          ? formatMessage('officials.toggle_status_dialog.activated_desc')
+          : formatMessage('officials.toggle_status_dialog.deactivated_desc'),
       });
     },
     onError: (error) => {
       setProcessing(false);
       toast({
-        title: "Erro ao alterar status do atendente",
+        title: formatMessage('officials.toggle_status_dialog.error_title'),
         description: error.message,
         variant: "destructive",
       });
@@ -58,12 +60,12 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onSta
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>
-            {official && official.is_active ? "Desativar atendente" : "Ativar atendente"}
+            {official && official.is_active ? formatMessage('officials.toggle_status_dialog.deactivate_title') : formatMessage('officials.toggle_status_dialog.activate_title')}
           </DialogTitle>
           <DialogDescription>
             {official && official.is_active ? 
-              "Ao desativar um atendente, ele não poderá mais acessar o sistema, mas seus dados serão mantidos para fins de histórico." :
-              "Ao ativar um atendente, ele voltará a ter acesso ao sistema com suas mesmas permissões anteriores."}
+              formatMessage('officials.toggle_status_dialog.deactivate_description') :
+              formatMessage('officials.toggle_status_dialog.activate_description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -80,7 +82,7 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onSta
           
           {official && official.departments && official.departments.length > 0 && (
             <div className="mb-4">
-              <p className="text-sm font-medium mb-1">Departamentos:</p>
+              <p className='text-sm font-medium mb-1'>{formatMessage('officials.toggle_status_dialog.departments')}</p>
               <div className="flex flex-wrap gap-1">
                 {official.departments.map((dept, index) => {
                   // Se dept é um objeto com propriedade 'department', pegamos essa propriedade
@@ -101,14 +103,14 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onSta
           
           <p className="text-sm text-neutral-600 mb-6">
             {official && official.is_active ? 
-              "Esta ação não exclui o atendente permanentemente. Os dados serão mantidos para histórico e poderá ser reativado a qualquer momento." :
-              "Ao ativar o atendente, ele poderá realizar login novamente no sistema e atender tickets."}
+              formatMessage('officials.toggle_status_dialog.deactivate_warning') :
+              formatMessage('officials.toggle_status_dialog.activate_warning')}
           </p>
         </div>
         
         <DialogFooter className="flex space-x-2 justify-end">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
+            {formatMessage('officials.toggle_status_dialog.cancel')}
           </Button>
           <Button 
             onClick={handleToggleStatus}
@@ -119,12 +121,12 @@ export function ToggleStatusOfficialDialog({ open, onOpenChange, official, onSta
             {official && official.is_active ? (
               <>
                 <UserX className="h-4 w-4 mr-2" />
-                {processing ? "Desativando..." : "Desativar"}
+                {processing ? formatMessage('officials.toggle_status_dialog.deactivating') : formatMessage('officials.toggle_status_dialog.deactivate')}
               </>
             ) : (
               <>
                 <UserCheck className="h-4 w-4 mr-2" />
-                {processing ? "Ativando..." : "Ativar"}
+                {processing ? formatMessage('officials.toggle_status_dialog.activating') : formatMessage('officials.toggle_status_dialog.activate')}
               </>
             )}
           </Button>

@@ -39,6 +39,7 @@ import { Official } from '@shared/schema';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { useBusinessHoursRefetchInterval } from '../../hooks/use-business-hours';
+import { useI18n } from '@/i18n';
 
 // Interface para empresa
 interface Company {
@@ -64,6 +65,7 @@ interface OfficialWithUser extends Official {
 
 export default function OfficialsIndex() {
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -142,9 +144,9 @@ export default function OfficialsIndex() {
   
   // Função para obter o nome da empresa
   const getCompanyName = (companyId: number | null) => {
-    if (!companyId) return 'Sistema Global';
+    if (!companyId) return formatMessage('officials.global_system');
     const company = companies.find(c => c.id === companyId);
-    return company?.name || 'Empresa não encontrada';
+    return company?.name || formatMessage('officials.company_not_found');
   };
 
   // Garantir que companies é sempre um array válido
@@ -158,10 +160,10 @@ export default function OfficialsIndex() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Atendentes</h1>
+        <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('officials.title')}</h1>
         <Button onClick={() => setShowAddDialog(true)}>
           <UserPlus className="mr-2 h-4 w-4" />
-          Adicionar Atendente
+          {formatMessage('officials.add_official')}
         </Button>
       </div>
       
@@ -202,8 +204,8 @@ export default function OfficialsIndex() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Gerenciamento de Atendentes</CardTitle>
-          <CardDescription>Gerencie os membros da sua equipe de suporte</CardDescription>
+          <CardTitle>{formatMessage('officials.management_title')}</CardTitle>
+          <CardDescription>{formatMessage('officials.management_description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-between mb-6">
@@ -211,7 +213,7 @@ export default function OfficialsIndex() {
               <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
                 <Input 
-                  placeholder="Pesquisar atendentes" 
+                  placeholder={formatMessage('officials.search_placeholder')} 
                   className="pl-10"
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
@@ -223,12 +225,12 @@ export default function OfficialsIndex() {
                 <div className="w-64">
                   <Select value={selectedCompanyId} onValueChange={handleCompanyChange}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Filtrar por empresa" />
+                      <SelectValue placeholder={formatMessage('officials.filter_by_company')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas as empresas</SelectItem>
+                      <SelectItem value="all">{formatMessage('officials.all_companies')}</SelectItem>
                       {isLoadingCompanies ? (
-                        <SelectItem value="loading" disabled>Carregando empresas...</SelectItem>
+                        <SelectItem value="loading" disabled>{formatMessage('officials.loading_companies')}</SelectItem>
                       ) : (
                         safeCompanies
                           .filter(company => company.active) // Mostrar apenas empresas ativas
@@ -250,7 +252,7 @@ export default function OfficialsIndex() {
                   checked={includeInactive} 
                   onCheckedChange={setIncludeInactive}
                 />
-                <Label htmlFor="includeInactive">Incluir inativos</Label>
+                <Label htmlFor="includeInactive">{formatMessage('officials.include_inactive')}</Label>
               </div>
             </div>
           </div>
@@ -259,15 +261,15 @@ export default function OfficialsIndex() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Departamento</TableHead>
-                  <TableHead>Supervisor</TableHead>
-                  <TableHead>Gerente</TableHead>
-                  {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
-                  <TableHead>Status</TableHead>
-                  <TableHead>Tickets Atribuídos</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead>{formatMessage('officials.name')}</TableHead>
+                  <TableHead>{formatMessage('officials.email')}</TableHead>
+                  <TableHead>{formatMessage('officials.department')}</TableHead>
+                  <TableHead>{formatMessage('officials.supervisor')}</TableHead>
+                  <TableHead>{formatMessage('officials.manager')}</TableHead>
+                  {user?.role === 'admin' && <TableHead>{formatMessage('officials.company')}</TableHead>}
+                  <TableHead>{formatMessage('officials.status')}</TableHead>
+                  <TableHead>{formatMessage('officials.assigned_tickets')}</TableHead>
+                  <TableHead className="text-right">{formatMessage('officials.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -311,7 +313,7 @@ export default function OfficialsIndex() {
                                   );
                                 })
                               ) : (
-                                <span className="text-neutral-500 text-sm">Sem departamento</span>
+                                <span className="text-neutral-500 text-sm">{formatMessage('officials.no_department')}</span>
                               )}
                             </div>
                           </TableCell>
@@ -324,11 +326,11 @@ export default function OfficialsIndex() {
                                 return supervisor ? (
                                   <span className="text-sm text-neutral-600">{supervisor.name}</span>
                                 ) : (
-                                  <span className="text-sm text-neutral-400">-</span>
+                                  <span className='text-sm text-neutral-400'>{formatMessage('officials.no_supervisor')}</span>
                                 );
                               }
                               // Se não tem supervisor vinculado, mostrar '-'
-                              return <span className="text-sm text-neutral-400">-</span>;
+                              return <span className='text-sm text-neutral-400'>{formatMessage('officials.no_supervisor')}</span>;
                             })()}
                           </TableCell>
                           <TableCell>
@@ -336,7 +338,7 @@ export default function OfficialsIndex() {
                             {official.manager && official.manager.name ? (
                               <span className="text-sm text-neutral-600">{official.manager.name}</span>
                             ) : (
-                              <span className="text-sm text-neutral-400">-</span>
+                              <span className='text-sm text-neutral-400'>{formatMessage('officials.no_manager')}</span>
                             )}
                           </TableCell>
                           {user?.role === 'admin' && (
@@ -344,7 +346,7 @@ export default function OfficialsIndex() {
                               <div className="flex items-center gap-2">
                                 <Building2 className="h-4 w-4 text-neutral-500" />
                                 <span className="text-sm text-neutral-600">
-                                  {(official as any).company?.name || 'Sistema Global'}
+                                  {(official as any).company?.name || formatMessage('officials.global_system')}
                                 </span>
                               </div>
                             </TableCell>
@@ -352,11 +354,11 @@ export default function OfficialsIndex() {
                           <TableCell>
                             {(official.is_active === undefined || official.is_active) ? (
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                Ativo
+                                {formatMessage('officials.active')}
                               </span>
                             ) : (
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                Inativo
+                                {formatMessage('officials.inactive')}
                               </span>
                             )}
                           </TableCell>
@@ -374,7 +376,7 @@ export default function OfficialsIndex() {
                                 variant="outline" 
                                 size="sm"
                                 onClick={() => handleEditOfficial(official)}
-                                title="Editar atendente"
+                                title={formatMessage('officials.edit_official')}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
@@ -383,7 +385,7 @@ export default function OfficialsIndex() {
                                 size="sm"
                                 className={official.is_active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
                                 onClick={() => handleDeleteOfficial(official)}
-                                title={official.is_active ? "Desativar atendente" : "Ativar atendente"}
+                                title={official.is_active ? formatMessage('officials.deactivate_official') : formatMessage('officials.activate_official')}
                               >
                                 {official.is_active ? 
                                   <UserX className="h-3.5 w-3.5" /> : 
@@ -398,8 +400,8 @@ export default function OfficialsIndex() {
                   <TableRow>
                     <TableCell colSpan={user?.role === 'admin' ? 9 : 8} className="text-center py-10 text-neutral-500">
                       {searchQuery || selectedCompanyId !== 'all' 
-                        ? "Nenhum atendente encontrado com os filtros aplicados." 
-                        : "Nenhum atendente encontrado. Adicione seu primeiro membro de equipe para começar."
+                        ? formatMessage('officials.no_officials_filtered')
+                        : formatMessage('officials.no_officials_found')
                       }
                     </TableCell>
                   </TableRow>
@@ -412,10 +414,14 @@ export default function OfficialsIndex() {
           {pagination && pagination.totalPages > 1 && (
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-muted-foreground">
-                Mostrando {((pagination.page - 1) * pagination.limit) + 1} a {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} atendentes
+                {formatMessage('officials.showing_results', {
+                  start: ((pagination.page - 1) * pagination.limit) + 1,
+                  end: Math.min(pagination.page * pagination.limit, pagination.total),
+                  total: pagination.total
+                })}
                 {selectedCompanyId !== 'all' && user?.role === 'admin' && (
                   <span className="ml-2 text-neutral-500">
-                    (filtrado por: {getCompanyName(parseInt(selectedCompanyId))})
+                    {formatMessage('officials.filtered_by', { company: getCompanyName(parseInt(selectedCompanyId)) })}
                   </span>
                 )}
               </div>
@@ -426,7 +432,7 @@ export default function OfficialsIndex() {
                   disabled={!pagination.hasPrev}
                   onClick={() => pagination.hasPrev && setCurrentPage(pagination.page - 1)}
                 >
-                  Anterior
+                  {formatMessage('officials.previous')}
                 </Button>
                 
                 {/* Páginas numeradas */}
@@ -461,7 +467,7 @@ export default function OfficialsIndex() {
                   disabled={!pagination.hasNext}
                   onClick={() => pagination.hasNext && setCurrentPage(pagination.page + 1)}
                 >
-                  Próxima
+                  {formatMessage('officials.next')}
                 </Button>
               </div>
             </div>
