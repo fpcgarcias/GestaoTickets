@@ -16,7 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR, enUS } from 'date-fns/locale';
+import { useI18n } from '@/i18n';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
 import {
@@ -50,6 +51,7 @@ export default function TicketsIndex() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { formatMessage, locale } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState('this-month');
   const [includeOpenOutsidePeriod, setIncludeOpenOutsidePeriod] = useState(true);
@@ -194,8 +196,8 @@ export default function TicketsIndex() {
     },
     onSuccess: (data, variables) => {
       toast({
-        title: "Sucesso!",
-        description: `Chamado #${variables.ticketId} atribuído com sucesso.`,
+        title: formatMessage('tickets.assign.success'),
+        description: formatMessage('tickets.assign.success_desc', { ticketId: variables.ticketId }),
       });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets/user-role'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets/stats'] });
@@ -204,8 +206,8 @@ export default function TicketsIndex() {
     },
     onError: (error) => {
       toast({
-        title: "Erro",
-        description: error.message || "Falha ao atribuir o chamado",
+        title: formatMessage('tickets.assign.error'),
+        description: error.message || formatMessage('tickets.assign.error_desc'),
         variant: "destructive",
       });
     },
@@ -263,10 +265,10 @@ export default function TicketsIndex() {
   return (
     <div className="mb-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Chamados</h1>
+        <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('tickets.title')}</h1>
         <Button onClick={() => navigate('/tickets/new')}>
           <Plus className="mr-2 h-4 w-4" />
-          Novo Chamado
+          {formatMessage('tickets.new_ticket')}
         </Button>
       </div>
 
@@ -277,7 +279,7 @@ export default function TicketsIndex() {
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
             <Input 
-              placeholder="Buscar chamado" 
+              placeholder={formatMessage('tickets.search_placeholder')} 
               className="pl-10"
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
@@ -295,14 +297,14 @@ export default function TicketsIndex() {
                   {dateRange.from ? (
                     dateRange.to ? (
                       <>
-                        {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} {' - '} 
-                        {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
+                        {format(dateRange.from, locale === 'en-US' ? "MM/dd/yyyy" : "dd/MM/yyyy", { locale: locale === 'en-US' ? enUS : ptBR })} {' - '} 
+                        {format(dateRange.to, locale === 'en-US' ? "MM/dd/yyyy" : "dd/MM/yyyy", { locale: locale === 'en-US' ? enUS : ptBR })}
                       </>
                     ) : (
-                      format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
+                      format(dateRange.from, locale === 'en-US' ? "MM/dd/yyyy" : "dd/MM/yyyy", { locale: locale === 'en-US' ? enUS : ptBR })
                     )
                   ) : (
-                    <span>Período Personalizado</span>
+                    <span>{formatMessage('tickets.custom_period')}</span>
                   )}
                 </Button>
               </PopoverTrigger>
@@ -323,7 +325,7 @@ export default function TicketsIndex() {
                       setTimeout(() => setCalendarOpen(false), 500);
                     }
                   }}
-                  locale={ptBR}
+                  locale={locale === 'en-US' ? enUS : ptBR}
                   initialFocus
                 />
               </PopoverContent>
@@ -339,13 +341,13 @@ export default function TicketsIndex() {
               }}
             >
               <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Período" />
+                <SelectValue placeholder={formatMessage('tickets.period')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="this-week">Esta Semana</SelectItem>
-                <SelectItem value="last-week">Semana Passada</SelectItem>
-                <SelectItem value="this-month">Este Mês</SelectItem>
-                <SelectItem value="custom">Período Personalizado</SelectItem>
+                <SelectItem value="this-week">{formatMessage('tickets.this_week')}</SelectItem>
+                <SelectItem value="last-week">{formatMessage('tickets.last_week')}</SelectItem>
+                <SelectItem value="this-month">{formatMessage('tickets.this_month')}</SelectItem>
+                <SelectItem value="custom">{formatMessage('tickets.custom_period')}</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -365,10 +367,10 @@ export default function TicketsIndex() {
             }}
           >
             <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="Departamento" />
+              <SelectValue placeholder={formatMessage('tickets.department')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os Departamentos</SelectItem>
+              <SelectItem value="all">{formatMessage('tickets.all_departments')}</SelectItem>
               {departments && departments.length > 0 && (
                 departments.map((department: any) => (
                   <SelectItem key={department.id} value={department.id.toString()}>
@@ -386,10 +388,10 @@ export default function TicketsIndex() {
             disabled={prioritiesLoading}
           >
             <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder={prioritiesLoading ? "Carregando..." : "Prioridade"} />
+              <SelectValue placeholder={prioritiesLoading ? formatMessage('tickets.loading') : formatMessage('tickets.priority')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as Prioridades</SelectItem>
+              <SelectItem value="all">{formatMessage('tickets.all_priorities')}</SelectItem>
               {availablePriorities.map((priority: any) => (
                 <SelectItem key={priority.id} value={priority.value}>
                   <div className="flex items-center space-x-2">
@@ -410,19 +412,19 @@ export default function TicketsIndex() {
             onValueChange={handleFilterChange(setStatusFilter)}
           >
             <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="Todos os Status" />
+              <SelectValue placeholder={formatMessage('tickets.all_status')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os Status</SelectItem>
-              <SelectItem value="new">🆕 Novo</SelectItem>
-              <SelectItem value="ongoing">⚡ Em Andamento</SelectItem>
-              <SelectItem value="suspended">⏸️ Suspenso</SelectItem>
-              <SelectItem value="waiting_customer">⏳ Aguardando Cliente</SelectItem>
-              <SelectItem value="escalated">🚨 Escalado</SelectItem>
-              <SelectItem value="in_analysis">🔍 Em Análise</SelectItem>
-              <SelectItem value="pending_deployment">🚀 Aguardando Deploy</SelectItem>
-              <SelectItem value="reopened">🔄 Reaberto</SelectItem>
-              <SelectItem value="resolved">✅ Resolvido</SelectItem>
+              <SelectItem value="all">{formatMessage('tickets.all_status')}</SelectItem>
+              <SelectItem value="new">{formatMessage('tickets.new')}</SelectItem>
+              <SelectItem value="ongoing">{formatMessage('tickets.ongoing')}</SelectItem>
+              <SelectItem value="suspended">{formatMessage('tickets.suspended')}</SelectItem>
+              <SelectItem value="waiting_customer">{formatMessage('tickets.waiting_customer')}</SelectItem>
+              <SelectItem value="escalated">{formatMessage('tickets.escalated')}</SelectItem>
+              <SelectItem value="in_analysis">{formatMessage('tickets.in_analysis')}</SelectItem>
+              <SelectItem value="pending_deployment">{formatMessage('tickets.pending_deployment')}</SelectItem>
+              <SelectItem value="reopened">{formatMessage('tickets.reopened')}</SelectItem>
+              <SelectItem value="resolved">{formatMessage('tickets.resolved')}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -432,11 +434,11 @@ export default function TicketsIndex() {
             onValueChange={handleFilterChange(setAssignedToFilter)}
           >
             <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="Atendente" />
+              <SelectValue placeholder={formatMessage('tickets.assigned_to')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os Atendentes</SelectItem>
-              <SelectItem value="unassigned">Não Atribuídos</SelectItem>
+              <SelectItem value="all">{formatMessage('tickets.all_officials')}</SelectItem>
+              <SelectItem value="unassigned">{formatMessage('tickets.unassigned')}</SelectItem>
               {officials && officials.length > 0 && (
                 [...officials].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map((official: any) => (
                   <SelectItem key={official.id} value={official.id.toString()}>
@@ -460,7 +462,7 @@ export default function TicketsIndex() {
               htmlFor="hideResolved"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
-              Ocultar chamados resolvidos
+              {formatMessage('tickets.hide_resolved')}
             </Label>
           </div>
 
@@ -479,7 +481,7 @@ export default function TicketsIndex() {
               htmlFor="includeOpenOutsidePeriod"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
-              Incluir abertos de períodos anteriores
+              {formatMessage('tickets.include_previous')}
             </Label>
           </div>
         </div>
@@ -494,25 +496,25 @@ export default function TicketsIndex() {
       >
         <TabsList className="border-b border-neutral-200 w-full justify-start rounded-none bg-transparent">
           <TabsTrigger value="all" className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            Todos os Chamados
+            {formatMessage('tickets.tabs.all')}
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.NEW} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            🆕 Novos
+            {formatMessage('tickets.tabs.new')}
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.ONGOING} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            ⚡ Em Andamento
+            {formatMessage('tickets.tabs.ongoing')}
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.SUSPENDED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            ⏸️ Suspensos
+            {formatMessage('tickets.tabs.suspended')}
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.WAITING_CUSTOMER} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            ⏳ Aguardando Cliente
+            {formatMessage('tickets.tabs.waiting_customer')}
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.ESCALATED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            🚨 Escalados
+            {formatMessage('tickets.tabs.escalated')}
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.RESOLVED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            ✅ Resolvidos
+            {formatMessage('tickets.tabs.resolved')}
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -545,13 +547,13 @@ export default function TicketsIndex() {
           ))
         ) : (
           <div className="bg-white rounded-md border border-neutral-200 p-8 text-center">
-            <h3 className="text-lg font-medium text-neutral-700 mb-2">Nenhum chamado encontrado</h3>
+            <h3 className="text-lg font-medium text-neutral-700 mb-2">{formatMessage('tickets.no_tickets')}</h3>
             <p className="text-neutral-500 mb-4">
-              {searchQuery ? 'Tente ajustar seus termos de busca' : 'Crie seu primeiro chamado para começar'}
+              {searchQuery ? formatMessage('tickets.no_tickets_search') : formatMessage('tickets.no_tickets_create')}
             </p>
             {!searchQuery && (
               <Button asChild>
-                <Link href="/tickets/new">Criar Chamado</Link>
+                <Link href="/tickets/new">{formatMessage('tickets.create_ticket')}</Link>
               </Button>
             )}
           </div>
@@ -562,7 +564,11 @@ export default function TicketsIndex() {
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-between mt-6">
           <div className="text-sm text-muted-foreground">
-            Mostrando {((pagination.page - 1) * pagination.limit) + 1} a {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} chamados
+            {formatMessage('tickets.pagination.showing', { 
+              start: ((pagination.page - 1) * pagination.limit) + 1, 
+              end: Math.min(pagination.page * pagination.limit, pagination.total), 
+              total: pagination.total 
+            })}
           </div>
           <div className="flex items-center space-x-2">
             <Button 
@@ -571,7 +577,7 @@ export default function TicketsIndex() {
               disabled={!pagination.hasPrev}
               onClick={() => pagination.hasPrev && setCurrentPage(pagination.page - 1)}
             >
-              Anterior
+              {formatMessage('tickets.pagination.previous')}
             </Button>
             
             {/* Páginas numeradas */}
@@ -606,7 +612,7 @@ export default function TicketsIndex() {
               disabled={!pagination.hasNext}
               onClick={() => pagination.hasNext && setCurrentPage(pagination.page + 1)}
             >
-              Próxima
+              {formatMessage('tickets.pagination.next')}
             </Button>
           </div>
         </div>

@@ -880,6 +880,94 @@
     "average": "Média Geral",
     "excellent": "🏆 Excelente",
     "attention": "⚠️ Atenção"
+  },
+  "tickets": {
+    "title": "Chamados",
+    "new_ticket": "Novo Chamado",
+    "search_placeholder": "Buscar chamado",
+    "period": "Período",
+    "this_week": "Esta Semana",
+    "last_week": "Semana Passada",
+    "this_month": "Este Mês",
+    "custom_period": "Período Personalizado",
+    "department": "Departamento",
+    "all_departments": "Todos os Departamentos",
+    "priority": "Prioridade",
+    "loading": "Carregando...",
+    "all_priorities": "Todas as Prioridades",
+    "status": "Status",
+    "all_status": "Todos os Status",
+    "new": "Novo",
+    "ongoing": "Em Andamento",
+    "suspended": "Suspenso",
+    "waiting_customer": "Aguardando Cliente",
+    "escalated": "Escalado",
+    "in_analysis": "Em Análise",
+    "pending_deployment": "Aguardando Deploy",
+    "reopened": "Reaberto",
+    "resolved": "Resolvido",
+    "assigned_to": "Atendente",
+    "all_officials": "Todos os Atendentes",
+    "unassigned": "Não Atribuídos",
+    "hide_resolved": "Ocultar chamados resolvidos",
+    "include_previous": "Incluir abertos de períodos anteriores",
+    "tabs": {
+      "all": "Todos os Chamados",
+      "new": "Novos",
+      "ongoing": "Em Andamento",
+      "suspended": "Suspensos",
+      "waiting_customer": "Aguardando Cliente",
+      "escalated": "Escalados",
+      "resolved": "Resolvidos"
+    },
+    "no_tickets": "Nenhum chamado encontrado",
+    "no_tickets_search": "Tente ajustar seus termos de busca",
+    "no_tickets_create": "Crie seu primeiro chamado para começar",
+    "create_ticket": "Criar Chamado",
+    "pagination": {
+      "showing": "Mostrando {start} a {end} de {total} chamados",
+      "previous": "Anterior",
+      "next": "Próxima"
+    },
+    "assign": {
+      "success": "Sucesso!",
+      "success_desc": "Chamado #{ticketId} atribuído com sucesso.",
+      "error": "Erro",
+      "error_desc": "Falha ao atribuir o chamado"
+    },
+    "card": {
+      "not_assigned": "Não atribuído",
+      "assign_to": "Atribuir a...",
+      "unassigned": "Não atribuído",
+      "loading_officials": "Carregando atendentes...",
+      "no_department": "Sem departamento",
+      "department": "Departamento",
+      "type": "Tipo",
+      "category": "Categoria",
+      "customer_not_informed": "Cliente não informado",
+      "participants": "Participantes",
+      "participant": "participante",
+      "participants_plural": "participantes",
+      "user": "Usuário"
+    },
+    "created_at": "Criado em",
+    "open": "Abrir",
+    "sla": {
+      "resolved": "Resolvido",
+      "loading": "Carregando SLA...",
+      "not_configured": "Sem SLA configurado",
+      "paused": "SLA pausado",
+      "response": "Resposta",
+      "resolution": "Resolução",
+      "remaining": "restantes",
+      "overdue": "atrasado"
+    },
+    "priority_labels": {
+      "low": "Baixa",
+      "medium": "Média", 
+      "high": "Alta",
+      "critical": "Crítica"
+    }
   }
 }
 

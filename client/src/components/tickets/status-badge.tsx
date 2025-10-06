@@ -2,6 +2,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 import { getStatusConfig, type TicketStatus } from '@shared/ticket-utils';
 import { getPriorityColorByWeight, convertLegacyToWeight } from '@/hooks/use-priorities';
+import { useI18n } from '@/i18n';
 
 interface StatusBadgeProps {
   status: TicketStatus;
@@ -23,6 +24,23 @@ interface PriorityBadgeProps {
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) => {
   const config = getStatusConfig(status);
+  const { formatMessage } = useI18n();
+
+  // Mapear status para chaves de tradução
+  const getTranslatedStatus = (status: TicketStatus) => {
+    const statusMap: Record<TicketStatus, string> = {
+      'new': formatMessage('tickets.new'),
+      'ongoing': formatMessage('tickets.ongoing'),
+      'suspended': formatMessage('tickets.suspended'),
+      'waiting_customer': formatMessage('tickets.waiting_customer'),
+      'escalated': formatMessage('tickets.escalated'),
+      'in_analysis': formatMessage('tickets.in_analysis'),
+      'pending_deployment': formatMessage('tickets.pending_deployment'),
+      'reopened': formatMessage('tickets.reopened'),
+      'resolved': formatMessage('tickets.resolved')
+    };
+    return statusMap[status] || config.label;
+  };
 
   return (
     <span
@@ -33,13 +51,30 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) =
       )}
     >
       <span className="mr-1">{config.icon}</span>
-      {config.label}
+      {getTranslatedStatus(status)}
     </span>
   );
 };
 
 export const StatusIcon: React.FC<StatusIconProps> = ({ status, className }) => {
   const config = getStatusConfig(status);
+  const { formatMessage } = useI18n();
+
+  // Mapear status para chaves de tradução
+  const getTranslatedStatus = (status: TicketStatus) => {
+    const statusMap: Record<TicketStatus, string> = {
+      'new': formatMessage('tickets.new'),
+      'ongoing': formatMessage('tickets.ongoing'),
+      'suspended': formatMessage('tickets.suspended'),
+      'waiting_customer': formatMessage('tickets.waiting_customer'),
+      'escalated': formatMessage('tickets.escalated'),
+      'in_analysis': formatMessage('tickets.in_analysis'),
+      'pending_deployment': formatMessage('tickets.pending_deployment'),
+      'reopened': formatMessage('tickets.reopened'),
+      'resolved': formatMessage('tickets.resolved')
+    };
+    return statusMap[status] || config.label;
+  };
 
   return (
     <span
@@ -47,7 +82,7 @@ export const StatusIcon: React.FC<StatusIconProps> = ({ status, className }) => 
         'inline-flex items-center justify-center w-4 h-4 text-xs',
         className
       )}
-      title={config.label} // Tooltip para mostrar o nome do status
+      title={getTranslatedStatus(status)} // Tooltip para mostrar o nome do status
     >
       {config.icon}
     </span>
@@ -66,11 +101,13 @@ export const PriorityBadge: React.FC<PriorityBadgeProps> = ({
   name,
   className 
 }) => {
+  const { formatMessage } = useI18n();
+  
   const priorityLabels: Record<string, string> = {
-    'low': 'Baixa',
-    'medium': 'Média',
-    'high': 'Alta',
-    'critical': 'Crítica'
+    'low': formatMessage('tickets.priority_labels.low'),
+    'medium': formatMessage('tickets.priority_labels.medium'),
+    'high': formatMessage('tickets.priority_labels.high'),
+    'critical': formatMessage('tickets.priority_labels.critical')
   };
 
   const priorityColors: Record<string, string> = {

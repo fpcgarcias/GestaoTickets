@@ -880,6 +880,94 @@
     "average": "Overall Average",
     "excellent": "🏆 Excellent",
     "attention": "⚠️ Attention"
+  },
+  "tickets": {
+    "title": "Tickets",
+    "new_ticket": "New Ticket",
+    "search_placeholder": "Search ticket",
+    "period": "Period",
+    "this_week": "This Week",
+    "last_week": "Last Week",
+    "this_month": "This Month",
+    "custom_period": "Custom Period",
+    "department": "Department",
+    "all_departments": "All Departments",
+    "priority": "Priority",
+    "loading": "Loading...",
+    "all_priorities": "All Priorities",
+    "status": "Status",
+    "all_status": "All Status",
+    "new": "New",
+    "ongoing": "Ongoing",
+    "suspended": "Suspended",
+    "waiting_customer": "Waiting Customer",
+    "escalated": "Escalated",
+    "in_analysis": "In Analysis",
+    "pending_deployment": "Pending Deployment",
+    "reopened": "Reopened",
+    "resolved": "Resolved",
+    "assigned_to": "Assigned To",
+    "all_officials": "All Officials",
+    "unassigned": "Unassigned",
+    "hide_resolved": "Hide resolved tickets",
+    "include_previous": "Include opened from previous periods",
+    "tabs": {
+      "all": "All Tickets",
+      "new": "New",
+      "ongoing": "Ongoing",
+      "suspended": "Suspended",
+      "waiting_customer": "Waiting Customer",
+      "escalated": "Escalated",
+      "resolved": "Resolved"
+    },
+    "no_tickets": "No tickets found",
+    "no_tickets_search": "Try adjusting your search terms",
+    "no_tickets_create": "Create your first ticket to get started",
+    "create_ticket": "Create Ticket",
+    "pagination": {
+      "showing": "Showing {start} to {end} of {total} tickets",
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "assign": {
+      "success": "Success!",
+      "success_desc": "Ticket #{ticketId} assigned successfully.",
+      "error": "Error",
+      "error_desc": "Failed to assign ticket"
+    },
+    "card": {
+      "not_assigned": "Not assigned",
+      "assign_to": "Assign to...",
+      "unassigned": "Unassigned",
+      "loading_officials": "Loading officials...",
+      "no_department": "No department",
+      "department": "Department",
+      "type": "Type",
+      "category": "Category",
+      "customer_not_informed": "Customer not informed",
+      "participants": "Participants",
+      "participant": "participant",
+      "participants_plural": "participants",
+      "user": "User"
+    },
+    "created_at": "Created on",
+    "open": "Open",
+    "sla": {
+      "resolved": "Resolved",
+      "loading": "Loading SLA...",
+      "not_configured": "No SLA configured",
+      "paused": "SLA paused",
+      "response": "Response",
+      "resolution": "Resolution",
+      "remaining": "remaining",
+      "overdue": "overdue"
+    },
+    "priority_labels": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High", 
+      "critical": "Critical"
+    }
   }
 }
 

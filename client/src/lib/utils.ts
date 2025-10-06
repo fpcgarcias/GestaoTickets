@@ -5,16 +5,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date: Date | string | number): string {
+export function formatDate(date: Date | string | number, locale: string = 'pt-BR'): string {
   const d = new Date(date);
-  return d.toLocaleDateString('pt-BR', {
+  const dateFormat = locale === 'en-US' ? 'en-US' : 'pt-BR';
+  const timeFormat = locale === 'en-US' ? 'en-US' : 'pt-BR';
+  
+  return d.toLocaleDateString(dateFormat, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-  }) + ' ' + d.toLocaleTimeString('pt-BR', {
+  }) + ' ' + d.toLocaleTimeString(timeFormat, {
     hour: 'numeric',
     minute: '2-digit',
-    hour12: false
+    hour12: locale === 'en-US'
   });
 }
 
