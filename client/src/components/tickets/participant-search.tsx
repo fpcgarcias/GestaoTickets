@@ -18,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Check, ChevronsUpDown, Users, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from '@/i18n';
 
 interface User {
   id: number;
@@ -51,6 +52,7 @@ export function ParticipantSearch({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
 
   // Query para buscar usuários (usando a rota existente que já tem a lógica de permissões)
   const { data: allUsers = [], isLoading, error } = useQuery<User[]>({
@@ -130,7 +132,7 @@ export function ParticipantSearch({
     if (selectedUsers.length === 0) {
       return placeholder;
     }
-    return `${selectedUsers.length} participante(s) selecionado(s)`;
+    return formatMessage('new_ticket.participants_selected', { count: selectedUsers.length });
   };
 
   // Verificar se está no limite
@@ -174,7 +176,7 @@ export function ParticipantSearch({
                   ))}
                   {selectedUsers.length > 3 && (
                     <Badge variant="secondary" className="px-2 py-1 text-xs">
-                      e mais {selectedUsers.length - 3}
+                      {formatMessage('new_ticket.and_more', { count: selectedUsers.length - 3 })}
                     </Badge>
                   )}
                 </>
@@ -186,36 +188,36 @@ export function ParticipantSearch({
         <PopoverContent className="w-full p-0" align="start">
           <Command>
             <CommandInput 
-              placeholder="Digite para buscar usuários..." 
+              placeholder={formatMessage('new_ticket.type_to_search_users')} 
               value={search}
               onValueChange={setSearch}
             />
             <CommandEmpty>
-              {isLoading ? "Carregando usuários..." : 
-               error ? `Erro: ${error.message}` :
-               "Nenhum usuário encontrado."}
+              {isLoading ? formatMessage('new_ticket.loading_users') : 
+               error ? formatMessage('new_ticket.error_loading_users', { error: error.message }) :
+               formatMessage('new_ticket.no_users_found')}
             </CommandEmpty>
             <CommandGroup>
               {!isLoading && search && (
                 <div className="px-2 py-1 text-xs text-muted-foreground">
-                  {filteredUsers.length} usuário(s) encontrado(s)
+                  {formatMessage('new_ticket.users_found', { count: filteredUsers.length })}
                 </div>
               )}
               {!isLoading && !search && allUsers.length > 0 && (
                 <div className="px-2 py-1 text-xs text-muted-foreground">
-                  {allUsers.length} usuário(s) disponível(is)
+                  {formatMessage('new_ticket.users_available', { count: allUsers.length })}
                 </div>
               )}
               {isAtLimit && (
                 <div className="px-2 py-1 text-xs text-orange-600 bg-orange-50 border-l-2 border-orange-200">
-                  Limite máximo de {maxParticipants} participantes atingido
+                  {formatMessage('new_ticket.max_participants_reached', { max: maxParticipants })}
                 </div>
               )}
               
               {/* Separador visual se há participantes selecionados */}
               {selectedUsersInList.length > 0 && unselectedUsers.length > 0 && (
                 <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-t border-border mt-2 pt-2">
-                  Participantes Selecionados
+                  {formatMessage('new_ticket.selected_participants')}
                 </div>
               )}
               
@@ -244,7 +246,7 @@ export function ParticipantSearch({
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{user.name}</span>
                         <Badge variant="outline" className="text-xs text-green-600">
-                          Selecionado
+                          {formatMessage('new_ticket.selected')}
                         </Badge>
                       </div>
                       <span className="text-sm text-muted-foreground">
@@ -259,7 +261,7 @@ export function ParticipantSearch({
               {/* Separador para usuários não selecionados */}
               {selectedUsersInList.length > 0 && unselectedUsers.length > 0 && (
                 <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-t border-border mt-2 pt-2">
-                  Outros Usuários
+                  {formatMessage('new_ticket.other_users')}
                 </div>
               )}
               
