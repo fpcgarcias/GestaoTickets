@@ -434,6 +434,30 @@
       "activated_desc": "O atendente foi ativado com sucesso.",
       "error_title": "Erro ao alterar status do atendente"
     }
+  },
+  "sidebar": {
+    "dashboard": "Painel de Controle",
+    "tickets": "Chamados",
+    "clients": "Clientes",
+    "users": "Usuários",
+    "officials": "Atendentes",
+    "reports": "Relatórios",
+    "companies": "Empresas",
+    "permissions": "Permissões",
+    "departments": "Departamentos",
+    "ticket_types": "Tipos de Chamado",
+    "categories": "Categorias",
+    "priorities": "Prioridades",
+    "sla_configurations": "Configurações SLA",
+    "sla_dashboard": "Dashboard SLA",
+    "satisfaction_dashboard": "Dashboard Satisfação",
+    "performance_dashboard": "Dashboard Performance",
+    "ai_audit": "Auditoria de IA",
+    "logs": "Logs do Sistema",
+    "settings": "Configurações",
+    "version": "Versão",
+    "more": "Mais",
+    "logout": "Sair"
   }
 }
 

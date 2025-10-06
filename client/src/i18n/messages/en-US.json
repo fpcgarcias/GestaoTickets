@@ -434,6 +434,30 @@
       "activated_desc": "The support agent has been activated successfully.",
       "error_title": "Error changing support agent status"
     }
+  },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "tickets": "Tickets",
+    "clients": "Clients",
+    "users": "Users",
+    "officials": "Support Agents",
+    "reports": "Reports",
+    "companies": "Companies",
+    "permissions": "Permissions",
+    "departments": "Departments",
+    "ticket_types": "Ticket Types",
+    "categories": "Categories",
+    "priorities": "Priorities",
+    "sla_configurations": "SLA Configurations",
+    "sla_dashboard": "SLA Dashboard",
+    "satisfaction_dashboard": "Satisfaction Dashboard",
+    "performance_dashboard": "Performance Dashboard",
+    "ai_audit": "AI Audit",
+    "logs": "System Logs",
+    "settings": "Settings",
+    "version": "Version",
+    "more": "More",
+    "logout": "Logout"
   }
 }
 
