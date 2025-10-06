@@ -1,5 +1,6 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useI18n } from '@/i18n';
 
 interface ModernSlaBarChartProps {
   data: Array<{
@@ -11,25 +12,36 @@ interface ModernSlaBarChartProps {
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
+  const { formatMessage } = useI18n();
+  
   if (active && payload && payload.length) {
     return (
       <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-200">
         <div className="flex items-center gap-2 mb-2">
           <span className="font-semibold text-gray-900">{label}</span>
         </div>
-        {payload.map((entry: any, index: number) => (
-          <div key={index} className="flex items-center gap-2 mb-1">
-            <div 
-              className="w-3 h-3 rounded-full" 
-              style={{ backgroundColor: entry.color }}
-            />
-            <span className="text-sm text-gray-600">
-              {entry.name}: <span className="font-bold" style={{ color: entry.color }}>
-                {Number(entry.value).toFixed(1)}%
+        {payload.map((entry: any, index: number) => {
+          // Mapear os nomes das chaves para as traduções
+          const translatedName = entry.dataKey === 'resposta' 
+            ? formatMessage('sla_chart.response')
+            : entry.dataKey === 'resolucao'
+            ? formatMessage('sla_chart.resolution')
+            : entry.name;
+            
+          return (
+            <div key={index} className="flex items-center gap-2 mb-1">
+              <div 
+                className="w-3 h-3 rounded-full" 
+                style={{ backgroundColor: entry.color }}
+              />
+              <span className="text-sm text-gray-600">
+                {translatedName}: <span className="font-bold" style={{ color: entry.color }}>
+                  {Number(entry.value).toFixed(1)}%
+                </span>
               </span>
-            </span>
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -48,6 +60,8 @@ const CustomBar = (props: any) => {
 };
 
 export const ModernSlaBarChart: React.FC<ModernSlaBarChartProps> = ({ data, isLoading }) => {
+  const { formatMessage } = useI18n();
+  
   if (isLoading) {
     return (
       <div className="w-full h-80 flex items-center justify-center">
@@ -65,8 +79,8 @@ export const ModernSlaBarChart: React.FC<ModernSlaBarChartProps> = ({ data, isLo
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
           </div>
-          <p className="text-gray-500 font-medium">Nenhum dado disponível</p>
-          <p className="text-sm text-gray-400 mt-1">Os dados de cumprimento aparecerão aqui</p>
+          <p className="text-gray-500 font-medium">{formatMessage('sla_chart.no_data')}</p>
+          <p className="text-sm text-gray-400 mt-1">{formatMessage('sla_chart.data_will_appear')}</p>
         </div>
       </div>
     );
@@ -132,7 +146,7 @@ export const ModernSlaBarChart: React.FC<ModernSlaBarChartProps> = ({ data, isLo
           />
           <Bar 
             dataKey="resposta" 
-            name="Resposta"
+            name={formatMessage('sla_chart.response')}
             fill="url(#respostaGradient)"
             radius={[6, 6, 0, 0]}
             filter="url(#shadow)"
@@ -141,7 +155,7 @@ export const ModernSlaBarChart: React.FC<ModernSlaBarChartProps> = ({ data, isLo
           />
           <Bar 
             dataKey="resolucao" 
-            name="Resolução"
+            name={formatMessage('sla_chart.resolution')}
             fill="url(#resolucaoGradient)"
             radius={[6, 6, 0, 0]}
             filter="url(#shadow)"
@@ -177,7 +191,7 @@ export const ModernSlaBarChart: React.FC<ModernSlaBarChartProps> = ({ data, isLo
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-blue-500" />
-                        <span className="text-sm font-medium text-gray-700">Resposta</span>
+                        <span className="text-sm font-medium text-gray-700">{formatMessage('sla_chart.response')}</span>
                       </div>
                       <span className="text-sm font-bold text-blue-600">
                         {item.resposta.toFixed(1)}%
@@ -187,7 +201,7 @@ export const ModernSlaBarChart: React.FC<ModernSlaBarChartProps> = ({ data, isLo
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-green-500" />
-                        <span className="text-sm font-medium text-gray-700">Resolução</span>
+                        <span className="text-sm font-medium text-gray-700">{formatMessage('sla_chart.resolution')}</span>
                       </div>
                       <span className="text-sm font-bold text-green-600">
                         {item.resolucao.toFixed(1)}%
@@ -196,7 +210,7 @@ export const ModernSlaBarChart: React.FC<ModernSlaBarChartProps> = ({ data, isLo
                   </div>
                   
                   <div className="mt-3 pt-3 border-t border-gray-200">
-                    <div className="text-xs text-gray-500 mb-1">Média Geral</div>
+                    <div className="text-xs text-gray-500 mb-1">{formatMessage('sla_chart.average')}</div>
                     <div className={`text-lg font-bold ${
                       isHighPerformer ? 'text-green-600' : 
                       isLowPerformer ? 'text-red-600' : 'text-blue-600'
@@ -208,7 +222,7 @@ export const ModernSlaBarChart: React.FC<ModernSlaBarChartProps> = ({ data, isLo
                   {isHighPerformer && (
                     <div className="mt-2">
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        🏆 Excelente
+                        {formatMessage('sla_chart.excellent')}
                       </span>
                     </div>
                   )}
@@ -216,7 +230,7 @@ export const ModernSlaBarChart: React.FC<ModernSlaBarChartProps> = ({ data, isLo
                   {isLowPerformer && (
                     <div className="mt-2">
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        ⚠️ Atenção
+                        {formatMessage('sla_chart.attention')}
                       </span>
                     </div>
                   )}

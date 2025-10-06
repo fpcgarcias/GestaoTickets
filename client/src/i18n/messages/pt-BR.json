@@ -821,6 +821,65 @@
     "access_denied": "Acesso Negado",
     "no_permission": "Você não tem permissão para acessar as configurações de prioridades.",
     "loading": "Carregando..."
+  },
+  "sla_dashboard": {
+    "title": "Dashboard SLA",
+    "subtitle": "Visão geral das configurações e cumprimento de SLA",
+    "filter_department": "Filtrar por departamento",
+    "all_departments": "Todos os departamentos",
+    "total_configurations": "Total de Configurações",
+    "active_sla_configurations": "Configurações ativas de SLA",
+    "response_compliance": "Cumprimento de Resposta",
+    "average_response_compliance": "Média de cumprimento de SLA de resposta",
+    "resolution_compliance": "Cumprimento de Resolução",
+    "average_resolution_compliance": "Média de cumprimento de SLA de resolução",
+    "missing_configurations": "Configurações Faltantes",
+    "configuration_alerts": "Alertas de configurações necessárias",
+    "view_details": "Ver detalhes",
+    "missing_configs_modal": {
+      "title": "Configurações SLA Faltantes"
+    },
+    "tabs": {
+      "overview": "Visão Geral",
+      "compliance": "Cumprimento",
+      "alerts": "Alertas"
+    },
+    "overview": {
+      "coverage_title": "Cobertura de Configurações",
+      "coverage_description": "Percentual de configurações por departamento",
+      "configurations_by_department": "Configurações por Departamento",
+      "configurations_count": "{count} configurações",
+      "missing_count": "{count} faltantes"
+    },
+    "compliance": {
+      "title": "Cumprimento de SLA por Departamento",
+      "description": "Percentual de cumprimento de SLA de resposta e resolução",
+      "performance_details": "Detalhes de Performance",
+      "tickets_count": "{count} tickets",
+      "on_time_response": "Resposta no Prazo",
+      "on_time_resolution": "Resolução no Prazo",
+      "avg_response_time": "Tempo Médio Resposta",
+      "avg_resolution_time": "Tempo Médio Resolução",
+      "hours": "{hours}h"
+    },
+    "alerts": {
+      "title": "Configurações SLA Faltantes",
+      "description": "Combinações de departamento/tipo de incidente que precisam de configuração SLA",
+      "all_configured": "Todas as configurações estão em ordem!",
+      "no_missing_configs": "Não há configurações SLA faltantes no momento.",
+      "priority": "Prioridade: {priority}",
+      "tickets_affected": "{count} ticket(s) afetado(s) nos últimos 7 dias",
+      "configure_sla": "Configurar SLA"
+    }
+  },
+  "sla_chart": {
+    "no_data": "Nenhum dado disponível",
+    "data_will_appear": "Os dados de cumprimento aparecerão aqui",
+    "response": "Resposta",
+    "resolution": "Resolução",
+    "average": "Média Geral",
+    "excellent": "🏆 Excelente",
+    "attention": "⚠️ Atenção"
   }
 }
 

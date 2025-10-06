@@ -39,6 +39,7 @@ import { ModernSlaBarChart } from '@/components/charts/modern-sla-bar-chart';
 import { useAuth } from '@/hooks/use-auth';
 import { useBusinessHoursRefetchInterval } from '../hooks/use-business-hours';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useI18n } from '@/i18n';
 
 // Interfaces para os dados
 interface SLADashboardStats {
@@ -86,6 +87,7 @@ interface SLADashboardProps {
 
 export function SLADashboard({ className }: SLADashboardProps) {
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
 
   // Usar hook dinâmico para horário comercial
@@ -144,9 +146,9 @@ export function SLADashboard({ className }: SLADashboardProps) {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold">Dashboard SLA</h2>
+              <h2 className="text-2xl font-bold">{formatMessage('sla_dashboard.title')}</h2>
               <p className="text-muted-foreground">
-                Visão geral das configurações e cumprimento de SLA
+                {formatMessage('sla_dashboard.subtitle')}
               </p>
             </div>
             <Skeleton className="h-10 w-48" />
@@ -240,17 +242,17 @@ export function SLADashboard({ className }: SLADashboardProps) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">Dashboard SLA</h2>
+            <h2 className="text-2xl font-bold">{formatMessage('sla_dashboard.title')}</h2>
             <p className="text-muted-foreground">
-              Visão geral das configurações e cumprimento de SLA
+              {formatMessage('sla_dashboard.subtitle')}
             </p>
           </div>
           <Select value={selectedDepartments[0] || 'all'} onValueChange={handleDepartmentFilter}>
             <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filtrar por departamento" />
+              <SelectValue placeholder={formatMessage('sla_dashboard.filter_department')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os departamentos</SelectItem>
+              <SelectItem value="all">{formatMessage('sla_dashboard.all_departments')}</SelectItem>
               {activeDepartments.map((dept) => (
                 <SelectItem key={dept.id} value={dept.id.toString()}>
                   {dept.name}
@@ -265,14 +267,14 @@ export function SLADashboard({ className }: SLADashboardProps) {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Total de Configurações
+                {formatMessage('sla_dashboard.total_configurations')}
               </CardTitle>
               <Settings className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{slaStats.totalConfigurations}</div>
               <p className="text-xs text-muted-foreground">
-                Configurações ativas de SLA
+                {formatMessage('sla_dashboard.active_sla_configurations')}
               </p>
             </CardContent>
           </Card>
@@ -280,7 +282,7 @@ export function SLADashboard({ className }: SLADashboardProps) {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Cumprimento de Resposta
+                {formatMessage('sla_dashboard.response_compliance')}
               </CardTitle>
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
@@ -289,7 +291,7 @@ export function SLADashboard({ className }: SLADashboardProps) {
                 {averageResponseCompliance.toFixed(1)}%
               </div>
               <p className="text-xs text-muted-foreground">
-                Média de cumprimento de SLA de resposta
+                {formatMessage('sla_dashboard.average_response_compliance')}
               </p>
             </CardContent>
           </Card>
@@ -297,7 +299,7 @@ export function SLADashboard({ className }: SLADashboardProps) {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Cumprimento de Resolução
+                {formatMessage('sla_dashboard.resolution_compliance')}
               </CardTitle>
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
@@ -306,7 +308,7 @@ export function SLADashboard({ className }: SLADashboardProps) {
                 {averageResolutionCompliance.toFixed(1)}%
               </div>
               <p className="text-xs text-muted-foreground">
-                Média de cumprimento de SLA de resolução
+                {formatMessage('sla_dashboard.average_resolution_compliance')}
               </p>
             </CardContent>
           </Card>
@@ -314,7 +316,7 @@ export function SLADashboard({ className }: SLADashboardProps) {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
-                Configurações Faltantes
+                {formatMessage('sla_dashboard.missing_configurations')}
               </CardTitle>
               <AlertTriangle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
@@ -326,17 +328,17 @@ export function SLADashboard({ className }: SLADashboardProps) {
                 {totalMissingConfigs > 0 && (
                   <Dialog open={showMissingConfigsModal} onOpenChange={setShowMissingConfigsModal}>
                     <DialogTrigger asChild>
-                      <Button size="sm" variant="outline" className="ml-2">Ver detalhes</Button>
+                      <Button size="sm" variant="outline" className="ml-2">{formatMessage('sla_dashboard.view_details')}</Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-lg">
                       <DialogHeader>
-                        <DialogTitle>Configurações SLA Faltantes</DialogTitle>
+                        <DialogTitle>{formatMessage('sla_dashboard.missing_configs_modal.title')}</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-2 max-h-[400px] overflow-y-auto">
                         {slaStats.missingConfigurationAlerts.map((alert, idx) => (
                           <div key={idx} className="border rounded p-2 flex flex-col">
                             <span className="font-medium">{alert.departmentName} - {alert.incidentTypeName}</span>
-                            <span className="text-xs text-muted-foreground">Prioridade: {alert.priorityName || 'Padrão'}</span>
+                            <span className="text-xs text-muted-foreground">{formatMessage('sla_dashboard.alerts.priority', { priority: alert.priorityName || 'Padrão' })}</span>
                           </div>
                         ))}
                       </div>
@@ -345,7 +347,7 @@ export function SLADashboard({ className }: SLADashboardProps) {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Alertas de configurações necessárias
+                {formatMessage('sla_dashboard.configuration_alerts')}
               </p>
             </CardContent>
           </Card>
@@ -354,9 +356,9 @@ export function SLADashboard({ className }: SLADashboardProps) {
         {/* Tabs de conteúdo */}
         <Tabs defaultValue="overview" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-            <TabsTrigger value="compliance">Cumprimento</TabsTrigger>
-            <TabsTrigger value="alerts">Alertas</TabsTrigger>
+            <TabsTrigger value="overview">{formatMessage('sla_dashboard.tabs.overview')}</TabsTrigger>
+            <TabsTrigger value="compliance">{formatMessage('sla_dashboard.tabs.compliance')}</TabsTrigger>
+            <TabsTrigger value="alerts">{formatMessage('sla_dashboard.tabs.alerts')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -366,10 +368,10 @@ export function SLADashboard({ className }: SLADashboardProps) {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <PieChart className="h-5 w-5" />
-                    Cobertura de Configurações
+                    {formatMessage('sla_dashboard.overview.coverage_title')}
                   </CardTitle>
                   <CardDescription>
-                    Percentual de configurações por departamento
+                    {formatMessage('sla_dashboard.overview.coverage_description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -385,7 +387,7 @@ export function SLADashboard({ className }: SLADashboardProps) {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Users className="h-5 w-5" />
-                    Configurações por Departamento
+                    {formatMessage('sla_dashboard.overview.configurations_by_department')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -395,10 +397,10 @@ export function SLADashboard({ className }: SLADashboardProps) {
                         <div className="space-y-1">
                           <p className="text-sm font-medium">{dept.departmentName}</p>
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span>{dept.configurationsCount} configurações</span>
+                            <span>{formatMessage('sla_dashboard.overview.configurations_count', { count: dept.configurationsCount })}</span>
                             {dept.missingConfigurations > 0 && (
                               <Badge variant="outline" className="text-orange-600">
-                                {slaStats.missingConfigurationAlerts.filter(a => a.departmentId === dept.departmentId).length} faltantes
+                                {formatMessage('sla_dashboard.overview.missing_count', { count: slaStats.missingConfigurationAlerts.filter(a => a.departmentId === dept.departmentId).length })}
                               </Badge>
                             )}
                           </div>
@@ -424,10 +426,10 @@ export function SLADashboard({ className }: SLADashboardProps) {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5" />
-                    Cumprimento de SLA por Departamento
+                    {formatMessage('sla_dashboard.compliance.title')}
                   </CardTitle>
                   <CardDescription>
-                    Percentual de cumprimento de SLA de resposta e resolução
+                    {formatMessage('sla_dashboard.compliance.description')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -441,7 +443,7 @@ export function SLADashboard({ className }: SLADashboardProps) {
               {/* Detalhes por departamento */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Detalhes de Performance</CardTitle>
+                  <CardTitle>{formatMessage('sla_dashboard.compliance.performance_details')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
@@ -450,34 +452,34 @@ export function SLADashboard({ className }: SLADashboardProps) {
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-medium">{dept.departmentName}</h4>
                           <Badge variant="outline">
-                            {dept.totalTickets} tickets
+                            {formatMessage('sla_dashboard.compliance.tickets_count', { count: dept.totalTickets })}
                           </Badge>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                           <div>
-                            <p className="text-muted-foreground">Resposta no Prazo</p>
+                            <p className="text-muted-foreground">{formatMessage('sla_dashboard.compliance.on_time_response')}</p>
                             <p className="font-medium">
                               {dept.onTimeResponse}/{dept.totalTickets} 
                               ({dept.responseCompliance.toFixed(1)}%)
                             </p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">Resolução no Prazo</p>
+                            <p className="text-muted-foreground">{formatMessage('sla_dashboard.compliance.on_time_resolution')}</p>
                             <p className="font-medium">
                               {dept.onTimeResolution}/{dept.totalTickets} 
                               ({dept.resolutionCompliance.toFixed(1)}%)
                             </p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">Tempo Médio Resposta</p>
+                            <p className="text-muted-foreground">{formatMessage('sla_dashboard.compliance.avg_response_time')}</p>
                             <p className="font-medium">
-                              {dept.averageResponseTime.toFixed(1)}h
+                              {formatMessage('sla_dashboard.compliance.hours', { hours: dept.averageResponseTime.toFixed(1) })}
                             </p>
                           </div>
                           <div>
-                            <p className="text-muted-foreground">Tempo Médio Resolução</p>
+                            <p className="text-muted-foreground">{formatMessage('sla_dashboard.compliance.avg_resolution_time')}</p>
                             <p className="font-medium">
-                              {dept.averageResolutionTime.toFixed(1)}h
+                              {formatMessage('sla_dashboard.compliance.hours', { hours: dept.averageResolutionTime.toFixed(1) })}
                             </p>
                           </div>
                         </div>
@@ -494,10 +496,10 @@ export function SLADashboard({ className }: SLADashboardProps) {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-orange-600" />
-                  Configurações SLA Faltantes
+                  {formatMessage('sla_dashboard.alerts.title')}
                 </CardTitle>
                 <CardDescription>
-                  Combinações de departamento/tipo de incidente que precisam de configuração SLA
+                  {formatMessage('sla_dashboard.alerts.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -505,10 +507,10 @@ export function SLADashboard({ className }: SLADashboardProps) {
                   <div className="text-center py-8">
                     <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-3" />
                     <h3 className="text-lg font-medium mb-2">
-                      Todas as configurações estão em ordem!
+                      {formatMessage('sla_dashboard.alerts.all_configured')}
                     </h3>
                     <p className="text-muted-foreground">
-                      Não há configurações SLA faltantes no momento.
+                      {formatMessage('sla_dashboard.alerts.no_missing_configs')}
                     </p>
                   </div>
                 ) : (
@@ -521,11 +523,11 @@ export function SLADashboard({ className }: SLADashboardProps) {
                         </AlertTitle>
                         <AlertDescription className="flex items-center justify-between">
                           <span>
-                            {alert.priorityName && `Prioridade: ${alert.priorityName} - `}
-                            {alert.ticketsAffected} ticket(s) afetado(s) nos últimos 7 dias
+                            {alert.priorityName && `${formatMessage('sla_dashboard.alerts.priority', { priority: alert.priorityName })} - `}
+                            {formatMessage('sla_dashboard.alerts.tickets_affected', { count: alert.ticketsAffected })}
                           </span>
                           <Button size="sm" variant="outline">
-                            Configurar SLA
+                            {formatMessage('sla_dashboard.alerts.configure_sla')}
                           </Button>
                         </AlertDescription>
                       </Alert>

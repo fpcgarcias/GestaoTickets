@@ -821,6 +821,65 @@
     "access_denied": "Access Denied",
     "no_permission": "You do not have permission to access priority settings.",
     "loading": "Loading..."
+  },
+  "sla_dashboard": {
+    "title": "SLA Dashboard",
+    "subtitle": "Overview of SLA configurations and compliance",
+    "filter_department": "Filter by department",
+    "all_departments": "All departments",
+    "total_configurations": "Total Configurations",
+    "active_sla_configurations": "Active SLA configurations",
+    "response_compliance": "Response Compliance",
+    "average_response_compliance": "Average SLA response compliance",
+    "resolution_compliance": "Resolution Compliance",
+    "average_resolution_compliance": "Average SLA resolution compliance",
+    "missing_configurations": "Missing Configurations",
+    "configuration_alerts": "Configuration alerts needed",
+    "view_details": "View details",
+    "missing_configs_modal": {
+      "title": "Missing SLA Configurations"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "compliance": "Compliance",
+      "alerts": "Alerts"
+    },
+    "overview": {
+      "coverage_title": "Configuration Coverage",
+      "coverage_description": "Percentage of configurations by department",
+      "configurations_by_department": "Configurations by Department",
+      "configurations_count": "{count} configurations",
+      "missing_count": "{count} missing"
+    },
+    "compliance": {
+      "title": "SLA Compliance by Department",
+      "description": "Percentage of SLA response and resolution compliance",
+      "performance_details": "Performance Details",
+      "tickets_count": "{count} tickets",
+      "on_time_response": "On Time Response",
+      "on_time_resolution": "On Time Resolution",
+      "avg_response_time": "Average Response Time",
+      "avg_resolution_time": "Average Resolution Time",
+      "hours": "{hours}h"
+    },
+    "alerts": {
+      "title": "Missing SLA Configurations",
+      "description": "Department/incident type combinations that need SLA configuration",
+      "all_configured": "All configurations are in order!",
+      "no_missing_configs": "There are no missing SLA configurations at the moment.",
+      "priority": "Priority: {priority}",
+      "tickets_affected": "{count} ticket(s) affected in the last 7 days",
+      "configure_sla": "Configure SLA"
+    }
+  },
+  "sla_chart": {
+    "no_data": "No data available",
+    "data_will_appear": "Compliance data will appear here",
+    "response": "Response",
+    "resolution": "Resolution",
+    "average": "Overall Average",
+    "excellent": "🏆 Excellent",
+    "attention": "⚠️ Attention"
   }
 }
 
