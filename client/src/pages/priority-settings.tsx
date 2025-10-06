@@ -111,9 +111,10 @@ export default function PrioritySettings() {
     queryKey: ['/api/departments', selectedCompanyId],
     queryFn: async () => {
       // CORREÇÃO: Para admin, supervisor, manager, company_admin, sempre passar company_id se disponível
-      const url = selectedCompanyId 
+      let url = selectedCompanyId 
         ? `/api/departments?company_id=${selectedCompanyId}`
         : '/api/departments';
+      url += (url.includes('?') ? '&' : '?') + 'active_only=true';
       
       const res = await fetch(url);
       if (!res.ok) {

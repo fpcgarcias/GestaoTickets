@@ -68,9 +68,9 @@ const TicketTypeManagement: React.FC = () => {
       limit: number;
     };
   }>({
-    queryKey: ['/departments'],
+    queryKey: ['/departments', { active_only: true }],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/departments');
+      const response = await apiRequest('GET', '/api/departments?active_only=true');
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Erro ao buscar departamentos');

@@ -602,9 +602,9 @@ function DepartmentAiConfiguration() {
   };
 
   // Buscar departamentos
-  const { data: departmentsData } = useQuery<{departments: Department[]}>({    queryKey: ["/api/departments"],
+  const { data: departmentsData } = useQuery<{departments: Department[]}>({    queryKey: ["/api/departments", { active_only: true }],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/departments');
+      const response = await apiRequest('GET', '/api/departments?active_only=true');
       if (!response.ok) throw new Error('Erro ao buscar departamentos');
       return response.json();
     }
