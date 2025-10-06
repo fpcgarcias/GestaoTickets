@@ -11,7 +11,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { useAuth } from '@/hooks/use-auth';
 import { useBusinessHoursRefetchInterval } from '../hooks/use-business-hours';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, subMonths } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR, enUS } from 'date-fns/locale';
+import { useI18n } from '@/i18n';
 import { ModernPieChart } from '@/components/charts/modern-pie-chart';
 import { ModernBarChart } from '@/components/charts/modern-bar-chart';
 import { ComparisonArrow } from '@/components/ui/comparison-arrow';
@@ -84,6 +85,7 @@ function normalizarPrioridade(prioridade: string) {
 
 export default function Dashboard() {
   const { user, isLoading: isLoadingAuth } = useAuth();
+  const { formatMessage, locale } = useI18n();
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
   
   // Novo filtro de datas igual ao index.tsx
@@ -257,12 +259,12 @@ export default function Dashboard() {
 
   // Calcular valores anteriores para comparação (removido previousOtherStatusCount - não é mais usado)
 
-  // Dados de status transformados para português
+  // Dados de status transformados com base no idioma
   const statusData = [
-    { name: 'Novos', value: ticketStats.byStatus.new, color: '#F59E0B' },
-    { name: 'Em Andamento', value: ticketStats.byStatus.ongoing, color: '#3B82F6' },
-    { name: 'Resolvidos', value: ticketStats.byStatus.resolved, color: '#10B981' },
-    { name: 'Outros Status', value: otherStatusCount, color: '#8B5CF6' },
+    { name: locale === 'en-US' ? 'New' : 'Novos', value: ticketStats.byStatus.new, color: '#F59E0B' },
+    { name: locale === 'en-US' ? 'Ongoing' : 'Em Andamento', value: ticketStats.byStatus.ongoing, color: '#3B82F6' },
+    { name: locale === 'en-US' ? 'Resolved' : 'Resolvidos', value: ticketStats.byStatus.resolved, color: '#10B981' },
+    { name: locale === 'en-US' ? 'Other Status' : 'Outros Status', value: otherStatusCount, color: '#8B5CF6' },
   ];
 
   // Os novos componentes modernos lidam com dados vazios internamente
@@ -283,7 +285,7 @@ export default function Dashboard() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Painel de Controle</h1>
+        <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('dashboard.title')}</h1>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-neutral-500" />
@@ -297,7 +299,7 @@ export default function Dashboard() {
             />
             {/* Indicador discreto do período */}
             <span className="text-xs text-muted-foreground">
-              {format(startDate, 'dd/MM/yy', { locale: ptBR })} - {format(endDate, 'dd/MM/yy', { locale: ptBR })}
+              {format(startDate, locale === 'en-US' ? 'MM/dd/yy' : 'dd/MM/yy', { locale: locale === 'en-US' ? enUS : ptBR })}{formatMessage('dashboard.date_range_separator')}{format(endDate, locale === 'en-US' ? 'MM/dd/yy' : 'dd/MM/yy', { locale: locale === 'en-US' ? enUS : ptBR })}
             </span>
           </div>
           {/* Filtro de Departamento */}
@@ -306,10 +308,10 @@ export default function Dashboard() {
               <Building className="h-4 w-4 text-neutral-500" />
               <Select value={selectedDepartmentId} onValueChange={setSelectedDepartmentId}>
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Todos os Departamentos" />
+                  <SelectValue placeholder={formatMessage('dashboard.all_departments')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os Departamentos</SelectItem>
+                  <SelectItem value="all">{formatMessage('dashboard.all_departments')}</SelectItem>
                   {departments.map((department: any) => (
                     <SelectItem key={department.id} value={department.id.toString()}>
                       {department.name}
@@ -325,10 +327,10 @@ export default function Dashboard() {
               <Users className="h-4 w-4 text-neutral-500" />
               <Select value={selectedOfficialId} onValueChange={setSelectedOfficialId}>
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Todos os Atendentes" />
+                  <SelectValue placeholder={formatMessage('dashboard.all_officials')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os Atendentes</SelectItem>
+                  <SelectItem value="all">{formatMessage('dashboard.all_officials')}</SelectItem>
                   {[...filteredOfficials].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map((official: Official) => (
                     <SelectItem key={official.id} value={official.id.toString()}>
                       {official.name}
@@ -345,33 +347,33 @@ export default function Dashboard() {
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
         <StatCard 
-          title="Total de Chamados" 
+          title={formatMessage('dashboard.total_tickets')} 
           value={ticketStats.total}
           previousValue={previousTicketStats?.total}
           isLoading={isDashboardLoading}
         />
         <StatCard 
-          title="Chamados Novos" 
+          title={formatMessage('dashboard.new_tickets')} 
           value={ticketStats.byStatus.new}
           isLoading={isDashboardLoading}
           status={TICKET_STATUS.NEW as 'new'}
         />
         <StatCard 
-          title="Chamados em Andamento" 
+          title={formatMessage('dashboard.ongoing_tickets')} 
           value={ticketStats.byStatus.ongoing}
           previousValue={previousTicketStats?.byStatus.ongoing}
           isLoading={isDashboardLoading}
           status={TICKET_STATUS.ONGOING as 'ongoing'}
         />
         <StatCard 
-          title="Chamados Resolvidos" 
+          title={formatMessage('dashboard.resolved_tickets')} 
           value={ticketStats.byStatus.resolved}
           previousValue={previousTicketStats?.byStatus.resolved}
           isLoading={isDashboardLoading}
           status={TICKET_STATUS.RESOLVED as 'resolved'}
         />
         <StatCard 
-          title="Outros Status" 
+          title={formatMessage('dashboard.other_status')} 
           value={otherStatusCount}
           isLoading={isDashboardLoading}
           icon="other"
@@ -381,16 +383,16 @@ export default function Dashboard() {
       {/* Nova seção para métricas de tempo */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <TimeMetricCard
-          title="Tempo Médio de Início de Atendimento"
-          description="Tempo médio entre a criação e início de atendimento dos chamados"
+          title={formatMessage('dashboard.avg_first_response')}
+          description={formatMessage('dashboard.avg_first_response_desc')}
           value={avgFirstResponseData?.averageTime || 0}
           previousValue={previousAvgFirstResponseTime}
           isLoading={isDashboardLoading}
           icon={<Clock className="h-4 w-4 text-blue-500" />}
         />
         <TimeMetricCard
-          title="Tempo Médio de Resolução"
-          description="Tempo médio entre a criação e resolução dos chamados"
+          title={formatMessage('dashboard.avg_resolution')}
+          description={formatMessage('dashboard.avg_resolution_desc')}
           value={avgResolutionData?.averageTime || 0}
           previousValue={previousAvgResolutionTime}
           isLoading={isDashboardLoading}
@@ -401,8 +403,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <Card>
           <CardHeader>
-            <CardTitle>Chamados por Status</CardTitle>
-            <CardDescription>Distribuição de chamados por diferentes status</CardDescription>
+            <CardTitle>{formatMessage('dashboard.tickets_by_status')}</CardTitle>
+            <CardDescription>{formatMessage('dashboard.tickets_by_status_desc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <ModernPieChart 
@@ -414,8 +416,8 @@ export default function Dashboard() {
         
         <Card>
           <CardHeader>
-            <CardTitle>Chamados por Prioridade</CardTitle>
-            <CardDescription>Número de chamados para cada nível de prioridade</CardDescription>
+            <CardTitle>{formatMessage('dashboard.tickets_by_priority')}</CardTitle>
+            <CardDescription>{formatMessage('dashboard.tickets_by_priority_desc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <ModernBarChart 
@@ -428,8 +430,8 @@ export default function Dashboard() {
       
       <Card>
         <CardHeader>
-          <CardTitle>Chamados Recentes</CardTitle>
-          <CardDescription>Chamados mais recentes que precisam de atenção</CardDescription>
+          <CardTitle>{formatMessage('dashboard.recent_tickets')}</CardTitle>
+          <CardDescription>{formatMessage('dashboard.recent_tickets_desc')}</CardDescription>
         </CardHeader>
         <CardContent>
           {isDashboardLoading ? (
@@ -447,14 +449,14 @@ export default function Dashboard() {
                     <div>
                       <p className="font-medium">{ticket.title}</p>
                       <p className="text-sm text-neutral-500">
-                        {ticket.customer?.name} • {new Date(ticket.created_at).toLocaleDateString('pt-BR')}
+                        {ticket.customer?.name} • {new Date(ticket.created_at).toLocaleDateString(locale === 'en-US' ? 'en-US' : 'pt-BR')}
                       </p>
                     </div>
                   </div>
                   <div className="text-sm">
                     {ticket.priority === PRIORITY_LEVELS.HIGH && (
                       <span className="text-xs font-medium text-white bg-status-high px-2 py-1 rounded">
-                        Alta Prioridade
+                        {formatMessage('dashboard.high_priority')}
                       </span>
                     )}
                   </div>

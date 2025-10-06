@@ -1,5 +1,6 @@
 import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { useI18n } from '@/i18n';
 
 interface ModernPieChartProps {
   data: Array<{
@@ -11,6 +12,8 @@ interface ModernPieChartProps {
 }
 
 const CustomTooltip = ({ active, payload }: any) => {
+  const { formatMessage } = useI18n();
+  
   if (active && payload && payload.length) {
     const data = payload[0];
     return (
@@ -23,7 +26,7 @@ const CustomTooltip = ({ active, payload }: any) => {
           <span className="font-medium text-gray-900">{data.payload.name}</span>
         </div>
         <p className="text-sm text-gray-600 mt-1">
-          Quantidade: <span className="font-semibold">{data.value}</span>
+          {formatMessage('dashboard.quantity')}: <span className="font-semibold">{data.value}</span>
         </p>
       </div>
     );

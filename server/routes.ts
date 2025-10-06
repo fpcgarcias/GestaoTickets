@@ -10087,13 +10087,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-        // Verificar vínculos com categorias
+        // Verificar vínculos com categorias (através de incident_types)
 
         const [categoryLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
 
                                       .from(schema.categories)
 
-                                      .where(eq(schema.categories.department_id, departmentIdParam));
+                                      .innerJoin(schema.incidentTypes, eq(schema.categories.incident_type_id, schema.incidentTypes.id))
+
+                                      .where(eq(schema.incidentTypes.department_id, departmentIdParam));
 
         if(categoryLink && categoryLink.count > 0) {
 
