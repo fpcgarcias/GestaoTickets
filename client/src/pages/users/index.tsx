@@ -26,6 +26,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useBusinessHoursRefetchInterval } from '../../hooks/use-business-hours';
 import AddUserDialog from './add-user-dialog';
+import { useI18n } from '@/i18n';
 
 interface Company {
   id: number;
@@ -42,6 +43,7 @@ interface Company {
 export default function UsersIndex() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
   const [searchTerm, setSearchTerm] = useState('');
   const [includeInactive, setIncludeInactive] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
@@ -151,17 +153,17 @@ export default function UsersIndex() {
     },
     onSuccess: (data) => {
       toast({
-        title: data.active ? "Usuário ativado" : "Usuário desativado",
+        title: data.active ? formatMessage('users.status_dialog.activated_success') : formatMessage('users.status_dialog.deactivated_success'),
         description: data.active 
-          ? "O usuário foi ativado com sucesso."
-          : "O usuário foi desativado com sucesso.",
+          ? formatMessage('users.status_dialog.activated_desc')
+          : formatMessage('users.status_dialog.deactivated_desc'),
       });
       setActiveStatusDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
     },
     onError: (error) => {
       toast({
-        title: "Erro ao alterar status do usuário",
+        title: formatMessage('users.status_dialog.error_title'),
         description: `Ocorreu um erro: ${error.message}`,
         variant: "destructive",
       });
@@ -179,15 +181,15 @@ export default function UsersIndex() {
     },
     onSuccess: () => {
       toast({
-        title: "Senha redefinida",
-        description: "A senha do usuário foi redefinida com sucesso.",
+        title: formatMessage('users.reset_password_dialog.success_title'),
+        description: formatMessage('users.reset_password_dialog.success_desc'),
       });
       setResetPasswordDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
     },
     onError: (error) => {
       toast({
-        title: "Erro ao redefinir senha",
+        title: formatMessage('users.reset_password_dialog.error_title'),
         description: `Ocorreu um erro: ${error.message}`,
         variant: "destructive",
       });
@@ -202,15 +204,15 @@ export default function UsersIndex() {
     },
     onSuccess: () => {
       toast({
-        title: "Usuário atualizado",
-        description: "Os dados do usuário foram atualizados com sucesso.",
+        title: formatMessage('users.edit_dialog.success_title'),
+        description: formatMessage('users.edit_dialog.success_desc'),
       });
       setEditDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
     },
     onError: (error) => {
       toast({
-        title: "Erro ao atualizar usuário",
+        title: formatMessage('users.edit_dialog.error_title'),
         description: `Ocorreu um erro: ${error.message}`,
         variant: "destructive",
       });
@@ -224,8 +226,8 @@ export default function UsersIndex() {
     // Verificar se o email é válido
     if (!editEmail || !editEmail.includes('@')) {
       toast({
-        title: "Email inválido",
-        description: "Por favor, forneça um email válido.",
+        title: formatMessage('users.edit_dialog.invalid_email'),
+        description: formatMessage('users.edit_dialog.invalid_email_desc'),
         variant: "destructive",
       });
       return;
@@ -247,13 +249,13 @@ export default function UsersIndex() {
   const handleResetPasswordSubmit = () => {
     // Verificar se as senhas correspondem
     if (password !== confirmPassword) {
-      setPasswordError('As senhas não correspondem');
+      setPasswordError(formatMessage('users.reset_password_dialog.password_mismatch'));
       return;
     }
     
     // Verificar se a senha tem pelo menos 6 caracteres
     if (password.length < 6) {
-      setPasswordError('A senha deve ter pelo menos 6 caracteres');
+      setPasswordError(formatMessage('users.reset_password_dialog.password_min_length'));
       return;
     }
     
@@ -267,19 +269,7 @@ export default function UsersIndex() {
 
   // Função para obter o texto de papel do usuário
   const getRoleText = (role: string) => {
-    switch(role) {
-      case 'admin': return 'Administrador Global';
-      case 'company_admin': return 'Administrador da Empresa';
-      case 'manager': return 'Gerente';
-      case 'supervisor': return 'Supervisor';
-      case 'support': return 'Atendente';
-      case 'triage': return 'Triagem';
-      case 'quality': return 'Qualidade';
-      case 'viewer': return 'Visualizador';
-      case 'customer': return 'Cliente';
-      case 'integration_bot': return 'Bot de Integração';
-      default: return role;
-    }
+    return formatMessage(`users.roles.${role}` as any) || role;
   };
   
   // Função para alternar o status ativo/inativo
@@ -294,59 +284,34 @@ export default function UsersIndex() {
 
   // Função para obter o nome da empresa
   const getCompanyName = (companyId: number | null) => {
-    if (!companyId) return 'Sistema Global';
+    if (!companyId) return formatMessage('users.global_system');
     const company = companies.find(c => c.id === companyId);
-    return company?.name || 'Empresa não encontrada';
+    return company?.name || formatMessage('users.company_not_found');
   };
 
   // Função para obter os roles disponíveis baseado no perfil do usuário logado (para edição)
   const getAvailableRolesForEdit = () => {
+    const roleOptions = [
+      { value: 'admin', label: formatMessage('users.roles.admin') },
+      { value: 'company_admin', label: formatMessage('users.roles.company_admin') },
+      { value: 'manager', label: formatMessage('users.roles.manager') },
+      { value: 'supervisor', label: formatMessage('users.roles.supervisor') },
+      { value: 'support', label: formatMessage('users.roles.support') },
+      { value: 'triage', label: formatMessage('users.roles.triage') },
+      { value: 'quality', label: formatMessage('users.roles.quality') },
+      { value: 'viewer', label: formatMessage('users.roles.viewer') },
+      { value: 'customer', label: formatMessage('users.roles.customer') },
+      { value: 'integration_bot', label: formatMessage('users.roles.integration_bot') }
+    ];
+    
     if (user?.role === 'admin') {
-      return [
-        { value: 'admin', label: 'Administrador Global' },
-        { value: 'company_admin', label: 'Administrador da Empresa' },
-        { value: 'manager', label: 'Gerente' },
-        { value: 'supervisor', label: 'Supervisor' },
-        { value: 'support', label: 'Atendente' },
-        { value: 'triage', label: 'Triagem' },
-        { value: 'quality', label: 'Qualidade' },
-        { value: 'viewer', label: 'Visualizador' },
-        { value: 'customer', label: 'Cliente' },
-        { value: 'integration_bot', label: 'Bot de Integração' }
-      ];
+      return roleOptions;
     } else if (user?.role === 'company_admin') {
-      return [
-        { value: 'company_admin', label: 'Administrador da Empresa' },
-        { value: 'manager', label: 'Gerente' },
-        { value: 'supervisor', label: 'Supervisor' },
-        { value: 'support', label: 'Atendente' },
-        { value: 'triage', label: 'Triagem' },
-        { value: 'quality', label: 'Qualidade' },
-        { value: 'viewer', label: 'Visualizador' },
-        { value: 'customer', label: 'Cliente' }
-      ];
+      return roleOptions.filter(role => !['admin', 'integration_bot'].includes(role.value));
     } else if (user?.role === 'manager') {
-      return [
-        { value: 'company_admin', label: 'Administrador da Empresa' },
-        { value: 'manager', label: 'Gerente' },
-        { value: 'supervisor', label: 'Supervisor' },
-        { value: 'support', label: 'Atendente' },
-        { value: 'triage', label: 'Triagem' },
-        { value: 'quality', label: 'Qualidade' },
-        { value: 'viewer', label: 'Visualizador' },
-        { value: 'customer', label: 'Cliente' }
-      ];
+      return roleOptions.filter(role => !['admin', 'integration_bot'].includes(role.value));
     } else if (user?.role === 'supervisor') {
-      return [
-        { value: 'company_admin', label: 'Administrador da Empresa' },
-        { value: 'manager', label: 'Gerente' },
-        { value: 'supervisor', label: 'Supervisor' },
-        { value: 'support', label: 'Atendente' },
-        { value: 'triage', label: 'Triagem' },
-        { value: 'quality', label: 'Qualidade' },
-        { value: 'viewer', label: 'Visualizador' },
-        { value: 'customer', label: 'Cliente' }
-      ];
+      return roleOptions.filter(role => !['admin', 'integration_bot'].includes(role.value));
     }
     return [];
   };
@@ -354,10 +319,10 @@ export default function UsersIndex() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Usuários</h1>
+        <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('users.title')}</h1>
         <Button onClick={() => setShowAddDialog(true)}>
           <UserPlus className="mr-2 h-4 w-4" />
-          Adicionar Usuário
+          {formatMessage('users.add_user')}
         </Button>
       </div>
       
@@ -372,8 +337,8 @@ export default function UsersIndex() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Gerenciamento de Usuários</CardTitle>
-          <CardDescription>Gerencie usuários do sistema, seus acessos e permissões</CardDescription>
+          <CardTitle>{formatMessage('users.management_title')}</CardTitle>
+          <CardDescription>{formatMessage('users.management_description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-between mb-6">
@@ -381,7 +346,7 @@ export default function UsersIndex() {
               <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
                 <Input 
-                  placeholder="Buscar usuários" 
+                  placeholder={formatMessage('users.search_placeholder')} 
                   className="pl-10" 
                   value={searchTerm}
                   onChange={(e) => handleSearchChange(e.target.value)}
@@ -393,12 +358,12 @@ export default function UsersIndex() {
                 <div className="w-64">
                   <Select value={selectedCompanyId} onValueChange={handleCompanyChange}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Filtrar por empresa" />
+                      <SelectValue placeholder={formatMessage('users.filter_by_company')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas as empresas</SelectItem>
+                      <SelectItem value="all">{formatMessage('users.all_companies')}</SelectItem>
                       {isLoadingCompanies ? (
-                        <SelectItem value="loading" disabled>Carregando empresas...</SelectItem>
+                        <SelectItem value="loading" disabled>{formatMessage('users.loading_companies')}</SelectItem>
                       ) : (
                         companies
                           .filter(company => company.active) // Mostrar apenas empresas ativas
@@ -420,7 +385,7 @@ export default function UsersIndex() {
                   checked={includeInactive} 
                   onCheckedChange={setIncludeInactive}
                 />
-                <Label htmlFor="includeInactive">Incluir inativos</Label>
+                <Label htmlFor="includeInactive">{formatMessage('users.include_inactive')}</Label>
               </div>
             </div>
           </div>
@@ -429,12 +394,12 @@ export default function UsersIndex() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Perfil</TableHead>
-                  {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead>{formatMessage('users.name')}</TableHead>
+                  <TableHead>{formatMessage('users.email')}</TableHead>
+                  <TableHead>{formatMessage('users.profile')}</TableHead>
+                  {user?.role === 'admin' && <TableHead>{formatMessage('users.company')}</TableHead>}
+                  <TableHead>{formatMessage('users.status')}</TableHead>
+                  <TableHead className="text-right">{formatMessage('users.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -475,11 +440,11 @@ export default function UsersIndex() {
                       <TableCell>
                         {(userItem.active === undefined || userItem.active) ? (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Ativo
+                            {formatMessage('users.active')}
                           </span>
                         ) : (
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            Inativo
+                            {formatMessage('users.inactive')}
                           </span>
                         )}
                       </TableCell>
@@ -489,7 +454,7 @@ export default function UsersIndex() {
                             variant="outline" 
                             size="sm" 
                             onClick={() => handleEditUser(userItem)}
-                            title="Editar usuário"
+                            title={formatMessage('users.edit_user')}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -497,7 +462,7 @@ export default function UsersIndex() {
                             variant="outline" 
                             size="sm" 
                             onClick={() => handleResetPassword(userItem)}
-                            title="Redefinir senha"
+                            title={formatMessage('users.reset_password')}
                           >
                             <Key className="h-3.5 w-3.5" />
                           </Button>
@@ -506,7 +471,7 @@ export default function UsersIndex() {
                             size="sm"
                             className={userItem.active ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
                             onClick={() => handleStatusChange(userItem)}
-                            title={userItem.active ? "Desativar usuário" : "Ativar usuário"}
+                            title={userItem.active ? formatMessage('users.deactivate_user') : formatMessage('users.activate_user')}
                           >
                             {userItem.active ? 
                               <UserX className="h-3.5 w-3.5" /> : 
@@ -520,8 +485,8 @@ export default function UsersIndex() {
                   <TableRow>
                     <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-neutral-500">
                       {searchTerm || selectedCompanyId !== 'all' 
-                        ? "Nenhum usuário encontrado com os filtros aplicados." 
-                        : "Nenhum usuário encontrado."
+                        ? formatMessage('users.no_users_filtered')
+                        : formatMessage('users.no_users_found')
                       }
                     </TableCell>
                   </TableRow>
@@ -534,10 +499,14 @@ export default function UsersIndex() {
           {pagination && pagination.totalPages > 1 && (
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-muted-foreground">
-                Mostrando {((pagination.page - 1) * pagination.limit) + 1} a {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} usuários
+                {formatMessage('users.showing_results', {
+                  start: ((pagination.page - 1) * pagination.limit) + 1,
+                  end: Math.min(pagination.page * pagination.limit, pagination.total),
+                  total: pagination.total
+                })}
                 {selectedCompanyId !== 'all' && user?.role === 'admin' && (
                   <span className="ml-2 text-neutral-500">
-                    (filtrado por: {getCompanyName(parseInt(selectedCompanyId))})
+                    {formatMessage('users.filtered_by', { company: getCompanyName(parseInt(selectedCompanyId)) })}
                   </span>
                 )}
               </div>
@@ -548,7 +517,7 @@ export default function UsersIndex() {
                   disabled={!pagination.hasPrev}
                   onClick={() => pagination.hasPrev && setCurrentPage(pagination.page - 1)}
                 >
-                  Anterior
+                  {formatMessage('users.previous')}
                 </Button>
                 
                 {/* Páginas numeradas */}
@@ -583,7 +552,7 @@ export default function UsersIndex() {
                   disabled={!pagination.hasNext}
                   onClick={() => pagination.hasNext && setCurrentPage(pagination.page + 1)}
                 >
-                  Próxima
+                  {formatMessage('users.next')}
                 </Button>
               </div>
             </div>
@@ -596,12 +565,12 @@ export default function UsersIndex() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selectedUser && selectedUser.active ? "Desativar usuário" : "Ativar usuário"}
+              {selectedUser && selectedUser.active ? formatMessage('users.status_dialog.deactivate_title') : formatMessage('users.status_dialog.activate_title')}
             </DialogTitle>
             <DialogDescription>
               {selectedUser && selectedUser.active ? 
-                "Ao desativar um usuário, ele não poderá mais acessar o sistema, mas seus dados serão mantidos para fins de histórico." :
-                "Ao ativar um usuário, ele voltará a ter acesso ao sistema com suas mesmas permissões anteriores."}
+                formatMessage('users.status_dialog.deactivate_description') :
+                formatMessage('users.status_dialog.activate_description')}
             </DialogDescription>
           </DialogHeader>
           
@@ -621,14 +590,14 @@ export default function UsersIndex() {
               
               <p className="text-sm text-neutral-600 mb-6">
                 {selectedUser.active ? 
-                  "Esta ação não exclui o usuário permanentemente. Os dados serão mantidos para histórico e poderá ser reativado a qualquer momento." :
-                  "Ao ativar o usuário, ele poderá realizar login novamente no sistema."}
+                  formatMessage('users.status_dialog.deactivate_warning') :
+                  formatMessage('users.status_dialog.activate_warning')}
               </p>
             </div>
           )}
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setActiveStatusDialogOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setActiveStatusDialogOpen(false)}>{formatMessage('users.status_dialog.cancel')}</Button>
             <Button 
               onClick={handleToggleStatus}
               variant={selectedUser && selectedUser.active ? "destructive" : "default"}
@@ -637,12 +606,12 @@ export default function UsersIndex() {
               {selectedUser && selectedUser.active ? (
                 <>
                   <UserX className="h-4 w-4 mr-2" />
-                  Desativar
+                  {formatMessage('users.status_dialog.deactivate')}
                 </>
               ) : (
                 <>
                   <UserCheck className="h-4 w-4 mr-2" />
-                  Ativar
+                  {formatMessage('users.status_dialog.activate')}
                 </>
               )}
             </Button>
@@ -654,9 +623,9 @@ export default function UsersIndex() {
       <Dialog open={resetPasswordDialogOpen} onOpenChange={setResetPasswordDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Redefinir senha</DialogTitle>
+            <DialogTitle>{formatMessage('users.reset_password_dialog.title')}</DialogTitle>
             <DialogDescription>
-              Defina uma nova senha para o usuário selecionado.
+              {formatMessage('users.reset_password_dialog.description')}
             </DialogDescription>
           </DialogHeader>
           
@@ -676,24 +645,24 @@ export default function UsersIndex() {
               
               <div className="space-y-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="password">Nova senha</Label>
+                  <Label htmlFor="password">{formatMessage('users.reset_password_dialog.new_password')}</Label>
                   <Input 
                     id="password" 
                     type="password" 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Digite a nova senha"
+                    placeholder={formatMessage('users.reset_password_dialog.new_password_placeholder')}
                   />
                 </div>
                 
                 <div className="grid gap-2">
-                  <Label htmlFor="confirmPassword">Confirmar senha</Label>
+                  <Label htmlFor="confirmPassword">{formatMessage('users.reset_password_dialog.confirm_password')}</Label>
                   <Input 
                     id="confirmPassword" 
                     type="password" 
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirme a nova senha"
+                    placeholder={formatMessage('users.reset_password_dialog.confirm_password_placeholder')}
                   />
                 </div>
                 
@@ -706,7 +675,7 @@ export default function UsersIndex() {
                     }
                   />
                   <Label htmlFor="must_change_password" className="text-sm">
-                    Forçar alteração de senha no próximo login
+                    {formatMessage('users.reset_password_dialog.force_password_change')}
                   </Label>
                 </div>
                 
@@ -721,10 +690,10 @@ export default function UsersIndex() {
           )}
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setResetPasswordDialogOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setResetPasswordDialogOpen(false)}>{formatMessage('users.reset_password_dialog.cancel')}</Button>
             <Button onClick={handleResetPasswordSubmit}>
               <Key className="h-4 w-4 mr-2" />
-              Redefinir senha
+              {formatMessage('users.reset_password_dialog.reset')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -734,9 +703,9 @@ export default function UsersIndex() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogTitle>{formatMessage('users.edit_dialog.title')}</DialogTitle>
             <DialogDescription>
-              Edite as informações do usuário selecionado.
+              {formatMessage('users.edit_dialog.description')}
             </DialogDescription>
           </DialogHeader>
           
@@ -756,44 +725,44 @@ export default function UsersIndex() {
               
               <div className="space-y-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="editName">Nome</Label>
+                  <Label htmlFor="editName">{formatMessage('users.edit_dialog.name')}</Label>
                   <Input 
                     id="editName" 
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    placeholder="Nome completo"
+                    placeholder={formatMessage('users.edit_dialog.name_placeholder')}
                   />
                 </div>
                 
                 <div className="grid gap-2">
-                  <Label htmlFor="editEmail">Email</Label>
+                  <Label htmlFor="editEmail">{formatMessage('users.edit_dialog.email')}</Label>
                   <Input 
                     id="editEmail" 
                     type="email" 
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
-                    placeholder="email@exemplo.com"
+                    placeholder={formatMessage('users.edit_dialog.email_placeholder')}
                   />
                 </div>
                 
                 <div className="grid gap-2">
-                  <Label htmlFor="editUsername">Nome de usuário</Label>
+                  <Label htmlFor="editUsername">{formatMessage('users.edit_dialog.username')}</Label>
                   <Input 
                     id="editUsername" 
                     value={editUsername}
                     onChange={(e) => setEditUsername(e.target.value)}
-                    placeholder="Nome de usuário"
+                    placeholder={formatMessage('users.edit_dialog.username_placeholder')}
                   />
                 </div>
                 
                 <div className="grid gap-2">
-                  <Label htmlFor="editRole">Perfil do Usuário</Label>
+                  <Label htmlFor="editRole">{formatMessage('users.edit_dialog.profile')}</Label>
                   <Select 
                     value={editRole} 
                     onValueChange={setEditRole}
                   >
                     <SelectTrigger id="editRole">
-                      <SelectValue placeholder="Selecione o perfil" />
+                      <SelectValue placeholder={formatMessage('users.edit_dialog.profile_placeholder')} />
                     </SelectTrigger>
                     <SelectContent>
                       {getAvailableRolesForEdit().map((role) => (
@@ -809,10 +778,10 @@ export default function UsersIndex() {
           )}
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>{formatMessage('users.edit_dialog.cancel')}</Button>
             <Button onClick={handleEditUserSubmit}>
               <Save className="h-4 w-4 mr-2" />
-              Salvar alterações
+              {formatMessage('users.edit_dialog.save')}
             </Button>
           </DialogFooter>
         </DialogContent>
