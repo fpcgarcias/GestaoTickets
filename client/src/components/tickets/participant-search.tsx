@@ -43,7 +43,7 @@ interface ParticipantSearchProps {
 export function ParticipantSearch({ 
   selectedUsers, 
   onSelectionChange, 
-  placeholder = "Selecionar participantes...",
+  placeholder,
   disabled = false,
   maxParticipants = 10,
   excludeUserIds = [],

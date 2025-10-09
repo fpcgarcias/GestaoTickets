@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Brain, Clock, Zap, AlertCircle, CheckCircle, XCircle } from "lucide-react";
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/hooks/use-auth';
+import { useI18n } from '@/i18n';
 
 interface AiAnalysisHistoryItem {
   id: number;
@@ -38,18 +39,18 @@ const getStatusIcon = (status: string) => {
   }
 };
 
-const getStatusText = (status: string) => {
+const getStatusText = (status: string, formatMessage: any) => {
   switch (status) {
     case 'success':
-      return 'Sucesso';
+      return formatMessage('ai_analysis.success');
     case 'error':
-      return 'Erro';
+      return formatMessage('ai_analysis.error');
     case 'timeout':
-      return 'Timeout';
+      return formatMessage('ai_analysis.timeout');
     case 'fallback':
-      return 'Fallback';
+      return formatMessage('ai_analysis.fallback');
     default:
-      return 'Desconhecido';
+      return formatMessage('ai_analysis.unknown');
   }
 };
 
@@ -86,12 +87,12 @@ const getAnalysisTypeColor = (type: string) => {
   }
 };
 
-const getAnalysisTypeText = (type: string) => {
+const getAnalysisTypeText = (type: string, formatMessage: any) => {
   switch (type) {
     case 'priority':
-      return 'Prioridade';
+      return formatMessage('ai_analysis.priority');
     case 'reopen':
-      return 'Reabertura';
+      return formatMessage('ai_analysis.reopen');
     default:
       return type;
   }
@@ -99,6 +100,7 @@ const getAnalysisTypeText = (type: string) => {
 
 export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) {
   const { user } = useAuth();
+  const { formatMessage, locale } = useI18n();
   
   // Verificar se o usuário é customer (para ocultar campos técnicos)
   const isCustomer = user!.role === 'customer';
@@ -108,7 +110,7 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
     queryFn: async () => {
       const response = await apiRequest('GET', `/api/tickets/${ticketId}/ai-analysis-history`);
       if (!response.ok) {
-        throw new Error('Falha ao buscar histórico de análise de IA');
+        throw new Error(formatMessage('ai_analysis.failed_to_load'));
       }
       return response.json();
     },
@@ -121,13 +123,13 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" />
-            Análise de IA
+            {formatMessage('ai_analysis.title')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center p-4">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
-            <span className="ml-2">Carregando...</span>
+            <span className="ml-2">{formatMessage('ai_analysis.loading')}</span>
           </div>
         </CardContent>
       </Card>
@@ -140,12 +142,12 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" />
-            Análise de IA
+            {formatMessage('ai_analysis.title')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center p-4 text-red-600">
-            Erro ao carregar histórico de análise de IA
+            {formatMessage('ai_analysis.error_loading')}
           </div>
         </CardContent>
       </Card>
@@ -158,15 +160,15 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" />
-            Análise de IA
+            {formatMessage('ai_analysis.title')}
           </CardTitle>
           <CardDescription>
-            Histórico de análises de inteligência artificial
+            {formatMessage('ai_analysis.description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-center p-4 text-gray-500">
-            Nenhuma análise de IA encontrada para este ticket
+            {formatMessage('ai_analysis.no_analysis')}
           </div>
         </CardContent>
       </Card>
@@ -175,15 +177,15 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Brain className="h-5 w-5" />
-          Análise de IA
-        </CardTitle>
-        <CardDescription>
-          Histórico de análises de inteligência artificial
-        </CardDescription>
-      </CardHeader>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5" />
+            {formatMessage('ai_analysis.title')}
+          </CardTitle>
+          <CardDescription>
+            {formatMessage('ai_analysis.description')}
+          </CardDescription>
+        </CardHeader>
       <CardContent>
         <div className="space-y-4">
           {aiHistory?.map((item: AiAnalysisHistoryItem) => (
@@ -193,22 +195,29 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
                 <div className="flex items-center gap-2">
                   {getStatusIcon(item.status)}
                   <span className="text-sm font-medium">
-                    {getStatusText(item.status)}
+                    {getStatusText(item.status, formatMessage)}
                   </span>
                   <Badge className={getAnalysisTypeColor(item.analysis_type)}>
-                    {getAnalysisTypeText(item.analysis_type)}
+                    {getAnalysisTypeText(item.analysis_type, formatMessage)}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <Clock className="h-4 w-4" />
-                  {new Date(item.created_at).toLocaleString('pt-BR')}
+                  {new Date(item.created_at).toLocaleString(locale === 'en-US' ? 'en-US' : 'pt-BR', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: locale === 'en-US'
+                  })}
                 </div>
               </div>
 
               {/* Resultado da análise */}
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">
-                  {item.analysis_type === 'priority' ? 'Prioridade sugerida:' : 'Ação sugerida:'}
+                  {item.analysis_type === 'priority' ? formatMessage('ai_analysis.suggested_priority') : formatMessage('ai_analysis.suggested_action')}
                 </span>
                 <Badge className={getPriorityColor(item.suggested_priority)}>
                   {item.suggested_priority}
@@ -218,7 +227,7 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
               {/* Justificativa */}
               {item.ai_justification && (
                 <div>
-                  <span className="text-sm font-medium">Justificativa:</span>
+                  <span className="text-sm font-medium">{formatMessage('ai_analysis.justification')}</span>
                   <div className="mt-1 p-3 bg-gray-50 rounded-md text-sm text-gray-700">
                     {item.ai_justification}
                   </div>
@@ -229,13 +238,13 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
               {!isCustomer && (
                 <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
                   <div>
-                    <span className="font-medium">Provedor:</span> {item.provider}
+                    <span className="font-medium">{formatMessage('ai_analysis.provider')}</span> {item.provider}
                   </div>
                   <div>
-                    <span className="font-medium">Modelo:</span> {item.model}
+                    <span className="font-medium">{formatMessage('ai_analysis.model')}</span> {item.model}
                   </div>
                   <div>
-                    <span className="font-medium">Configuração:</span> {item.config_name || 'N/A'}
+                    <span className="font-medium">{formatMessage('ai_analysis.configuration')}</span> {item.config_name || 'N/A'}
                   </div>
                   <div className="flex items-center gap-1">
                     <Zap className="h-4 w-4" />

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { TicketAttachment } from '@shared/schema';
 import { useQuery } from '@tanstack/react-query';
+import { useI18n } from '@/i18n';
 
 // Usar o tipo do schema
 type Attachment = TicketAttachment;
@@ -19,12 +20,13 @@ interface AttachmentsListProps {
 
 const AttachmentsList = React.forwardRef(function AttachmentsList({ 
   ticketId, 
-  attachments: initialAttachments, 
+  attachments: initialAttachments,
   onAttachmentsChange,
   showUploader = false 
 }: AttachmentsListProps, ref) {
   const [downloadingIds, setDownloadingIds] = useState<Set<number>>(new Set());
   const { toast } = useToast();
+  const { formatMessage, locale } = useI18n();
 
   // Usar React Query para buscar anexos
   const { data: attachments = [], isLoading: loading, refetch: fetchAttachments } = useQuery<Attachment[]>({
@@ -75,13 +77,28 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
 
   const formatDate = (dateString: string | Date) => {
     const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
-    return date.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    
+    if (locale === 'en-US') {
+      // Formato americano: MM/dd/yyyy h:mm AM/PM
+      return date.toLocaleString('en-US', {
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } else {
+      // Formato brasileiro: dd/MM/yyyy HH:mm
+      return date.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    }
   };
 
   const downloadAttachment = async (attachment: Attachment) => {
@@ -143,7 +160,7 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">
-          Anexos 
+          {formatMessage('attachments.title')} 
           {attachments.length > 0 && (
             <Badge variant="secondary" className="ml-2">
               {attachments.length}
@@ -157,9 +174,9 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
         <Card className="p-6">
           <div className="text-center text-gray-500">
             <File className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-            <p>Nenhum anexo encontrado</p>
+            <p>{formatMessage('attachments.no_attachments')}</p>
             {showUploader && (
-              <p className="text-sm mt-2">Use o formulário acima para adicionar arquivos.</p>
+              <p className="text-sm mt-2">{formatMessage('attachments.use_form_to_add')}</p>
             )}
           </div>
         </Card>
@@ -183,11 +200,11 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
                     
                     <div className="flex items-center space-x-4 mt-1">
                       <p className="text-xs text-gray-500">
-                        Enviado em {formatDate(attachment.uploaded_at)}
+                        {formatMessage('attachments.sent_on')} {formatDate(attachment.uploaded_at, locale)}
                       </p>
                       {attachment.user && (
                         <p className="text-xs text-gray-500">
-                          por {attachment.user.name}
+                          {formatMessage('attachments.by')} {attachment.user.name}
                         </p>
                       )}
                     </div>
@@ -208,7 +225,7 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
                       <Download className="h-4 w-4" />
                     )}
                     <span className="hidden sm:inline">
-                      {downloadingIds.has(attachment.id) ? 'Baixando...' : 'Baixar'}
+                      {downloadingIds.has(attachment.id) ? formatMessage('attachments.downloading') : formatMessage('attachments.download')}
                     </span>
                   </Button>
                 </div>

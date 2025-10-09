@@ -15,7 +15,8 @@ import { usePriorities } from '@/hooks/use-priorities';
 import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
 import { addBusinessTime, getBusinessHoursConfig } from '@shared/utils/sla-calculator';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR, enUS } from 'date-fns/locale';
+import { useI18n } from '@/i18n';
 
 interface SLAStatusProps {
   ticketId: number;
@@ -46,6 +47,7 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
   className,
   variant = 'full'
 }) => {
+  const { formatMessage, locale } = useI18n();
   const ticketSLAInfo = useTicketWithSLA(
     ticketId,
     companyId,
@@ -164,7 +166,13 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
     : Math.max(0, Math.min(100, 100 - (slaStatus.resolutionTimeRemaining / sla.resolutionTimeHours) * 100));
 
   const formatDateTime = (dateStr: string) => {
-    return format(new Date(dateStr), 'dd/MM/yyyy \'às\' HH:mm', { locale: ptBR });
+    if (locale === 'en-US') {
+      // Formato americano: MM/dd/yyyy at h:mm AM/PM
+      return format(new Date(dateStr), 'MM/dd/yyyy \'at\' h:mm a', { locale: enUS });
+    } else {
+      // Formato brasileiro: dd/MM/yyyy às HH:mm
+      return format(new Date(dateStr), 'dd/MM/yyyy \'às\' HH:mm', { locale: ptBR });
+    }
   };
 
   // 🔥 NOVA FUNÇÃO: Verificar se a primeira resposta foi excedida
@@ -203,12 +211,12 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
   };
 
   const getStatusBadge = () => {
-    if (isFinished) return <Badge variant="default" className="bg-green-100 text-green-800">Resolvido</Badge>;
-    if (isPaused) return <Badge variant="secondary">SLA Pausado</Badge>;
-    if (slaStatus.isResolutionOverdue) return <Badge variant="destructive">SLA Excedido</Badge>;
-    if (slaStatus.resolutionTimeRemaining < 2) return <Badge variant="secondary">Crítico</Badge>;
-    if (slaStatus.resolutionTimeRemaining < 8) return <Badge variant="outline">Atenção</Badge>;
-    return <Badge variant="outline">No Prazo</Badge>;
+    if (isFinished) return <Badge variant="default" className="bg-green-100 text-green-800">{formatMessage('sla_status.completed')}</Badge>;
+    if (isPaused) return <Badge variant="secondary">{formatMessage('sla_status.paused')}</Badge>;
+    if (slaStatus.isResolutionOverdue) return <Badge variant="destructive">{formatMessage('sla_status.overdue_status')}</Badge>;
+    if (slaStatus.resolutionTimeRemaining < 2) return <Badge variant="secondary">{formatMessage('sla_status.critical')}</Badge>;
+    if (slaStatus.resolutionTimeRemaining < 8) return <Badge variant="outline">{formatMessage('sla_status.attention')}</Badge>;
+    return <Badge variant="outline">{formatMessage('sla_status.on_time')}</Badge>;
   };
 
   if (variant === 'compact') {
@@ -228,7 +236,7 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
         <IconComponent className="w-3 h-3" />
         <span className="text-xs">
           {overallStatus === 'met' ? 'SLA OK' :
-           overallStatus === 'pending' ? 'No prazo' : 'SLA violado'}
+           overallStatus === 'pending' ? formatMessage('sla_status.on_time') : formatMessage('sla_status.overdue_status')}
         </span>
       </Badge>
     );
@@ -241,12 +249,12 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {getStatusIcon()}
-            <CardTitle>Status de SLA</CardTitle>
+            <CardTitle>{formatMessage('sla_status.title')}</CardTitle>
           </div>
           {getStatusBadge()}
         </div>
         <CardDescription>
-          Informações sobre os prazos de atendimento
+          {formatMessage('sla_status.description')}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -255,23 +263,23 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-blue-600" />
-              <span className="font-medium">Inicio Atendimento</span>
+              <span className="font-medium">{formatMessage('sla_status.first_response')}</span>
             </div>
             <div className="text-right">
               <div className="text-sm font-medium">
-                {sla.responseTimeHours}h prazo
+                {sla.responseTimeHours}h {formatMessage('sla_status.deadline')}
               </div>
                              {firstResponseAt ? (
                  <div className={`text-xs ${isFirstResponseOverdue() ? 'text-red-600' : 'text-green-600'}`}>
-                   Respondido em {formatDateTime(firstResponseAt)}
+                   {formatMessage('sla_status.responded_at')} {formatDateTime(firstResponseAt)}
                  </div>
                ) : status !== 'new' ? (
                  <div className="text-xs text-green-600">
-                   Início de atendimento realizado
+                   {formatMessage('sla_status.service_started')}
                  </div>
                ) : (
                  <div className={`text-xs ${slaUtils.getSLAStatusColor(slaStatus.responseTimeRemaining, slaStatus.isResponseOverdue)}`}>
-                   {slaUtils.formatTimeRemaining(slaStatus.responseTimeRemaining)}
+                   {slaUtils.formatTimeRemaining(slaStatus.responseTimeRemaining, locale)}
                  </div>
                )}
             </div>
@@ -297,7 +305,7 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
                      {firstResponseAt && (
              <div className={`flex items-center gap-1 text-xs ${isFirstResponseOverdue() ? 'text-red-600' : 'text-green-600'}`}>
                <CheckCircle className="h-3 w-3" />
-               <span>{isFirstResponseOverdue() ? 'Início de atendimento realizado fora do prazo do SLA' : 'Início de atendimento realizado'}</span>
+               <span>{isFirstResponseOverdue() ? formatMessage('sla_status.service_started_outside_sla') : formatMessage('sla_status.service_started')}</span>
              </div>
            )}
         </div>
@@ -309,23 +317,23 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Target className="h-4 w-4 text-green-600" />
-              <span className="font-medium">Resolução</span>
+              <span className="font-medium">{formatMessage('sla_status.resolution')}</span>
             </div>
             <div className="text-right">
               <div className="text-sm font-medium">
-                {sla.resolutionTimeHours}h prazo
+                {sla.resolutionTimeHours}h {formatMessage('sla_status.deadline')}
               </div>
                              {resolvedAt ? (
                  <div className={`text-xs ${isResolutionOverdue() ? 'text-red-600' : 'text-green-600'}`}>
-                   Resolvido em {formatDateTime(resolvedAt)}
+                   {formatMessage('sla_status.resolved_at')} {formatDateTime(resolvedAt)}
                  </div>
                ) : isPaused ? (
                  <div className="text-xs text-orange-600">
-                   SLA pausado
+                   {formatMessage('sla_status.paused')}
                  </div>
                ) : (
                  <div className={`text-xs ${slaUtils.getSLAStatusColor(slaStatus.resolutionTimeRemaining, slaStatus.isResolutionOverdue)}`}>
-                   {slaUtils.formatTimeRemaining(slaStatus.resolutionTimeRemaining)}
+                   {slaUtils.formatTimeRemaining(slaStatus.resolutionTimeRemaining, locale)}
                  </div>
                )}
             </div>
@@ -350,12 +358,12 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
                      {resolvedAt ? (
              <div className={`flex items-center gap-1 text-xs ${isResolutionOverdue() ? 'text-red-600' : 'text-green-600'}`}>
                <CheckCircle className="h-3 w-3" />
-               <span>{isResolutionOverdue() ? 'Chamado resolvido fora do prazo do SLA' : 'Chamado resolvido'}</span>
+               <span>{isResolutionOverdue() ? formatMessage('sla_status.resolved_outside_sla') : formatMessage('sla_status.resolved')}</span>
              </div>
            ) : isPaused ? (
             <div className="flex items-center gap-1 text-xs text-orange-600">
               <Pause className="h-3 w-3" />
-              <span>SLA pausado pelo status atual</span>
+              <span>{formatMessage('sla_status.paused_by_status')}</span>
             </div>
           ) : null}
         </div>
@@ -365,11 +373,11 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
         
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <span className="text-muted-foreground">Criado em:</span>
+            <span className="text-muted-foreground">{formatMessage('sla_status.created_at')}</span>
             <div className="font-medium">{formatDateTime(createdAt)}</div>
           </div>
           <div>
-            <span className="text-muted-foreground">Prioridade:</span>
+            <span className="text-muted-foreground">{formatMessage('sla_status.priority_label')}</span>
             <div className="font-medium">{priorityName}</div>
           </div>
         </div>
@@ -379,10 +387,10 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
           <div className="bg-red-50 border border-red-200 rounded-lg p-3">
             <div className="flex items-center gap-2 text-red-800">
               <AlertTriangle className="h-4 w-4" />
-              <span className="font-medium">SLA de resolução excedido</span>
+              <span className="font-medium">{formatMessage('sla_status.resolution_exceeded')}</span>
             </div>
             <p className="text-sm text-red-700 mt-1">
-              Este chamado está {slaUtils.formatTimeRemaining(slaStatus.resolutionTimeRemaining)} fora do prazo de resolução.
+              {formatMessage('sla_status.resolution_exceeded_message', { time: slaUtils.formatTimeRemaining(slaStatus.resolutionTimeRemaining, locale) })}
             </p>
           </div>
         )}
@@ -392,10 +400,10 @@ export const SLAStatus: React.FC<SLAStatusProps> = ({
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
             <div className="flex items-center gap-2 text-orange-800">
               <Pause className="h-4 w-4" />
-              <span className="font-medium">SLA pausado</span>
+              <span className="font-medium">{formatMessage('sla_status.paused')}</span>
             </div>
             <p className="text-sm text-orange-700 mt-1">
-              O SLA está pausado devido ao status atual do chamado. O tempo será retomado quando o status permitir.
+              {formatMessage('sla_status.paused_message')}
             </p>
           </div>
         )}

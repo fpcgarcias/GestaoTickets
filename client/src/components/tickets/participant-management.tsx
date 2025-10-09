@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Users, UserPlus, UserMinus, Clock, AlertCircle } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
+import { useI18n } from '@/i18n';
 
 interface User {
   id: number;
@@ -59,6 +60,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { formatMessage } = useI18n();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
 
@@ -229,7 +231,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Participantes ({Array.isArray(participantsData) ? participantsData.length : 0})
+            {formatMessage('participants.title')} ({Array.isArray(participantsData) ? participantsData.length : 0})
           </CardTitle>
           
           {canManageParticipants && (
@@ -237,18 +239,19 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
               <DialogTrigger asChild>
                 <Button size="sm" className="flex items-center gap-2">
                   <UserPlus className="h-4 w-4" />
-                  Adicionar
+                  {formatMessage('participants.add')}
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>Adicionar Participantes</DialogTitle>
+                  <DialogTitle>{formatMessage('participants.add_participants')}</DialogTitle>
                 </DialogHeader>
                 
                 <div className="space-y-4">
                   <ParticipantSearch
                     selectedUsers={selectedUsers}
                     onSelectionChange={setSelectedUsers}
+                    placeholder={formatMessage('participants.select_participants')}
                     excludeUserIds={Array.isArray(participantsData) ? participantsData.map((p: any) => p.user_id) : []}
                     ticketCompanyId={ticketCompanyId}
                   />
@@ -258,13 +261,13 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                       variant="outline"
                       onClick={() => setIsAddDialogOpen(false)}
                     >
-                      Cancelar
+                      {formatMessage('participants.cancel')}
                     </Button>
                     <Button
                       onClick={handleAddParticipants}
                       disabled={addParticipantsMutation.isPending || selectedUsers.length === 0}
                     >
-                      {addParticipantsMutation.isPending ? 'Adicionando...' : 'Adicionar'}
+                      {addParticipantsMutation.isPending ? formatMessage('participants.adding') : formatMessage('participants.add')}
                     </Button>
                   </div>
                 </div>
@@ -307,7 +310,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                       {participant.user?.email || 'Email não informado'}
                     </div>
                     <div className="text-xs text-gray-400">
-                      Adicionado por {participant.added_by?.name || 'Sistema'} em {formatDate(participant.added_at)}
+                      {formatMessage('participants.added_by')} {participant.added_by?.name || formatMessage('participants.system')} em {formatDate(participant.added_at, locale)}
                     </div>
                   </div>
                 </div>
@@ -326,28 +329,28 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Remover Participante</AlertDialogTitle>
+                          <AlertDialogTitle>{formatMessage('participants.remove_participant')}</AlertDialogTitle>
                           <AlertDialogDescription>
                             {participant.user_id === user?.id ? (
                               <>
-                                Tem certeza que deseja sair deste ticket como participante?
-                                Você não receberá mais atualizações sobre este chamado.
+                                {formatMessage('participants.confirm_leave')}
+                                {formatMessage('participants.leave_warning')}
                               </>
                             ) : (
                               <>
-                                Tem certeza que deseja remover {participant.user?.name || 'este participante'} do ticket?
-                                Esta ação não pode ser desfeita.
+                                {formatMessage('participants.confirm_remove', { name: participant.user?.name || 'este participante' })}
+                                {formatMessage('participants.remove_warning')}
                               </>
                             )}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogCancel>{formatMessage('participants.cancel')}</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => handleRemoveParticipant(participant.user_id)}
                             className="bg-red-600 hover:bg-red-700"
                           >
-                            {participant.user_id === user?.id ? 'Sair' : 'Remover'}
+                            {participant.user_id === user?.id ? formatMessage('participants.leave') : formatMessage('participants.remove')}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -360,8 +363,8 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
         ) : (
           <div className="text-center py-8 text-gray-500">
             <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-            <p>Nenhum participante adicionado</p>
-            <p className="text-sm">Adicione participantes para colaborar neste ticket</p>
+            <p>{formatMessage('participants.no_participants')}</p>
+            <p className="text-sm">{formatMessage('participants.add_participants_description')}</p>
           </div>
         )}
 
@@ -370,7 +373,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
           <div className="mt-6 pt-4 border-t">
             <h4 className="font-medium mb-3 flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Histórico de Participantes
+              {formatMessage('participants.participant_history')}
             </h4>
             <div className="space-y-2 max-h-40 overflow-y-auto">
               {history.map((item: ParticipantHistory) => (
@@ -379,12 +382,12 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                     variant={item.action === 'added' ? 'default' : 'destructive'}
                     className="text-xs"
                   >
-                    {item.action === 'added' ? 'Adicionado' : 'Removido'}
+                    {item.action === 'added' ? formatMessage('participants.added') : formatMessage('participants.removed')}
                   </Badge>
                   <span className="font-medium">{item.user?.name || 'Usuário'}</span>
-                  <span className="text-gray-500">por {item.performed_by?.name || 'Sistema'}</span>
+                  <span className="text-gray-500">{formatMessage('participants.by')} {item.performed_by?.name || formatMessage('participants.system')}</span>
                   <span className="text-gray-400 text-xs">
-                    {formatDate(item.performed_at)}
+                    {formatDate(item.performed_at, locale)}
                   </span>
                 </div>
               ))}
@@ -397,10 +400,10 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-center gap-2 text-blue-700">
               <AlertCircle className="h-4 w-4" />
-              <span className="text-sm font-medium">Você é participante deste ticket</span>
+              <span className="text-sm font-medium">{formatMessage('participants.you_are_participant')}</span>
             </div>
             <p className="text-sm text-blue-600 mt-1">
-              Você pode visualizar todas as atualizações e colaborar com a equipe.
+              {formatMessage('participants.participant_description')}
             </p>
           </div>
         )}

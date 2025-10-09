@@ -7,18 +7,30 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(date: Date | string | number, locale: string = 'pt-BR'): string {
   const d = new Date(date);
-  const dateFormat = locale === 'en-US' ? 'en-US' : 'pt-BR';
-  const timeFormat = locale === 'en-US' ? 'en-US' : 'pt-BR';
   
-  return d.toLocaleDateString(dateFormat, {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }) + ' ' + d.toLocaleTimeString(timeFormat, {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: locale === 'en-US'
-  });
+  if (locale === 'en-US') {
+    // Formato americano: MM/dd/yyyy h:mm AM/PM
+    return d.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+    }) + ' ' + d.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  } else {
+    // Formato brasileiro: dd/MM/yyyy HH:mm
+    return d.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }) + ' ' + d.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  }
 }
 
 export function formatBytes(bytes: number): string {

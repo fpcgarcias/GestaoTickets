@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate, translateTicketStatus, translateUserRole } from '@/lib/utils';
 import { getPriorityColorByWeight, convertLegacyToWeight } from '@/hooks/use-priorities';
+import { useI18n } from '@/i18n';
 
 // Função para traduzir e normalizar prioridades
 const translatePriority = (priority: string): string => {
@@ -118,7 +119,7 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                 <span className="text-sm text-gray-500 italic">Usuário não identificado adicionou um comentário</span>
               </>
             )}
-            <span className="text-xs text-gray-400 ml-auto">{formatDate(reply.created_at)}</span>
+            <span className="text-xs text-gray-400 ml-auto">{formatDate(reply.created_at, locale)}</span>
           </div>
           
           <div className="mt-2 p-3 bg-gray-50 rounded-lg text-gray-700 text-sm border-l-3 border-l-blue-400">
@@ -167,7 +168,7 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                 <span className="text-sm text-gray-500 italic">Usuário não identificado transferiu o chamado</span>
               </>
             )}
-            <span className="text-xs text-gray-400 ml-auto">{formatDate(deptChange.created_at)}</span>
+            <span className="text-xs text-gray-400 ml-auto">{formatDate(deptChange.created_at, locale)}</span>
           </div>
           <div className="mt-1 text-sm text-gray-700 space-y-1">
             <div>
@@ -221,7 +222,7 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                 <span className="text-sm text-gray-500 italic">Usuário não identificado transferiu a responsabilidade</span>
               </>
             )}
-            <span className="text-xs text-gray-400 ml-auto">{formatDate(assignment.created_at)}</span>
+            <span className="text-xs text-gray-400 ml-auto">{formatDate(assignment.created_at, locale)}</span>
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
@@ -275,7 +276,7 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                   <span className="text-sm text-gray-500 italic">Usuário não identificado alterou a prioridade de</span>
                 </>
               )}
-              <span className="text-xs text-gray-400 ml-auto">{formatDate(statusChange.created_at)}</span>
+              <span className="text-xs text-gray-400 ml-auto">{formatDate(statusChange.created_at, locale)}</span>
             </div>
             
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -327,7 +328,7 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                   <span className="text-sm text-gray-500 italic">Usuário não identificado alterou o status de</span>
                 </>
               )}
-              <span className="text-xs text-gray-400 ml-auto">{formatDate(statusChange.created_at)}</span>
+              <span className="text-xs text-gray-400 ml-auto">{formatDate(statusChange.created_at, locale)}</span>
             </div>
             
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -353,6 +354,8 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
 };
 
 export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticketId }) => {
+  const { formatMessage, locale } = useI18n();
+  
   // Buscar respostas do ticket
   const { data: ticketReplies, isLoading: isRepliesLoading } = useQuery<TicketReply[]>({
     queryKey: [`/api/tickets/${ticketId}/replies`],
@@ -413,7 +416,7 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticketId }) => {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>📋 Histórico de Atendimento</CardTitle>
+          <CardTitle>📋 {formatMessage('ticket_history.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -438,14 +441,14 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticketId }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>📋 Histórico de Atendimento</CardTitle>
+        <CardTitle>📋 {formatMessage('ticket_history.title')}</CardTitle>
       </CardHeader>
       <CardContent>
         {historyItems.length === 0 ? (
           <div className="text-gray-500 p-4 bg-gray-50 rounded-md text-center">
-            📝 Nenhuma atividade registrada para este chamado.
+            📝 {formatMessage('ticket_history.no_activity')}
             <br />
-            <span className="text-xs text-gray-400">Adicione um comentário ou altere o status para começar o histórico.</span>
+            <span className="text-xs text-gray-400">{formatMessage('ticket_history.start_history')}</span>
           </div>
         ) : (
           <div className="space-y-2">

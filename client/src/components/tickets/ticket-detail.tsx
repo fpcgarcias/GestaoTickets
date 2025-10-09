@@ -10,12 +10,14 @@ import { AttachmentsList } from './attachments-list';
 import { ParticipantManagement } from './participant-management';
 import { TextWithBreakAll } from '@/components/ui/text-with-links';
 import { Building, UserCircle2 } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 interface TicketDetailProps {
   ticketId: number;
 }
 
 export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
+  const { formatMessage, locale } = useI18n();
   const { data: ticket, isLoading, error } = useQuery<Ticket>({
     queryKey: [`/api/tickets/${ticketId}`],
   });
@@ -65,12 +67,12 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
           <div>
             <div className="flex items-center mb-2">
               <StatusDot status={ticket.status} className="mr-2" />
-              <span className="font-medium text-neutral-800">Chamado #{ticket.ticket_id}</span>
+              <span className="font-medium text-neutral-800">{formatMessage('tickets.ticket_number', { number: ticket.ticket_id })}</span>
             </div>
             <h2 className="text-xl font-semibold">{ticket.title}</h2>
           </div>
           <div className="text-sm text-neutral-500">
-            Criado em {ticket.created_at ? formatDate(ticket.created_at) : 'Data desconhecida'}
+            {formatMessage('tickets.created_at')} {ticket.created_at ? formatDate(ticket.created_at, locale) : formatMessage('tickets.unknown_date')}
           </div>
         </div>
         
@@ -79,7 +81,7 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
           <div className="flex items-center gap-2 mb-4 bg-blue-50 p-3 rounded-md">
             <Building className="h-5 w-5 text-blue-500" />
             <div>
-              <span className="text-sm text-blue-700 font-medium">Cliente: </span>
+              <span className="text-sm text-blue-700 font-medium">{formatMessage('tickets.client')}: </span>
               <span className="text-sm text-blue-800">{ticket.customer.name}</span>
               {ticket.customer.email && (
                 <> - <span className="text-sm text-blue-600">{ticket.customer.email}</span></>
@@ -91,7 +93,7 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
           <div className="flex items-center gap-2 mb-4 bg-yellow-50 p-3 rounded-md">
             <Building className="h-5 w-5 text-yellow-500" />
             <div>
-              <span className="text-sm text-yellow-700 font-medium">Cliente: </span>
+              <span className="text-sm text-yellow-700 font-medium">{formatMessage('tickets.client')}: </span>
               <span className="text-sm text-yellow-800">(Não cadastrado) - {ticket.customer_email}</span>
             </div>
           </div>
