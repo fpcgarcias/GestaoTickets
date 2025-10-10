@@ -14583,11 +14583,563 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
+      // Detectar idioma para criação dos templates
+      let language = 'pt-BR'; // padrão
 
+      // Buscar informações da empresa para detectar o domínio
+      const company = await db
+        .select({ domain: schema.companies.domain })
+        .from(schema.companies)
+        .where(eq(schema.companies.id, targetCompanyId))
+        .limit(1);
 
-      // Criar templates modernos (apenas se não existirem)
+      if (company[0]?.domain) {
+        // Se for vixpaulahermanny.com, sempre inglês
+        if (company[0].domain.includes('vixpaulahermanny.com')) {
+          language = 'en-US';
+        } else {
+          // Para outros domínios, detectar pelo Accept-Language header
+          const acceptLanguage = req.get('Accept-Language');
+          if (acceptLanguage && !acceptLanguage.includes('pt-BR')) {
+            language = 'en-US';
+          }
+        }
+      }
 
-      const defaultTemplates = [
+      // Função para obter templates baseado no idioma
+      const getDefaultTemplates = (lang: string) => {
+        if (lang === 'en-US') {
+          return [
+            {
+              name: 'New Ticket',
+              type: 'new_ticket',
+              description: 'Notification sent when a new ticket is created',
+              subject_template: 'New ticket created: {{ticket.ticket_id}}',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Ticket Created</title>
+</head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">New Ticket Created</h2>
+              <p style="font-size:16px;margin:0;">Hello {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                A new ticket has been created in the system and requires your attention.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Title:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Customer:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}} ({{customer.email}})</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Priority:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.priority_text}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Status:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.status_text}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <a href="{{ticket.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                View Ticket
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+              text_template: `New Ticket Created
+
+Hello {{user.name}},
+
+A new ticket has been created in the system and requires your attention.
+
+Ticket: {{ticket.ticket_id}}
+Title: {{ticket.title}}
+Customer: {{customer.name}} ({{customer.email}})
+Priority: {{ticket.priority_text}}
+Status: {{ticket.status_text}}
+
+View Ticket: {{ticket.link}}
+
+Best regards,
+{{system.from_name}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','customer.email','ticket.priority_text','ticket.status_text','ticket.link','user.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+            },
+            // 2. Ticket Assigned
+            {
+              name: 'Ticket Assigned',
+              type: 'ticket_assigned',
+              description: 'Notification sent when a ticket is assigned',
+              subject_template: 'Ticket assigned to you: {{ticket.ticket_id}}',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket Assigned</title>
+</head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Ticket Assigned to You</h2>
+              <p style="font-size:16px;margin:0;">Hello {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                A ticket has been assigned to you and requires your attention.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Title:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Customer:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}} ({{customer.email}})</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Priority:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.priority_text}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Status:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.status_text}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <a href="{{ticket.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                View Ticket
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+              text_template: `Ticket assigned to you: {{ticket.ticket_id}}
+
+Title: {{ticket.title}}
+Customer: {{customer.name}} ({{customer.email}})
+Priority: {{ticket.priority_text}}
+Status: {{ticket.status_text}}
+Description: {{ticket.description}}
+
+View Ticket: {{ticket.link}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','customer.email','ticket.priority_text','ticket.status_text','ticket.description','ticket.link','user.name','system.company_name','system.support_email','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+            },
+            // 3. Ticket Reply
+            {
+              name: 'New Reply',
+              type: 'ticket_reply',
+              description: 'Notification sent when there is a new reply on the ticket',
+              subject_template: 'New reply on ticket {{ticket.ticket_id}}',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Reply on Ticket</title>
+</head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+          <tr>
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">New Reply on Ticket</h2>
+              <p style="font-size:16px;margin:0;">Hello {{user.name}},</p>
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+                There is a new reply on ticket <strong>{{ticket.ticket_id}}</strong>.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 40px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Title:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Status:</td>
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.status_text}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 40px;">
+              <div style="background:{{system.colors.accent}};padding:16px;border-radius:6px;border-left:4px solid {{system.colors.primary}};">
+                <p style="font-size:14px;margin:0 0 8px 0;font-weight:600;color:{{system.colors.text}};">{{reply.author_name}}:</p>
+                <p style="font-size:14px;margin:0;line-height:1.6;color:{{system.colors.text}};">{{reply.message}}</p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:24px 40px 32px 40px;">
+              <a href="{{ticket.link}}"
+                 style="background:{{system.colors.primary}};color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;display:inline-block;font-size:14px;">
+                View Ticket
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+              <p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p>
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+              text_template: `New reply on ticket {{ticket.ticket_id}}
+
+{{reply.author_name}}: {{reply.message}}
+
+View Ticket: {{ticket.link}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','ticket.status_text','reply.author_name','reply.message','ticket.link','user.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+            },
+            // 4. Status Changed
+            {
+              name: 'Status Changed',
+              type: 'status_changed',
+              description: 'Notification sent when the ticket status is changed',
+              subject_template: 'Ticket {{ticket.ticket_id}} status updated',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Status Changed</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Ticket Status Updated</h2><p style="font-size:16px;margin:0;">Hello {{user.name}},</p><p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">The status of ticket <strong>{{ticket.ticket_id}}</strong> has been updated.</p></td></tr>
+<tr><td style="padding:0 40px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;"><tr><td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Title:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">New Status:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.status_text}}</td></tr></table></td></tr>
+<tr><td align="center" style="padding:0 40px 32px 40px;"><a href="{{ticket.link}}" style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.1);">View Ticket</a></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `Ticket {{ticket.ticket_id}} status updated\n\nNew Status: {{ticket.status_text}}\n\nView Ticket: {{ticket.link}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','ticket.status_text','ticket.link','user.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+            },
+            // 5. Ticket Resolved
+            {
+              name: 'Ticket Resolved',
+              type: 'ticket_resolved',
+              description: 'Notification sent when a ticket is resolved',
+              subject_template: 'Ticket {{ticket.ticket_id}} has been resolved',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Ticket Resolved</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Ticket Resolved!</h2><p style="font-size:16px;margin:0;">Hello {{user.name}},</p><p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">Your ticket has been successfully resolved! Thank you for using our support system.</p></td></tr>
+<tr><td style="padding:0 40px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;"><tr><td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Title:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td></tr></table></td></tr>
+<tr><td align="center" style="padding:0 40px 32px 40px;"><a href="{{ticket.link}}" style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.1);">View Ticket</a></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `Ticket {{ticket.ticket_id}} has been resolved\n\nView Ticket: {{ticket.link}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','ticket.link','user.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+            },
+            // 6. Ticket Escalated
+            {
+              name: 'Ticket Escalated',
+              type: 'ticket_escalated',
+              description: 'Notification sent when a ticket is escalated',
+              subject_template: 'Ticket {{ticket.ticket_id}} has been escalated',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Ticket Escalated</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Ticket Escalated</h2><p style="font-size:16px;margin:0;">Hello {{user.name}},</p><p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">The ticket has been escalated to a higher level of support.</p></td></tr>
+<tr><td style="padding:0 40px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;"><tr><td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td></tr></table></td></tr>
+<tr><td align="center" style="padding:0 40px 32px 40px;"><a href="{{ticket.link}}" style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.1);">View Ticket</a></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `Ticket {{ticket.ticket_id}} has been escalated\n\nView Ticket: {{ticket.link}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['ticket.ticket_id','ticket.link','user.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+            },
+            // 7. Ticket Due Soon
+            {
+              name: 'Ticket Due Soon',
+              type: 'ticket_due_soon',
+              description: 'Notification sent when a ticket is close to its deadline',
+              subject_template: 'Ticket {{ticket.ticket_id}} is due soon',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Ticket Due Soon</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Ticket Due Soon</h2><p style="font-size:16px;margin:0;">Hello {{user.name}},</p><p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">A ticket is approaching its deadline and requires immediate attention.</p></td></tr>
+<tr><td style="padding:0 40px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;"><tr><td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td></tr></table></td></tr>
+<tr><td align="center" style="padding:0 40px 32px 40px;"><a href="{{ticket.link}}" style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.1);">View Ticket</a></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `Ticket {{ticket.ticket_id}} is due soon\n\nView Ticket: {{ticket.link}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['ticket.ticket_id','ticket.link','user.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+            },
+            // 8. Customer Registered
+            {
+              name: 'New Customer Registered',
+              type: 'customer_registered',
+              description: 'Notification sent when a new customer is registered',
+              subject_template: 'New Customer Registered: {{customer.name}}',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>New Customer</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">New Customer Registered</h2><p style="font-size:16px;margin:0;">A new customer has been registered in the system.</p></td></tr>
+<tr><td style="padding:0 40px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;"><tr><td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Name:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Email:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.email}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Company:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.company}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Phone:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.phone}}</td></tr></table></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `New Customer Registered\n\nName: {{customer.name}}\nEmail: {{customer.email}}\nCompany: {{customer.company}}\nPhone: {{customer.phone}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['customer.name','customer.email','customer.company','customer.phone'])
+            },
+            // 9. User Created
+            {
+              name: 'User Created',
+              type: 'user_created',
+              description: 'Notification sent when a new user is created',
+              subject_template: 'New user created: {{user.name}}',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>New User Created</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">New User Created</h2><p style="font-size:16px;margin:0;">Hello {{user.name}},</p><p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">{{system.message}}</p></td></tr>
+<tr><td style="padding:0 40px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;"><tr><td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Name:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{user.name}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Email:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{user.email}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Role:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{user.role_text}}</td></tr></table></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `New User Created\n\n{{system.message}}\n\nName: {{user.name}}\nEmail: {{user.email}}\nRole: {{user.role_text}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['user.name','user.email','user.role_text','system.message'])
+            },
+            // 10. System Maintenance
+            {
+              name: 'System Maintenance',
+              type: 'system_maintenance',
+              description: 'Notification sent to warn about system maintenance',
+              subject_template: 'Scheduled System Maintenance',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Scheduled Maintenance</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Scheduled System Maintenance</h2><p style="font-size:16px;margin:0;">Hello {{user.name}},</p><p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">We inform you that scheduled system maintenance will be performed.</p></td></tr>
+<tr><td style="padding:0 40px 24px 40px;color:{{system.colors.text}};"><div style="background:#fff3cd;border:1px solid #ffeaa7;border-radius:6px;padding:16px;margin:0;"><p style="font-size:15px;margin:0;color:#856404;line-height:1.6;"><strong>⚠️ Attention:</strong><br>{{system.message}}</p></div></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">We appreciate your understanding and apologize for any inconvenience.<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `Scheduled System Maintenance\n\n⚠️ Attention: {{system.message}}\n\nWe appreciate your understanding and apologize for any inconvenience.\n\n{{system.from_name}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['user.name','system.message','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+            },
+            // 11. Participant Added
+            {
+              name: 'Participant Added',
+              type: 'ticket_participant_added',
+              description: 'Notification sent when a participant is added to the ticket',
+              subject_template: 'You have been added as a participant to ticket {{ticket.ticket_id}}',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Participant Added</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">You have been added as a participant!</h2><p style="font-size:16px;margin:0;">Hello {{user.name}},</p><p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">You have been added as a participant to ticket <strong>{{ticket.ticket_id}}</strong> by {{official.name}}.</p></td></tr>
+<tr><td style="padding:0 40px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;"><tr><td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Title:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Status:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.status_text}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Priority:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.priority_text}}</td></tr></table></td></tr>
+<tr><td align="center" style="padding:0 40px 32px 40px;"><a href="{{ticket.link}}" style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:4px;font-size:15px;font-weight:bold;display:inline-block;">Track Ticket</a></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `You have been added as a participant!\n\nHello {{user.name}},\n\nYou have been added as a participant to ticket {{ticket.ticket_id}} by {{official.name}}.\n\nTicket Details:\n- Title: {{ticket.title}}\n- Status: {{ticket.status_text}}\n- Priority: {{ticket.priority_text}}\n\nTo track this ticket, access: {{ticket.link}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['user.name','ticket.ticket_id','official.name','ticket.title','ticket.status_text','ticket.priority_text','ticket.created_at_formatted','customer.name','customer.email','ticket.link','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+            },
+            // 12. Participant Removed
+            {
+              name: 'Participant Removed',
+              type: 'ticket_participant_removed',
+              description: 'Notification sent when a participant is removed from the ticket',
+              subject_template: 'You have been removed as a participant from ticket {{ticket.ticket_id}}',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Participant Removed</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">You have been removed as a participant</h2><p style="font-size:16px;margin:0;">Hello {{user.name}},</p><p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">You have been removed as a participant from ticket <strong>{{ticket.ticket_id}}</strong> by {{official.name}}.</p></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `You have been removed as a participant\n\nHello {{user.name}},\n\nYou have been removed as a participant from ticket {{ticket.ticket_id}} by {{official.name}}.`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['user.name','ticket.ticket_id','official.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+            },
+            // 13. Satisfaction Survey + Reminder (combining both)
+            {
+              name: 'Satisfaction Survey',
+              type: 'satisfaction_survey',
+              description: 'Satisfaction survey sent when a ticket is resolved',
+              subject_template: 'How was your support experience? Ticket {{ticket.ticket_id}}',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Satisfaction Survey</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};text-align:center;">We value your feedback!</h2><p style="font-size:16px;margin:0;text-align:center;">Hello {{customer.name}},</p><p style="font-size:15px;margin:16px 0 0 0;text-align:center;line-height:1.6;">We would love to know how your experience was. Just a few clicks to share how the support for ticket <strong>{{ticket.ticket_id}}</strong> went.</p></td></tr>
+<tr><td align="center" style="padding:24px 40px 32px 40px;"><a href="{{survey.link}}" style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:6px;font-size:18px;font-weight:bold;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.1);">Rate Service</a></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Thank you!<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">Automatic message from the ticket system.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `Hello {{customer.name}},\n\nWe would love to know how your experience was.\n\nRate the service for ticket {{ticket.ticket_id}}: {{survey.link}}\n\nThank you!\n{{system.from_name}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['customer.name','ticket.ticket_id','ticket.title','ticket.assigned_official_name','ticket.resolved_at_formatted','survey.link','survey.days_until_expiration','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+            },
+            {
+              name: 'Survey Reminder',
+              type: 'satisfaction_survey_reminder',
+              description: 'Reminder sent before survey expiration',
+              subject_template: 'Reminder: Rate our service - Ticket {{ticket.ticket_id}}',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Survey Reminder</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:22px;margin:0 0 12px 0;color:{{system.colors.text}};text-align:center;">Help us with your feedback</h2><p style="font-size:15px;margin:16px 0 0 0;text-align:center;line-height:1.6;">Your opinion is very important to us! Just a few clicks to share how the service for ticket <strong>{{ticket.ticket_id}}</strong> went.</p></td></tr>
+<tr><td align="center" style="padding:24px 40px 32px 40px;"><a href="{{survey.link}}" style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:6px;font-size:18px;font-weight:bold;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.1);">Rate Now</a><p style="font-size:13px;margin:16px 0 0 0;color:#666666;">If you have already responded, please disregard this reminder. The link expires in {{survey.days_until_expiration}} day(s).</p></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Thank you!<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">Automatic message from the ticket system.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `Hello {{customer.name}},\n\nYour link to rate ticket {{ticket.ticket_id}} expires in {{survey.days_until_expiration}} day(s).\n\nRate now: {{survey.link}}\n\nThank you!\n{{system.from_name}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['customer.name','ticket.ticket_id','ticket.title','ticket.assigned_official_name','ticket.resolved_at_formatted','survey.link','survey.days_until_expiration','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+            }
+          ];
+        } else {
+          // Templates em português (padrão atual)
+          return [
 
         {
 
@@ -17582,8 +18134,11 @@ Obrigado por nos ajudar a melhorar continuamente.
         }
 
       ];
+        }
+      };
 
-
+      // Obter templates baseado no idioma detectado
+      const defaultTemplates = getDefaultTemplates(language);
 
       // Verificar templates existentes antes de criar
 

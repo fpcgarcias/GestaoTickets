@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
+import { useI18n } from '@/i18n';
 import { Loader2, Bell, Clock, Mail, Globe, Smartphone } from 'lucide-react';
 
 interface NotificationSettingsData {
@@ -44,6 +45,21 @@ const NotificationSettings: React.FC = () => {
   const { toast } = useToast();
   const [settings, setSettings] = useState<Partial<NotificationSettingsData>>({});
   const { user } = useAuth();
+  const { formatMessage, locale } = useI18n();
+
+  // Função para formatar horário baseado no locale
+  const formatHour = (hour: number) => {
+    if (locale === 'en-US') {
+      // Formato 12 horas com AM/PM
+      if (hour === 0) return '12:00 AM';
+      if (hour === 12) return '12:00 PM';
+      if (hour < 12) return `${hour}:00 AM`;
+      return `${hour - 12}:00 PM`;
+    } else {
+      // Formato 24 horas
+      return `${hour.toString().padStart(2, '0')}:00`;
+    }
+  };
 
   // Query para buscar configurações atuais
   const { data: notificationSettings, isLoading, error } = useQuery({
@@ -51,7 +67,7 @@ const NotificationSettings: React.FC = () => {
     queryFn: async (): Promise<NotificationSettingsData> => {
       const response = await fetch('/api/notification-settings');
       if (!response.ok) {
-        throw new Error('Erro ao carregar configurações de notificação');
+        throw new Error(formatMessage('settings.error_loading_settings'));
       }
       return response.json();
     },
@@ -69,22 +85,22 @@ const NotificationSettings: React.FC = () => {
       });
       
       if (!response.ok) {
-        throw new Error('Erro ao salvar configurações');
+        throw new Error(formatMessage('settings.error_saving_notification_settings'));
       }
       
       return response.json();
     },
     onSuccess: () => {
       toast({
-        title: "Sucesso",
-        description: "Configurações de notificação salvas com sucesso!",
+        title: formatMessage('settings.success'),
+        description: formatMessage('settings.notification_settings_saved'),
       });
       queryClient.invalidateQueries({ queryKey: ['notification-settings'] });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro",
-        description: "Erro ao salvar configurações: " + error.message,
+        title: formatMessage('common.error'),
+        description: formatMessage('settings.error_saving_notification_settings') + ": " + error.message,
         variant: "destructive",
       });
     },
@@ -129,7 +145,7 @@ const NotificationSettings: React.FC = () => {
     return (
       <div className="flex items-center justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">Carregando configurações...</span>
+        <span className="ml-2">{formatMessage('settings.loading_settings')}</span>
       </div>
     );
   }
@@ -137,7 +153,7 @@ const NotificationSettings: React.FC = () => {
   if (error) {
     return (
       <div className="text-center text-red-600 p-6">
-        Erro ao carregar configurações de notificação
+        {formatMessage('settings.error_loading_settings')}
       </div>
     );
   }
@@ -147,10 +163,9 @@ const NotificationSettings: React.FC = () => {
       {/* Informações contextuais baseadas na role */}
       {user?.role === 'customer' && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="font-medium text-blue-900 mb-2">Configurações de Notificação - Cliente</h4>
+          <h4 className="font-medium text-blue-900 mb-2">{formatMessage('settings.customer_notification_settings')}</h4>
           <p className="text-sm text-blue-700">
-            Configure como você deseja ser notificado sobre atualizações dos seus chamados abertos. 
-            Você receberá notificações apenas sobre os chamados que você criou.
+            {formatMessage('settings.customer_notification_description')}
           </p>
         </div>
       )}
@@ -158,12 +173,10 @@ const NotificationSettings: React.FC = () => {
       {(user?.role === 'support' || user?.role === 'manager' || user?.role === 'supervisor') && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <h4 className="font-medium text-green-900 mb-2">
-            Configurações de Notificação - {user?.role === 'support' ? 'Atendente' : 'Gestão'}
+            {user?.role === 'support' ? formatMessage('settings.support_notification_settings') : formatMessage('settings.management_notification_settings')}
           </h4>
           <p className="text-sm text-green-700">
-            Configure como você deseja ser notificado sobre atividades dos tickets{' '}
-            {user?.role === 'support' ? 'atribuídos a você e do seu departamento' : 'da sua área de responsabilidade'}.
-            As notificações administrativas podem ser configuradas conforme sua necessidade.
+            {user?.role === 'support' ? formatMessage('settings.support_notification_description') : formatMessage('settings.management_notification_description')}
           </p>
         </div>
       )}
@@ -173,19 +186,19 @@ const NotificationSettings: React.FC = () => {
         <div className="flex items-center gap-2 mb-4">
           <Bell className="h-5 w-5 text-primary" />
           <h3 className="text-lg font-semibold">
-            {user?.role === 'customer' ? 'Notificações dos Seus Chamados' : 'Notificações de Tickets'}
+            {user?.role === 'customer' ? formatMessage('settings.your_ticket_notifications') : formatMessage('settings.ticket_notifications')}
           </h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex items-center justify-between p-3 border rounded-lg">
             <div>
               <Label className="font-medium">
-                {user?.role === 'customer' ? 'Chamado Atribuído' : 'Ticket Atribuído'}
+                {user?.role === 'customer' ? formatMessage('settings.ticket_assigned_customer') : formatMessage('settings.ticket_assigned')}
               </Label>
               <p className="text-sm text-muted-foreground">
                 {user?.role === 'customer' 
-                  ? 'Quando seu chamado for atribuído a um atendente'
-                  : 'Quando um ticket for atribuído a você'
+                  ? formatMessage('settings.ticket_assigned_customer_description')
+                  : formatMessage('settings.ticket_assigned_support_description')
                 }
               </p>
             </div>
@@ -197,11 +210,11 @@ const NotificationSettings: React.FC = () => {
           
           <div className="flex items-center justify-between p-3 border rounded-lg">
             <div>
-              <Label className="font-medium">Status Alterado</Label>
+              <Label className="font-medium">{formatMessage('settings.status_changed')}</Label>
               <p className="text-sm text-muted-foreground">
                 {user?.role === 'customer'
-                  ? 'Quando o status dos seus chamados mudar'
-                  : 'Quando o status de um ticket mudar'
+                  ? formatMessage('settings.status_changed_customer_description')
+                  : formatMessage('settings.status_changed_support_description')
                 }
               </p>
             </div>
@@ -213,11 +226,11 @@ const NotificationSettings: React.FC = () => {
           
           <div className="flex items-center justify-between p-3 border rounded-lg">
             <div>
-              <Label className="font-medium">Nova Resposta</Label>
+              <Label className="font-medium">{formatMessage('settings.new_reply')}</Label>
               <p className="text-sm text-muted-foreground">
                 {user?.role === 'customer'
-                  ? 'Quando um atendente responder seus chamados'
-                  : 'Quando uma nova resposta for adicionada'
+                  ? formatMessage('settings.new_reply_customer_description')
+                  : formatMessage('settings.new_reply_support_description')
                 }
               </p>
             </div>
@@ -230,12 +243,12 @@ const NotificationSettings: React.FC = () => {
           <div className="flex items-center justify-between p-3 border rounded-lg">
             <div>
               <Label className="font-medium">
-                {user?.role === 'customer' ? 'Chamado Escalado' : 'Ticket Escalado'}
+                {user?.role === 'customer' ? formatMessage('settings.ticket_escalated_customer') : formatMessage('settings.ticket_escalated')}
               </Label>
               <p className="text-sm text-muted-foreground">
                 {user?.role === 'customer'
-                  ? 'Quando seus chamados forem escalados'
-                  : 'Quando um ticket for escalado'
+                  ? formatMessage('settings.ticket_escalated_customer_description')
+                  : formatMessage('settings.ticket_escalated_support_description')
                 }
               </p>
             </div>
@@ -247,11 +260,11 @@ const NotificationSettings: React.FC = () => {
           
           <div className="flex items-center justify-between p-3 border rounded-lg">
             <div>
-              <Label className="font-medium">Vencimento Próximo</Label>
+              <Label className="font-medium">{formatMessage('settings.due_soon')}</Label>
               <p className="text-sm text-muted-foreground">
                 {user?.role === 'customer'
-                  ? 'Quando seus chamados estiverem próximos do vencimento'
-                  : 'Quando um ticket estiver próximo do vencimento'
+                  ? formatMessage('settings.due_soon_customer_description')
+                  : formatMessage('settings.due_soon_support_description')
                 }
               </p>
             </div>
@@ -263,11 +276,11 @@ const NotificationSettings: React.FC = () => {
           
           <div className="flex items-center justify-between p-3 border rounded-lg">
             <div>
-              <Label className="font-medium">Participante Adicionado</Label>
+              <Label className="font-medium">{formatMessage('settings.participant_added')}</Label>
               <p className="text-sm text-muted-foreground">
                 {user?.role === 'customer'
-                  ? 'Quando você for adicionado como participante de um chamado'
-                  : 'Quando você for adicionado como participante de um ticket'
+                  ? formatMessage('settings.participant_added_customer_description')
+                  : formatMessage('settings.participant_added_support_description')
                 }
               </p>
             </div>
@@ -279,11 +292,11 @@ const NotificationSettings: React.FC = () => {
           
           <div className="flex items-center justify-between p-3 border rounded-lg">
             <div>
-              <Label className="font-medium">Participante Removido</Label>
+              <Label className="font-medium">{formatMessage('settings.participant_removed')}</Label>
               <p className="text-sm text-muted-foreground">
                 {user?.role === 'customer'
-                  ? 'Quando você for removido como participante de um chamado'
-                  : 'Quando você for removido como participante de um ticket'
+                  ? formatMessage('settings.participant_removed_customer_description')
+                  : formatMessage('settings.participant_removed_support_description')
                 }
               </p>
             </div>
@@ -303,16 +316,16 @@ const NotificationSettings: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <Globe className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold">Notificações Administrativas</h3>
+              <h3 className="text-lg font-semibold">{formatMessage('settings.administrative_notifications')}</h3>
               <Badge variant="secondary" className="text-xs">
-                {user?.role === 'support' ? 'Atendente' : 'Gerencial'}
+                {user?.role === 'support' ? formatMessage('settings.support_badge') : formatMessage('settings.management_badge')}
               </Badge>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
-                  <Label className="font-medium">Novo Cliente</Label>
-                  <p className="text-sm text-muted-foreground">Quando um novo cliente se registrar</p>
+                  <Label className="font-medium">{formatMessage('settings.new_customer')}</Label>
+                  <p className="text-sm text-muted-foreground">{formatMessage('settings.new_customer_description')}</p>
                 </div>
                 <Switch
                   checked={settings.new_customer_registered ?? true}
@@ -322,8 +335,8 @@ const NotificationSettings: React.FC = () => {
               
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
-                  <Label className="font-medium">Novo Usuário</Label>
-                  <p className="text-sm text-muted-foreground">Quando um novo usuário for criado</p>
+                  <Label className="font-medium">{formatMessage('settings.new_user')}</Label>
+                  <p className="text-sm text-muted-foreground">{formatMessage('settings.new_user_description')}</p>
                 </div>
                 <Switch
                   checked={settings.new_user_created ?? true}
@@ -333,8 +346,8 @@ const NotificationSettings: React.FC = () => {
               
               <div className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
-                  <Label className="font-medium">Manutenção do Sistema</Label>
-                  <p className="text-sm text-muted-foreground">Avisos de manutenção e atualizações</p>
+                  <Label className="font-medium">{formatMessage('settings.system_maintenance')}</Label>
+                  <p className="text-sm text-muted-foreground">{formatMessage('settings.system_maintenance_description')}</p>
                 </div>
                 <Switch
                   checked={settings.system_maintenance ?? true}
@@ -352,15 +365,15 @@ const NotificationSettings: React.FC = () => {
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Mail className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold">Canais de Entrega</h3>
+          <h3 className="text-lg font-semibold">{formatMessage('settings.delivery_channels')}</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex items-center justify-between p-3 border rounded-lg">
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
               <div>
-                <Label className="font-medium">E-mail</Label>
-                <p className="text-sm text-muted-foreground">Notificações por e-mail</p>
+                <Label className="font-medium">{formatMessage('settings.email')}</Label>
+                <p className="text-sm text-muted-foreground">{formatMessage('settings.email_description')}</p>
               </div>
             </div>
             <Switch
@@ -373,8 +386,8 @@ const NotificationSettings: React.FC = () => {
             <div className="flex items-center gap-2">
               <Globe className="h-4 w-4 text-gray-400" />
               <div>
-                <Label className="font-medium text-gray-500">Navegador (WebPush)</Label>
-                <p className="text-sm text-gray-400">Em desenvolvimento - em breve</p>
+                <Label className="font-medium text-gray-500">{formatMessage('settings.browser_webpush')}</Label>
+                <p className="text-sm text-gray-400">{formatMessage('settings.browser_webpush_description')}</p>
               </div>
             </div>
             <Switch
@@ -391,22 +404,22 @@ const NotificationSettings: React.FC = () => {
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Clock className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold">Horários de Notificação</h3>
+          <h3 className="text-lg font-semibold">{formatMessage('settings.notification_hours')}</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <Label htmlFor="start-hour">Horário de Início</Label>
+            <Label htmlFor="start-hour">{formatMessage('settings.start_hour')}</Label>
             <Select
               value={settings.notification_hours_start?.toString() || '9'}
               onValueChange={(value) => handleSelectChange('notification_hours_start', value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
+                <SelectValue placeholder={formatMessage('settings.select_option')} />
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 24 }, (_, i) => (
                   <SelectItem key={i} value={i.toString()}>
-                    {i.toString().padStart(2, '0')}:00
+                    {formatHour(i)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -414,18 +427,18 @@ const NotificationSettings: React.FC = () => {
           </div>
           
           <div>
-            <Label htmlFor="end-hour">Horário de Fim</Label>
+            <Label htmlFor="end-hour">{formatMessage('settings.end_hour')}</Label>
             <Select
               value={settings.notification_hours_end?.toString() || '18'}
               onValueChange={(value) => handleSelectChange('notification_hours_end', value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
+                <SelectValue placeholder={formatMessage('settings.select_option')} />
               </SelectTrigger>
               <SelectContent>
                 {Array.from({ length: 24 }, (_, i) => (
                   <SelectItem key={i} value={i.toString()}>
-                    {i.toString().padStart(2, '0')}:00
+                    {formatHour(i)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -434,8 +447,8 @@ const NotificationSettings: React.FC = () => {
           
           <div className="flex items-center justify-between p-3 border rounded-lg">
             <div>
-              <Label className="font-medium">Fins de Semana</Label>
-              <p className="text-sm text-muted-foreground">Receber notificações aos fins de semana</p>
+              <Label className="font-medium">{formatMessage('settings.weekends')}</Label>
+              <p className="text-sm text-muted-foreground">{formatMessage('settings.weekends_description')}</p>
             </div>
             <Switch
               checked={settings.weekend_notifications ?? false}
@@ -451,25 +464,25 @@ const NotificationSettings: React.FC = () => {
       <div>
         <div className="flex items-center gap-2 mb-4">
           <Mail className="h-5 w-5 text-primary" />
-          <h3 className="text-lg font-semibold">Resumo por E-mail</h3>
+          <h3 className="text-lg font-semibold">{formatMessage('settings.email_digest')}</h3>
         </div>
         <div>
-          <Label htmlFor="digest-frequency">Frequência do Resumo</Label>
+          <Label htmlFor="digest-frequency">{formatMessage('settings.digest_frequency')}</Label>
           <Select
             value={settings.digest_frequency || 'never'}
             onValueChange={(value) => handleSelectChange('digest_frequency', value)}
           >
             <SelectTrigger className="w-full md:w-1/3">
-              <SelectValue placeholder="Selecione a frequência" />
+              <SelectValue placeholder={formatMessage('settings.select_frequency')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="never">Nunca</SelectItem>
-              <SelectItem value="daily">Diário</SelectItem>
-              <SelectItem value="weekly">Semanal</SelectItem>
+              <SelectItem value="never">{formatMessage('settings.never')}</SelectItem>
+              <SelectItem value="daily">{formatMessage('settings.daily')}</SelectItem>
+              <SelectItem value="weekly">{formatMessage('settings.weekly')}</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-sm text-muted-foreground mt-1">
-            Receba um resumo das atividades por e-mail
+            {formatMessage('settings.digest_frequency_description')}
           </p>
         </div>
       </div>
@@ -484,10 +497,10 @@ const NotificationSettings: React.FC = () => {
           {saveSettingsMutation.isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Salvando...
+              {formatMessage('settings.saving_notifications')}
             </>
           ) : (
-            'Salvar Configurações'
+            formatMessage('settings.save_notification_settings')
           )}
         </Button>
       </div>

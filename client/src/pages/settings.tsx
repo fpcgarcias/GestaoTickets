@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from 'wouter';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth'; // Importar o hook global
+import { useI18n } from '@/i18n';
 import NotificationSettings from "@/components/notification-settings";
 import EmailSettings from "@/components/email-settings";
 import AdvancedNotificationSettings from "@/components/advanced-notification-settings";
@@ -53,13 +54,14 @@ export default function Settings() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const { user, company: userCompany, isLoading: isLoadingAuth } = useAuth(); // Usar o hook de autenticação global
+  const { formatMessage } = useI18n();
 
   // Redirecionar customers que tentarem acessar esta página
   useEffect(() => {
     if (!isLoadingAuth && user?.role === 'customer') {
       toast({
-        title: "Acesso Negado",
-        description: "Você não tem permissão para acessar as configurações.",
+        title: formatMessage('settings.access_denied'),
+        description: formatMessage('settings.access_denied_description'),
         variant: "destructive",
       });
       navigate('/');
@@ -90,7 +92,7 @@ export default function Settings() {
     queryFn: async (): Promise<ApiCompany[]> => { 
       const response = await apiRequest("GET", "/api/companies");
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({ message: 'Falha ao buscar empresas' }));
+        const errorBody = await response.json().catch(() => ({ message: formatMessage('settings.error_fetching_companies') }));
         throw new Error(errorBody.message);
       }
       return response.json();
@@ -119,7 +121,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (isErrorCompanies && errorCompanies) {
-      toast({ title: "Erro Empresas", description: errorCompanies.message, variant: "destructive" });
+      toast({ title: formatMessage('settings.companies_error'), description: errorCompanies.message, variant: "destructive" });
     }
   }, [isErrorCompanies, errorCompanies, toast]);
   
@@ -157,8 +159,8 @@ export default function Settings() {
       }
       const response = await apiRequest("GET", endpoint);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Falha ao buscar config. SLA' }));
-        throw new Error(errorData.message || 'Falha ao buscar config. SLA');
+        const errorData = await response.json().catch(() => ({ message: formatMessage('settings.error_fetching_sla') }));
+        throw new Error(errorData.message || formatMessage('settings.error_fetching_sla'));
       }
       return response.json();
     },
@@ -176,7 +178,7 @@ export default function Settings() {
     queryFn: async (): Promise<GeneralSettings> => {
       const response = await apiRequest("GET", "/api/settings/general");
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({ message: 'Falha ao buscar config. gerais' }));
+        const errorBody = await response.json().catch(() => ({ message: formatMessage('settings.error_fetching_general') }));
         throw new Error(errorBody.message);
       }
       return response.json();
@@ -186,7 +188,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (isErrorGeneral && errorGeneral) {
-      toast({ title: "Erro Config. Gerais", description: errorGeneral.message, variant: "destructive" });
+      toast({ title: formatMessage('settings.general_config_error'), description: errorGeneral.message, variant: "destructive" });
     }
   }, [isErrorGeneral, errorGeneral, toast]);
 
@@ -212,17 +214,17 @@ export default function Settings() {
     mutationFn: async (payload) => {
       const response = await apiRequest("POST", "/api/settings/sla", payload);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Falha ao salvar config. SLA' }));
-        throw new Error(errorData.message || 'Falha ao salvar config. SLA');
+        const errorData = await response.json().catch(() => ({ message: formatMessage('settings.error_saving_sla') }));
+        throw new Error(errorData.message || formatMessage('settings.error_saving_sla'));
       }
       return response.json(); 
     },
     onSuccess: () => {
-      toast({ title: "Sucesso", description: "Configurações de SLA salvas!" });
+      toast({ title: formatMessage('settings.success'), description: formatMessage('settings.sla_settings_saved') });
       refetchSlaSettings();
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao Salvar SLA", description: error.message, variant: "destructive" });
+      toast({ title: formatMessage('settings.error_saving_sla_title'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -235,21 +237,21 @@ export default function Settings() {
     mutationFn: async (data: GeneralSettings): Promise<GeneralSettings> => {
       const response = await apiRequest("POST", "/api/settings/general", data);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Falha ao salvar config. gerais' }));
-        throw new Error(errorData.message || 'Falha ao salvar config. gerais');
+        const errorData = await response.json().catch(() => ({ message: formatMessage('settings.error_saving_general') }));
+        throw new Error(errorData.message || formatMessage('settings.error_saving_general'));
       }
       return response.json();
     },
     onSuccess: () => {
       toast({
-        title: "Sucesso",
-        description: "Configurações gerais salvas!",
+        title: formatMessage('settings.success'),
+        description: formatMessage('settings.general_settings_saved'),
       });
       queryClient.invalidateQueries({ queryKey: ["/api/settings/general"] });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro Config. Gerais",
+        title: formatMessage('settings.general_config_error'),
         description: error.message,
         variant: "destructive",
       });
@@ -257,10 +259,10 @@ export default function Settings() {
   });
 
   const slaPriorities = [
-    { key: 'low', label: 'Baixa' },
-    { key: 'medium', label: 'Média' },
-    { key: 'high', label: 'Alta' },
-    { key: 'critical', label: 'Crítica' },
+    { key: 'low', label: formatMessage('settings.low') },
+    { key: 'medium', label: formatMessage('settings.medium') },
+    { key: 'high', label: formatMessage('settings.high') },
+    { key: 'critical', label: formatMessage('settings.critical') },
   ];
 
   // Handler para salvar configurações gerais
@@ -281,10 +283,10 @@ export default function Settings() {
     <div>
       <h1 className="text-2xl font-semibold text-neutral-900 mb-6">
         {user?.role === 'customer' 
-          ? 'Minhas Configurações' 
+          ? formatMessage('settings.my_settings')
           : user?.role === 'support'
-          ? 'Configurações de Atendimento'
-          : 'Configurações do Sistema'
+          ? formatMessage('settings.support_settings')
+          : formatMessage('settings.system_settings')
         }
       </h1>
       
@@ -293,7 +295,7 @@ export default function Settings() {
           {/* Aba Geral - para admin, company_admin, manager e supervisor */}
           {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') && (
             <TabsTrigger value="general" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
-              Geral
+              {formatMessage('settings.general')}
             </TabsTrigger>
           )}
           
@@ -301,7 +303,7 @@ export default function Settings() {
           {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') && (
             <TabsTrigger value="email" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
               <Mail className="mr-2 h-4 w-4" />
-              Configurações de Email
+              {formatMessage('settings.email_settings')}
             </TabsTrigger>
           )}
           
@@ -309,7 +311,7 @@ export default function Settings() {
           {user?.role === 'admin' && (
             <TabsTrigger value="advanced-notifications" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
               <SettingsIcon className="mr-2 h-4 w-4" />
-              Sistema de Notificações
+              {formatMessage('settings.notification_system')}
             </TabsTrigger>
           )}
           
@@ -317,13 +319,13 @@ export default function Settings() {
           {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') && (
             <TabsTrigger value="ai" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
               <Brain className="mr-2 h-4 w-4" />
-              IA
+              {formatMessage('settings.ai')}
             </TabsTrigger>
           )}
           
           {/* Aba Notificações - para todas as roles */}
           <TabsTrigger value="notifications" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
-            Notificações
+            {formatMessage('settings.notifications')}
           </TabsTrigger>
         </TabsList>
         
@@ -332,13 +334,13 @@ export default function Settings() {
           <TabsContent value="general">
             <Card>
               <CardHeader>
-                <CardTitle>Configurações Gerais</CardTitle>
-                <CardDescription>Configure as configurações básicas para seu sistema de chamados</CardDescription>
+                <CardTitle>{formatMessage('settings.general_settings')}</CardTitle>
+                <CardDescription>{formatMessage('settings.general_settings_description')}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="company-name">Nome da Empresa</Label>
+                    <Label htmlFor="company-name">{formatMessage('settings.company_name')}</Label>
                     <Input 
                       id="company-name" 
                       value={companyName} 
@@ -347,7 +349,7 @@ export default function Settings() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="support-email">Email de Suporte</Label>
+                    <Label htmlFor="support-email">{formatMessage('settings.support_email')}</Label>
                     <Input 
                       id="support-email" 
                       value={supportEmail} 
@@ -360,8 +362,8 @@ export default function Settings() {
                 
                 <div className="flex items-center justify-between border-t pt-4">
                   <div>
-                    <h3 className="font-medium">Permitir Registro de Clientes</h3>
-                    <p className="text-sm text-neutral-500">Permitir que clientes se registrem e criem suas próprias contas</p>
+                    <h3 className="font-medium">{formatMessage('settings.allow_customer_registration')}</h3>
+                    <p className="text-sm text-neutral-500">{formatMessage('settings.allow_customer_registration_description')}</p>
                   </div>
                   <Switch 
                     checked={allowCustomerRegistration} 
@@ -371,17 +373,16 @@ export default function Settings() {
                 </div>
                 
                 <div className="border-t pt-4 mt-4">
-                  <h3 className="font-medium">Gerenciamento de Departamentos e Tipos de Chamado</h3>
+                  <h3 className="font-medium">{formatMessage('settings.department_ticket_management')}</h3>
                   <p className="text-sm text-neutral-500 mt-1 mb-3">
-                    As configurações de departamentos e tipos de chamado foram movidas para páginas dedicadas, 
-                    acessíveis pelo menu lateral ou pelos links abaixo:
+                    {formatMessage('settings.department_ticket_management_description')}
                   </p>
                   <div className="flex flex-wrap gap-3 mt-2">
                     <Button variant="outline" asChild>
-                      <Link href="/departments">Gerenciar Departamentos</Link>
+                      <Link href="/departments">{formatMessage('settings.manage_departments')}</Link>
                     </Button>
                     <Button variant="outline" asChild>
-                      <Link href="/ticket-types">Gerenciar Tipos de Chamado</Link>
+                      <Link href="/ticket-types">{formatMessage('settings.manage_ticket_types')}</Link>
                     </Button>
                   </div>
                 </div>
@@ -394,10 +395,10 @@ export default function Settings() {
                     {saveGeneralSettingsMutation.isPending ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Salvando...
+                        {formatMessage('settings.saving')}
                       </>
                     ) : (
-                      'Salvar Configurações'
+                      formatMessage('settings.save_settings')
                     )}
                   </Button>
                 </div>
@@ -430,8 +431,8 @@ export default function Settings() {
         <TabsContent value="notifications">
           <Card>
             <CardHeader>
-              <CardTitle>Configurações de Notificação</CardTitle>
-              <CardDescription>Personalize como e quando você deseja receber notificações</CardDescription>
+              <CardTitle>{formatMessage('settings.notification_settings')}</CardTitle>
+              <CardDescription>{formatMessage('settings.notification_settings_description')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <NotificationSettings />

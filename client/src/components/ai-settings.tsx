@@ -42,6 +42,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
+import { useI18n } from '@/i18n';
 import {
   Dialog,
   DialogContent,
@@ -151,8 +152,9 @@ interface TestProviderResult {
 // DEFAULT_MODELS removido - agora usa dados dinâmicos do banco
 
 const DEFAULT_PROMPTS = {
-  priority: {
-    system: `Você é um assistente especializado em análise de prioridade de tickets de suporte técnico. Analise o título e descrição do ticket e determine a prioridade apropriada baseada nos seguintes critérios:
+  pt: {
+    priority: {
+      system: `Você é um assistente especializado em análise de prioridade de tickets de suporte técnico. Analise o título e descrição do ticket e determine a prioridade apropriada baseada nos seguintes critérios:
 
 CRITICAL: Sistemas completamente fora do ar, falhas de segurança críticas, perda de dados, problemas que afetam múltiplos usuários imediatamente e impedem operações essenciais.
 
@@ -167,16 +169,16 @@ IMPORTANTE: Responda EXATAMENTE no formato:
 <JUSTIFICATIVA>explicação detalhada da análise baseada no conteúdo do ticket</JUSTIFICATIVA>
 
 Use apenas: critical, high, medium ou low (sempre em minúsculas e em inglês).`,
-    user: `Título: {titulo}
+      user: `Título: {titulo}
 
 Descrição: {descricao}
 
 Analise este ticket e determine sua prioridade. Responda no formato:
 <PRIORIDADE>prioridade</PRIORIDADE>
 <JUSTIFICATIVA>justificativa</JUSTIFICATIVA>`
-  },
-  reopen: {
-    system: `Você é um assistente especializado em análise de respostas de clientes para tickets em status wait_customer. Sua única função é determinar se a resposta do cliente indica que:
+    },
+    reopen: {
+      system: `Você é um assistente especializado em análise de respostas de clientes para tickets em status wait_customer. Sua única função é determinar se a resposta do cliente indica que:
 
 1. O problema foi RESOLVIDO (manter status wait_customer)
 2. O problema ainda PERSISTE (reabrir ticket para status ongoing)
@@ -200,18 +202,101 @@ Indicadores de problema PERSISTENTE:
 IMPORTANTE: Responda EXATAMENTE no formato:
 <ACAO>manter_aguardando|reabrir</ACAO>
 <JUSTIFICATIVA>explicação baseada na análise da resposta do cliente</JUSTIFICATIVA>`,
-    user: `Resposta do Cliente:
+      user: `Resposta do Cliente:
 {mensagem_cliente}
 
 Analise se esta resposta indica que o problema foi resolvido ou ainda persiste. Responda no formato:
 <ACAO>acao</ACAO>
 <JUSTIFICATIVA>justificativa</JUSTIFICATIVA>`
+    }
+  },
+  en: {
+    priority: {
+      system: `You are a specialized assistant for technical support ticket priority analysis. Analyze the ticket title and description and determine the appropriate priority based on the following criteria:
+
+CRITICAL: Systems completely down, critical security failures, data loss, problems affecting multiple users immediately and preventing essential operations.
+
+HIGH: Main functionalities not working, problems preventing specific users from working, upcoming deadlines being impacted, failures significantly affecting productivity.
+
+MEDIUM: Problems that cause inconvenience but have alternative solutions, secondary functionalities not working, important but not urgent improvement requests.
+
+LOW: Simple questions, training requests, aesthetic improvements, personal settings, problems that don't prevent work.
+
+IMPORTANT: Respond EXACTLY in the format:
+<PRIORITY>priority_name</PRIORITY>
+<JUSTIFICATION>detailed explanation of the analysis based on the ticket content</JUSTIFICATION>
+
+Use only: critical, high, medium or low (always lowercase and in English).`,
+      user: `Title: {title}
+
+Description: {description}
+
+Analyze this ticket and determine its priority. Respond in the format:
+<PRIORITY>priority</PRIORITY>
+<JUSTIFICATION>justification</JUSTIFICATION>`
+    },
+    reopen: {
+      system: `You are a specialized assistant for analyzing customer responses to tickets in wait_customer status. Your only function is to determine if the customer's response indicates that:
+
+1. The problem was RESOLVED (maintain wait_customer status)
+2. The problem still PERSISTS (reopen ticket to ongoing status)
+
+Analyze ONLY the customer's message content.
+
+Indicators of RESOLVED problem:
+- Customer confirms the problem was solved
+- Customer thanks for the solution
+- Customer indicates everything is working
+- Customer confirms they can close the ticket
+- Messages of satisfaction or positive confirmation
+
+Indicators of PERSISTENT problem:
+- Customer reports the problem continues
+- Customer describes new related symptoms
+- Customer requests more help
+- Customer indicates the solution didn't work
+- Customer asks new questions about the same problem
+
+IMPORTANT: Respond EXACTLY in the format:
+<ACTION>keep_waiting|reopen</ACTION>
+<JUSTIFICATION>explanation based on the analysis of the customer's response</JUSTIFICATION>`,
+      user: `Customer Response:
+{customer_message}
+
+Analyze if this response indicates that the problem was resolved or still persists. Respond in the format:
+<ACTION>action</ACTION>
+<JUSTIFICATION>justification</JUSTIFICATION>`
+    }
   }
 };
 
 // Modelos disponíveis atualizados em Dezembro 2024
 // OpenAI: GPT-4o (mais recente), GPT-4o-mini (mais eficiente), GPT-4 Turbo, GPT-4, GPT-3.5 Turbo
 // Google: Gemini 1.5 Pro, Gemini 1.5 Flash, Gemini 1.0 Pro  
+// Função para obter prompts padrão baseados no idioma
+const getDefaultPrompts = (analysisType: 'priority' | 'reopen', locale: string) => {
+  const lang = locale === 'en-US' ? 'en' : 'pt';
+  return DEFAULT_PROMPTS[lang][analysisType];
+};
+
+// Dados de teste padrão por idioma
+const DEFAULT_TEST_DATA = {
+  pt: {
+    test_title: "Sistema de email não está funcionando",
+    test_description: "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
+  },
+  en: {
+    test_title: "Email system is not working",
+    test_description: "I can't send or receive emails since this morning. This is affecting all team work."
+  }
+};
+
+// Função para obter dados de teste padrão baseados no idioma
+const getDefaultTestData = (locale: string) => {
+  const lang = locale === 'en-US' ? 'en' : 'pt';
+  return DEFAULT_TEST_DATA[lang];
+};
+
 // Função para obter modelos disponíveis baseado nos provedores configurados no banco
 const getAvailableModels = (providerName: string, availableProviders: AiProvider[]): string[] => {
   const provider = availableProviders.find(p => p.name === providerName);
@@ -235,6 +320,7 @@ interface AiUsageToggleProps {
 // Componente para company_admin gerenciar o toggle de uso de IA
 function AiUsageToggle({ usageSettings, isLoading, refetch }: AiUsageToggleProps) {
   const { toast } = useToast();
+  const { formatMessage } = useI18n();
 
   // Mutação para atualizar configurações de uso
   const updateUsageMutation = useMutation({
@@ -242,20 +328,20 @@ function AiUsageToggle({ usageSettings, isLoading, refetch }: AiUsageToggleProps
       const response = await apiRequest("PUT", "/api/settings/ai-usage", { ai_usage_enabled });
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha ao atualizar configurações');
+        throw new Error(errorData.message || formatMessage('ai.error_updating_settings'));
       }
       return response.json();
     },
     onSuccess: () => {
       toast({
-        title: "Sucesso",
-        description: "Configurações de IA atualizadas com sucesso!",
+        title: formatMessage('ai.success'),
+        description: formatMessage('ai.settings_updated_successfully'),
       });
       refetch(); // Chama a função refetch passada por props
     },
     onError: (error: any) => {
       toast({
-        title: "Erro",
+        title: formatMessage('ai.ai_error'),
         description: error.message,
         variant: "destructive",
       });
@@ -279,10 +365,10 @@ function AiUsageToggle({ usageSettings, isLoading, refetch }: AiUsageToggleProps
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" />
-            Inteligência Artificial
+            {formatMessage('ai.artificial_intelligence')}
           </CardTitle>
           <CardDescription>
-            Configurações de IA para sua empresa
+            {formatMessage('ai.ai_settings_for_company')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -304,10 +390,10 @@ function AiUsageToggle({ usageSettings, isLoading, refetch }: AiUsageToggleProps
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Brain className="h-5 w-5" />
-          Inteligência Artificial
+          {formatMessage('ai.artificial_intelligence')}
         </CardTitle>
         <CardDescription>
-          Configure o uso de IA para análise automática de tickets
+          {formatMessage('ai.configure_ai_usage')}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -316,10 +402,10 @@ function AiUsageToggle({ usageSettings, isLoading, refetch }: AiUsageToggleProps
           <div className="flex items-center justify-between p-4 border rounded-lg">
             <div className="space-y-1">
               <Label htmlFor="ai-usage-toggle" className="text-base font-medium">
-                Usar Inteligência Artificial
+                {formatMessage('ai.use_artificial_intelligence')}
               </Label>
               <p className="text-sm text-muted-foreground">
-                Ativa a análise automática de prioridade de tickets usando IA
+                {formatMessage('ai.activates_automatic_analysis')}
               </p>
             </div>
             <Switch
@@ -336,10 +422,9 @@ function AiUsageToggle({ usageSettings, isLoading, refetch }: AiUsageToggleProps
               <div className="flex items-start gap-3">
                 <Brain className="h-5 w-5 text-blue-600 mt-0.5" />
                 <div>
-                  <h4 className="font-medium text-blue-900">IA Ativada</h4>
+                  <h4 className="font-medium text-blue-900">{formatMessage('ai.ai_activated')}</h4>
                   <p className="text-sm text-blue-700 mt-1">
-                    A inteligência artificial está analisando automaticamente a prioridade dos novos tickets 
-                    baseada no título e descrição fornecidos.
+                    {formatMessage('ai.ai_analyzing_automatically')}
                   </p>
                 </div>
               </div>
@@ -354,13 +439,14 @@ function AiUsageToggle({ usageSettings, isLoading, refetch }: AiUsageToggleProps
 // Componente principal - agora diferencia entre admin e company_admin
 export default function AiSettings() {
   const { user, isLoading } = useAuth();
+  const { formatMessage } = useI18n();
 
   if (isLoading) {
     return (
       <Card>
         <CardContent className="flex items-center justify-center p-8">
           <Loader2 className="h-6 w-6 animate-spin mr-2" />
-          <span>Carregando...</span>
+          <span>{formatMessage('ai.loading')}</span>
         </CardContent>
       </Card>
     );
@@ -370,7 +456,7 @@ export default function AiSettings() {
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="text-muted-foreground">Acesso não autorizado.</p>
+          <p className="text-muted-foreground">{formatMessage('ai.unauthorized_access')}</p>
         </CardContent>
       </Card>
     );
@@ -385,7 +471,7 @@ export default function AiSettings() {
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="text-muted-foreground">Acesso não autorizado.</p>
+          <p className="text-muted-foreground">{formatMessage('ai.unauthorized_access')}</p>
         </CardContent>
       </Card>
     );
@@ -395,6 +481,7 @@ export default function AiSettings() {
 // Componente para company_admin, manager, supervisor - toggle + configuração por departamento
 function CompanyAiConfiguration() {
   const { user, isLoading: isAuthLoading } = useAuth();
+  const { formatMessage } = useI18n();
 
   // Garantir que o usuário está completamente carregado antes de fazer a query
   const shouldFetch = !isAuthLoading && 
@@ -472,10 +559,10 @@ function CompanyAiConfiguration() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-6 w-6" />
-            Configurações de IA
+            {formatMessage('ai.ai_configurations')}
           </CardTitle>
           <CardDescription>
-            Análise inteligente de prioridades usando Inteligência Artificial
+            {formatMessage('ai.intelligent_priority_analysis')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -510,6 +597,7 @@ function CompanyAiConfiguration() {
 // Wrapper que verifica permissões antes de mostrar configurações por departamento
 function DepartmentAiConfigurationWrapper() {
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
 
   // Este componente agora só é renderizado quando há permissão
   return (
@@ -517,10 +605,10 @@ function DepartmentAiConfigurationWrapper() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Bot className="h-5 w-5" />
-          Configurações de IA por Departamento
+          {formatMessage('ai.ai_configurations_by_department')}
         </CardTitle>
         <CardDescription>
-          Configure prompts específicos para análise de IA por departamento
+          {formatMessage('ai.configure_specific_prompts')}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -534,6 +622,7 @@ function DepartmentAiConfigurationWrapper() {
 function DepartmentAiConfiguration() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { formatMessage, locale } = useI18n();
 
   // Estados
   const [configurations, setConfigurations] = useState<AiConfiguration[]>([]);
@@ -543,8 +632,8 @@ function DepartmentAiConfiguration() {
   const [editingConfig, setEditingConfig] = useState<AiConfiguration | null>(null);
   const [testResult, setTestResult] = useState<any>(null);
   const [testData, setTestData] = useState({
-    test_title: "Sistema de email não está funcionando",
-    test_description: "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
+    test_title: "",
+    test_description: ""
   });
   const [availableProviders, setAvailableProviders] = useState<AiProvider[]>([]);
   const [formData, setFormData] = useState({
@@ -648,13 +737,18 @@ function DepartmentAiConfiguration() {
   };
 
   const openNewConfigDialog = () => {
+    const defaultTestData = getDefaultTestData(locale);
     resetForm();
     setFormData(prev => ({
       ...prev,
       analysis_type: selectedAnalysisType,
-      system_prompt: DEFAULT_PROMPTS[selectedAnalysisType]?.system || DEFAULT_PROMPTS.priority.system,
-      user_prompt_template: DEFAULT_PROMPTS[selectedAnalysisType]?.user || DEFAULT_PROMPTS.priority.user
+      system_prompt: getDefaultPrompts(selectedAnalysisType, locale).system,
+      user_prompt_template: getDefaultPrompts(selectedAnalysisType, locale).user
     }));
+    setTestData({
+      test_title: defaultTestData.test_title,
+      test_description: defaultTestData.test_description
+    });
     setShowForm(true);
   };
 
@@ -676,8 +770,8 @@ function DepartmentAiConfiguration() {
       resetForm();
       fetchConfigurations(selectedAnalysisType);
       toast({
-        title: "Sucesso",
-        description: "Configuração criada com sucesso!",
+        title: formatMessage('ai.success'),
+        description: formatMessage('ai.provider_created'),
         variant: "default"
       });
     },
@@ -708,8 +802,8 @@ function DepartmentAiConfiguration() {
       resetForm();
       fetchConfigurations(selectedAnalysisType);
       toast({
-        title: "Sucesso",
-        description: "Configuração atualizada com sucesso!",
+        title: formatMessage('ai.success'),
+        description: formatMessage('ai.provider_updated'),
         variant: "default"
       });
     },
@@ -787,8 +881,8 @@ function DepartmentAiConfiguration() {
         max_retries: formData.max_retries,
         department_id: formData.department_id,
         analysis_type: formData.analysis_type,
-        test_title: testData.test_title || "Sistema de email não está funcionando",
-        test_description: testData.test_description || "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
+        test_title: testData.test_title || getDefaultTestData(locale).test_title,
+        test_description: testData.test_description || getDefaultTestData(locale).test_description
       };
 
       const response = await fetch('/api/ai-configurations/test', {
@@ -806,8 +900,8 @@ function DepartmentAiConfiguration() {
       if (result.success) {
         setTestResult(result.result);
         toast({
-          title: "Sucesso",
-          description: "Teste executado com sucesso!"
+          title: formatMessage('ai.success'),
+          description: formatMessage('ai.test_executed_successfully')
         });
       } else {
         throw new Error(result.error || result.message || 'Teste falhou');
@@ -847,11 +941,11 @@ function DepartmentAiConfiguration() {
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent mb-6">
           <TabsTrigger value="priority" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             <Target className="mr-2 h-4 w-4" />
-            Análise de Prioridade
+            {formatMessage('ai.priority_analysis')}
           </TabsTrigger>
           <TabsTrigger value="reopen" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             <RotateCcw className="mr-2 h-4 w-4" />
-            Análise de Reabertura
+            {formatMessage('ai.reopen_analysis')}
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -863,7 +957,7 @@ function DepartmentAiConfiguration() {
           size="sm"
         >
           <Plus className="h-4 w-4 mr-2" />
-          Nova Configuração
+          {formatMessage('ai.new_configuration')}
         </Button>
       </div>
 
@@ -909,10 +1003,10 @@ function DepartmentAiConfiguration() {
         <DialogContent className="max-w-4xl max-h-[95vh] overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>
-              {editingConfig ? 'Editar' : 'Nova'} Configuração de IA - {formData.analysis_type === 'priority' ? 'Prioridade' : 'Reabertura'}
+              {editingConfig ? formatMessage('common.edit') : formatMessage('common.new')} {formatMessage('ai.ai_configuration')} - {formData.analysis_type === 'priority' ? formatMessage('ai.priority_analysis') : formatMessage('ai.reopen_analysis')}
             </DialogTitle>
             <DialogDescription>
-              Configure os prompts específicos para análise de {formData.analysis_type === 'priority' ? 'prioridade' : 'reabertura'} deste departamento
+              {formatMessage('ai.configure_specific_prompts_for')} {formData.analysis_type === 'priority' ? formatMessage('ai.priority').toLowerCase() : formatMessage('ai.reopen').toLowerCase()}
             </DialogDescription>
           </DialogHeader>
 
@@ -921,16 +1015,16 @@ function DepartmentAiConfiguration() {
             {/* Nome, Departamento e Tipo de Análise */}
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="name">Nome da Configuração</Label>
+                <Label htmlFor="name">{formatMessage('ai.configuration_name')}</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Ex: Análise TI, Análise RH..."
+                  placeholder={formatMessage('ai.configuration_name_placeholder')}
                 />
               </div>
               <div>
-                <Label htmlFor="department">Departamento *</Label>
+                <Label htmlFor="department">{formatMessage('ai.department')} *</Label>
                 <Select 
                   value={formData.department_id?.toString() || ''} 
                   onValueChange={(v) => setFormData(prev => ({ 
@@ -939,7 +1033,7 @@ function DepartmentAiConfiguration() {
                   }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione um departamento" />
+                    <SelectValue placeholder={formatMessage('ai.select_department')} />
                   </SelectTrigger>
                   <SelectContent>
                     {departments.map((dept: Department) => (
@@ -951,7 +1045,7 @@ function DepartmentAiConfiguration() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="analysis_type">Tipo de Análise *</Label>
+                <Label htmlFor="analysis_type">{formatMessage('ai.analysis_type')} *</Label>
                 <Select 
                   value={formData.analysis_type} 
                   onValueChange={(v) => setFormData(prev => ({ 
@@ -960,11 +1054,11 @@ function DepartmentAiConfiguration() {
                   }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="priority">Análise de Prioridade</SelectItem>
-                    <SelectItem value="reopen">Análise de Reabertura</SelectItem>
+                    <SelectItem value="priority">{formatMessage('ai.priority_analysis')}</SelectItem>
+                    <SelectItem value="reopen">{formatMessage('ai.reopen_analysis')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -973,7 +1067,7 @@ function DepartmentAiConfiguration() {
             {/* Provedor e Modelo */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="provider">Provedor</Label>
+                <Label htmlFor="provider">{formatMessage('ai.provider')}</Label>
                 <Select 
                   value={formData.provider} 
                   onValueChange={(v) => {
@@ -986,7 +1080,7 @@ function DepartmentAiConfiguration() {
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione um provedor" />
+                    <SelectValue placeholder={formatMessage('ai.select_provider')} />
                   </SelectTrigger>
                   <SelectContent>
                     {getAvailableProviderOptions(availableProviders).map((provider) => (
@@ -999,13 +1093,13 @@ function DepartmentAiConfiguration() {
               </div>
 
               <div>
-                <Label htmlFor="model">Modelo</Label>
+                <Label htmlFor="model">{formatMessage('ai.model')}</Label>
                 <Select 
                   value={formData.model} 
                   onValueChange={(v) => setFormData(prev => ({ ...prev, model: v }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione um modelo" />
+                    <SelectValue placeholder={formatMessage('ai.select_model')} />
                   </SelectTrigger>
                   <SelectContent>
                     {getAvailableModels(formData.provider, availableProviders).map((model) => (
@@ -1023,25 +1117,25 @@ function DepartmentAiConfiguration() {
               {/* System Prompt */}
               <div>
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="system_prompt">Prompt do Sistema</Label>
+                  <Label htmlFor="system_prompt">{formatMessage('ai.system_prompt')}</Label>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => setFormData(prev => ({ 
                       ...prev, 
-                      system_prompt: DEFAULT_PROMPTS[formData.analysis_type]?.system || DEFAULT_PROMPTS.priority.system 
+                      system_prompt: getDefaultPrompts(formData.analysis_type, locale).system
                     }))}
                   >
                     <Lightbulb className="h-4 w-4 mr-1" />
-                    Usar Padrão
+                    {formatMessage('ai.use_default')}
                   </Button>
                 </div>
                 <Textarea
                   id="system_prompt"
                   value={formData.system_prompt}
                   onChange={(e) => setFormData(prev => ({ ...prev, system_prompt: e.target.value }))}
-                  placeholder="Instruções específicas para o departamento..."
+                  placeholder={formatMessage('ai.system_prompt_placeholder')}
                   rows={4}
                 />
               </div>
@@ -1049,18 +1143,18 @@ function DepartmentAiConfiguration() {
               {/* User Prompt Template */}
               <div>
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="user_prompt_template">Template do Prompt do Usuário</Label>
+                  <Label htmlFor="user_prompt_template">{formatMessage('ai.user_prompt_template')}</Label>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => setFormData(prev => ({ 
                       ...prev, 
-                      user_prompt_template: DEFAULT_PROMPTS[formData.analysis_type]?.user || DEFAULT_PROMPTS.priority.user 
+                      user_prompt_template: getDefaultPrompts(formData.analysis_type, locale).user
                     }))}
                   >
                     <Lightbulb className="h-4 w-4 mr-1" />
-                    Usar Padrão
+                    {formatMessage('ai.use_default')}
                   </Button>
                 </div>
                 <Textarea
@@ -1068,15 +1162,15 @@ function DepartmentAiConfiguration() {
                   value={formData.user_prompt_template}
                   onChange={(e) => setFormData(prev => ({ ...prev, user_prompt_template: e.target.value }))}
                   placeholder={formData.analysis_type === 'priority' 
-                    ? "Template para análise. Use {titulo} e {descricao} como variáveis..."
-                    : "Template para análise de reabertura. Use {mensagem_cliente} como variável..."}
+                    ? formatMessage('ai.user_prompt_placeholder_priority')
+                    : formatMessage('ai.user_prompt_placeholder_reopen')}
                   rows={3}
                 />
                 <p className="text-sm text-muted-foreground mt-1">
                   {formData.analysis_type === 'priority' ? (
-                    <>Use <code>{"{titulo}"}</code> e <code>{"{descricao}"}</code> como variáveis que serão substituídas.</>
+                    formatMessage('ai.use_variables_priority')
                   ) : (
-                    <>Use <code>{"{mensagem_cliente}"}</code> como variável para análise de reabertura.</>
+                    formatMessage('ai.use_variables_reopen')
                   )}
                 </p>
               </div>
@@ -1085,7 +1179,7 @@ function DepartmentAiConfiguration() {
             {/* Configurações Técnicas */}
             <div className="grid grid-cols-4 gap-4">
               <div>
-                <Label htmlFor="temperature">Temperatura</Label>
+                <Label htmlFor="temperature">{formatMessage('ai.temperature')}</Label>
                 <Input
                   id="temperature"
                   type="number"
@@ -1097,7 +1191,7 @@ function DepartmentAiConfiguration() {
                 />
               </div>
               <div>
-                <Label htmlFor="max_tokens">Max Tokens</Label>
+                <Label htmlFor="max_tokens">{formatMessage('ai.max_tokens')}</Label>
                 <Input
                   id="max_tokens"
                   type="number"
@@ -1108,7 +1202,7 @@ function DepartmentAiConfiguration() {
                 />
               </div>
               <div>
-                <Label htmlFor="timeout_seconds">Timeout (seg)</Label>
+                <Label htmlFor="timeout_seconds">{formatMessage('ai.timeout_seconds')}</Label>
                 <Input
                   id="timeout_seconds"
                   type="number"
@@ -1119,7 +1213,7 @@ function DepartmentAiConfiguration() {
                 />
               </div>
               <div>
-                <Label htmlFor="max_retries">Tentativas</Label>
+                <Label htmlFor="max_retries">{formatMessage('ai.max_attempts')}</Label>
                 <Input
                   id="max_retries"
                   type="number"
@@ -1132,10 +1226,10 @@ function DepartmentAiConfiguration() {
             </div>
 
             {/* Prioridade de Fallback e Status */}
-            <div className={`grid gap-4 items-end ${formData.analysis_type === 'reopen' ? 'grid-cols-2' : 'grid-cols-3'}`}>
-              {formData.analysis_type === 'priority' && (
+            <div className={`grid gap-4 items-end ${formData.analysis_type === 'reopen' ? 'grid-cols-2' : (formData.analysis_type === 'priority' && formData.department_id ? 'grid-cols-3' : 'grid-cols-2')}`}>
+              {formData.analysis_type === 'priority' && formData.department_id && (
                 <div>
-                  <Label htmlFor="fallback_priority">Prioridade de Fallback</Label>
+                  <Label htmlFor="fallback_priority">{formatMessage('ai.fallback_priority')}</Label>
                   <Select 
                     value={formData.fallback_priority} 
                     onValueChange={(v) => setFormData(prev => ({ ...prev, fallback_priority: v as any }))}
@@ -1144,10 +1238,10 @@ function DepartmentAiConfiguration() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="low">Baixa</SelectItem>
-                      <SelectItem value="medium">Média</SelectItem>
-                      <SelectItem value="high">Alta</SelectItem>
-                      <SelectItem value="critical">Crítica</SelectItem>
+                      <SelectItem value="low">{formatMessage('ai.low')}</SelectItem>
+                      <SelectItem value="medium">{formatMessage('ai.medium')}</SelectItem>
+                      <SelectItem value="high">{formatMessage('ai.high')}</SelectItem>
+                      <SelectItem value="critical">{formatMessage('ai.critical')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1158,7 +1252,7 @@ function DepartmentAiConfiguration() {
                   checked={formData.is_active}
                   onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
                 />
-                <Label htmlFor="is_active">Ativa</Label>
+                <Label htmlFor="is_active">{formatMessage('ai.active')}</Label>
               </div>
               <div className="flex items-center space-x-2">
                 <Switch
@@ -1166,42 +1260,44 @@ function DepartmentAiConfiguration() {
                   checked={formData.is_default}
                   onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_default: checked }))}
                 />
-                <Label htmlFor="is_default">Padrão p/ Departamento</Label>
+                <Label htmlFor="is_default">{formatMessage('ai.default_for_department')}</Label>
               </div>
             </div>
 
             {/* Seção de teste */}
             <div className="border-t pt-4">
-              <h4 className="font-medium mb-3">Testar Configuração - {formData.analysis_type === 'priority' ? 'Prioridade' : 'Reabertura'}</h4>
+              <h4 className="font-medium mb-3">{formatMessage('ai.test_configuration')} - {formData.analysis_type === 'priority' ? formatMessage('ai.priority_analysis') : formatMessage('ai.reopen_analysis')}</h4>
               <div className="space-y-3">
                 {formData.analysis_type === 'priority' ? (
                   <>
                     <div>
-                      <Label htmlFor="test-title">Título do Teste</Label>
+                      <Label htmlFor="test-title">{formatMessage('ai.test_title')}</Label>
                       <Input
                         id="test-title"
                         value={testData.test_title}
                         onChange={(e) => setTestData(prev => ({ ...prev, test_title: e.target.value }))}
+                        placeholder={formatMessage('ai.test_title_placeholder')}
                       />
                     </div>
                     <div>
-                      <Label htmlFor="test-description">Descrição do Teste</Label>
+                      <Label htmlFor="test-description">{formatMessage('ai.test_description')}</Label>
                       <Textarea
                         id="test-description"
                         value={testData.test_description}
                         onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
+                        placeholder={formatMessage('ai.test_description_placeholder')}
                         rows={3}
                       />
                     </div>
                   </>
                 ) : (
                   <div>
-                    <Label htmlFor="test-client-message">Mensagem do Cliente</Label>
+                    <Label htmlFor="test-client-message">{formatMessage('ai.test_description')}</Label>
                     <Textarea
                       id="test-client-message"
                       value={testData.test_description}
                       onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
-                      placeholder="Digite a mensagem do cliente para testar a análise de reabertura..."
+                      placeholder={formatMessage('ai.test_description_placeholder')}
                       rows={4}
                     />
                   </div>
@@ -1216,33 +1312,33 @@ function DepartmentAiConfiguration() {
                   {isTestLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Testando...
+                      {formatMessage('ai.testing')}
                     </>
                   ) : (
                     <>
                       <TestTube className="mr-2 h-4 w-4" />
-                      Testar
+                      {formatMessage('ai.test_button')}
                     </>
                   )}
                 </Button>
                 
                 {testResult && (
                   <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                    <h5 className="font-medium mb-2">Resultado do Teste:</h5>
+                    <h5 className="font-medium mb-2">{formatMessage('ai.test_result')}</h5>
                     <div className="text-sm space-y-2">
-                      <div><strong>{formData.analysis_type === 'reopen' ? 'Ação' : 'Prioridade'}:</strong> {testResult.priority}</div>
+                      <div><strong>{formData.analysis_type === 'reopen' ? formatMessage('ai.action') : formatMessage('ai.priority_label')}</strong> {testResult.priority}</div>
                       {testResult.justification && (
                         <div>
-                          <strong>Justificativa:</strong>
+                          <strong>{formatMessage('ai.justification')}</strong>
                           <div className="mt-1 p-2 bg-white border rounded text-gray-700">
                             {testResult.justification}
                           </div>
                         </div>
                       )}
                       <div><strong>Tempo:</strong> {testResult.processingTimeMs}ms</div>
-                      <div><strong>Fallback:</strong> {testResult.usedFallback ? 'Sim' : 'Não'}</div>
+                      <div><strong>{formatMessage('ai.fallback')}:</strong> {testResult.usedFallback ? formatMessage('ai.yes') : formatMessage('ai.no')}</div>
                       {testResult.confidence && (
-                        <div><strong>Confiança:</strong> {(testResult.confidence * 100).toFixed(1)}%</div>
+                        <div><strong>{formatMessage('ai.confidence')}</strong> {(testResult.confidence * 100).toFixed(1)}%</div>
                       )}
                     </div>
                   </div>
@@ -1261,13 +1357,13 @@ function DepartmentAiConfiguration() {
                 resetForm();
               }}
             >
-              Cancelar
+              {formatMessage('ai.cancel')}
             </Button>
             <Button 
               onClick={handleSubmit}
               disabled={createMutation.isPending || updateMutation.isPending}
             >
-              {editingConfig ? 'Salvar' : 'Criar'}
+              {editingConfig ? formatMessage('common.save') : formatMessage('ai.create')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1280,6 +1376,7 @@ function DepartmentAiConfiguration() {
 function AdminAiConfiguration() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { formatMessage, locale } = useI18n();
 
   // Estados
   const [configurations, setConfigurations] = useState<AiConfiguration[]>([]);
@@ -1290,8 +1387,8 @@ function AdminAiConfiguration() {
   const [deleteConfig, setDeleteConfig] = useState<AiConfiguration | null>(null);
   const [testResult, setTestResult] = useState<any>(null);
   const [testData, setTestData] = useState({
-    test_title: "Sistema de email não está funcionando",
-    test_description: "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
+    test_title: "",
+    test_description: ""
   });
 
   // Estado do formulário
@@ -1460,13 +1557,18 @@ function AdminAiConfiguration() {
   };
 
   const openNewConfigDialog = () => {
+    const defaultTestData = getDefaultTestData(locale);
     resetForm();
     setFormData(prev => ({
       ...prev,
       analysis_type: selectedAnalysisType,
-      system_prompt: DEFAULT_PROMPTS[selectedAnalysisType]?.system || DEFAULT_PROMPTS.priority.system,
-      user_prompt_template: DEFAULT_PROMPTS[selectedAnalysisType]?.user || DEFAULT_PROMPTS.priority.user
+      system_prompt: getDefaultPrompts(selectedAnalysisType, locale).system,
+      user_prompt_template: getDefaultPrompts(selectedAnalysisType, locale).user
     }));
+    setTestData({
+      test_title: defaultTestData.test_title,
+      test_description: defaultTestData.test_description
+    });
     setShowForm(true);
   };
 
@@ -1488,8 +1590,8 @@ function AdminAiConfiguration() {
       resetForm();
       fetchConfigurations(selectedAnalysisType);
       toast({
-        title: "Sucesso",
-        description: "Configuração criada com sucesso!",
+        title: formatMessage('ai.success'),
+        description: formatMessage('ai.provider_created'),
         variant: "default"
       });
     },
@@ -1520,8 +1622,8 @@ function AdminAiConfiguration() {
       resetForm();
       fetchConfigurations(selectedAnalysisType);
       toast({
-        title: "Sucesso",
-        description: "Configuração atualizada com sucesso!",
+        title: formatMessage('ai.success'),
+        description: formatMessage('ai.provider_updated'),
         variant: "default"
       });
     },
@@ -1548,8 +1650,8 @@ function AdminAiConfiguration() {
     onSuccess: () => {
       fetchConfigurations(selectedAnalysisType);
       toast({
-        title: "Sucesso",
-        description: "Configuração deletada com sucesso!",
+        title: formatMessage('ai.success'),
+        description: formatMessage('ai.configuration_deleted'),
         variant: "default"
       });
     },
@@ -1577,8 +1679,8 @@ function AdminAiConfiguration() {
     onSuccess: () => {
       fetchProviders();
       toast({
-        title: "Sucesso",
-        description: "Provedores atualizados com sucesso!",
+        title: formatMessage('ai.success'),
+        description: formatMessage('ai.providers_updated'),
         variant: "default"
       });
     },
@@ -1612,8 +1714,8 @@ function AdminAiConfiguration() {
         response: data
       });
       toast({
-        title: "Sucesso",
-        description: "Provedor testado com sucesso!",
+        title: formatMessage('ai.success'),
+        description: formatMessage('ai.provider_tested'),
         variant: "default"
       });
     },
@@ -1832,8 +1934,8 @@ function AdminAiConfiguration() {
         const result = await response.json();
         setTestResult(result);
         toast({
-          title: "Sucesso",
-          description: "Teste executado com sucesso!",
+          title: formatMessage('ai.success'),
+          description: formatMessage('ai.test_executed_successfully'),
           variant: "default"
         });
       } else {
@@ -1998,7 +2100,7 @@ function AdminAiConfiguration() {
       <Tabs defaultValue="configurations" className="space-y-4">
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent mb-6">
           <TabsTrigger value="configurations" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
-            Configurações de IA
+            {formatMessage('ai.ai_configurations')}
           </TabsTrigger>
           <TabsTrigger value="providers" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             Provedores
@@ -2013,7 +2115,7 @@ function AdminAiConfiguration() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Brain className="h-5 w-5" />
-                    Configurações de IA
+                    {formatMessage('ai.ai_configurations')}
                   </CardTitle>
                   <CardDescription>
                     Gerencie as configurações de IA por departamento
@@ -2045,7 +2147,7 @@ function AdminAiConfiguration() {
                   )}
                   <Button onClick={openNewConfigDialog} size="sm">
                     <Plus className="h-4 w-4 mr-2" />
-                    Nova Configuração
+                    {formatMessage('ai.new_configuration')}
                   </Button>
                 </div>
               </div>
@@ -2055,11 +2157,11 @@ function AdminAiConfiguration() {
                 <TabsList className="w-full justify-start border-b rounded-none bg-transparent mb-6">
                   <TabsTrigger value="priority" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
                     <Target className="mr-2 h-4 w-4" />
-                    Análise de Prioridade
+                    {formatMessage('ai.priority_analysis')}
                   </TabsTrigger>
                   <TabsTrigger value="reopen" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
                     <RotateCcw className="mr-2 h-4 w-4" />
-                    Análise de Reabertura
+                    {formatMessage('ai.reopen_analysis')}
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
@@ -2133,13 +2235,13 @@ function AdminAiConfiguration() {
                   </div>
                   {testResult.justification && (
                     <div>
-                      <h4 className="font-medium mb-2">Justificativa:</h4>
+                      <h4 className="font-medium mb-2">{formatMessage('ai.justification')}</h4>
                       <p className="text-sm text-muted-foreground">{testResult.justification}</p>
                     </div>
                   )}
                   {testResult.confidence && (
                     <div>
-                      <h4 className="font-medium mb-2">Confiança:</h4>
+                      <h4 className="font-medium mb-2">{formatMessage('ai.confidence')}</h4>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
                           className="bg-blue-600 h-2 rounded-full" 
@@ -2345,9 +2447,9 @@ function AdminAiConfiguration() {
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-w-2xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nova Configuração de IA</DialogTitle>
+            <DialogTitle>{formatMessage('ai.new_ai_configuration')}</DialogTitle>
             <DialogDescription>
-              Configure um novo provedor de IA para análise de tickets
+              {formatMessage('ai.new_ai_configuration_description')}
             </DialogDescription>
           </DialogHeader>
           <ConfigurationForm 
@@ -2548,6 +2650,7 @@ function ConfigurationForm({
   departments = [],
   availableProviders = []
 }: ConfigurationFormProps) {
+  const { formatMessage } = useI18n();
   
   // Criar mapeamento de provedores e modelos disponíveis
   const configuredProviders = availableProviders.reduce((acc, provider) => {
@@ -2568,19 +2671,19 @@ function ConfigurationForm({
     <div className="space-y-4">
       {/* Nome */}
       <div>
-        <Label htmlFor="name">Nome da Configuração</Label>
+        <Label htmlFor="name">{formatMessage('ai.configuration_name')}</Label>
         <Input
           id="name"
           value={formData.name}
           onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-          placeholder="Ex: OpenAI Produção"
+          placeholder={formatMessage('ai.configuration_name_placeholder')}
         />
       </div>
 
       {/* Provedor e modelo */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="provider">Provedor</Label>
+          <Label htmlFor="provider">{formatMessage('ai.provider')}</Label>
           <Select 
             value={formData.provider} 
             onValueChange={(v) => setFormData(prev => ({ 
@@ -2590,7 +2693,7 @@ function ConfigurationForm({
             }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Selecione um provedor" />
+              <SelectValue placeholder={formatMessage('ai.select_provider')} />
             </SelectTrigger>
             <SelectContent>
               {providerOptions.length > 0 ? (
@@ -2601,7 +2704,7 @@ function ConfigurationForm({
                 ))
               ) : (
                 <SelectItem value="" disabled>
-                  Nenhum provedor configurado
+                  {formatMessage('ai.no_provider_configured')}
                 </SelectItem>
               )}
             </SelectContent>
@@ -2609,14 +2712,14 @@ function ConfigurationForm({
         </div>
         
         <div>
-          <Label htmlFor="model">Modelo</Label>
+          <Label htmlFor="model">{formatMessage('ai.model')}</Label>
           <Select 
             value={formData.model} 
             onValueChange={(v) => setFormData(prev => ({ ...prev, model: v }))}
             disabled={!formData.provider || !configuredProviders[formData.provider]}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Selecione um modelo" />
+              <SelectValue placeholder={formatMessage('ai.select_model')} />
             </SelectTrigger>
             <SelectContent>
               {configuredProviders[formData.provider]?.length > 0 ? (
@@ -2627,7 +2730,7 @@ function ConfigurationForm({
                 ))
               ) : (
                 <SelectItem value="" disabled>
-                  {formData.provider ? 'Nenhum modelo configurado' : 'Selecione um provedor primeiro'}
+                  {formData.provider ? formatMessage('ai.no_model_configured') : formatMessage('ai.select_provider_first')}
                 </SelectItem>
               )}
             </SelectContent>
@@ -2637,7 +2740,7 @@ function ConfigurationForm({
 
       {/* Prompts */}
       <div>
-        <Label htmlFor="system-prompt">Prompt do Sistema</Label>
+        <Label htmlFor="system-prompt">{formatMessage('ai.system_prompt')}</Label>
         <Textarea
           id="system-prompt"
           value={formData.system_prompt}
@@ -2648,7 +2751,7 @@ function ConfigurationForm({
       </div>
 
       <div>
-        <Label htmlFor="user-prompt">Template do Prompt do Usuário</Label>
+        <Label htmlFor="user-prompt">{formatMessage('ai.user_prompt_template')}</Label>
         <Textarea
           id="user-prompt"
           value={formData.user_prompt_template}
@@ -2656,15 +2759,15 @@ function ConfigurationForm({
           rows={4}
           className="text-sm"
           placeholder={formData.analysis_type === 'priority' 
-            ? "Use {titulo} e {descricao} como placeholders"
-            : "Use {mensagem_cliente} como placeholder"}
+            ? formatMessage('ai.user_prompt_placeholder_priority')
+            : formatMessage('ai.user_prompt_placeholder_reopen')}
         />
       </div>
 
       {/* Configurações técnicas */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="temperature">Temperatura</Label>
+          <Label htmlFor="temperature">{formatMessage('ai.temperature')}</Label>
           <Input
             id="temperature"
             type="number"
@@ -2677,7 +2780,7 @@ function ConfigurationForm({
         </div>
         
         <div>
-          <Label htmlFor="max-tokens">Max Tokens</Label>
+          <Label htmlFor="max-tokens">{formatMessage('ai.max_tokens')}</Label>
           <Input
             id="max-tokens"
             type="number"
@@ -2691,7 +2794,7 @@ function ConfigurationForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="timeout">Timeout (segundos)</Label>
+          <Label htmlFor="timeout">{formatMessage('ai.timeout_seconds')}</Label>
           <Input
             id="timeout"
             type="number"
@@ -2703,7 +2806,7 @@ function ConfigurationForm({
         </div>
         
         <div>
-          <Label htmlFor="retries">Max Tentativas</Label>
+          <Label htmlFor="retries">{formatMessage('ai.max_attempts')}</Label>
           <Input
             id="retries"
             type="number"
@@ -2717,7 +2820,7 @@ function ConfigurationForm({
 
       {/* Seleção de Departamento */}
       <div>
-        <Label htmlFor="department">Departamento</Label>
+        <Label htmlFor="department">{formatMessage('ai.department')}</Label>
         <Select 
           value={formData.department_id?.toString() || 'global'} 
           onValueChange={(v) => setFormData(prev => ({ 
@@ -2729,7 +2832,7 @@ function ConfigurationForm({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="global">🌐 Configuração Global (Todos os Departamentos)</SelectItem>
+            <SelectItem value="global">{formatMessage('ai.global_configuration')}</SelectItem>
             {departments.map((dept) => (
               <SelectItem key={dept.id} value={dept.id.toString()}>
                 🏢 {dept.name}
@@ -2788,37 +2891,39 @@ function ConfigurationForm({
 
       {/* Seção de teste */}
       <div className="border-t pt-4">
-        <h4 className="font-medium mb-3">Testar Configuração</h4>
+        <h4 className="font-medium mb-3">{formatMessage('ai.test_configuration')}</h4>
         <div className="space-y-3">
           {formData.analysis_type === 'priority' ? (
             <>
               <div>
-                <Label htmlFor="test-title">Título do Teste</Label>
+                <Label htmlFor="test-title">{formatMessage('ai.test_title')}</Label>
                 <Input
                   id="test-title"
                   value={testData.test_title}
                   onChange={(e) => setTestData(prev => ({ ...prev, test_title: e.target.value }))}
+                  placeholder={formatMessage('ai.test_title_placeholder')}
                 />
               </div>
               <div>
-                <Label htmlFor="test-description">Descrição do Teste</Label>
+                <Label htmlFor="test-description">{formatMessage('ai.test_description')}</Label>
                 <Textarea
                   id="test-description"
                   value={testData.test_description}
                   onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
+                  placeholder={formatMessage('ai.test_description_placeholder')}
                   rows={3}
                 />
               </div>
             </>
           ) : (
             <div>
-              <Label htmlFor="test-description">Mensagem do Cliente</Label>
+              <Label htmlFor="test-description">{formatMessage('ai.test_description')}</Label>
               <Textarea
                 id="test-description"
                 value={testData.test_description}
                 onChange={(e) => setTestData(prev => ({ ...prev, test_description: e.target.value }))}
+                placeholder={formatMessage('ai.test_description_placeholder')}
                 rows={3}
-                placeholder="Digite a mensagem do cliente para testar a análise de reabertura..."
               />
             </div>
           )}
@@ -2855,7 +2960,7 @@ function ConfigurationForm({
                   </div>
                 )}
                 <div><strong>Tempo:</strong> {testResult.processingTimeMs}ms</div>
-                <div><strong>Fallback:</strong> {testResult.usedFallback ? 'Sim' : 'Não'}</div>
+                <div><strong>{formatMessage('ai.fallback')}:</strong> {testResult.usedFallback ? formatMessage('ai.yes') : formatMessage('ai.no')}</div>
                 {testResult.confidence && (
                   <div><strong>Confiança:</strong> {(testResult.confidence * 100).toFixed(1)}%</div>
                 )}

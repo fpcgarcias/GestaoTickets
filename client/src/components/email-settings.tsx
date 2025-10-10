@@ -56,6 +56,7 @@ import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/contexts/theme-context';
+import { useI18n } from '@/i18n';
 
 // Interfaces
 interface SMTPConfig {
@@ -92,27 +93,27 @@ interface Company {
 }
 
 const EMAIL_TEMPLATE_TYPES = [
-  { value: 'new_ticket', label: 'Novo Ticket' },
-  { value: 'ticket_assigned', label: 'Ticket Atribuído' },
-  { value: 'ticket_reply', label: 'Nova Resposta' },
-  { value: 'status_changed', label: 'Status Alterado' },
-  { value: 'ticket_resolved', label: 'Ticket Resolvido' },
-  { value: 'ticket_escalated', label: 'Ticket Escalado' },
-  { value: 'ticket_due_soon', label: 'Vencimento Próximo' },
-  { value: 'customer_registered', label: 'Cliente Registrado' },
-  { value: 'user_created', label: 'Usuário Criado' },
-  { value: 'system_maintenance', label: 'Manutenção do Sistema' },
-  { value: 'ticket_participant_added', label: 'Participante Adicionado' },
-  { value: 'ticket_participant_removed', label: 'Participante Removido' },
-  { value: 'satisfaction_survey', label: 'Pesquisa de Satisfação' },
-  { value: 'satisfaction_survey_reminder', label: 'Lembrete Pesquisa de Satisfação' }
+  { value: 'new_ticket', labelKey: 'email.template_type.new_ticket' },
+  { value: 'ticket_assigned', labelKey: 'email.template_type.ticket_assigned' },
+  { value: 'ticket_reply', labelKey: 'email.template_type.ticket_reply' },
+  { value: 'status_changed', labelKey: 'email.template_type.status_changed' },
+  { value: 'ticket_resolved', labelKey: 'email.template_type.ticket_resolved' },
+  { value: 'ticket_escalated', labelKey: 'email.template_type.ticket_escalated' },
+  { value: 'ticket_due_soon', labelKey: 'email.template_type.ticket_due_soon' },
+  { value: 'customer_registered', labelKey: 'email.template_type.customer_registered' },
+  { value: 'user_created', labelKey: 'email.template_type.user_created' },
+  { value: 'system_maintenance', labelKey: 'email.template_type.system_maintenance' },
+  { value: 'ticket_participant_added', labelKey: 'email.template_type.ticket_participant_added' },
+  { value: 'ticket_participant_removed', labelKey: 'email.template_type.ticket_participant_removed' },
+  { value: 'satisfaction_survey', labelKey: 'email.template_type.satisfaction_survey' },
+  { value: 'satisfaction_survey_reminder', labelKey: 'email.template_type.satisfaction_survey_reminder' }
 ];
 
 const PROVIDERS = [
-  { value: 'smtp', label: 'SMTP Personalizado' },
-  { value: 'brevo', label: 'Brevo (SendinBlue)' },
-  { value: 'sendgrid', label: 'SendGrid' },
-  { value: 'mailgun', label: 'Mailgun' }
+  { value: 'smtp', labelKey: 'email.custom_smtp' },
+  { value: 'brevo', labelKey: 'email.brevo_sendinblue' },
+  { value: 'sendgrid', labelKey: 'email.sendgrid' },
+  { value: 'mailgun', labelKey: 'email.mailgun' }
 ];
 
 // Documentação completa das variáveis disponíveis
@@ -305,6 +306,7 @@ export default function EmailSettings() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { themeName } = useTheme();
+  const { formatMessage } = useI18n();
   
   // Estado para empresa selecionada (apenas para admin)
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>(
@@ -351,7 +353,7 @@ export default function EmailSettings() {
     queryFn: async () => {
       const response = await apiRequest("GET", "/api/companies");
       if (!response.ok) {
-        throw new Error('Falha ao carregar empresas');
+        throw new Error(formatMessage('email.error_loading_companies'));
       }
       return response.json();
     },
@@ -396,7 +398,7 @@ export default function EmailSettings() {
       
       const response = await apiRequest("GET", url);
       if (!response.ok) {
-        throw new Error('Falha ao carregar configurações de email');
+        throw new Error(formatMessage('email.error_loading_config'));
       }
       return response.json();
     },
@@ -418,7 +420,7 @@ export default function EmailSettings() {
       
       const response = await apiRequest("GET", url);
       if (!response.ok) {
-        throw new Error('Falha ao carregar templates de email');
+        throw new Error(formatMessage('email.error_loading_templates'));
       }
       return response.json();
     },
@@ -798,7 +800,7 @@ export default function EmailSettings() {
     queryFn: async () => {
       const response = await apiRequest("GET", "/api/email-config");
       if (!response.ok) {
-        throw new Error('Falha ao carregar configurações de email');
+        throw new Error(formatMessage('email.error_loading_config'));
       }
       return response.json();
     }
@@ -991,7 +993,7 @@ export default function EmailSettings() {
   const renderSMTPForm = () => (
     <div className="space-y-6">
       <div>
-        <Label>Provedor de Email</Label>
+        <Label>{formatMessage('email.email_provider')}</Label>
         <Select 
           value={smtpConfig.provider} 
           onValueChange={(value: any) => {
@@ -1016,7 +1018,7 @@ export default function EmailSettings() {
           <SelectContent className="z-[9999]">
             {PROVIDERS.map(provider => (
               <SelectItem key={provider.value} value={provider.value}>
-                {provider.label}
+                {formatMessage(provider.labelKey)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -1025,7 +1027,7 @@ export default function EmailSettings() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label>Email do Remetente *</Label>
+          <Label>{formatMessage('email.sender_email')}</Label>
           <Input
             type="email"
             value={smtpConfig.from_email || ''}
@@ -1034,7 +1036,7 @@ export default function EmailSettings() {
           />
         </div>
         <div>
-          <Label>Nome do Remetente</Label>
+          <Label>{formatMessage('email.sender_name')}</Label>
           <Input
             value={smtpConfig.from_name || ''}
             onChange={(e) => updateSMTPConfig({ from_name: e.target.value })}
@@ -1045,10 +1047,10 @@ export default function EmailSettings() {
 
       {smtpConfig.provider === 'smtp' && (
         <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
-          <h4 className="font-medium">Configurações SMTP</h4>
+          <h4 className="font-medium">{formatMessage('email.smtp_configuration')}</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label>Servidor SMTP *</Label>
+              <Label>{formatMessage('email.smtp_server')}</Label>
               <Input
                 value={smtpConfig.host || ''}
                 onChange={(e) => setSmtpConfig(prev => ({ ...prev, host: e.target.value }))}
@@ -1056,7 +1058,7 @@ export default function EmailSettings() {
               />
             </div>
             <div>
-              <Label>Porta</Label>
+              <Label>{formatMessage('email.port')}</Label>
               <Input
                 type="number"
                 value={smtpConfig.port || 587}
@@ -1064,7 +1066,7 @@ export default function EmailSettings() {
               />
             </div>
             <div>
-              <Label>Usuário *</Label>
+              <Label>{formatMessage('email.username')}</Label>
               <Input
                 value={smtpConfig.username || ''}
                 onChange={(e) => setSmtpConfig(prev => ({ ...prev, username: e.target.value }))}
@@ -1072,7 +1074,7 @@ export default function EmailSettings() {
               />
             </div>
             <div>
-              <Label>Senha *</Label>
+              <Label>{formatMessage('email.password')}</Label>
               <Input
                 type="password"
                 value={smtpConfig.password || ''}
@@ -1086,7 +1088,7 @@ export default function EmailSettings() {
               checked={smtpConfig.use_tls === true}
               onCheckedChange={(checked) => setSmtpConfig(prev => ({ ...prev, use_tls: checked }))}
             />
-            <Label>Usar TLS/SSL</Label>
+            <Label>{formatMessage('email.use_tls_ssl')}</Label>
           </div>
         </div>
       )}
@@ -1094,16 +1096,16 @@ export default function EmailSettings() {
       {smtpConfig.provider !== 'smtp' && (
         <div className="p-4 border rounded-lg bg-blue-50">
           <h4 className="font-medium mb-3 text-blue-800">
-            Configuração da API {PROVIDERS.find(p => p.value === smtpConfig.provider)?.label}
+            {formatMessage('email.api_configuration')} {PROVIDERS.find(p => p.value === smtpConfig.provider) && formatMessage(PROVIDERS.find(p => p.value === smtpConfig.provider)!.labelKey)}
           </h4>
           <div className="space-y-3">
             <div>
-              <Label>Chave da API *</Label>
+              <Label>{formatMessage('email.api_key')}</Label>
               <Input
                 type="password"
                 value={smtpConfig.api_key || ''}
                 onChange={(e) => updateSMTPConfig({ api_key: e.target.value })}
-                placeholder={`Insira sua chave da API do ${PROVIDERS.find(p => p.value === smtpConfig.provider)?.label}`}
+                placeholder={formatMessage('email.api_key_placeholder', { provider: PROVIDERS.find(p => p.value === smtpConfig.provider) && formatMessage(PROVIDERS.find(p => p.value === smtpConfig.provider)!.labelKey) })}
               />
             </div>
             {smtpConfig.provider === 'brevo' && (
@@ -1136,12 +1138,12 @@ export default function EmailSettings() {
           {saveConfigMutation.isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Salvando...
+              {formatMessage('email.saving')}
             </>
           ) : (
             <>
               <Settings className="mr-2 h-4 w-4" />
-              Salvar Configurações
+              {formatMessage('email.save_settings')}
             </>
           )}
         </Button>
@@ -1152,7 +1154,7 @@ export default function EmailSettings() {
           disabled={!smtpConfig.from_email}
         >
           <TestTube className="mr-2 h-4 w-4" />
-          Testar Conexão
+          {formatMessage('email.test_connection')}
         </Button>
       </div>
     </div>
@@ -1161,13 +1163,13 @@ export default function EmailSettings() {
   const renderTemplatesList = () => (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Templates de Email</h3>
+        <h3 className="text-lg font-medium">{formatMessage('email.email_templates')}</h3>
         <div className="flex gap-2">
           <Button 
             variant="outline" 
             onClick={() => setShowVariablesDoc(true)}
           >
-            📋 Documentação de Variáveis
+            {formatMessage('email.variables_documentation')}
           </Button>
 
 
@@ -1180,18 +1182,18 @@ export default function EmailSettings() {
             {createDefaultTemplatesMutation.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Criando...
+                {formatMessage('email.creating')}
               </>
             ) : (
               <>
                 <FileText className="mr-2 h-4 w-4" />
-                Criar Templates Padrão
+                {formatMessage('email.create_default_templates')}
               </>
             )}
           </Button>
           <Button onClick={handleNewTemplate}>
             <Plus className="mr-2 h-4 w-4" />
-            Novo Template
+            {formatMessage('email.new_template')}
           </Button>
         </div>
       </div>
@@ -1199,7 +1201,7 @@ export default function EmailSettings() {
       {isLoadingTemplates ? (
         <div className="flex items-center justify-center p-8">
           <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Carregando templates...</span>
+          <span className="ml-2">{formatMessage('email.loading_templates')}</span>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -1211,14 +1213,14 @@ export default function EmailSettings() {
                     <div className="flex items-center gap-2 mb-2">
                       <h4 className="font-medium">{template.name}</h4>
                       <Badge variant={template.is_active ? "default" : "secondary"}>
-                        {template.is_active ? "Ativo" : "Inativo"}
+                        {template.is_active ? formatMessage('email.active') : formatMessage('email.inactive')}
                       </Badge>
                       {template.is_default && (
-                        <Badge variant="outline">Padrão</Badge>
+                        <Badge variant="outline">{formatMessage('email.default')}</Badge>
                       )}
                     </div>
                     <p className="text-sm text-gray-600 mb-2">
-                      Tipo: {EMAIL_TEMPLATE_TYPES.find(t => t.value === template.type)?.label}
+                      {formatMessage('email.type')}: {EMAIL_TEMPLATE_TYPES.find(t => t.value === template.type) ? formatMessage(EMAIL_TEMPLATE_TYPES.find(t => t.value === template.type)!.labelKey) : ''}
                     </p>
                     {template.description && (
                       <p className="text-sm text-gray-500">{template.description}</p>
@@ -1283,20 +1285,20 @@ export default function EmailSettings() {
         <TabsList className="w-full justify-start">
           <TabsTrigger value="smtp" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            Configurações SMTP
+            {formatMessage('email.smtp_settings')}
           </TabsTrigger>
           <TabsTrigger value="templates" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
-            Templates de Email
+            {formatMessage('email.email_templates')}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="smtp">
           <Card>
             <CardHeader>
-              <CardTitle>Configurações de Email</CardTitle>
+              <CardTitle>{formatMessage('email.email_settings')}</CardTitle>
               <CardDescription>
-                Configure as configurações de envio de email para notificações do sistema
+                {formatMessage('email.email_settings_description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1306,7 +1308,7 @@ export default function EmailSettings() {
                   <div className="flex items-center gap-2 mb-2">
                     <Building2 className="h-4 w-4 text-blue-600" />
                     <Label className="text-sm font-medium text-blue-800">
-                      Selecionar Empresa
+                      {formatMessage('email.select_company')}
                     </Label>
                   </div>
                   <Select 
@@ -1319,7 +1321,7 @@ export default function EmailSettings() {
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue 
-                        placeholder={isLoadingCompanies ? "Carregando empresas..." : "Selecione uma empresa"} 
+                        placeholder={isLoadingCompanies ? formatMessage('email.loading_companies') : formatMessage('email.select_company_placeholder')} 
                       />
                     </SelectTrigger>
                     <SelectContent className="z-[9999]">
@@ -1331,7 +1333,7 @@ export default function EmailSettings() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-blue-600 mt-1">
-                    Configurações de email são específicas por empresa
+                    {formatMessage('email.email_settings_company_specific')}
                   </p>
                 </div>
               )}
@@ -1340,9 +1342,9 @@ export default function EmailSettings() {
               {user?.role === 'admin' && !selectedCompanyId && (
                 <div className="text-center text-neutral-500 p-8 rounded-md border border-dashed">
                   <Building2 className="h-12 w-12 mx-auto mb-4 text-neutral-400" />
-                  <p className="text-lg font-medium mb-2">Selecione uma empresa</p>
+                  <p className="text-lg font-medium mb-2">{formatMessage('email.select_company_first')}</p>
                   <p className="text-sm">
-                    Para configurar as definições de email, primeiro selecione a empresa desejada.
+                    {formatMessage('email.select_company_description')}
                   </p>
                 </div>
               )}
@@ -1353,7 +1355,7 @@ export default function EmailSettings() {
                   {isLoadingConfig ? (
                     <div className="flex items-center justify-center p-8">
                       <Loader2 className="h-8 w-8 animate-spin" />
-                      <span className="ml-2">Carregando configurações...</span>
+                      <span className="ml-2">{formatMessage('email.loading_settings')}</span>
                     </div>
                   ) : (
                     renderSMTPForm()
@@ -1367,9 +1369,9 @@ export default function EmailSettings() {
         <TabsContent value="templates">
           <Card>
             <CardHeader>
-              <CardTitle>Templates de Email</CardTitle>
+              <CardTitle>{formatMessage('email.email_templates')}</CardTitle>
               <CardDescription>
-                Gerencie os templates usados para diferentes tipos de notificações por email
+                {formatMessage('email.email_templates_description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1379,7 +1381,7 @@ export default function EmailSettings() {
                   <div className="flex items-center gap-2 mb-2">
                     <Building2 className="h-4 w-4 text-blue-600" />
                     <Label className="text-sm font-medium text-blue-800">
-                      Selecionar Empresa
+                      {formatMessage('email.select_company')}
                     </Label>
                   </div>
                   <Select 
@@ -1389,7 +1391,7 @@ export default function EmailSettings() {
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue 
-                        placeholder={isLoadingCompanies ? "Carregando empresas..." : "Selecione uma empresa"} 
+                        placeholder={isLoadingCompanies ? formatMessage('email.loading_companies') : formatMessage('email.select_company_placeholder')} 
                       />
                     </SelectTrigger>
                     <SelectContent className="z-[9999]">
@@ -1433,7 +1435,7 @@ export default function EmailSettings() {
                 <div>
                   <DialogTitle>{selectedTemplate.name}</DialogTitle>
                   <DialogDescription>
-                    Template do tipo: {EMAIL_TEMPLATE_TYPES.find(t => t.value === selectedTemplate.type)?.label}
+                    Template do tipo: {EMAIL_TEMPLATE_TYPES.find(t => t.value === selectedTemplate.type) ? formatMessage(EMAIL_TEMPLATE_TYPES.find(t => t.value === selectedTemplate.type)!.labelKey) : ''}
                   </DialogDescription>
                 </div>
                 <div className="flex gap-2">
@@ -1587,24 +1589,24 @@ export default function EmailSettings() {
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {selectedTemplate ? 'Editar Template' : 'Novo Template'}
+              {selectedTemplate ? formatMessage('email.edit_template') : formatMessage('email.new_template')}
             </DialogTitle>
             <DialogDescription>
-              Configure o template de email para notificações automáticas
+              {formatMessage('email.template_configuration_description')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label>Nome do Template</Label>
+                <Label>{formatMessage('email.template_name')}</Label>
                 <Input
                   value={templateForm.name || ''}
                   onChange={(e) => setTemplateForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Nome do template"
+                  placeholder={formatMessage('email.template_name_placeholder')}
                 />
               </div>
               <div>
-                <Label>Tipo</Label>
+                <Label>{formatMessage('email.template_type_label')}</Label>
                 <Select 
                   value={templateForm.type || ''} 
                   onValueChange={(value) => {
@@ -1617,12 +1619,12 @@ export default function EmailSettings() {
                 >
                   {(() => { console.log('Renderizando Select com value:', templateForm.type); return null; })()}
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo" />
+                    <SelectValue placeholder={formatMessage('email.select_template_type')} />
                   </SelectTrigger>
                   <SelectContent className="z-[99999] relative" position="popper" side="bottom" align="start">
                     {EMAIL_TEMPLATE_TYPES.map(type => (
                       <SelectItem key={type.value} value={type.value}>
-                        {type.label}
+                        {formatMessage(type.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1631,39 +1633,38 @@ export default function EmailSettings() {
             </div>
             
             <div>
-              <Label>Descrição</Label>
+              <Label>{formatMessage('email.template_description')}</Label>
               <Input
                 value={templateForm.description || ''}
                 onChange={(e) => setTemplateForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Descrição do template (opcional)"
+                placeholder={formatMessage('email.template_description_placeholder')}
               />
             </div>
 
             <div>
-              <Label>Assunto do Email</Label>
+              <Label>{formatMessage('email.email_subject')}</Label>
               <Input
                 value={templateForm.subject_template || ''}
                 onChange={(e) => setTemplateForm(prev => ({ ...prev, subject_template: e.target.value }))}
-                placeholder="Ex: Novo Ticket: {{ticket.title}}"
+                placeholder={formatMessage('email.email_subject_placeholder')}
               />
             </div>
 
             <div>
-              <Label>Conteúdo HTML</Label>
+              <Label>{formatMessage('email.html_content')}</Label>
               <Textarea
                 value={templateForm.html_template || ''}
                 onChange={(e) => setTemplateForm(prev => ({ ...prev, html_template: e.target.value }))}
                 onFocus={() => console.log('Campo HTML focado')}
                 onClick={() => console.log('Campo HTML clicado')}
-                placeholder="Template HTML com variáveis {{ticket.title}}, {{customer.name}}, etc."
+                placeholder={formatMessage('email.html_content_placeholder')}
                 className="h-40 font-mono text-xs"
                 disabled={false}
                 readOnly={false}
                 style={{ pointerEvents: 'auto' }}
               />
               <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
-                💡 Dica: Use variáveis como {`{{ticket.title}}`}, {`{{customer.name}}`}, {`{{ticket.ticket_id}}`}, {`{{user.name}}`}, etc. 
-                Você pode ver um preview do template após salvá-lo.
+                💡 {formatMessage('email.template_tip')}
               </div>
             </div>
 
@@ -1671,7 +1672,7 @@ export default function EmailSettings() {
             {templateForm.type && (
               <div className="border rounded-lg p-4 bg-gray-50">
                 <h4 className="font-medium text-gray-800 mb-3">
-                  📋 Variáveis Disponíveis para "{EMAIL_TEMPLATE_TYPES.find(t => t.value === templateForm.type)?.label}"
+                  📋 {formatMessage('email.available_variables_for')} "{EMAIL_TEMPLATE_TYPES.find(t => t.value === templateForm.type) ? formatMessage(EMAIL_TEMPLATE_TYPES.find(t => t.value === templateForm.type)!.labelKey) : ''}"
                 </h4>
                 <div className="max-h-32 overflow-y-auto">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
@@ -1699,17 +1700,17 @@ export default function EmailSettings() {
             )}
 
             <div>
-              <Label>Conteúdo Texto (opcional)</Label>
+              <Label>{formatMessage('email.text_content_optional')}</Label>
               <Textarea
                 value={templateForm.text_template || ''}
                 onChange={(e) => setTemplateForm(prev => ({ ...prev, text_template: e.target.value }))}
-                placeholder="Versão em texto simples (opcional)"
+                placeholder={formatMessage('email.text_content_placeholder')}
                 className="h-24 font-mono text-xs"
               />
             </div>
 
             <div className="flex items-center space-x-2">
-              <Label htmlFor="template-active">Template Ativo</Label>
+              <Label htmlFor="template-active">{formatMessage('email.template_active')}</Label>
               <Switch
                 id="template-active"
                 checked={templateForm.is_active === true}
@@ -1719,7 +1720,7 @@ export default function EmailSettings() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditingTemplate(false)}>
-              Cancelar
+              {formatMessage('email.cancel')}
             </Button>
             <Button 
               onClick={handleSaveTemplate}
@@ -1728,10 +1729,10 @@ export default function EmailSettings() {
               {(saveTemplateMutation.isPending || updateTemplateMutation.isPending) ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Salvando...
+                  {formatMessage('email.saving')}
                 </>
               ) : (
-                'Salvar Template'
+                formatMessage('email.save_template')
               )}
             </Button>
           </DialogFooter>
@@ -1742,9 +1743,9 @@ export default function EmailSettings() {
       <Dialog open={showVariablesDoc} onOpenChange={setShowVariablesDoc}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>📋 Documentação Completa de Variáveis</DialogTitle>
+            <DialogTitle>📋 {formatMessage('email.complete_variables_documentation')}</DialogTitle>
             <DialogDescription>
-              Todas as variáveis disponíveis para uso nos templates de email
+              {formatMessage('email.all_available_variables')}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-6">
@@ -1767,19 +1768,19 @@ export default function EmailSettings() {
             ))}
             
             <div className="border rounded-lg p-4 bg-blue-50">
-              <h3 className="font-semibold text-lg mb-3 text-blue-800">💡 Dicas de Uso</h3>
+              <h3 className="font-semibold text-lg mb-3 text-blue-800">💡 {formatMessage('email.usage_tips')}</h3>
               <ul className="text-sm text-blue-700 space-y-1">
-                <li>• Use as variáveis exatamente como mostrado, incluindo as chaves duplas</li>
-                <li>• Nem todas as variáveis estão disponíveis para todos os tipos de template</li>
-                <li>• O sistema substitui automaticamente as variáveis pelos valores reais</li>
-                <li>• Use o Preview para ver como o email ficará com dados de exemplo</li>
-                <li>• Variáveis não encontradas aparecerão como texto literal no email</li>
+                <li>• {formatMessage('email.usage_tip_1')}</li>
+                <li>• {formatMessage('email.usage_tip_2')}</li>
+                <li>• {formatMessage('email.usage_tip_3')}</li>
+                <li>• {formatMessage('email.usage_tip_4')}</li>
+                <li>• {formatMessage('email.usage_tip_5')}</li>
               </ul>
             </div>
           </div>
           <DialogFooter>
             <Button onClick={() => setShowVariablesDoc(false)}>
-              Fechar
+              {formatMessage('email.close')}
             </Button>
           </DialogFooter>
         </DialogContent>
