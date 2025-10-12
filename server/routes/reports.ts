@@ -10,6 +10,8 @@ import puppeteer from 'puppeteer';
 import { calculateEffectiveBusinessTime, getBusinessHoursConfig, convertStatusHistoryToPeriods } from '@shared/utils/sla-calculator';
 import { type TicketStatus } from '@shared/ticket-utils';
 import { storage } from '../storage';
+import { withTimeout } from '../middleware/file-validation';
+import { logger } from '../services/logger';
 
 const router = Router();
 
@@ -867,7 +869,18 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Relatório de Chamados');
       
-      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      // Proteção contra vulnerabilidades xlsx (CVE GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9)
+      // Adiciona timeout para prevenir DoS via arquivos complexos
+      logger.info('Gerando arquivo Excel de tickets', { 
+        recordCount: excelData.length,
+        user: req.user?.username 
+      });
+      
+      const buffer = await withTimeout(
+        Promise.resolve(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })),
+        30000, // 30 segundos timeout
+        'Timeout ao gerar arquivo Excel. O arquivo pode ser muito grande.'
+      );
       
       res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename=relatorio-chamados.xlsx');
@@ -1768,7 +1781,18 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
       
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Relatório Performance');
       
-      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      // Proteção contra vulnerabilidades xlsx (CVE GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9)
+      // Adiciona timeout para prevenir DoS via arquivos complexos
+      logger.info('Gerando arquivo Excel de performance', { 
+        recordCount: exportRows.length,
+        user: req.user?.username 
+      });
+      
+      const buffer = await withTimeout(
+        Promise.resolve(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })),
+        30000, // 30 segundos timeout
+        'Timeout ao gerar arquivo Excel. O arquivo pode ser muito grande.'
+      );
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename=relatorio-performance.xlsx');
