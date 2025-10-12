@@ -28,6 +28,11 @@ import { useBusinessHoursRefetchInterval } from '../../hooks/use-business-hours'
 import AddUserDialog from './add-user-dialog';
 import { useI18n } from '@/i18n';
 
+// Função para traduzir códigos de erro de senha
+const translatePasswordErrors = (errorCodes: string[], formatMessage: any): string[] => {
+  return errorCodes.map(code => formatMessage(`password_validation.${code}`));
+};
+
 interface Company {
   id: number;
   name: string;
@@ -164,7 +169,7 @@ export default function UsersIndex() {
     onError: (error) => {
       toast({
         title: formatMessage('users.status_dialog.error_title'),
-        description: `Ocorreu um erro: ${error.message}`,
+        description: error.message,
         variant: "destructive",
       });
     }
@@ -187,10 +192,27 @@ export default function UsersIndex() {
       setResetPasswordDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      let errorMessage = error.details || error.message;
+      
+      // Se for erro de validação de senha, traduzir os códigos
+      if (error.passwordErrors && Array.isArray(error.passwordErrors)) {
+        const translatedErrors = translatePasswordErrors(error.passwordErrors, formatMessage);
+        errorMessage = (
+          <div className="space-y-1">
+            {translatedErrors.map((error, index) => (
+              <div key={index} className="flex items-start">
+                <span className="text-red-400 mr-2">•</span>
+                <span>{error}</span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      
       toast({
         title: formatMessage('users.reset_password_dialog.error_title'),
-        description: `Ocorreu um erro: ${error.message}`,
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -213,7 +235,7 @@ export default function UsersIndex() {
     onError: (error) => {
       toast({
         title: formatMessage('users.edit_dialog.error_title'),
-        description: `Ocorreu um erro: ${error.message}`,
+        description: error.message,
         variant: "destructive",
       });
     }

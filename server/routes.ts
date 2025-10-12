@@ -27,6 +27,7 @@ import * as crypto from 'crypto';
 import multer from 'multer';
 
 import s3Service from './services/s3-service';
+import { getDefaultAiBotName } from './utils/ai-bot-names';
 
 import { emailConfigService, type EmailConfig, type SMTPConfigInput } from './services/email-config-service';
 
@@ -4001,7 +4002,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     email: 'ai@system.internal',
 
-                    name: 'Robo IA',
+                    name: getDefaultAiBotName(),
 
                     role: 'integration_bot',
 
@@ -4965,7 +4966,18 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const { hashPassword } = await import('./utils/password');
 
-          const hashedPassword = await hashPassword(password);
+          let hashedPassword: string;
+          try {
+            hashedPassword = await hashPassword(password);
+          } catch (passwordError: any) {
+            if (passwordError.passwordErrors) {
+              return res.status(400).json({ 
+                message: "Password validation failed",
+                passwordErrors: passwordError.passwordErrors
+              });
+            }
+            throw passwordError;
+          }
 
           
 
@@ -6258,6 +6270,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         // Incluir company_id no usuário também
 
         userUpdateData.company_id = effectiveCompanyId;
+        
+        // Incluir must_change_password se fornecido
+        if (req.body.must_change_password !== undefined) {
+          userUpdateData.must_change_password = req.body.must_change_password;
+        }
 
         
 
@@ -6269,7 +6286,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const { hashPassword } = await import('./utils/password');
 
-          userUpdateData.password = await hashPassword(user.password);
+          try {
+            userUpdateData.password = await hashPassword(user.password);
+          } catch (passwordError: any) {
+            if (passwordError.passwordErrors) {
+              return res.status(400).json({ 
+                message: "Password validation failed",
+                passwordErrors: passwordError.passwordErrors
+              });
+            }
+            throw passwordError;
+          }
 
         }
 
@@ -6281,7 +6308,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const { hashPassword } = await import('./utils/password');
 
-          userUpdateData.password = await hashPassword(password);
+          try {
+            userUpdateData.password = await hashPassword(password);
+          } catch (passwordError: any) {
+            if (passwordError.passwordErrors) {
+              return res.status(400).json({ 
+                message: "Password validation failed",
+                passwordErrors: passwordError.passwordErrors
+              });
+            }
+            throw passwordError;
+          }
 
         }
 
@@ -6327,7 +6364,18 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const { hashPassword } = await import('./utils/password');
 
-        const hashedPassword = await hashPassword(password);
+        let hashedPassword: string;
+        try {
+          hashedPassword = await hashPassword(password);
+        } catch (passwordError: any) {
+          if (passwordError.passwordErrors) {
+            return res.status(400).json({ 
+              message: "Password validation failed",
+              passwordErrors: passwordError.passwordErrors
+            });
+          }
+          throw passwordError;
+        }
 
         
 
@@ -6337,7 +6385,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           password: hashedPassword,
 
-          company_id: effectiveCompanyId
+          company_id: effectiveCompanyId,
+          
+          must_change_password: req.body.must_change_password || false
 
         });
 
@@ -7661,7 +7711,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       
 
-      const { name, email, username, password, role } = req.body;
+      const { name, email, username, password, role, must_change_password } = req.body;
 
       const userRole = req.session?.userRole as string;
 
@@ -7735,7 +7785,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const { hashPassword } = await import('./utils/password');
 
-        hashedPassword = await hashPassword(password);
+        try {
+          hashedPassword = await hashPassword(password);
+        } catch (passwordError: any) {
+          if (passwordError.passwordErrors) {
+            return res.status(400).json({ 
+              message: "Password validation failed",
+              passwordErrors: passwordError.passwordErrors
+            });
+          }
+          throw passwordError;
+        }
 
       }
 
@@ -7754,6 +7814,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       if (role) updateData.role = role;
 
       if (hashedPassword) updateData.password = hashedPassword;
+      
+      // Se must_change_password foi fornecido, incluir na atualização
+      if (must_change_password !== undefined) updateData.must_change_password = must_change_password;
 
       updateData.updated_at = new Date();
 

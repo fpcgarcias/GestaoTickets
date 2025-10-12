@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { getAiBotName } from "@/utils/ai-bot-names";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -248,12 +249,16 @@ export function isPasswordValid(password: string): boolean {
 }
 
 // Função para traduzir roles de usuários para labels mais amigáveis
-export const translateUserRole = (role: string): string => {
+export const translateUserRole = (role: string, locale: string = 'pt-BR'): string => {
+  // Se for o bot de IA, usar a função de internacionalização
+  if (role === 'integration_bot') {
+    return `🤖 ${getAiBotName(locale)}`;
+  }
+  
   const roleMap: Record<string, string> = {
     'admin': '👑 Admin',
     'support': '🎧 Suporte',
     'customer': '👤 Cliente',
-    'integration_bot': '🤖 Robô IA',
     'quality': '📝 Qualidade',
     'triage': '🔍 Triagem',
     'company_admin': '🏢 Administrador',

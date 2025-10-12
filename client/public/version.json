@@ -1,9 +1,9 @@
 {
-  "current": "1.1.0",
+  "current": "1.1.0-beta",
   "releaseDate": "2025-10-13",
   "versions": [
     {
-      "version": "1.1.0",
+      "version": "1.1.0-beta",
       "date": "2025-10-13",
       "title": "Implementação de novas funcionalidades.",
       "type": "feature",

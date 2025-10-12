@@ -885,6 +885,7 @@
   },
   "tickets": {
     "title": "Chamados",
+    "back_to_tickets": "Voltar para chamados",
     "new_ticket": "Novo Chamado",
     "search_placeholder": "Buscar chamado",
     "period": "Período",
@@ -1149,7 +1150,22 @@
     "unassigned": "Desatribuído",
     "department_changed": "Departamento alterado",
     "from_department": "do departamento",
-    "to_department": "para o departamento"
+    "to_department": "para o departamento",
+    "transferred_ticket": "transferiu o chamado",
+    "unidentified_transferred": "Usuário não identificado transferiu o chamado",
+    "transferred_responsibility": "transferiu a responsabilidade",
+    "unidentified_transferred_responsibility": "Usuário não identificado transferiu a responsabilidade",
+    "changed_priority": "alterou a prioridade de",
+    "unidentified_changed_priority": "Usuário não identificado alterou a prioridade de",
+    "changed_status": "alterou o status de",
+    "unidentified_changed_status": "Usuário não identificado alterou o status de",
+    "internal_comment": "Comentário Interno",
+    "department": "Departamento:",
+    "type": "Tipo:",
+    "category": "Categoria:",
+    "from_assignment": "De:",
+    "to_assignment": "Para:",
+    "not_assigned": "Não atribuído"
   },
   "ai_analysis": {
     "title": "Análise de IA",
@@ -1705,6 +1721,32 @@
     "providers_updated": "Provedores atualizados com sucesso!",
     "provider_tested": "Provedor testado com sucesso!",
     "action": "Ação:"
+  },
+  "ticket_transfer": {
+    "title": "Transferir Chamado",
+    "description": "Selecione o departamento, tipo de chamado e categoria para transferir este ticket. O SLA será mantido.",
+    "department": "Departamento",
+    "ticket_type": "Tipo de Chamado",
+    "category": "Categoria",
+    "select_department": "Selecionar departamento",
+    "select_type": "Selecionar tipo",
+    "select_category": "Selecionar categoria (opcional)",
+    "cancel": "Cancelar",
+    "transfer": "Transferir",
+    "transferring": "Transferindo...",
+    "success_title": "Transferência realizada",
+    "success_message": "O chamado foi transferido com sucesso.",
+    "error_title": "Erro",
+    "error_message": "Falha ao transferir chamado"
+  },
+  "password_validation": {
+    "password_too_short": "A senha deve ter pelo menos 8 caracteres",
+    "password_too_long": "A senha deve ter no máximo 128 caracteres",
+    "password_no_lowercase": "A senha deve conter pelo menos uma letra minúscula",
+    "password_no_uppercase": "A senha deve conter pelo menos uma letra maiúscula",
+    "password_no_number": "A senha deve conter pelo menos um número",
+    "password_no_special": "A senha deve conter pelo menos um caractere especial (@$!%*?&)",
+    "password_common_sequence": "A senha não pode conter sequências comuns"
   }
 }
 

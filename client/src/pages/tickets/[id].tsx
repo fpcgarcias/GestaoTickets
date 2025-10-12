@@ -9,10 +9,12 @@ import { TicketHistory } from '@/components/tickets/ticket-history';
 import AiAnalysisHistory from '@/components/tickets/ai-analysis-history';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Ticket } from '@shared/schema';
+import { useI18n } from '@/i18n';
 
 export default function TicketDetailPage() {
   const [, params] = useRoute('/tickets/:id');
   const ticketId = params?.id ? parseInt(params.id) : 0;
+  const { formatMessage } = useI18n();
 
   const { data: ticket, isLoading, error } = useQuery<Ticket>({
     queryKey: [`/api/tickets/${ticketId}`],
@@ -24,10 +26,10 @@ export default function TicketDetailPage() {
         <Button variant="ghost" size="sm" asChild className="mr-4">
           <Link href="/tickets">
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar para chamados
+            {formatMessage('tickets.back_to_tickets')}
           </Link>
         </Button>
-        <h1 className="text-2xl font-semibold text-neutral-900">Chamados</h1>
+        <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('tickets.title')}</h1>
       </div>
 
       {isLoading ? (

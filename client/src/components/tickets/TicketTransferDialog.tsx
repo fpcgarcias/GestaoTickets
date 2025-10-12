@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { useI18n } from '@/i18n';
 
 interface TicketTransferDialogProps {
   open: boolean;
@@ -18,6 +19,7 @@ interface TicketTransferDialogProps {
 export const TicketTransferDialog: React.FC<TicketTransferDialogProps> = ({ open, onOpenChange, ticketId, currentDepartmentId }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { formatMessage } = useI18n();
 
   const [departmentId, setDepartmentId] = React.useState<number | undefined>(undefined);
   const [incidentTypeId, setIncidentTypeId] = React.useState<number | undefined>(undefined);
@@ -87,13 +89,13 @@ export const TicketTransferDialog: React.FC<TicketTransferDialogProps> = ({ open
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: 'Transferência realizada', description: 'O chamado foi transferido com sucesso.' });
+      toast({ title: formatMessage('ticket_transfer.success_title'), description: formatMessage('ticket_transfer.success_message') });
       queryClient.invalidateQueries({ queryKey: [`/api/tickets/${ticketId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/tickets/${ticketId}/status-history`] });
       onOpenChange(false);
     },
     onError: (error: any) => {
-      toast({ title: 'Erro', description: error?.message || 'Falha ao transferir chamado', variant: 'destructive' });
+      toast({ title: formatMessage('ticket_transfer.error_title'), description: error?.message || formatMessage('ticket_transfer.error_message'), variant: 'destructive' });
     }
   });
 
@@ -101,17 +103,17 @@ export const TicketTransferDialog: React.FC<TicketTransferDialogProps> = ({ open
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Transferir Chamado</DialogTitle>
+          <DialogTitle>{formatMessage('ticket_transfer.title')}</DialogTitle>
           <DialogDescription>
-            Selecione o departamento, tipo de chamado e categoria para transferir este ticket. O SLA será mantido.
+            {formatMessage('ticket_transfer.description')}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <div className="text-sm font-medium mb-2">Departamento</div>
+            <div className="text-sm font-medium mb-2">{formatMessage('ticket_transfer.department')}</div>
             <Select value={departmentId ? String(departmentId) : ''} onValueChange={(v) => { setDepartmentId(parseInt(v)); setIncidentTypeId(undefined); setCategoryId(undefined); }}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecionar departamento" />
+                <SelectValue placeholder={formatMessage('ticket_transfer.select_department')} />
               </SelectTrigger>
               <SelectContent>
                 {departments.map((d: any) => (
@@ -121,10 +123,10 @@ export const TicketTransferDialog: React.FC<TicketTransferDialogProps> = ({ open
             </Select>
           </div>
           <div>
-            <div className="text-sm font-medium mb-2">Tipo de Chamado</div>
+            <div className="text-sm font-medium mb-2">{formatMessage('ticket_transfer.ticket_type')}</div>
             <Select disabled={!departmentId} value={incidentTypeId ? String(incidentTypeId) : ''} onValueChange={(v) => { setIncidentTypeId(parseInt(v)); setCategoryId(undefined); }}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecionar tipo" />
+                <SelectValue placeholder={formatMessage('ticket_transfer.select_type')} />
               </SelectTrigger>
               <SelectContent>
                 {incidentTypes.map((it: any) => (
@@ -134,10 +136,10 @@ export const TicketTransferDialog: React.FC<TicketTransferDialogProps> = ({ open
             </Select>
           </div>
           <div>
-            <div className="text-sm font-medium mb-2">Categoria</div>
+            <div className="text-sm font-medium mb-2">{formatMessage('ticket_transfer.category')}</div>
             <Select disabled={!incidentTypeId} value={categoryId !== undefined && categoryId !== null ? String(categoryId) : ''} onValueChange={(v) => setCategoryId(parseInt(v))}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecionar categoria (opcional)" />
+                <SelectValue placeholder={formatMessage('ticket_transfer.select_category')} />
               </SelectTrigger>
               <SelectContent>
                 {categories.map((c: any) => (
@@ -148,9 +150,9 @@ export const TicketTransferDialog: React.FC<TicketTransferDialogProps> = ({ open
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>{formatMessage('ticket_transfer.cancel')}</Button>
             <Button onClick={() => transferMutation.mutate()} disabled={!departmentId || !incidentTypeId || transferMutation.isPending}>
-              {transferMutation.isPending ? 'Transferindo...' : 'Transferir'}
+              {transferMutation.isPending ? formatMessage('ticket_transfer.transferring') : formatMessage('ticket_transfer.transfer')}
             </Button>
           </div>
         </div>

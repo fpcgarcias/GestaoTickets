@@ -885,6 +885,7 @@
   },
   "tickets": {
     "title": "Tickets",
+    "back_to_tickets": "Back to tickets",
     "new_ticket": "New Ticket",
     "search_placeholder": "Search ticket",
     "period": "Period",
@@ -1149,7 +1150,22 @@
     "unassigned": "Unassigned",
     "department_changed": "Department changed",
     "from_department": "from department",
-    "to_department": "to department"
+    "to_department": "to department",
+    "transferred_ticket": "transferred the ticket",
+    "unidentified_transferred": "Unidentified user transferred the ticket",
+    "transferred_responsibility": "transferred responsibility",
+    "unidentified_transferred_responsibility": "Unidentified user transferred responsibility",
+    "changed_priority": "changed priority from",
+    "unidentified_changed_priority": "Unidentified user changed priority from",
+    "changed_status": "changed status from",
+    "unidentified_changed_status": "Unidentified user changed status from",
+    "internal_comment": "Internal Comment",
+    "department": "Department:",
+    "type": "Type:",
+    "category": "Category:",
+    "from_assignment": "From:",
+    "to_assignment": "To:",
+    "not_assigned": "Not assigned"
   },
   "ai_analysis": {
     "title": "AI Analysis",
@@ -1705,6 +1721,32 @@
     "providers_updated": "Providers updated successfully!",
     "provider_tested": "Provider tested successfully!",
     "action": "Action:"
+  },
+  "ticket_transfer": {
+    "title": "Transfer Ticket",
+    "description": "Select the department, ticket type and category to transfer this ticket. The SLA will be maintained.",
+    "department": "Department",
+    "ticket_type": "Ticket Type",
+    "category": "Category",
+    "select_department": "Select department",
+    "select_type": "Select type",
+    "select_category": "Select category (optional)",
+    "cancel": "Cancel",
+    "transfer": "Transfer",
+    "transferring": "Transferring...",
+    "success_title": "Transfer completed",
+    "success_message": "The ticket was transferred successfully.",
+    "error_title": "Error",
+    "error_message": "Failed to transfer ticket"
+  },
+  "password_validation": {
+    "password_too_short": "Password must be at least 8 characters long",
+    "password_too_long": "Password must be at most 128 characters long",
+    "password_no_lowercase": "Password must contain at least one lowercase letter",
+    "password_no_uppercase": "Password must contain at least one uppercase letter",
+    "password_no_number": "Password must contain at least one number",
+    "password_no_special": "Password must contain at least one special character (@$!%*?&)",
+    "password_common_sequence": "Password cannot contain common sequences"
   }
 }
 

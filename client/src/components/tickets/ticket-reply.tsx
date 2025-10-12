@@ -224,7 +224,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                     {isCustomerForThisTicket ? (
                       // Para clientes: campo somente-leitura mostrando o status atual
                       <Input 
-                        value={getStatusConfig(ticket.status as TicketStatus).label}
+                        value={formatMessage(`tickets.${ticket.status}`)}
                         readOnly 
                         className="bg-neutral-50"
                       />
@@ -241,31 +241,31 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                         </FormControl>
                         <SelectContent>
                           <SelectItem value={TICKET_STATUS.NEW}>
-                            {getStatusConfig('new').icon} {getStatusConfig('new').label}
+                            {getStatusConfig('new').icon} {formatMessage('tickets.new')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.ONGOING}>
-                            {getStatusConfig('ongoing').icon} {getStatusConfig('ongoing').label}
+                            {getStatusConfig('ongoing').icon} {formatMessage('tickets.ongoing')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.SUSPENDED}>
-                            {getStatusConfig('suspended').icon} {getStatusConfig('suspended').label}
+                            {getStatusConfig('suspended').icon} {formatMessage('tickets.suspended')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.WAITING_CUSTOMER}>
-                            {getStatusConfig('waiting_customer').icon} {getStatusConfig('waiting_customer').label}
+                            {getStatusConfig('waiting_customer').icon} {formatMessage('tickets.waiting_customer')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.ESCALATED}>
-                            {getStatusConfig('escalated').icon} {getStatusConfig('escalated').label}
+                            {getStatusConfig('escalated').icon} {formatMessage('tickets.escalated')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.IN_ANALYSIS}>
-                            {getStatusConfig('in_analysis').icon} {getStatusConfig('in_analysis').label}
+                            {getStatusConfig('in_analysis').icon} {formatMessage('tickets.in_analysis')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.PENDING_DEPLOYMENT}>
-                            {getStatusConfig('pending_deployment').icon} {getStatusConfig('pending_deployment').label}
+                            {getStatusConfig('pending_deployment').icon} {formatMessage('tickets.pending_deployment')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.REOPENED}>
-                            {getStatusConfig('reopened').icon} {getStatusConfig('reopened').label}
+                            {getStatusConfig('reopened').icon} {formatMessage('tickets.reopened')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.RESOLVED}>
-                            {getStatusConfig('resolved').icon} {getStatusConfig('resolved').label}
+                            {getStatusConfig('resolved').icon} {formatMessage('tickets.resolved')}
                           </SelectItem>
                         </SelectContent>
                       </Select>

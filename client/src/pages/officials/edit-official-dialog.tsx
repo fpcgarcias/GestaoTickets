@@ -11,6 +11,11 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from '@/i18n';
+
+// Função para traduzir códigos de erro de senha
+const translatePasswordErrors = (errorCodes: string[], formatMessage: any): string[] => {
+  return errorCodes.map(code => formatMessage(`password_validation.${code}`));
+};
 import { Official } from '@shared/schema';
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
@@ -237,11 +242,29 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
         description: formatMessage('officials.edit_official_dialog.updated_desc'),
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       setSubmitting(false);
+      
+      let errorMessage = error.details || error.message;
+      
+      // Se for erro de validação de senha, traduzir os códigos
+      if (error.passwordErrors && Array.isArray(error.passwordErrors)) {
+        const translatedErrors = translatePasswordErrors(error.passwordErrors, formatMessage);
+        errorMessage = (
+          <div className="space-y-1">
+            {translatedErrors.map((error, index) => (
+              <div key={index} className="flex items-start">
+                <span className="text-red-400 mr-2">•</span>
+                <span>{error}</span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      
       toast({
         title: formatMessage('officials.edit_official_dialog.error_title'),
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     }

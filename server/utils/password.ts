@@ -12,31 +12,38 @@ const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@
 /**
  * Valida se a senha atende aos critérios de segurança
  */
-export function validatePasswordStrength(password: string): { valid: boolean; errors: string[] } {
+export function validatePasswordStrength(password: string): { valid: boolean; errors: string[], errorCodes: string[] } {
   const errors: string[] = [];
+  const errorCodes: string[] = [];
 
   if (password.length < MIN_PASSWORD_LENGTH) {
     errors.push(`Senha deve ter pelo menos ${MIN_PASSWORD_LENGTH} caracteres`);
+    errorCodes.push('password_too_short');
   }
 
   if (password.length > MAX_PASSWORD_LENGTH) {
     errors.push(`Senha deve ter no máximo ${MAX_PASSWORD_LENGTH} caracteres`);
+    errorCodes.push('password_too_long');
   }
 
   if (!/[a-z]/.test(password)) {
     errors.push('Senha deve conter pelo menos uma letra minúscula');
+    errorCodes.push('password_no_lowercase');
   }
 
   if (!/[A-Z]/.test(password)) {
     errors.push('Senha deve conter pelo menos uma letra maiúscula');
+    errorCodes.push('password_no_uppercase');
   }
 
   if (!/\d/.test(password)) {
     errors.push('Senha deve conter pelo menos um número');
+    errorCodes.push('password_no_number');
   }
 
   if (!/[@$!%*?&]/.test(password)) {
     errors.push('Senha deve conter pelo menos um caractere especial (@$!%*?&)');
+    errorCodes.push('password_no_special');
   }
 
   // Verificar sequências comuns
@@ -46,13 +53,15 @@ export function validatePasswordStrength(password: string): { valid: boolean; er
   for (const sequence of commonSequences) {
     if (lowerPassword.includes(sequence)) {
       errors.push('Senha não pode conter sequências comuns');
+      errorCodes.push('password_common_sequence');
       break;
     }
   }
 
   return {
     valid: errors.length === 0,
-    errors
+    errors,
+    errorCodes
   };
 }
 
@@ -63,7 +72,9 @@ export async function hashPassword(password: string): Promise<string> {
   // Validar força da senha
   const validation = validatePasswordStrength(password);
   if (!validation.valid) {
-    throw new Error(`Senha não atende aos critérios de segurança: ${validation.errors.join(', ')}`);
+    const error = new Error('Password validation failed');
+    (error as any).passwordErrors = validation.errorCodes;
+    throw error;
   }
 
   try {
