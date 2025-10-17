@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { usePriorities, convertLegacyToWeight } from '@/hooks/use-priorities';
+import { TextWithLinkBreaks } from '@/components/ui/text-with-links';
 
 interface TicketCardProps {
   ticket: Ticket;
@@ -188,7 +189,9 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
             <h3 className="text-lg font-medium break-words">{title}</h3>
             <StatusBadge status={status} />
           </div>
-          <p className="text-neutral-600 line-clamp-2">{description}</p>
+          <div className="text-neutral-600 line-clamp-2">
+            <TextWithLinkBreaks text={description} />
+          </div>
         </div>
         {/* Metadados: Departamento / Tipo / Categoria */}
         <div className="mt-2 text-xs text-neutral-600 flex flex-wrap gap-2">
