@@ -103,6 +103,17 @@ interface Department {
   name: string;
 }
 
+interface IncidentTypeOption {
+  id: number;
+  name: string;
+}
+
+interface PerformanceFiltersState {
+  departmentId: string;
+  incidentTypeId: string;
+  showInactiveOfficials: boolean;
+}
+
 export default function PerformanceReports() {
   const { user } = useAuth();
   const [location, setLocation] = useLocation();
@@ -115,11 +126,14 @@ export default function PerformanceReports() {
   const [data, setData] = useState<PerformanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<PerformanceFiltersState>({
     departmentId: searchParams.get('departmentId') || 'all',
+    incidentTypeId: searchParams.get('incidentTypeId') || 'all',
     showInactiveOfficials: searchParams.get('showInactiveOfficials') === 'true' || false
   });
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [incidentTypes, setIncidentTypes] = useState<IncidentTypeOption[]>([]);
+  const [isIncidentTypesLoading, setIsIncidentTypesLoading] = useState(false);
   const [canViewDepartments, setCanViewDepartments] = useState(false);
   
   // Estado para ordenação do gráfico
@@ -155,6 +169,7 @@ export default function PerformanceReports() {
         params.append('end_date', endDate);
       }
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
+      if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incident_type_id', filters.incidentTypeId);
       params.append('showInactiveOfficials', filters.showInactiveOfficials ? 'true' : 'false');
 
       const url = `/api/reports/performance?${params}`;
@@ -178,6 +193,7 @@ export default function PerformanceReports() {
   useEffect(() => {
     const newFilters = {
       departmentId: searchParams.get('departmentId') || 'all',
+      incidentTypeId: searchParams.get('incidentTypeId') || 'all',
       showInactiveOfficials: searchParams.get('showInactiveOfficials') === 'true' || false
     };
     setFilters(newFilters);
@@ -215,9 +231,103 @@ export default function PerformanceReports() {
     fetchDepartments();
   }, [user?.role]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchIncidentTypes = async () => {
+      if (!canViewDepartments) {
+        if (isMounted) {
+          setIncidentTypes([]);
+          setIsIncidentTypesLoading(false);
+          setFilters(prev => prev.incidentTypeId === 'all' ? prev : { ...prev, incidentTypeId: 'all' });
+        }
+        return;
+      }
+
+      const departmentId = filters.departmentId;
+      if (!departmentId || departmentId === 'all') {
+        if (isMounted) {
+          setIncidentTypes([]);
+          setIsIncidentTypesLoading(false);
+          setFilters(prev => prev.incidentTypeId === 'all' ? prev : { ...prev, incidentTypeId: 'all' });
+        }
+        return;
+      }
+
+      setIsIncidentTypesLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.append('active_only', 'true');
+        params.append('limit', '1000');
+        params.append('department_id', departmentId);
+
+        const response = await fetch(`/api/incident-types?${params.toString()}`);
+        if (!response.ok) {
+          throw new Error('Erro ao carregar tipos de chamado');
+        }
+
+        const data = await response.json();
+        const rawTypes = Array.isArray(data?.incidentTypes)
+          ? data.incidentTypes
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
+
+        const departmentIdNumber = Number(departmentId);
+        const validTypes: IncidentTypeOption[] = rawTypes
+          .filter((type: any) => {
+            if (!type || !type.id || !type.name) return false;
+            if (type.department_id === null || type.department_id === undefined) return false;
+            return Number(type.department_id) === departmentIdNumber;
+          })
+          .map((type: any) => ({
+            id: type.id,
+            name: type.name,
+          }));
+
+        if (isMounted) {
+          setIncidentTypes(validTypes);
+          setFilters(prev => {
+            if (
+              prev.incidentTypeId !== 'all' &&
+              !validTypes.some(type => type.id?.toString() === prev.incidentTypeId)
+            ) {
+              return { ...prev, incidentTypeId: 'all' };
+            }
+            return prev;
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao buscar tipos de chamado:', error);
+        if (isMounted) {
+          setIncidentTypes([]);
+          setFilters(prev => prev.incidentTypeId === 'all' ? prev : { ...prev, incidentTypeId: 'all' });
+        }
+      } finally {
+        if (isMounted) {
+          setIsIncidentTypesLoading(false);
+        }
+      }
+    };
+
+    fetchIncidentTypes();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [filters.departmentId, canViewDepartments]);
+
   const handleFilterChange = (key: string, value: string | boolean) => {
     // Atualizar os filtros locais primeiro
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters(prev => {
+      const nextFilters = { ...prev, [key]: value };
+      if (key === 'departmentId') {
+        nextFilters.incidentTypeId = 'all';
+      }
+      return nextFilters;
+    });
     
     // Atualizar URL apenas quando o usuário clicar em "Aplicar Filtros"
   };
@@ -384,24 +494,49 @@ export default function PerformanceReports() {
             </div>
 
             {canViewDepartments && (
-              <div>
-                <label className="text-sm font-medium mb-2 block">Departamento</label>
-                <Select value={filters.departmentId} onValueChange={(value) => handleFilterChange('departmentId', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos os departamentos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {departments.map((department) => (
-                      department.id && department.name && department.name.trim() !== '' && (
-                        <SelectItem key={department.id} value={String(department.id)}>
-                          {department.name}
-                        </SelectItem>
-                      )
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Departamento</label>
+                  <Select value={filters.departmentId} onValueChange={(value) => handleFilterChange('departmentId', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os departamentos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {departments.map((department) => (
+                        department.id && department.name && department.name.trim() !== '' && (
+                          <SelectItem key={department.id} value={String(department.id)}>
+                            {department.name}
+                          </SelectItem>
+                        )
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Tipo de Chamado</label>
+                  <Select value={filters.incidentTypeId} onValueChange={(value) => handleFilterChange('incidentTypeId', value)}>
+                    <SelectTrigger disabled={filters.departmentId === 'all'}>
+                      <SelectValue placeholder="Todos os tipos de chamado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {isIncidentTypesLoading && (
+                        <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                      )}
+                      {!isIncidentTypesLoading && incidentTypes.length === 0 ? (
+                        <SelectItem value="no-types" disabled>Nenhum tipo disponível</SelectItem>
+                      ) : (
+                        incidentTypes.map((type) => (
+                          <SelectItem key={type.id} value={String(type.id)}>
+                            {type.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
 
           </div>
@@ -429,6 +564,7 @@ export default function PerformanceReports() {
               if (dateRange?.from) newParams.set('start_date', toBrasiliaISOString(dateRange.from, false));
               if (dateRange?.to) newParams.set('end_date', toBrasiliaISOString(dateRange.to, true));
               if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
+              if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);
               newParams.set('showInactiveOfficials', filters.showInactiveOfficials ? 'true' : 'false');
               
               setSearchParams(newParams);

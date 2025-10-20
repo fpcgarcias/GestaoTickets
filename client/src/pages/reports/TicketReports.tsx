@@ -91,6 +91,19 @@ interface PriorityOption {
   label: string;
 }
 
+interface IncidentTypeOption {
+  id: number;
+  name: string;
+}
+
+interface FiltersState {
+  status: string;
+  priority: string;
+  departmentId: string;
+  incidentTypeId: string;
+  showInactiveOfficials: boolean;
+}
+
 export default function TicketReports() {
   const { user } = useAuth();
   const [location, setLocation] = useLocation();
@@ -103,14 +116,17 @@ export default function TicketReports() {
   const [stats, setStats] = useState<ReportStats>({ total: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 });
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<FiltersState>({
     status: searchParams.get('status') || 'all',
     priority: searchParams.get('priority') || 'all',
     departmentId: searchParams.get('departmentId') || 'all',
+    incidentTypeId: searchParams.get('incidentTypeId') || 'all',
     showInactiveOfficials: searchParams.get('showInactiveOfficials') === 'true' || false
   });
   const [departments, setDepartments] = useState<Department[]>([]);
   const [priorities, setPriorities] = useState<PriorityOption[]>([]);
+  const [incidentTypes, setIncidentTypes] = useState<IncidentTypeOption[]>([]);
+  const [isIncidentTypesLoading, setIsIncidentTypesLoading] = useState(false);
   const [canViewDepartments, setCanViewDepartments] = useState(false);
 
 
@@ -139,6 +155,7 @@ export default function TicketReports() {
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
       if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
+      if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incident_type_id', filters.incidentTypeId);
       if (filters.showInactiveOfficials) params.append('showInactiveOfficials', 'true');
 
       const url = `/api/reports/tickets?${params}`;
@@ -179,6 +196,7 @@ export default function TicketReports() {
       status: searchParams.get('status') || 'all',
       priority: searchParams.get('priority') || 'all',
       departmentId: searchParams.get('departmentId') || 'all',
+      incidentTypeId: searchParams.get('incidentTypeId') || 'all',
       showInactiveOfficials: searchParams.get('showInactiveOfficials') === 'true' || false
     };
     setFilters(newFilters);
@@ -258,9 +276,108 @@ export default function TicketReports() {
     fetchPriorities();
   }, [user?.company_id, user?.company?.id, filters.departmentId]);
 
+  useEffect(() => {
+    let isMounted = true;
 
+    const fetchIncidentTypes = async () => {
+      if (!canViewDepartments) {
+        if (isMounted) {
+          setIncidentTypes([]);
+          setIsIncidentTypesLoading(false);
+          setFilters(prev => {
+            if (prev.incidentTypeId !== 'all') {
+              return { ...prev, incidentTypeId: 'all' };
+            }
+            return prev;
+          });
+        }
+        return;
+      }
 
+      const departmentId = filters.departmentId;
+      if (!departmentId || departmentId === 'all') {
+        if (isMounted) {
+          setIncidentTypes([]);
+          setIsIncidentTypesLoading(false);
+          setFilters(prev => {
+            if (prev.incidentTypeId !== 'all') {
+              return { ...prev, incidentTypeId: 'all' };
+            }
+            return prev;
+          });
+        }
+        return;
+      }
 
+      setIsIncidentTypesLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.append('active_only', 'true');
+        params.append('limit', '1000');
+        params.append('department_id', departmentId);
+
+        const response = await fetch(`/api/incident-types?${params.toString()}`);
+        if (!response.ok) {
+          throw new Error('Erro ao carregar tipos de chamado');
+        }
+
+        const data = await response.json();
+        const rawTypes = Array.isArray(data?.incidentTypes)
+          ? data.incidentTypes
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
+
+        const departmentIdNumber = Number(departmentId);
+        const validTypes: IncidentTypeOption[] = rawTypes
+          .filter((type: any) => {
+            if (!type || !type.id || !type.name) return false;
+            if (type.department_id === null || type.department_id === undefined) return false;
+            return Number(type.department_id) === departmentIdNumber;
+          })
+          .map((type: any) => ({
+            id: type.id,
+            name: type.name,
+          }));
+
+        if (isMounted) {
+          setIncidentTypes(validTypes);
+          setFilters(prev => {
+            if (
+              prev.incidentTypeId !== 'all' &&
+              !validTypes.some(type => type.id?.toString() === prev.incidentTypeId)
+            ) {
+              return { ...prev, incidentTypeId: 'all' };
+            }
+            return prev;
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao buscar tipos de chamado:', error);
+        if (isMounted) {
+          setIncidentTypes([]);
+          setFilters(prev => {
+            if (prev.incidentTypeId !== 'all') {
+              return { ...prev, incidentTypeId: 'all' };
+            }
+            return prev;
+          });
+        }
+      } finally {
+        if (isMounted) {
+          setIsIncidentTypesLoading(false);
+        }
+      }
+    };
+
+    fetchIncidentTypes();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [filters.departmentId, canViewDepartments]);
 
   const handleFilterChange = (key: string, value: string | boolean) => {
     // Atualizar os filtros locais primeiro
@@ -270,6 +387,7 @@ export default function TicketReports() {
       // Se mudou o departamento, limpar a prioridade
       if (key === 'departmentId') {
         newFilters.priority = 'all';
+        newFilters.incidentTypeId = 'all';
       }
       
       return newFilters;
@@ -288,6 +406,7 @@ export default function TicketReports() {
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
       if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
+      if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incident_type_id', filters.incidentTypeId);
       if (filters.showInactiveOfficials) params.append('showInactiveOfficials', 'true');
       params.append('format', format);
       
@@ -345,7 +464,7 @@ export default function TicketReports() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Período</label>
               <Popover>
@@ -380,46 +499,6 @@ export default function TicketReports() {
               </Popover>
             </div>
 
-            {canViewDepartments && (
-              <div>
-                <label className="text-sm font-medium mb-2 block">Departamento</label>
-                <Select value={filters.departmentId} onValueChange={(value) => handleFilterChange('departmentId', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos os departamentos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {departments.map((department) => (
-                      department.id && department.name && department.name.trim() !== '' && (
-                        <SelectItem key={department.id} value={String(department.id)}>
-                          {department.name}
-                        </SelectItem>
-                      )
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            <div>
-              <label className="text-sm font-medium mb-2 block">Prioridade</label>
-              <Select value={filters.priority} onValueChange={(value) => handleFilterChange('priority', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas as prioridades" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {priorities.map((priority) => (
-                    priority.value && priority.value.trim() !== '' && (
-                      <SelectItem key={priority.value} value={priority.value}>
-                        {priority.label}
-                      </SelectItem>
-                    )
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             <div>
               <label className="text-sm font-medium mb-2 block">Status</label>
               <Select value={filters.status} onValueChange={(value) => handleFilterChange('status', value)}>
@@ -443,6 +522,72 @@ export default function TicketReports() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Prioridade</label>
+              <Select value={filters.priority} onValueChange={(value) => handleFilterChange('priority', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas as prioridades" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {priorities.map((priority) => (
+                    priority.value && priority.value.trim() !== '' && (
+                      <SelectItem key={priority.value} value={priority.value}>
+                        {priority.label}
+                      </SelectItem>
+                    )
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {canViewDepartments && (
+              <>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Departamento</label>
+                  <Select value={filters.departmentId} onValueChange={(value) => handleFilterChange('departmentId', value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os departamentos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {departments.map((department) => (
+                        department.id && department.name && department.name.trim() !== '' && (
+                          <SelectItem key={department.id} value={String(department.id)}>
+                            {department.name}
+                          </SelectItem>
+                        )
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Tipo de Chamado</label>
+                  <Select value={filters.incidentTypeId} onValueChange={(value) => handleFilterChange('incidentTypeId', value)}>
+                    <SelectTrigger disabled={filters.departmentId === 'all'}>
+                      <SelectValue placeholder="Todos os tipos de chamado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {isIncidentTypesLoading && (
+                        <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                      )}
+                      {!isIncidentTypesLoading && incidentTypes.length === 0 ? (
+                        <SelectItem value="no-types" disabled>Nenhum tipo disponível</SelectItem>
+                      ) : (
+                        incidentTypes.map((type) => (
+                          <SelectItem key={type.id} value={String(type.id)}>
+                            {type.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="mt-4">
@@ -472,6 +617,7 @@ export default function TicketReports() {
               if (filters.status && filters.status !== 'all') newParams.set('status', filters.status);
               if (filters.priority && filters.priority !== 'all') newParams.set('priority', filters.priority);
               if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
+              if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);
               if (filters.showInactiveOfficials) newParams.set('showInactiveOfficials', 'true');
               
               setSearchParams(newParams);

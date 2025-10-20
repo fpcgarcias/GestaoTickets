@@ -234,13 +234,14 @@ router.get('/health', (req, res) => {
 // Ticket reports - SIMPLE WORKING VERSION
 router.get('/tickets', authRequired, async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, start_date, end_date, status, priority, departmentId, companyId } = req.query;
+    const { startDate, endDate, start_date, end_date, status, priority, departmentId, companyId, incidentTypeId, incident_type_id } = req.query;
     
     // Usar start_date e end_date se disponíveis (compatibilidade com dashboard)
     const startDateParam = start_date || startDate;
     const endDateParam = end_date || endDate;
+    const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
     
-    console.log('Reports - Query params:', { startDateParam, endDateParam, status, priority, departmentId });
+    console.log('Reports - Query params:', { startDateParam, endDateParam, status, priority, departmentId, incidentTypeParam });
     
     // Build base query - versão simples sem joins complexos
     let baseQuery = db.select({
@@ -414,6 +415,13 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
       additionalFilters.push(eq(schema.tickets.department_id, parseInt(departmentId as string)));
     }
 
+    if (incidentTypeParam && incidentTypeParam !== 'all') {
+      const incidentTypeIdNumber = parseInt(incidentTypeParam, 10);
+      if (!Number.isNaN(incidentTypeIdNumber)) {
+        additionalFilters.push(eq(schema.tickets.incident_type_id, incidentTypeIdNumber));
+      }
+    }
+
     // Combinar TODAS as condições (role + filtros) em uma única cláusula WHERE
     const allConditions = [...roleConditions, ...additionalFilters];
     
@@ -540,11 +548,12 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
 // Export tickets to multiple formats
 router.get('/tickets/export', authRequired, async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, start_date, end_date, status, priority, departmentId, companyId, format = 'csv' } = req.query;
+    const { startDate, endDate, start_date, end_date, status, priority, departmentId, companyId, incidentTypeId, incident_type_id, format = 'csv' } = req.query;
     
     // Usar start_date e end_date se disponíveis (compatibilidade com dashboard)
     const startDateParam = start_date || startDate;
     const endDateParam = end_date || endDate;
+    const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
     
     // Build base query - versão simples sem joins complexos
     let baseQuery = db.select({
@@ -966,10 +975,11 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
 // Performance reports
 router.get('/performance', authRequired, async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, start_date, end_date, departmentId, companyId, showInactiveOfficials } = req.query;
+    const { startDate, endDate, start_date, end_date, departmentId, companyId, showInactiveOfficials, incidentTypeId, incident_type_id } = req.query;
 
     const startDateParam = (start_date || startDate) as string | undefined;
     const endDateParam = (end_date || endDate) as string | undefined;
+    const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
     const showInactiveOfficialsParam = showInactiveOfficials === 'true';
 
     // Build base query for tickets
@@ -1083,6 +1093,12 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     }
     if (companyId) {
       additionalFilters.push(eq(schema.tickets.company_id, Number(companyId)));
+    }
+    if (incidentTypeParam && incidentTypeParam !== 'all') {
+      const incidentTypeIdNumber = parseInt(incidentTypeParam, 10);
+      if (!Number.isNaN(incidentTypeIdNumber)) {
+        additionalFilters.push(eq(schema.tickets.incident_type_id, incidentTypeIdNumber));
+      }
     }
 
     // Build where clause safely
@@ -1433,7 +1449,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
 // Export performance report to multiple formats
 router.get('/performance/export', authRequired, async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, start_date, end_date, departmentId, companyId, showInactiveOfficials, format = 'csv' } = req.query;
+    const { startDate, endDate, start_date, end_date, departmentId, companyId, showInactiveOfficials, incidentTypeId, incident_type_id, format = 'csv' } = req.query;
     
     const startDateParam = (start_date || startDate) as string | undefined;
     const endDateParam = (end_date || endDate) as string | undefined;
@@ -1574,6 +1590,13 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
     
     if (departmentIdParam) {
       additionalFilters.push(eq(schema.tickets.department_id, Number(departmentIdParam)));
+    }
+    
+    if (incidentTypeParam && incidentTypeParam !== 'all') {
+      const incidentTypeIdNumber = parseInt(incidentTypeParam, 10);
+      if (!Number.isNaN(incidentTypeIdNumber)) {
+        additionalFilters.push(eq(schema.tickets.incident_type_id, incidentTypeIdNumber));
+      }
     }
     
     if (companyIdParam) {
