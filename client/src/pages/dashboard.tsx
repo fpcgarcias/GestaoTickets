@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusDot } from '@/components/tickets/status-badge';
 import { TimeMetricCard } from '@/components/ui/time-metric-card';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
-import { Clock, CheckCircle2, Users, Calendar, MoreHorizontal, Building } from 'lucide-react';
+import { Clock, CheckCircle2, Users, Calendar, MoreHorizontal, Building, ClipboardList } from 'lucide-react';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
@@ -51,9 +51,16 @@ interface Official {
   name: string;
   email: string;
   is_active: boolean;
+  department_id?: number | null;
   company_id?: number;
   supervisor_id?: number;
   manager_id?: number;
+}
+
+interface IncidentTypeOption {
+  id: number;
+  name: string;
+  department_id: number | null;
 }
 
 // Opções de períodos pré-definidos
@@ -95,6 +102,7 @@ export default function Dashboard() {
 
   // Filtro de departamento
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('all');
+  const [selectedIncidentTypeId, setSelectedIncidentTypeId] = useState<string>('all');
 
   // Função para calcular datas igual ao index.tsx
   function getPeriodDates() {
@@ -140,6 +148,7 @@ export default function Dashboard() {
   // APENAS admin, company_admin, manager e supervisor devem ver o dropdown
   // Outras roles (support, customer, viewer, etc.) NÃO devem ver
   const shouldShowDepartmentFilter = user?.role && ['admin', 'company_admin', 'manager', 'supervisor'].includes(user.role);
+  const shouldShowIncidentTypeFilter = shouldShowDepartmentFilter;
 
   // Buscar departamentos apenas se necessário
   // O endpoint /api/departments já filtra automaticamente baseado na role:
@@ -158,11 +167,45 @@ export default function Dashboard() {
 
   const departments = departmentsResponse?.departments || departmentsResponse || [];
 
+  // Buscar tipos de chamado conforme departamento selecionado
+  const { data: incidentTypesResponse, isLoading: isIncidentTypesLoading } = useQuery({
+    queryKey: ['/api/incident-types', selectedDepartmentId, user?.role, user?.id],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('active_only', 'true');
+      params.append('limit', '1000');
+      if (selectedDepartmentId !== 'all') {
+        params.append('department_id', selectedDepartmentId);
+      }
+      const res = await fetch(`/api/incident-types?${params.toString()}`);
+      if (!res.ok) throw new Error('Erro ao carregar tipos de chamado');
+      return res.json();
+    },
+    enabled: shouldShowIncidentTypeFilter,
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
+
+  const rawIncidentTypes = incidentTypesResponse?.incidentTypes || incidentTypesResponse?.data || incidentTypesResponse || [];
+  const incidentTypes: IncidentTypeOption[] = Array.isArray(rawIncidentTypes) ? rawIncidentTypes : [];
+
+  React.useEffect(() => {
+    if (selectedIncidentTypeId === 'all') return;
+    const exists = incidentTypes.some((type) => type.id?.toString() === selectedIncidentTypeId);
+    if (!exists) {
+      setSelectedIncidentTypeId('all');
+    }
+  }, [incidentTypes, selectedIncidentTypeId]);
+
   // Buscar atendentes apenas se necessário
   const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
-    queryKey: ['/api/officials', user?.id, user?.role], // Incluir user.id e role na chave
+    queryKey: ['/api/officials', user?.id, user?.role, selectedDepartmentId],
     queryFn: async () => {
-      const res = await fetch('/api/officials?limit=1000'); // Buscar todos para o dashboard
+      const params = new URLSearchParams();
+      params.append('limit', '1000'); // Buscar todos para o dashboard
+      if (selectedDepartmentId !== 'all') {
+        params.append('department_id', selectedDepartmentId);
+      }
+      const res = await fetch(`/api/officials?${params.toString()}`);
       if (!res.ok) throw new Error('Erro ao carregar atendentes');
       return res.json();
     },
@@ -170,7 +213,7 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000, // 5 minutos
   });
 
-  const officials = officialsResponse?.data || [];
+  const officials = officialsResponse?.officials || officialsResponse?.data || [];
 
   // Filtrar atendentes baseado na role do usuário
   const getFilteredOfficials = () => {
@@ -181,6 +224,52 @@ export default function Dashboard() {
   };
 
   const filteredOfficials = getFilteredOfficials();
+
+  React.useEffect(() => {
+    if (selectedOfficialId === 'all') return;
+    const exists = filteredOfficials.some((official: Official) => official.id.toString() === selectedOfficialId);
+    if (!exists) {
+      setSelectedOfficialId('all');
+    }
+  }, [filteredOfficials, selectedOfficialId]);
+
+  const handleDepartmentChange = (value: string) => {
+    setSelectedDepartmentId(value);
+    if (value !== selectedDepartmentId) {
+      setSelectedIncidentTypeId('all');
+      setSelectedOfficialId('all');
+    }
+  };
+
+  const handleIncidentTypeChange = (value: string) => {
+    setSelectedIncidentTypeId(value);
+    if (value === 'all') {
+      return;
+    }
+    const selectedType = incidentTypes.find((type) => type.id?.toString() === value);
+    if (selectedType?.department_id) {
+      const departmentIdString = selectedType.department_id.toString();
+      if (selectedDepartmentId !== departmentIdString) {
+        setSelectedDepartmentId(departmentIdString);
+        setSelectedOfficialId('all');
+      }
+    }
+  };
+
+  const handleOfficialChange = (value: string) => {
+    setSelectedOfficialId(value);
+    if (value === 'all') {
+      return;
+    }
+    const selectedOfficial = filteredOfficials.find((official: Official) => official.id.toString() === value);
+    if (!selectedOfficial) {
+      return;
+    }
+    if (selectedDepartmentId === 'all' && selectedOfficial.department_id) {
+      setSelectedDepartmentId(selectedOfficial.department_id.toString());
+      setSelectedIncidentTypeId('all');
+    }
+  };
 
   // Construir query key com filtro de atendente
   const getQueryKey = (endpoint: string) => {
@@ -197,16 +286,18 @@ export default function Dashboard() {
     if (selectedOfficialId !== 'all') {
       params.append('official_id', selectedOfficialId);
     }
-    return params.toString();
+    if (selectedIncidentTypeId !== 'all') {
+      params.append('incident_type_id', selectedIncidentTypeId);
+    }
+    if (selectedDepartmentId !== 'all') {
+      params.append('department_id', selectedDepartmentId);
+    }
+    return params;
   };
 
   // Construir parâmetros de query incluindo período
   const getQueryParamsWithPeriod = () => {
-    const periodParams = new URLSearchParams();
-    // Adicionar filtro de atendente se selecionado
-    if (selectedOfficialId !== 'all') {
-      periodParams.append('official_id', selectedOfficialId);
-    }
+    const periodParams = getQueryParams();
     // Adicionar datas do período (ajustadas para UTC-3)
     periodParams.append('start_date', toBrasiliaISOString(startDate, false));
     periodParams.append('end_date', toBrasiliaISOString(endDate, true));
@@ -218,15 +309,9 @@ export default function Dashboard() {
 
   // Query única para todas as métricas do dashboard
   const { data: dashboardData, isLoading: isDashboardLoading } = useQuery({
-    queryKey: ['dashboard-metrics', startDate.toISOString(), endDate.toISOString(), selectedOfficialId, selectedDepartmentId],
+    queryKey: ['dashboard-metrics', startDate.toISOString(), endDate.toISOString(), selectedOfficialId, selectedDepartmentId, selectedIncidentTypeId],
     queryFn: async () => {
-      let params = getQueryParamsWithPeriod();
-      // Adicionar filtro de departamento se selecionado
-      if (selectedDepartmentId !== 'all') {
-        const urlParams = new URLSearchParams(params);
-        urlParams.append('department_id', selectedDepartmentId);
-        params = urlParams.toString();
-      }
+      const params = getQueryParamsWithPeriod();
       const url = `/api/tickets/dashboard-metrics${params ? `?${params}` : ''}`;
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch dashboard metrics');
@@ -306,7 +391,7 @@ export default function Dashboard() {
           {shouldShowDepartmentFilter && (
             <div className="flex items-center gap-2">
               <Building className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedDepartmentId} onValueChange={setSelectedDepartmentId}>
+              <Select value={selectedDepartmentId} onValueChange={handleDepartmentChange}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder={formatMessage('dashboard.all_departments')} />
                 </SelectTrigger>
@@ -321,17 +406,50 @@ export default function Dashboard() {
               </Select>
             </div>
           )}
+          {/* Filtro de Tipo de Chamado */}
+          {shouldShowIncidentTypeFilter && (
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+              <Select value={selectedIncidentTypeId} onValueChange={handleIncidentTypeChange}>
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder={formatMessage('dashboard.all_incident_types')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{formatMessage('dashboard.all_incident_types')}</SelectItem>
+                  {isIncidentTypesLoading ? (
+                    <SelectItem value="loading" disabled>
+                      {formatMessage('dashboard.loading_incident_types')}
+                    </SelectItem>
+                  ) : incidentTypes.length > 0 ? (
+                    [...incidentTypes]
+                      .sort((a, b) => a.name.localeCompare(b.name, locale === 'en-US' ? 'en-US' : 'pt-BR', { sensitivity: 'base' }))
+                      .map((incidentType) => (
+                        <SelectItem key={incidentType.id} value={incidentType.id.toString()}>
+                          {incidentType.name}
+                        </SelectItem>
+                      ))
+                  ) : (
+                    <SelectItem value="none" disabled>
+                      {formatMessage('dashboard.no_incident_types')}
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {/* Filtro de Atendente */}
           {shouldShowOfficialFilter && (
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedOfficialId} onValueChange={setSelectedOfficialId}>
+              <Select value={selectedOfficialId} onValueChange={handleOfficialChange}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder={formatMessage('dashboard.all_officials')} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">{formatMessage('dashboard.all_officials')}</SelectItem>
-                  {[...filteredOfficials].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map((official: Official) => (
+                  {[...filteredOfficials]
+                    .sort((a, b) => a.name.localeCompare(b.name, locale === 'en-US' ? 'en-US' : 'pt-BR', { sensitivity: 'base' }))
+                    .map((official: Official) => (
                     <SelectItem key={official.id} value={official.id.toString()}>
                       {official.name}
                     </SelectItem>
