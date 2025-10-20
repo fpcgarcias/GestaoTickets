@@ -9,13 +9,13 @@ import { useVersion } from "@/hooks/use-version";
 const getChangeIcon = (type: string) => {
   switch (type) {
     case 'new':
-      return <Sparkles className="h-4 w-4 text-green-600" />;
+      return <Sparkles className="h-4 w-4 text-emerald-400" />;
     case 'improved':
-      return <ArrowUp className="h-4 w-4 text-blue-600" />;
+      return <ArrowUp className="h-4 w-4 text-primary" />;
     case 'fixed':
-      return <Bug className="h-4 w-4 text-orange-600" />;
+      return <Bug className="h-4 w-4 text-amber-500" />;
     default:
-      return <CheckCircle2 className="h-4 w-4 text-gray-600" />;
+      return <CheckCircle2 className="h-4 w-4 text-muted-foreground" />;
   }
 };
 
@@ -57,9 +57,9 @@ export default function Changelog() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Star className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold text-neutral-900">Histórico de Versões</h1>
+            <h1 className="text-3xl font-bold text-foreground">Histórico de Versões</h1>
           </div>
-          <p className="text-lg text-neutral-600">
+          <p className="text-lg text-muted-foreground">
             Acompanhe todas as novidades, melhorias e correções do sistema
           </p>
         </div>
@@ -91,18 +91,18 @@ export default function Changelog() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Star className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold text-neutral-900">Histórico de Versões</h1>
+            <h1 className="text-3xl font-bold text-foreground">Histórico de Versões</h1>
           </div>
-          <p className="text-lg text-neutral-600">
+          <p className="text-lg text-muted-foreground">
             Acompanhe todas as novidades, melhorias e correções do sistema
           </p>
         </div>
         
-        <Card className="border-red-200 bg-red-50">
+        <Card className="border-destructive/40 bg-destructive/10">
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-red-600 font-medium mb-2">Erro ao carregar dados de versão</p>
-              <p className="text-sm text-red-500">{error}</p>
+              <p className="text-destructive font-medium mb-2">Erro ao carregar dados de versão</p>
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           </CardContent>
         </Card>
@@ -116,9 +116,9 @@ export default function Changelog() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Star className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold text-neutral-900">Histórico de Versões</h1>
+            <h1 className="text-3xl font-bold text-foreground">Histórico de Versões</h1>
           </div>
-          <p className="text-lg text-neutral-600">
+          <p className="text-lg text-muted-foreground">
             Acompanhe todas as novidades, melhorias e correções do sistema
           </p>
         </div>
@@ -126,7 +126,7 @@ export default function Changelog() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-neutral-600">Nenhum dado de versão disponível</p>
+              <p className="text-muted-foreground">Nenhum dado de versão disponível</p>
             </div>
           </CardContent>
         </Card>
@@ -141,9 +141,9 @@ export default function Changelog() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <Star className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold text-neutral-900">Histórico de Versões</h1>
+          <h1 className="text-3xl font-bold text-foreground">Histórico de Versões</h1>
         </div>
-        <p className="text-lg text-neutral-600">
+        <p className="text-lg text-muted-foreground">
           Acompanhe todas as novidades, melhorias e correções do sistema
         </p>
       </div>
@@ -163,17 +163,17 @@ export default function Changelog() {
                     {version.type === 'improvement' && 'Improvement'}
                   </Badge>
                   {index === 0 && (
-                    <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">
+                    <Badge variant="default" className="border-emerald-400 text-emerald-400 bg-emerald-500/10">
                       Atual
                     </Badge>
                   )}
                 </div>
-                <div className="flex items-center gap-2 text-sm text-neutral-500">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="h-4 w-4" />
                   {formatDate(version.date)}
                 </div>
               </div>
-              <CardDescription className="text-base font-medium text-neutral-700">
+              <CardDescription className="text-base font-medium text-muted-foreground">
                 {version.title}
               </CardDescription>
             </CardHeader>
@@ -183,12 +183,12 @@ export default function Changelog() {
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       {getChangeIcon('new')}
-                      <h4 className="font-semibold text-green-700">Novidades</h4>
+                      <h4 className="font-semibold text-emerald-400">Novidades</h4>
                     </div>
                     <ul className="space-y-1 pl-6">
                       {version.changes.new.map((item, idx) => (
-                        <li key={idx} className="text-neutral-600 flex items-start gap-2">
-                          <span className="text-green-600 font-bold text-xs mt-1.5">●</span>
+                        <li key={idx} className="text-muted-foreground flex items-start gap-2">
+                          <span className="text-emerald-400 font-bold text-xs mt-1.5">●</span>
                           {item}
                         </li>
                       ))}
@@ -200,12 +200,12 @@ export default function Changelog() {
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       {getChangeIcon('improved')}
-                      <h4 className="font-semibold text-blue-700">Melhorias</h4>
+                      <h4 className="font-semibold text-primary">Melhorias</h4>
                     </div>
                     <ul className="space-y-1 pl-6">
                       {version.changes.improved.map((item, idx) => (
-                        <li key={idx} className="text-neutral-600 flex items-start gap-2">
-                          <span className="text-blue-600 font-bold text-xs mt-1.5">●</span>
+                        <li key={idx} className="text-muted-foreground flex items-start gap-2">
+                          <span className="text-primary font-bold text-xs mt-1.5">●</span>
                           {item}
                         </li>
                       ))}
@@ -217,12 +217,12 @@ export default function Changelog() {
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       {getChangeIcon('fixed')}
-                      <h4 className="font-semibold text-orange-700">Correções</h4>
+                      <h4 className="font-semibold text-amber-500">Correções</h4>
                     </div>
                     <ul className="space-y-1 pl-6">
                       {version.changes.fixed.map((item, idx) => (
-                        <li key={idx} className="text-neutral-600 flex items-start gap-2">
-                          <span className="text-orange-600 font-bold text-xs mt-1.5">●</span>
+                        <li key={idx} className="text-muted-foreground flex items-start gap-2">
+                          <span className="text-amber-500 font-bold text-xs mt-1.5">●</span>
                           {item}
                         </li>
                       ))}
@@ -236,13 +236,13 @@ export default function Changelog() {
       </div>
 
       <div className="mt-12 text-center">
-        <Card className="bg-neutral-50">
+        <Card className="bg-muted">
           <CardContent className="pt-6">
             <div className="flex items-center justify-center gap-2 mb-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <span className="font-semibold text-neutral-700">Sistema em Desenvolvimento Ativo</span>
+              <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+              <span className="font-semibold text-muted-foreground">Sistema em Desenvolvimento Ativo</span>
             </div>
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-muted-foreground">
               Novas funcionalidades e melhorias são lançadas regularmente.<br />
               Acompanhe esta página para ficar por dentro das novidades!
             </p>
@@ -252,3 +252,10 @@ export default function Changelog() {
     </div>
   );
 } 
+
+
+
+
+
+
+

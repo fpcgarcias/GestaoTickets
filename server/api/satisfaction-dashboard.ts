@@ -1,8 +1,52 @@
 import { Request, Response } from 'express';
 import { db } from '../db';
 import { satisfactionSurveys, tickets, departments, officials, customers, companies } from '@shared/schema';
-import { eq, and, gte, lte, desc, sql, inArray, isNull } from 'drizzle-orm';
+import { eq, and, gte, lte, desc, sql, inArray, isNull, lt } from 'drizzle-orm';
 import { format } from 'date-fns';
+
+function resolveCompanyScope(userRole: string, sessionCompanyId: unknown): number | undefined {
+  if (userRole === 'admin') {
+    return undefined;
+  }
+
+  if (sessionCompanyId === null || sessionCompanyId === undefined) {
+    return undefined;
+  }
+
+  const numericId =
+    typeof sessionCompanyId === 'number'
+      ? sessionCompanyId
+      : Number(sessionCompanyId);
+
+  if (!Number.isFinite(numericId)) {
+    return undefined;
+  }
+
+  return numericId;
+}
+
+async function expireOutdatedSurveysForScope(companyId?: number) {
+  try {
+    const now = new Date();
+
+    const expireConditions = [
+      eq(satisfactionSurveys.status, 'sent'),
+      isNull(satisfactionSurveys.responded_at),
+      lt(satisfactionSurveys.expires_at, now)
+    ];
+
+    if (typeof companyId === 'number') {
+      expireConditions.push(eq(satisfactionSurveys.company_id, companyId));
+    }
+
+    await db
+      .update(satisfactionSurveys)
+      .set({ status: 'expired' })
+      .where(and(...expireConditions));
+  } catch (error) {
+    console.error('Erro ao expirar pesquisas de satisfacao atrasadas:', error);
+  }
+}
 
 // GET /api/satisfaction-dashboard/surveys - Listar pesquisas de satisfação
 export async function getSurveys(req: Request, res: Response) {
@@ -15,6 +59,9 @@ export async function getSurveys(req: Request, res: Response) {
     if (!['admin', 'company_admin', 'manager', 'supervisor'].includes(userRole)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
+
+    const scopedCompanyId = resolveCompanyScope(userRole, sessionCompanyId);
+    await expireOutdatedSurveysForScope(scopedCompanyId);
 
     // Parâmetros de filtro
     const {
@@ -176,6 +223,9 @@ export async function getStats(req: Request, res: Response) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
 
+    const scopedCompanyId = resolveCompanyScope(userRole, sessionCompanyId);
+    await expireOutdatedSurveysForScope(scopedCompanyId);
+
     // Parâmetros de filtro
     const {
       department_id,
@@ -330,6 +380,9 @@ export async function exportData(req: Request, res: Response) {
     if (!['admin', 'company_admin', 'manager', 'supervisor'].includes(userRole)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
+
+    const scopedCompanyId = resolveCompanyScope(userRole, sessionCompanyId);
+    await expireOutdatedSurveysForScope(scopedCompanyId);
 
     // Parâmetros de filtro (mesma lógica do getSurveys)
     const {

@@ -25,7 +25,8 @@ import {
   Filter,
   Download,
   Calendar,
-  Loader2
+  Loader2,
+  Timer
 } from 'lucide-react';
 import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -700,9 +701,22 @@ const SatisfactionDashboard: React.FC = () => {
                               )}
                             </div>
                           ) : (
-                            <div className="text-muted-foreground/80">
-                              <MessageSquare className="h-8 w-8 mx-auto mb-1" />
-                              <p className="text-xs">Aguardando resposta</p>
+                            <div className="text-muted-foreground/80 text-center">
+                              {survey.status === 'expired' ? (
+                                <>
+                                  <Timer className="h-8 w-8 mx-auto mb-1" />
+                                  <p className="text-xs font-medium text-destructive">Expirado</p>
+                                  <p className="text-[11px] mt-1">
+                                    Expirou em{' '}
+                                    {format(new Date(survey.expires_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <MessageSquare className="h-8 w-8 mx-auto mb-1" />
+                                  <p className="text-xs">Aguardando resposta</p>
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
