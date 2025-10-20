@@ -10,6 +10,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n } from '@/i18n';
+
+// Função para traduzir códigos de erro de senha
+const translatePasswordErrors = (errorCodes: string[], formatMessage: any): string[] => {
+  return errorCodes.map(code => formatMessage(`password_validation.${code}`));
+};
 import { Official } from '@shared/schema';
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
@@ -66,6 +72,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
   };
   const { toast } = useToast();
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
   const queryClient = useQueryClient();
   
   const [formData, setFormData] = useState<FormData>({
@@ -231,15 +238,33 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
       // Chamar o callback se fornecido
       if (onSaved) onSaved();
       toast({
-        title: "Atendente atualizado",
-        description: "As informações do atendente foram atualizadas com sucesso.",
+        title: formatMessage('officials.edit_official_dialog.updated_title'),
+        description: formatMessage('officials.edit_official_dialog.updated_desc'),
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       setSubmitting(false);
+      
+      let errorMessage = error.details || error.message;
+      
+      // Se for erro de validação de senha, traduzir os códigos
+      if (error.passwordErrors && Array.isArray(error.passwordErrors)) {
+        const translatedErrors = translatePasswordErrors(error.passwordErrors, formatMessage);
+        errorMessage = (
+          <div className="space-y-1">
+            {translatedErrors.map((error, index) => (
+              <div key={index} className="flex items-start">
+                <span className="text-red-400 mr-2">•</span>
+                <span>{error}</span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      
       toast({
-        title: "Erro ao atualizar atendente",
-        description: error.message,
+        title: formatMessage('officials.edit_official_dialog.error_title'),
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -258,8 +283,8 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
     // Verificar se pelo menos um departamento foi selecionado
     if (!formData.departments || formData.departments.length === 0) {
       toast({
-        title: "Erro de validação",
-        description: "Selecione pelo menos um departamento para o atendente.",
+        title: formatMessage('officials.edit_official_dialog.validation_error'),
+        description: formatMessage('officials.edit_official_dialog.validation_departments_required'),
         variant: "destructive",
       });
       return;
@@ -286,14 +311,14 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
     if (showPasswordForm) {
       // Verificar se as senhas correspondem
       if (passwordData.password !== passwordData.confirmPassword) {
-        setPasswordError('As senhas não correspondem');
+        setPasswordError(formatMessage('officials.edit_official_dialog.password_mismatch'));
         setSubmitting(false);
         return;
       }
       
       // Verificar se a senha tem pelo menos 6 caracteres
       if (passwordData.password.length < 6) {
-        setPasswordError('A senha deve ter pelo menos 6 caracteres');
+        setPasswordError(formatMessage('officials.edit_official_dialog.password_min_length'));
         setSubmitting(false);
         return;
       }
@@ -313,16 +338,16 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Editar Atendente</DialogTitle>
+          <DialogTitle>{formatMessage('officials.edit_official_dialog.title')}</DialogTitle>
           <DialogDescription>
-            Atualize as informações do atendente.
+            {formatMessage('officials.edit_official_dialog.description')}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="name" className="text-right">
-                Nome
+                {formatMessage('officials.edit_official_dialog.name')}
               </Label>
               <Input
                 id="name"
@@ -335,7 +360,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
             
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right">
-                Email (Login)
+                {formatMessage('officials.edit_official_dialog.email')}
               </Label>
               <Input
                 id="email"
@@ -347,7 +372,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                   username: e.target.value // ✅ SINCRONIZAR USERNAME COM EMAIL
                 })}
                 className="col-span-3"
-                placeholder="email@empresa.com"
+                placeholder={formatMessage('officials.edit_official_dialog.email_placeholder')}
                 required
               />
             </div>
@@ -356,7 +381,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
             {user?.role === 'admin' && (
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="company_id" className="text-right">
-                  Empresa *
+                  {formatMessage('officials.edit_official_dialog.company')} *
                 </Label>
                 <div className="col-span-3">
                   <Select 
@@ -365,7 +390,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                     disabled={isLoadingCompanies}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={isLoadingCompanies ? "Carregando..." : "Selecione a empresa"} />
+                      <SelectValue placeholder={isLoadingCompanies ? formatMessage('officials.edit_official_dialog.loading_companies') : formatMessage('officials.edit_official_dialog.company_placeholder')} />
                     </SelectTrigger>
                     <SelectContent>
                       {companies?.map(company => (
@@ -383,7 +408,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
             {user?.role !== 'admin' && user?.company && (
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="company_readonly" className="text-right">
-                  Empresa
+                  {formatMessage('officials.edit_official_dialog.company')}
                 </Label>
                 <Input
                   id="company_readonly"
@@ -395,7 +420,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
             )}
             
             <div className="grid grid-cols-4 items-start gap-4">
-              <Label className="text-right mt-2">Departamentos</Label>
+              <Label className="text-right mt-2">{formatMessage('officials.edit_official_dialog.departments')}</Label>
               <div className="col-span-3 space-y-4">
                 {/* Exibir departamentos selecionados */}
                 <div className="flex flex-wrap gap-2">
@@ -424,14 +449,14 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                       className="w-full justify-between"
                       type="button"
                     >
-                      <span>Selecionar departamentos</span>
+                      <span>{formatMessage('officials.edit_official_dialog.departments_placeholder')}</span>
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-full p-0">
                     <Command>
-                      <CommandInput placeholder="Pesquisar departamento..." />
-                      <CommandEmpty>Nenhum departamento encontrado.</CommandEmpty>
+                      <CommandInput placeholder={formatMessage('officials.edit_official_dialog.search_department')} />
+                      <CommandEmpty>{formatMessage('officials.edit_official_dialog.no_departments')}</CommandEmpty>
                       <CommandGroup>
                         {Array.isArray(availableDepartments) ? availableDepartments.map((dept: { value: string; label: string; id: number }) => (
                           <CommandItem
@@ -477,7 +502,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="supervisor" className="text-right">
-                Supervisor
+                {formatMessage('officials.edit_official_dialog.supervisor')}
               </Label>
               <div className="col-span-3">
                 {(user?.role === 'admin' || user?.role === 'company_admin') ? (
@@ -486,10 +511,10 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                     onValueChange={(value) => setFormData({ ...formData, supervisor_id: value === "none" ? null : parseInt(value) })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecionar supervisor (opcional)" />
+                      <SelectValue placeholder={formatMessage('officials.edit_official_dialog.supervisor_placeholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nenhum supervisor</SelectItem>
+                      <SelectItem value="none">{formatMessage('officials.edit_official_dialog.no_supervisor')}</SelectItem>
                       {Array.isArray(existingOfficials) ? existingOfficials
                         .filter((off: any) => {
                           return off && off.id !== official?.id && off.user && off.user.role === 'supervisor' && hasDepartmentIntersection(off);
@@ -518,7 +543,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
             
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="manager" className="text-right">
-                Manager
+                {formatMessage('officials.edit_official_dialog.manager')}
               </Label>
               <div className="col-span-3">
                 {(user?.role === 'admin' || user?.role === 'company_admin') ? (
@@ -527,10 +552,10 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                     onValueChange={(value) => setFormData({ ...formData, manager_id: value === "none" ? null : parseInt(value) })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecionar manager (opcional)" />
+                      <SelectValue placeholder={formatMessage('officials.edit_official_dialog.manager_placeholder')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Nenhum manager</SelectItem>
+                      <SelectItem value="none">{formatMessage('officials.edit_official_dialog.no_manager')}</SelectItem>
                       {Array.isArray(existingOfficials) ? existingOfficials
                         .filter((off: any) => {
                           return off && off.id !== official?.id && off.user && (off.user.role === 'manager' || off.user.role === 'company_admin') && hasDepartmentIntersection(off);
@@ -559,7 +584,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="isActive" className="text-right">
-                Ativo
+                {formatMessage('officials.edit_official_dialog.active')}
               </Label>
               <div className="col-span-3">
                 <Switch
@@ -579,7 +604,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
             <div className="grid grid-cols-4 items-center gap-4">
               <div className="text-right">
                 <Label htmlFor="changePassword" className="cursor-pointer select-none">
-                  Senha
+                  {formatMessage('officials.edit_official_dialog.password')}
                 </Label>
               </div>
               <div className="col-span-3">
@@ -589,7 +614,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                   onClick={togglePasswordForm}
                   className="w-full justify-start"
                 >
-                  {showPasswordForm ? "Cancelar alteração de senha" : "Alterar senha"}
+                  {showPasswordForm ? formatMessage('officials.edit_official_dialog.cancel_password_change') : formatMessage('officials.edit_official_dialog.change_password')}
                 </Button>
               </div>
             </div>
@@ -599,7 +624,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
               <>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="password" className="text-right">
-                    Nova Senha
+                    {formatMessage('officials.edit_official_dialog.new_password')}
                   </Label>
                   <Input
                     id="password"
@@ -607,13 +632,13 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                     value={passwordData.password}
                     onChange={(e) => setPasswordData({ ...passwordData, password: e.target.value })}
                     className="col-span-3"
-                    placeholder="Digite a nova senha"
+                    placeholder={formatMessage('officials.edit_official_dialog.new_password_placeholder')}
                   />
                 </div>
 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="confirmPassword" className="text-right">
-                    Confirmar
+                    {formatMessage('officials.edit_official_dialog.confirm_password')}
                   </Label>
                   <div className="col-span-3 space-y-2">
                     <Input
@@ -622,7 +647,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                       value={passwordData.confirmPassword}
                       onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                       className="w-full"
-                      placeholder="Digite a senha novamente"
+                      placeholder={formatMessage('officials.edit_official_dialog.confirm_password_placeholder')}
                     />
                     {passwordError && (
                       <p className="text-sm text-red-500">{passwordError}</p>
@@ -633,7 +658,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                 <div className="grid grid-cols-4 items-center gap-4">
                   <div className="text-right">
                     <Label htmlFor="must_change_password" className="text-sm">
-                      Forçar alteração
+                      {formatMessage('officials.edit_official_dialog.force_change')}
                     </Label>
                   </div>
                   <div className="col-span-3 flex items-center space-x-2">
@@ -648,7 +673,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                       }
                     />
                     <Label htmlFor="must_change_password" className="text-sm">
-                      Forçar alteração de senha no próximo login
+                      {formatMessage('officials.edit_official_dialog.force_password_change')}
                     </Label>
                   </div>
                 </div>
@@ -658,10 +683,10 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
           
           <DialogFooter>
             <Button variant="outline" type="button" onClick={() => handleOpenChange(false)}>
-              Cancelar
+              {formatMessage('officials.edit_official_dialog.cancel')}
             </Button>
             <Button type="submit" disabled={submitting}>
-              {submitting ? "Salvando..." : "Salvar Alterações"}
+              {submitting ? formatMessage('officials.edit_official_dialog.saving') : formatMessage('officials.edit_official_dialog.save_changes')}
             </Button>
           </DialogFooter>
         </form>

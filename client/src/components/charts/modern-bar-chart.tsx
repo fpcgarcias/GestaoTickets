@@ -1,5 +1,6 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useI18n } from '@/i18n';
 
 interface ModernBarChartProps {
   data: Array<{
@@ -10,6 +11,8 @@ interface ModernBarChartProps {
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
+  const { formatMessage } = useI18n();
+  
   if (active && payload && payload.length) {
     const data = payload[0];
     return (
@@ -19,7 +22,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           <span className="font-semibold text-foreground">{label}</span>
         </div>
         <p className="text-sm text-muted-foreground">
-          Quantidade: <span className="font-bold text-primary">{data.value}</span>
+          {formatMessage('dashboard.quantity')}: <span className="font-bold text-primary">{data.value}</span>
         </p>
       </div>
     );
@@ -40,6 +43,7 @@ const CustomBar = (props: any) => {
 };
 
 export const ModernBarChart: React.FC<ModernBarChartProps> = ({ data, isLoading }) => {
+  const { formatMessage } = useI18n();
   if (isLoading) {
     return (
       <div className="w-full h-80 flex items-center justify-center">
@@ -145,12 +149,12 @@ export const ModernBarChart: React.FC<ModernBarChartProps> = ({ data, isLoading 
                   <div className={`text-xs mt-1 ${
                     isHighest ? 'text-primary' : 'text-muted-foreground'
                   }`}>
-                    {percentage}% do total
+                    {percentage}% {formatMessage('dashboard.of_total')}
                   </div>
                   {isHighest && (
                     <div className="mt-1 sm:mt-2">
                       <span className="inline-flex items-center px-1 sm:px-2 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary">
-                        🏆 Maior volume
+                        🏆 {formatMessage('dashboard.highest_volume')}
                       </span>
                     </div>
                   )}

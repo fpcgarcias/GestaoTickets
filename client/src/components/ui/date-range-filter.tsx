@@ -10,7 +10,8 @@ import {
   SelectValue,
 } from "./select";
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR, enUS } from 'date-fns/locale';
+import { useI18n } from '@/i18n';
 import { Calendar as CalendarComponent } from './calendar';
 import { DateRange } from 'react-day-picker';
 import {
@@ -36,6 +37,7 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
   calendarOpen,
   setCalendarOpen,
 }) => {
+  const { formatMessage, locale } = useI18n();
   return (
     <>
       {timeFilter === 'custom' ? (
@@ -49,14 +51,14 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
               {dateRange.from ? (
                 dateRange.to ? (
                   <>
-                    {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} {' - '} 
-                    {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
+                    {format(dateRange.from, locale === 'en-US' ? "MM/dd/yyyy" : "dd/MM/yyyy", { locale: locale === 'en-US' ? enUS : ptBR })} {formatMessage('dashboard.date_range_separator')} 
+                    {format(dateRange.to, locale === 'en-US' ? "MM/dd/yyyy" : "dd/MM/yyyy", { locale: locale === 'en-US' ? enUS : ptBR })}
                   </>
                 ) : (
-                  format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
+                  format(dateRange.from, locale === 'en-US' ? "MM/dd/yyyy" : "dd/MM/yyyy", { locale: locale === 'en-US' ? enUS : ptBR })
                 )
               ) : (
-                <span>Período Personalizado</span>
+                <span>{formatMessage('dashboard.custom_period')}</span>
               )}
             </Button>
           </PopoverTrigger>
@@ -76,7 +78,7 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
                   setTimeout(() => setCalendarOpen(false), 500);
                 }
               }}
-              locale={ptBR}
+              locale={locale === 'en-US' ? enUS : ptBR}
               initialFocus
             />
           </PopoverContent>
@@ -92,13 +94,13 @@ export const DateRangeFilter: React.FC<DateRangeFilterProps> = ({
           }}
         >
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Período" />
+            <SelectValue placeholder={formatMessage('dashboard.period')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="this-week">Esta Semana</SelectItem>
-            <SelectItem value="last-week">Semana Passada</SelectItem>
-            <SelectItem value="this-month">Este Mês</SelectItem>
-            <SelectItem value="custom">Período Personalizado</SelectItem>
+            <SelectItem value="this-week">{formatMessage('dashboard.this_week')}</SelectItem>
+            <SelectItem value="last-week">{formatMessage('dashboard.last_week')}</SelectItem>
+            <SelectItem value="this-month">{formatMessage('dashboard.this_month')}</SelectItem>
+            <SelectItem value="custom">{formatMessage('dashboard.custom_period')}</SelectItem>
           </SelectContent>
         </Select>
       )}

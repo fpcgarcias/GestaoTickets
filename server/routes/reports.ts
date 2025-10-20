@@ -10,6 +10,8 @@ import puppeteer from 'puppeteer';
 import { calculateEffectiveBusinessTime, getBusinessHoursConfig, convertStatusHistoryToPeriods } from '@shared/utils/sla-calculator';
 import { type TicketStatus } from '@shared/ticket-utils';
 import { storage } from '../storage';
+import { withTimeout } from '../middleware/file-validation';
+import { logger } from '../services/logger';
 
 const router = Router();
 
@@ -867,7 +869,18 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Relatório de Chamados');
       
-      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      // Proteção contra vulnerabilidades xlsx (CVE GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9)
+      // Adiciona timeout para prevenir DoS via arquivos complexos
+      logger.info('Gerando arquivo Excel de tickets', { 
+        recordCount: excelData.length,
+        user: req.user?.username 
+      });
+      
+      const buffer = await withTimeout(
+        Promise.resolve(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })),
+        30000, // 30 segundos timeout
+        'Timeout ao gerar arquivo Excel. O arquivo pode ser muito grande.'
+      );
       
       res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename=relatorio-chamados.xlsx');
@@ -1118,7 +1131,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     
     // Apply where clause if it exists
     if (whereClause) {
-      ticketsQuery = ticketsQuery.where(whereClause);
+      ticketsQuery = ticketsQuery.where(whereClause as any) as any;
     }
     
     const tickets = await ticketsQuery;
@@ -1137,7 +1150,6 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
       const statusHistorySelectFields = Object.fromEntries(
         Object.entries({
           ticket_id: schema.ticketStatusHistory.ticket_id,
-          status: schema.ticketStatusHistory.status,
           created_at: schema.ticketStatusHistory.created_at
         }).filter(([key, value]) => value !== undefined && value !== null)
       );
@@ -1148,7 +1160,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
       
       statusHistories = await db.select(statusHistorySelectFields)
         .from(schema.ticketStatusHistory)
-        .where(inArray(schema.ticketStatusHistory.ticket_id, ticketIds))
+        .where(inArray(schema.ticketStatusHistory.ticket_id, ticketIds.filter(id => typeof id === 'number')))
         .orderBy(schema.ticketStatusHistory.created_at);
     }
 
@@ -1234,7 +1246,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
       
       surveys = await db.select(surveySelectFields)
         .from(schema.satisfactionSurveys)
-        .where(inArray(schema.satisfactionSurveys.ticket_id, ticketIds));
+        .where(inArray(schema.satisfactionSurveys.ticket_id, ticketIds.filter(id => typeof id === 'number')));
     }
 
     // As funções helper foram removidas - agora usamos as funções do storage que são as mesmas do dashboard
@@ -1243,7 +1255,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     const officialMap = new Map(officials.map(o => [o.id, { name: o.name, email: o.email }]));
     const ticketsByOfficial = new Map<number, typeof tickets>();
     tickets.forEach(t => {
-      if (!t.assigned_to_id) return;
+      if (!t.assigned_to_id || typeof t.assigned_to_id !== 'number') return;
       const arr = ticketsByOfficial.get(t.assigned_to_id) || [];
       (arr as any).push(t);
       ticketsByOfficial.set(t.assigned_to_id, arr as any);
@@ -1251,6 +1263,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
 
     const surveysByTicket = new Map<number, { rating: number | null; responded_at: Date | null }[]>();
     surveys.forEach(s => {
+      if (typeof s.ticket_id !== 'number') return;
       const arr = surveysByTicket.get(s.ticket_id) || [];
       arr.push({ rating: s.rating, responded_at: s.responded_at });
       surveysByTicket.set(s.ticket_id, arr);
@@ -1259,6 +1272,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     // Calcular métricas por atendente usando as mesmas funções do dashboard
     const officialsMetrics = await Promise.all(
       Array.from(ticketsByOfficial.entries()).map(async ([officialId, ts]) => {
+        if (typeof officialId !== 'number') return null;
         const ticketsAssigned = ts.length;
         const resolvedTickets = ts.filter(t => t.resolved_at).length;
         
@@ -1266,7 +1280,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
         const avgFirstResponseHours = await storage.getAverageFirstResponseTimeByUserRole(
           userId, 
           userRole, 
-          officialId, // officialId específico
+          officialId as number, // officialId específico
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
           departmentId ? Number(departmentId) : undefined
@@ -1275,7 +1289,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
         const avgResolutionHours = await storage.getAverageResolutionTimeByUserRole(
           userId, 
           userRole, 
-          officialId, // officialId específico
+          officialId as number, // officialId específico
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
           departmentId ? Number(departmentId) : undefined
@@ -1284,15 +1298,16 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
         // Satisfaction average for this official (tickets currently assigned to the official)
         let ratings: number[] = [];
         ts.forEach(t => {
+          if (typeof t.id !== 'number') return;
           const entries = surveysByTicket.get(t.id) || [];
           entries.forEach(e => { if (e.rating != null && e.responded_at) ratings.push(e.rating as number); });
         });
         const satisfactionAvg = ratings.length > 0 ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100 : null;
 
         return {
-          official_id: officialId,
-          name: officialMap.get(officialId)?.name || 'N/A',
-          email: officialMap.get(officialId)?.email || '',
+          official_id: officialId as number,
+          name: officialMap.get(officialId as number)?.name || 'N/A',
+          email: officialMap.get(officialId as number)?.email || '',
           tickets_assigned: ticketsAssigned,
           tickets_resolved: resolvedTickets,
           avg_first_response_time_hours: avgFirstResponseHours || null,
@@ -1303,13 +1318,13 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     );
     
     // Ordenar por tickets resolvidos
-    officialsMetrics.sort((a, b) => (b.tickets_resolved - a.tickets_resolved));
+    officialsMetrics.filter(m => m !== null).sort((a, b) => (b!.tickets_resolved - a!.tickets_resolved));
 
     // Group by department
     const departmentMap = new Map(departments.map(d => [d.id, d.name]));
     const ticketsByDept = new Map<number, typeof tickets>();
     tickets.forEach(t => {
-      if (!t.department_id) return;
+      if (!t.department_id || typeof t.department_id !== 'number') return;
       const arr = ticketsByDept.get(t.department_id) || [];
       (arr as any).push(t);
       ticketsByDept.set(t.department_id, arr as any);
@@ -1318,6 +1333,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     // Calcular métricas por departamento usando as mesmas funções do dashboard
     const departmentsMetrics = await Promise.all(
       Array.from(ticketsByDept.entries()).map(async ([deptId, ts]) => {
+        if (typeof deptId !== 'number') return null;
         const total = ts.length;
         const resolved = ts.filter(t => t.resolved_at).length;
         
@@ -1328,7 +1344,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
           undefined, // officialId - usar undefined para todos os atendentes do departamento
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
-          deptId // departmentId específico
+          deptId as number // departmentId específico
         );
         
         const avgResolutionHours = await storage.getAverageResolutionTimeByUserRole(
@@ -1337,20 +1353,21 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
           undefined, // officialId - usar undefined para todos os atendentes do departamento
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
-          deptId // departmentId específico
+          deptId as number // departmentId específico
         );
 
         // Satisfaction average for this department
         let ratings: number[] = [];
         ts.forEach(t => {
+          if (typeof t.id !== 'number') return;
           const entries = surveysByTicket.get(t.id) || [];
           entries.forEach(e => { if (e.rating != null && e.responded_at) ratings.push(e.rating as number); });
         });
         const satisfactionAvg = ratings.length > 0 ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100 : null;
 
         return {
-          department_id: deptId,
-          department_name: departmentMap.get(deptId) || 'N/A',
+          department_id: deptId as number,
+          department_name: departmentMap.get(deptId as number) || 'N/A',
           tickets: total,
           resolved_tickets: resolved,
           avg_first_response_time_hours: avgFirstResponseHours || null,
@@ -1361,11 +1378,11 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     );
     
     // Ordenar por tickets resolvidos
-    departmentsMetrics.sort((a, b) => (b.resolved_tickets - a.resolved_tickets));
+    departmentsMetrics.filter(m => m !== null).sort((a, b) => (b!.resolved_tickets - a!.resolved_tickets));
 
     // Summary - USAR AS MESMAS FUNÇÕES DO DASHBOARD
     const totalTickets = tickets.length;
-    const resolvedTickets = tickets.filter(t => t.resolved_at).length;
+    const resolvedTickets = tickets.filter(t => t.resolved_at !== null).length;
     
     // Usar as mesmas funções do dashboard para garantir consistência
     const avgFirstResponseTimeHours = await storage.getAverageFirstResponseTimeByUserRole(
@@ -1394,6 +1411,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
       satisfaction_avg: (() => {
         let ratings: number[] = [];
         tickets.forEach(t => {
+          if (typeof t.id !== 'number') return;
           const entries = surveysByTicket.get(t.id) || [];
           entries.forEach(e => { if (e.rating != null && e.responded_at) ratings.push(e.rating as number); });
         });
@@ -1403,8 +1421,8 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
 
     return res.json({
       summary,
-      officials: officialsMetrics,
-      departments: departmentsMetrics
+      officials: officialsMetrics.filter(m => m !== null),
+      departments: departmentsMetrics.filter(m => m !== null)
     });
   } catch (error) {
     console.error('Erro ao gerar relatório de performance:', error);
@@ -1631,6 +1649,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
     const officialMap = new Map(officials.map(o => [o.id, { name: o.name, email: o.email }]));
     const surveysByTicket = new Map<number, { rating: number | null; responded_at: Date | null }[]>();
     surveys.forEach(s => {
+      if (typeof s.ticket_id !== 'number') return;
       const arr = surveysByTicket.get(s.ticket_id) || [];
       arr.push({ rating: s.rating, responded_at: s.responded_at });
       surveysByTicket.set(s.ticket_id, arr);
@@ -1646,7 +1665,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
         const avgFirstResponseHours = await storage.getAverageFirstResponseTimeByUserRole(
           userId, 
           userRole, 
-          officialId, // officialId específico
+          officialId as number, // officialId específico
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
           departmentIdParam ? Number(departmentIdParam) : undefined
@@ -1655,7 +1674,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
         const avgResolutionHours = await storage.getAverageResolutionTimeByUserRole(
           userId, 
           userRole, 
-          officialId, // officialId específico
+          officialId as number, // officialId específico
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
           departmentIdParam ? Number(departmentIdParam) : undefined
@@ -1664,6 +1683,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
         // Satisfaction average for this official (tickets currently assigned to the official)
         let ratings: number[] = [];
         ts.forEach(t => {
+          if (typeof t.id !== 'number') return;
           const entries = surveysByTicket.get(t.id) || [];
           entries.forEach(e => { if (e.rating != null && e.responded_at) ratings.push(e.rating as number); });
         });
@@ -1768,7 +1788,18 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
       
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Relatório Performance');
       
-      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      // Proteção contra vulnerabilidades xlsx (CVE GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9)
+      // Adiciona timeout para prevenir DoS via arquivos complexos
+      logger.info('Gerando arquivo Excel de performance', { 
+        recordCount: exportRows.length,
+        user: req.user?.username 
+      });
+      
+      const buffer = await withTimeout(
+        Promise.resolve(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })),
+        30000, // 30 segundos timeout
+        'Timeout ao gerar arquivo Excel. O arquivo pode ser muito grande.'
+      );
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', 'attachment; filename=relatorio-performance.xlsx');

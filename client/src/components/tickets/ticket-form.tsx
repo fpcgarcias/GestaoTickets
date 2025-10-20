@@ -41,6 +41,7 @@ import { CustomerSearch } from './customer-search';
 import { ParticipantSearch } from './participant-search';
 import { usePriorities, findPriorityByLegacyValue, type NormalizedPriority } from '@/hooks/use-priorities';
 import { Loader2, CheckCircle, AlertCircle, Brain, FileText } from 'lucide-react';
+import { useI18n } from '@/i18n';
 
 // Garante que PRIORITY_LEVELS.LOW etc. sejam tratados como literais específicos.
 // Zod z.enum requer um array não vazio de strings literais.
@@ -116,6 +117,7 @@ export const TicketForm = () => {
   const [, navigate] = useLocation();
   const { user, company } = useAuth();
   const { themeName } = useTheme();
+  const { formatMessage } = useI18n();
 
   // Estado para gerenciar arquivos pendentes
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -250,7 +252,7 @@ export const TicketForm = () => {
         setShowCreationModal(true);
         setCreationProgress({
           step: 'creating',
-          message: 'Criando ticket...'
+          message: formatMessage('new_ticket.creating_ticket')
         });
 
         // Simular tempo de cria??uo do ticket (500ms)
@@ -259,7 +261,7 @@ export const TicketForm = () => {
         // Atualizar para anolise de IA
         setCreationProgress({
           step: 'analyzing',
-          message: 'IA analisando prioridade do ticket...'
+          message: formatMessage('new_ticket.ai_analyzing_priority')
         });
       } else {
         setShowCreationModal(false);
@@ -297,13 +299,13 @@ export const TicketForm = () => {
           }
 
           toast({
-            title: "Sucesso!",
-            description: `Chamado criado com sucesso e ${pendingFiles.length} arquivo(s) anexado(s).`,
+            title: formatMessage('new_ticket.success'),
+            description: formatMessage('new_ticket.success_with_files', { count: pendingFiles.length }),
           });
         } catch (error) {
           toast({
-            title: "Chamado criado com aviso",
-            description: `Chamado criado, mas houve erro no upload de arquivos: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
+            title: formatMessage('new_ticket.created_with_warning'),
+            description: formatMessage('new_ticket.upload_error', { error: error instanceof Error ? error.message : formatMessage('new_ticket.unknown_error') }),
             variant: "destructive",
           });
         } finally {
@@ -311,8 +313,8 @@ export const TicketForm = () => {
         }
       } else {
         toast({
-          title: "Sucesso!",
-          description: "Chamado criado com sucesso.",
+          title: formatMessage('new_ticket.success'),
+          description: formatMessage('new_ticket.success_description'),
         });
       }
 
@@ -320,7 +322,7 @@ export const TicketForm = () => {
         // Mostrar sucesso no modal
         setCreationProgress({
           step: 'complete',
-          message: 'Chamado criado com sucesso!'
+          message: formatMessage('new_ticket.created_successfully')
         });
       }
 
@@ -349,14 +351,14 @@ export const TicketForm = () => {
       if (usedAIFeedback) {
         setCreationProgress({
           step: 'error',
-          message: `Erro ao criar o chamado: ${error.message || 'Erro desconhecido'}`,
+          message: formatMessage('new_ticket.creation_error', { error: error.message || formatMessage('new_ticket.unknown_error') }),
           error: error.message
         });
       }
 
       toast({
-        title: "Erro",
-        description: error.message || "Falha ao criar o chamado",
+        title: formatMessage('new_ticket.error'),
+        description: error.message || formatMessage('new_ticket.creation_failed'),
         variant: "destructive",
       });
 
@@ -376,7 +378,7 @@ export const TicketForm = () => {
   const onSubmit = (data: ExtendedInsertTicket) => {
     // Validação extra no front: se for obrigatório, não permitir envio sem categoria
     if (mustRequireCategory && !data.category_id) {
-      toast({ title: "Categoria obrigatória", description: "Selecione uma categoria para este tipo.", variant: "destructive" });
+      toast({ title: formatMessage('new_ticket.category_required'), description: formatMessage('new_ticket.select_category_for_type'), variant: "destructive" });
       return;
     }
     let ticketDataToSend: any = {
@@ -508,8 +510,8 @@ export const TicketForm = () => {
     <>
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-lg font-medium mb-2">Criar Novo Chamado</h2>
-          <p className="text-muted-foreground mb-6">Adicione um novo chamado de suporte</p>
+          <h2 className="text-lg font-medium mb-2">{formatMessage('new_ticket.create_new_ticket')}</h2>
+          <p className="text-muted-foreground mb-6">{formatMessage('new_ticket.add_new_support_ticket')}</p>
           
           <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
@@ -519,7 +521,7 @@ export const TicketForm = () => {
                 name="customerId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Cliente</FormLabel>
+                    <FormLabel>{formatMessage('new_ticket.customer')}</FormLabel>
                     {(user?.role as any) === 'customer' ? (
                       // Se for cliente, mostrar o nome do próprio cliente sem opção de mudança
                       <Input 
@@ -536,7 +538,7 @@ export const TicketForm = () => {
                           // Atualizar automaticamente o email
                           form.setValue('customer_email', customer.email);
                         }}
-                        placeholder="Buscar cliente..."
+                        placeholder={formatMessage('new_ticket.search_customer')}
                         disabled={false}
                       />
                     )}
@@ -550,10 +552,10 @@ export const TicketForm = () => {
                 name="customer_email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email do Cliente</FormLabel>
+                    <FormLabel>{formatMessage('new_ticket.customer_email')}</FormLabel>
                     <FormControl>
                       <Input 
-                        placeholder="Digite o email" 
+                        placeholder={formatMessage('new_ticket.enter_email')} 
                         value={field.value} 
                         onChange={field.onChange}
                         onBlur={field.onBlur}
@@ -573,7 +575,7 @@ export const TicketForm = () => {
                 name="participants"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Participantes (Opcional)</FormLabel>
+                    <FormLabel>{formatMessage('new_ticket.participants_optional')}</FormLabel>
                     <FormControl>
                       <ParticipantSearch
                         selectedUsers={selectedParticipants}
@@ -581,7 +583,7 @@ export const TicketForm = () => {
                           setSelectedParticipants(users);
                           field.onChange(users.map(user => user.id));
                         }}
-                        placeholder="Adicionar participantes..."
+                        placeholder={formatMessage('new_ticket.add_participants')}
                         disabled={false}
                         maxParticipants={10}
                       />
@@ -598,7 +600,7 @@ export const TicketForm = () => {
                 name="department_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Departamento</FormLabel>
+                    <FormLabel>{formatMessage('new_ticket.department')}</FormLabel>
                     <Select 
                       onValueChange={(value) => {
                         // Atualizar o departamento selecionado
@@ -614,7 +616,7 @@ export const TicketForm = () => {
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecione um departamento" />
+                          <SelectValue placeholder={formatMessage('new_ticket.select_department')} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -634,7 +636,7 @@ export const TicketForm = () => {
                 name="type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tipo de Chamado</FormLabel>
+                    <FormLabel>{formatMessage('new_ticket.ticket_type')}</FormLabel>
                     <Select 
                       onValueChange={(value) => {
                         field.onChange(value);
@@ -661,7 +663,7 @@ export const TicketForm = () => {
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder={selectedDepartmentId ? "Escolha o tipo" : "Selecione um departamento primeiro"} />
+                          <SelectValue placeholder={selectedDepartmentId ? formatMessage('new_ticket.choose_type') : formatMessage('new_ticket.select_department_first')} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -683,7 +685,7 @@ export const TicketForm = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      Categoria {mustRequireCategory ? <span className="text-red-500">*</span> : null}
+                      {formatMessage('new_ticket.category')} {mustRequireCategory ? <span className="text-red-500">*</span> : null}
                     </FormLabel>
                     <Select 
                       onValueChange={(value) => field.onChange(parseInt(value))} 
@@ -694,17 +696,17 @@ export const TicketForm = () => {
                         <SelectTrigger className={mustRequireCategory && !field.value ? 'border-red-500' : ''}>
                           <SelectValue placeholder={
                             !selectedIncidentTypeId 
-                              ? "Selecione um tipo primeiro" 
+                              ? formatMessage('new_ticket.select_type_first') 
                               : categories.length === 0 
-                                ? "Nenhuma categoria disponível"
-                                : "Selecione uma categoria"
+                                ? formatMessage('new_ticket.no_categories_available')
+                                : formatMessage('new_ticket.select_category')
                           } />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         {categories.length === 0 ? (
                           <div className="p-2 text-muted-foreground text-sm text-center">
-                            Nenhuma categoria disponível para este tipo
+                            {formatMessage('new_ticket.no_categories_for_type')}
                           </div>
                         ) : (
                           categories.map((category: Category) => (
@@ -716,7 +718,7 @@ export const TicketForm = () => {
                       </SelectContent>
                     </Select>
                     {mustRequireCategory && !field.value && (
-                      <p className="text-xs text-red-600 mt-1">Categoria é obrigatória para este departamento e tipo.</p>
+                      <p className="text-xs text-red-600 mt-1">{formatMessage('new_ticket.category_required_for_department')}</p>
                     )}
                     <FormMessage />
                   </FormItem>
@@ -728,7 +730,7 @@ export const TicketForm = () => {
                 name="priority"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Prioridade</FormLabel>
+                    <FormLabel>{formatMessage('new_ticket.priority')}</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
                       value={field.value || ""}
@@ -736,7 +738,7 @@ export const TicketForm = () => {
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder={prioritiesLoading ? "Carregando..." : "Selecione a prioridade"} />
+                          <SelectValue placeholder={prioritiesLoading ? formatMessage('new_ticket.loading') : formatMessage('new_ticket.select_priority')} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -764,9 +766,9 @@ export const TicketForm = () => {
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Título do Chamado</FormLabel>
+                  <FormLabel>{formatMessage('new_ticket.ticket_title')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Digite o título do chamado" {...field} />
+                    <Input placeholder={formatMessage('new_ticket.enter_ticket_title')} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -778,10 +780,10 @@ export const TicketForm = () => {
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Descrição do Problema</FormLabel>
+                  <FormLabel>{formatMessage('new_ticket.problem_description')}</FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder="Descreva o problema detalhadamente..." 
+                      placeholder={formatMessage('new_ticket.describe_problem_detailed')} 
                       rows={6} 
                       {...field} 
                     />
@@ -794,10 +796,9 @@ export const TicketForm = () => {
             {/* Upload de Arquivos */}
             <div className="border-t pt-6">
               <div className="mb-4">
-                <h4 className="text-sm font-medium text-foreground">Anexar Arquivos (Opcional)</h4>
+                <h4 className="text-sm font-medium text-foreground">{formatMessage('new_ticket.attach_files_optional')}</h4>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Adicione documentos, imagens ou outros arquivos que ajudem a descrever o problema.
-                  Os arquivos serão anexados após a criação do chamado.
+                  {formatMessage('new_ticket.attach_files_description')}
                 </p>
               </div>
 
@@ -805,7 +806,7 @@ export const TicketForm = () => {
               {pendingFiles.length > 0 && (
                 <div className="mb-4">
                   <h5 className="text-sm font-medium text-muted-foreground mb-2">
-                    Arquivos selecionados ({pendingFiles.length}):
+                    {formatMessage('new_ticket.selected_files', { count: pendingFiles.length })}
                   </h5>
                   <div className="space-y-2">
                     {pendingFiles.map((file, index) => (
@@ -853,10 +854,10 @@ export const TicketForm = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
                     <span className="mt-2 text-sm font-medium text-foreground">
-                      Clique para selecionar arquivos
+                      {formatMessage('new_ticket.click_to_select_files')}
                     </span>
                     <span className="text-xs text-muted-foreground mt-1">
-                      PDF, DOC, Excel, PowerPoint, SQL, imagens, vídeos, áudio, ZIP e outros (máx. 50MB cada)
+                      {formatMessage('new_ticket.supported_file_types')}
                     </span>
                   </div>
                 </label>
@@ -869,7 +870,7 @@ export const TicketForm = () => {
                 className="px-6"
                 disabled={createTicketMutation.isPending || isUploadingFiles}
               >
-                Enviar Chamado
+{formatMessage('new_ticket.submit_ticket')}
               </Button>
             </div>
           </form>
@@ -887,9 +888,9 @@ export const TicketForm = () => {
     }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Criando seu chamado...</DialogTitle>
+          <DialogTitle>{formatMessage('new_ticket.creating_your_ticket')}</DialogTitle>
           <DialogDescription>
-            Aguarde enquanto processamos seu ticket
+            {formatMessage('new_ticket.wait_while_processing')}
           </DialogDescription>
         </DialogHeader>
         
@@ -946,7 +947,7 @@ export const TicketForm = () => {
             
             {creationProgress.step === 'analyzing' && (
               <p className="text-xs text-muted-foreground mt-2">
-                Nossa IA está analisando o conteúdo do seu ticket para definir a prioridade ideal...
+                {formatMessage('new_ticket.ai_analyzing_content')}
               </p>
             )}
           </div>
@@ -977,7 +978,7 @@ export const TicketForm = () => {
                 onClick={() => setShowCreationModal(false)}
                 className="mt-2"
               >
-                Fechar
+{formatMessage('new_ticket.close')}
               </Button>
             </div>
           )}

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { useI18n } from '@/i18n';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { formatCNPJ, cleanCNPJ, isValidCNPJ, validatePasswordCriteria, isPasswordValid, type PasswordCriteria } from '@/lib/utils';
@@ -18,6 +19,7 @@ export default function AuthPage() {
   const { toast } = useToast();
   // Usar nome da empresa baseado no tema do contexto
   const { companyName, companyLogo } = useTheme();
+  const { formatMessage } = useI18n();
   const [activeTab, setActiveTab] = useState<string>('login');
   
   // Formulário de login
@@ -216,34 +218,34 @@ export default function AuthPage() {
                 companyName
               )}
             </CardTitle>
-            <CardDescription className="text-center">Sistema de Gestão de Chamados</CardDescription>
+            <CardDescription className="text-center">{formatMessage('auth.subtitle')}</CardDescription>
           </CardHeader>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Registro</TabsTrigger>
+              <TabsTrigger value="login">{formatMessage('auth.login_tab')}</TabsTrigger>
+              <TabsTrigger value="register">{formatMessage('auth.register_tab')}</TabsTrigger>
             </TabsList>
             
             <TabsContent value="login">
               <form onSubmit={handleLoginSubmit}>
                 <CardContent className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="username">Email</Label>
+                    <Label htmlFor="username">{formatMessage('auth.email')}</Label>
                     <Input 
                       id="username" 
                       type="email" 
-                      placeholder="seu.email@exemplo.com" 
+                      placeholder={formatMessage('auth.email_placeholder')} 
                       value={loginData.username}
                       onChange={(e) => setLoginData({...loginData, username: e.target.value})}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
+                    <Label htmlFor="password">{formatMessage('auth.password')}</Label>
                     <Input 
                       id="password" 
                       type="password" 
-                      placeholder="Sua senha" 
+                      placeholder={formatMessage('auth.password_placeholder')} 
                       value={loginData.password}
                       onChange={(e) => setLoginData({...loginData, password: e.target.value})}
                       required
@@ -252,7 +254,7 @@ export default function AuthPage() {
                 </CardContent>
                 <CardFooter>
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Entrando...' : 'Entrar'}
+                    {isLoading ? formatMessage('auth.logging_in') : formatMessage('auth.login_btn')}
                   </Button>
                 </CardFooter>
               </form>
@@ -262,33 +264,33 @@ export default function AuthPage() {
               <form onSubmit={handleRegisterSubmit}>
                 <CardContent className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    <Label htmlFor="reg-name">Nome Completo</Label>
+                    <Label htmlFor="reg-name">{formatMessage('auth.name')}</Label>
                     <Input 
                       id="reg-name" 
                       type="text" 
-                      placeholder="Seu nome completo" 
+                      placeholder={formatMessage('auth.name_placeholder')} 
                       value={registerData.name}
                       onChange={(e) => setRegisterData({...registerData, name: e.target.value})}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reg-email">Email</Label>
+                    <Label htmlFor="reg-email">{formatMessage('auth.email')}</Label>
                     <Input 
                       id="reg-email" 
                       type="email" 
-                      placeholder="seu.email@exemplo.com" 
+                      placeholder={formatMessage('auth.email_placeholder')} 
                       value={registerData.email}
                       onChange={(e) => setRegisterData({...registerData, email: e.target.value})}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reg-cnpj">CNPJ da Empresa</Label>
+                    <Label htmlFor="reg-cnpj">{formatMessage('auth.company_cnpj')}</Label>
                     <Input 
                       id="reg-cnpj" 
                       type="text" 
-                      placeholder="00.000.000/0001-00" 
+                      placeholder={formatMessage('auth.cnpj_placeholder')} 
                       value={formatCNPJ(registerData.cnpj)}
                       onChange={(e) => setRegisterData({...registerData, cnpj: cleanCNPJ(e.target.value)})}
                       required
@@ -298,11 +300,11 @@ export default function AuthPage() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reg-password">Senha</Label>
+                    <Label htmlFor="reg-password">{formatMessage('auth.password')}</Label>
                     <Input 
                       id="reg-password" 
                       type="password" 
-                      placeholder="Crie uma senha forte" 
+                      placeholder={formatMessage('auth.create_password_placeholder')} 
                       value={registerData.password}
                       onChange={(e) => setRegisterData({...registerData, password: e.target.value})}
                       required
@@ -314,27 +316,27 @@ export default function AuthPage() {
                     {/* Feedback visual dos critérios de senha */}
                     {registerData.password && (
                       <div className="space-y-1 text-sm">
-                        <p className="font-medium text-gray-700">Critérios de segurança:</p>
+                        <p className="font-medium text-gray-700">{formatMessage('auth.password_rules_title')}</p>
                         <div className="space-y-1">
                           <div className={`flex items-center gap-2 ${passwordCriteria.minLength ? 'text-green-600' : 'text-red-500'}`}>
                             {passwordCriteria.minLength ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
-                            <span>Pelo menos 8 caracteres</span>
+                            <span>{formatMessage('auth.rule_min_length')}</span>
                           </div>
                           <div className={`flex items-center gap-2 ${passwordCriteria.hasLowercase ? 'text-green-600' : 'text-red-500'}`}>
                             {passwordCriteria.hasLowercase ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
-                            <span>Pelo menos uma letra minúscula (a-z)</span>
+                            <span>{formatMessage('auth.rule_lowercase')}</span>
                           </div>
                           <div className={`flex items-center gap-2 ${passwordCriteria.hasUppercase ? 'text-green-600' : 'text-red-500'}`}>
                             {passwordCriteria.hasUppercase ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
-                            <span>Pelo menos uma letra maiúscula (A-Z)</span>
+                            <span>{formatMessage('auth.rule_uppercase')}</span>
                           </div>
                           <div className={`flex items-center gap-2 ${passwordCriteria.hasNumber ? 'text-green-600' : 'text-red-500'}`}>
                             {passwordCriteria.hasNumber ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
-                            <span>Pelo menos um número (0-9)</span>
+                            <span>{formatMessage('auth.rule_number')}</span>
                           </div>
                           <div className={`flex items-center gap-2 ${passwordCriteria.hasSpecialChar ? 'text-green-600' : 'text-red-500'}`}>
                             {passwordCriteria.hasSpecialChar ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
-                            <span>Pelo menos um caractere especial (@$!%*?&)</span>
+                            <span>{formatMessage('auth.rule_special')}</span>
                           </div>
                         </div>
                       </div>
@@ -342,11 +344,11 @@ export default function AuthPage() {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="reg-confirm-password">Confirmar Senha</Label>
+                    <Label htmlFor="reg-confirm-password">{formatMessage('auth.confirm_password')}</Label>
                     <Input 
                       id="reg-confirm-password" 
                       type="password" 
-                      placeholder="Digite a senha novamente" 
+                      placeholder={formatMessage('auth.confirm_password_placeholder')} 
                       value={registerData.confirmPassword}
                       onChange={(e) => setRegisterData({...registerData, confirmPassword: e.target.value})}
                       required
@@ -362,7 +364,7 @@ export default function AuthPage() {
                     className="w-full"
                     disabled={!isPasswordValid(registerData.password) || registerData.password !== registerData.confirmPassword || !isValidCNPJ(registerData.cnpj)}
                   >
-                    Criar Conta
+                    {formatMessage('auth.register_btn')}
                   </Button>
                 </CardFooter>
               </form>
@@ -388,28 +390,28 @@ export default function AuthPage() {
               companyName
             )}
           </h1>
-          <h2 className="text-2xl font-semibold mb-6">Sistema Completo de Gestão de Chamados</h2>
+          <h2 className="text-2xl font-semibold mb-6">{formatMessage('auth.system_title')}</h2>
           
           <ul className="space-y-4">
             <li className="flex items-start">
               <span className="mr-2">✓</span>
-              <span>Cadastro e gerenciamento de tickets com status e prioridades</span>
+              <span>{formatMessage('auth.feature_1')}</span>
             </li>
             <li className="flex items-start">
               <span className="mr-2">✓</span>
-              <span>Departamentos personalizáveis com equipes de atendimento</span>
+              <span>{formatMessage('auth.feature_2')}</span>
             </li>
             <li className="flex items-start">
               <span className="mr-2">✓</span>
-              <span>Níveis de SLA e monitoramento de tempos de resposta</span>
+              <span>{formatMessage('auth.feature_3')}</span>
             </li>
             <li className="flex items-start">
               <span className="mr-2">✓</span>
-              <span>Notificações em tempo real para atualizações de tickets</span>
+              <span>{formatMessage('auth.feature_4')}</span>
             </li>
             <li className="flex items-start">
               <span className="mr-2">✓</span>
-              <span>Dashboard com estatísticas e indicadores de performance</span>
+              <span>{formatMessage('auth.feature_5')}</span>
             </li>
           </ul>
         </div>

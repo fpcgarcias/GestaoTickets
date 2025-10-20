@@ -72,7 +72,7 @@ export class GoogleProvider implements AiProviderInterface {
           return {
             priority: 'erro_resposta_vazia',
             confidence: 0,
-            justification: 'Resposta vazia da IA para análise de reabertura',
+            justification: 'Empty AI response for reopen analysis',
             usedFallback: true,
             processingTimeMs: Date.now() - startTime,
             tokensUsed: {
@@ -86,7 +86,7 @@ export class GoogleProvider implements AiProviderInterface {
         return {
           priority: config.fallback_priority || "medium",
           confidence: 0,
-          justification: 'Resposta vazia da IA',
+          justification: 'Empty AI response',
           usedFallback: true,
           processingTimeMs: Date.now() - startTime,
           tokensUsed: {
@@ -106,7 +106,7 @@ export class GoogleProvider implements AiProviderInterface {
           return {
             priority: 'erro_extracao',
             confidence: 0,
-            justification: `Não foi possível extrair ACAO da resposta: "${aiResponse}"`,
+            justification: `Could not extract ACTION from response: "${aiResponse}"`,
             usedFallback: true,
             processingTimeMs: Date.now() - startTime,
             tokensUsed: {
@@ -120,7 +120,7 @@ export class GoogleProvider implements AiProviderInterface {
         return {
           priority: config.fallback_priority || 'MÉDIA',
           confidence: 0.2,
-          justification: `Não foi possível extrair prioridade da resposta: "${aiResponse}"`,
+          justification: `Could not extract priority from response: "${aiResponse}"`,
           usedFallback: true,
           processingTimeMs: Date.now() - startTime,
           tokensUsed: {
@@ -155,7 +155,7 @@ export class GoogleProvider implements AiProviderInterface {
       
       // Se for timeout, marcar como tal
       if (error.name === 'TimeoutError') {
-        throw new Error('Timeout na análise do Google Gemini');
+        throw new Error('Google Gemini analysis timeout');
       }
       
       throw error;
@@ -180,8 +180,10 @@ export class GoogleProvider implements AiProviderInterface {
    * Extrai AÇÃO e JUSTIFICATIVA para análise de reabertura
    */
   private extractReopenActionAndJustification(response: string): { priority: string | null; justification: string } {
-    const acaoMatch = response.match(/<ACAO>(.*?)<\/ACAO>/i);
-    const justificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*?)<\/JUSTIFICATIVA>/i);
+    const acaoMatch = response.match(/<ACAO>(.*?)<\/ACAO>/i) || 
+                     response.match(/<ACTION>(.*?)<\/ACTION>/i);
+    const justificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*?)<\/JUSTIFICATIVA>/i) ||
+                              response.match(/<JUSTIFICATION>([\s\S]*?)<\/JUSTIFICATION>/i);
     
     if (acaoMatch && justificationMatch) {
       return {
@@ -193,7 +195,7 @@ export class GoogleProvider implements AiProviderInterface {
     // Se não encontrou as tags, retornar erro
     return {
       priority: null,
-      justification: `Não foi possível extrair ACAO e JUSTIFICATIVA da resposta: "${response}"`
+      justification: `Could not extract ACTION and JUSTIFICATION from response: "${response}"`
     };
   }
 
@@ -203,9 +205,11 @@ export class GoogleProvider implements AiProviderInterface {
   private extractPriorityAnalysis(response: string): { priority: string | null; justification: string } {
     
     // Para análise de prioridade, usar o comportamento original
-    // Tentar extrair usando tags estruturadas primeiro
-    const priorityMatch = response.match(/<PRIORIDADE>(.*?)<\/PRIORIDADE>/i);
-    const justificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*?)<\/JUSTIFICATIVA>/i);
+    // Tentar extrair usando tags estruturadas primeiro (português e inglês)
+    const priorityMatch = response.match(/<PRIORIDADE>(.*?)<\/PRIORIDADE>/i) || 
+                         response.match(/<PRIORITY>(.*?)<\/PRIORITY>/i);
+    const justificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*?)<\/JUSTIFICATIVA>/i) ||
+                              response.match(/<JUSTIFICATION>([\s\S]*?)<\/JUSTIFICATION>/i);
     
     if (priorityMatch) {
       const extractedPriority = priorityMatch[1].trim();
@@ -216,12 +220,13 @@ export class GoogleProvider implements AiProviderInterface {
         justification = justificationMatch[1].trim();
       } else {
         // Tentar extrair justificativa mesmo sem tag de fechamento
-        const openJustificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*)/i);
+        const openJustificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*)/i) ||
+                                     response.match(/<JUSTIFICATION>([\s\S]*)/i);
         if (openJustificationMatch?.[1]?.trim()) {
           justification = openJustificationMatch[1].trim();
         } else {
           // Se não encontrou nenhuma justificativa, usar mensagem padrão
-          justification = 'Análise baseada no conteúdo do ticket';
+          justification = 'Analysis based on ticket content';
         }
       }
       
@@ -243,12 +248,13 @@ export class GoogleProvider implements AiProviderInterface {
         justification = justificationMatch[1].trim();
       } else {
         // Tentar extrair justificativa mesmo sem tag de fechamento
-        const openJustificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*)/i);
+        const openJustificationMatch = response.match(/<JUSTIFICATIVA>([\s\S]*)/i) ||
+                                     response.match(/<JUSTIFICATION>([\s\S]*)/i);
         if (openJustificationMatch?.[1]?.trim()) {
           justification = openJustificationMatch[1].trim();
         } else {
           // Se não encontrou nenhuma justificativa, usar mensagem padrão
-          justification = 'Análise baseada no conteúdo do ticket';
+          justification = 'Analysis based on ticket content';
         }
       }
       
@@ -263,12 +269,15 @@ export class GoogleProvider implements AiProviderInterface {
 
     
     if (extractedPriority) {
-      // Tentar extrair justificativa usando métodos antigos
+      // Tentar extrair justificativa usando métodos antigos (português e inglês)
       const justificationMatch = response.match(/justificativa[:\s]+(.*?)(?:\n|$)/i) ||
                                 response.match(/razão[:\s]+(.*?)(?:\n|$)/i) ||
-                                response.match(/porque[:\s]+(.*?)(?:\n|$)/i);
+                                response.match(/porque[:\s]+(.*?)(?:\n|$)/i) ||
+                                response.match(/justification[:\s]+(.*?)(?:\n|$)/i) ||
+                                response.match(/reason[:\s]+(.*?)(?:\n|$)/i) ||
+                                response.match(/because[:\s]+(.*?)(?:\n|$)/i);
       
-      const justification = justificationMatch?.[1]?.trim() || 'Análise baseada no conteúdo do ticket';
+      const justification = justificationMatch?.[1]?.trim() || 'Analysis based on ticket content';
       
       return {
         priority: extractedPriority,
@@ -278,7 +287,7 @@ export class GoogleProvider implements AiProviderInterface {
     
     return {
       priority: null,
-      justification: 'Análise baseada no conteúdo do ticket'
+      justification: 'Analysis based on ticket content'
     };
   }
 

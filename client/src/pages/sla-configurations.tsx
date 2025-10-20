@@ -33,6 +33,7 @@ import { queryClient } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from "@/components/ui/skeleton";
+import { useI18n } from '@/i18n';
 
 // Interfaces
 interface Company {
@@ -94,6 +95,7 @@ interface SLAConfigurationForm {
 export default function SLAConfigurations() {
   const { toast } = useToast();
   const { user, company: userCompany } = useAuth();
+  const { formatMessage } = useI18n();
   
   // Estados para filtros
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>(
@@ -382,7 +384,7 @@ export default function SLAConfigurations() {
       return res.json();
     },
     onSuccess: async () => {
-      toast({ title: "Sucesso", description: "Configuração SLA criada com sucesso!" });
+      toast({ title: formatMessage('sla_config.success'), description: formatMessage('sla_config.sla_configuration_created') });
       
       // Usar função auxiliar para invalidar cache
       await invalidateSLACache();
@@ -391,7 +393,7 @@ export default function SLAConfigurations() {
       resetForm();
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: formatMessage('sla_config.error'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -416,7 +418,7 @@ export default function SLAConfigurations() {
       return res.json();
     },
     onSuccess: async (data) => {
-      toast({ title: "Sucesso", description: "Configuração SLA atualizada com sucesso!" });
+      toast({ title: formatMessage('sla_config.success'), description: formatMessage('sla_config.sla_configuration_updated') });
       
       // Usar função auxiliar para invalidar cache
       await invalidateSLACache();
@@ -429,7 +431,7 @@ export default function SLAConfigurations() {
       }, 100);
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: formatMessage('sla_config.error'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -447,13 +449,13 @@ export default function SLAConfigurations() {
       return res.json();
     },
     onSuccess: async (data, variables) => {
-      toast({ title: "Sucesso", description: "Configuração SLA removida com sucesso!" });
+      toast({ title: formatMessage('sla_config.success'), description: formatMessage('sla_config.sla_configuration_removed') });
       
       // Usar função auxiliar para invalidar cache
       await invalidateSLACache();
     },
     onError: (error: Error) => {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: formatMessage('sla_config.error'), description: error.message, variant: "destructive" });
     },
   });
 
@@ -536,7 +538,7 @@ export default function SLAConfigurations() {
   };
 
   const getPriorityName = (priorityId: number | null) => {
-    if (!priorityId) return 'Padrão';
+    if (!priorityId) return formatMessage('sla_config.default');
     // Busca primeiro nos dados globais, depois nos filtrados e formulário
     const allData = [
       ...(allPriorities || []),
@@ -569,19 +571,19 @@ export default function SLAConfigurations() {
 
   const handleAddSLA = () => {
     if (!formData.companyId || formData.companyId <= 0 || !formData.departmentId || formData.departmentId <= 0 || !formData.incidentTypeId || formData.incidentTypeId <= 0) {
-      toast({ title: "Erro", description: "Selecione empresa, departamento e tipo de incidente", variant: "destructive" });
+      toast({ title: formatMessage('sla_config.error'), description: formatMessage('sla_config.select_company_department_incident_type'), variant: "destructive" });
       return;
     }
 
     if (formData.responseTimeHours >= formData.resolutionTimeHours) {
-      toast({ title: "Erro", description: "Tempo de resposta deve ser menor que tempo de resolução", variant: "destructive" });
+      toast({ title: formatMessage('sla_config.error'), description: formatMessage('sla_config.response_time_validation'), variant: "destructive" });
       return;
     }
 
     if (departmentSlaMode === 'category') {
       const hasCategories = (formCategories || []).length > 0;
       if (hasCategories && (!formData.categoryId || formData.categoryId <= 0)) {
-        toast({ title: "Erro", description: "Selecione uma categoria", variant: "destructive" });
+        toast({ title: formatMessage('sla_config.error'), description: formatMessage('sla_config.select_category'), variant: "destructive" });
         return;
       }
     }
@@ -593,7 +595,7 @@ export default function SLAConfigurations() {
     if (!editingSLA) return;
 
     if (formData.responseTimeHours >= formData.resolutionTimeHours) {
-      toast({ title: "Erro", description: "Tempo de resposta deve ser menor que tempo de resolução", variant: "destructive" });
+      toast({ title: formatMessage('sla_config.error'), description: formatMessage('sla_config.response_time_validation'), variant: "destructive" });
       return;
     }
 
@@ -649,9 +651,9 @@ export default function SLAConfigurations() {
       document.body.removeChild(link);
       URL.revokeObjectURL(downloadUrl);
       
-      toast({ title: "Sucesso", description: "Configurações exportadas com sucesso!" });
+      toast({ title: formatMessage('sla_config.success'), description: formatMessage('sla_config.configurations_exported') });
     } catch (error) {
-      toast({ title: "Erro", description: "Erro ao exportar configurações", variant: "destructive" });
+      toast({ title: formatMessage('sla_config.error'), description: formatMessage('sla_config.export_error'), variant: "destructive" });
     }
   };
 
@@ -738,11 +740,11 @@ export default function SLAConfigurations() {
       URL.revokeObjectURL(downloadUrl);
       
       toast({ 
-        title: "Modelo baixado!", 
-        description: "Use este arquivo CSV como base para importar suas configurações SLA." 
+        title: formatMessage('sla_config.template_downloaded'), 
+        description: formatMessage('sla_config.use_csv_template_description') 
       });
     } catch (error) {
-      toast({ title: "Erro", description: "Erro ao baixar modelo", variant: "destructive" });
+      toast({ title: formatMessage('sla_config.error'), description: formatMessage('sla_config.download_template_error'), variant: "destructive" });
     }
   };
 
@@ -751,7 +753,7 @@ export default function SLAConfigurations() {
     if (!file) return;
 
     if (!file.name.endsWith('.csv')) {
-      toast({ title: "Erro", description: "Por favor, selecione um arquivo CSV", variant: "destructive" });
+      toast({ title: formatMessage('sla_config.error'), description: formatMessage('sla_config.please_select_csv_file'), variant: "destructive" });
       return;
     }
 
@@ -781,8 +783,8 @@ export default function SLAConfigurations() {
       
       // Mostrar toast de sucesso
       toast({ 
-        title: "Importação concluída!", 
-        description: `${result.data.successful} configurações importadas com sucesso`
+        title: formatMessage('sla_config.import_completed'), 
+        description: formatMessage('sla_config.configurations_imported_successfully', { count: result.data.successful })
       });
 
     } catch (error) {
@@ -790,8 +792,8 @@ export default function SLAConfigurations() {
         console.error('Erro ao importar CSV:', error);
       }
       toast({ 
-        title: "Erro na importação", 
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        title: formatMessage('sla_config.import_error'), 
+        description: error instanceof Error ? error.message : formatMessage('sla_config.unknown_error'),
         variant: "destructive" 
       });
     }
@@ -801,36 +803,36 @@ export default function SLAConfigurations() {
     <div>
       <div className="flex justify-between items-center mb-12">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900">Configurações de SLA</h1>
+          <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('sla_config.title')}</h1>
           <p className="text-sm text-neutral-600 mt-1">
-            Gerencie tempos de resposta e resolução por departamento, tipo e prioridade
+            {formatMessage('sla_config.description')}
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleExportConfigurations}>
             <Download className="mr-2 h-4 w-4" />
-            Exportar
+            {formatMessage('sla_config.export')}
           </Button>
           <Button variant="outline" onClick={handleDownloadTemplate}>
             <FileText className="mr-2 h-4 w-4" />
-            Modelo CSV
+            {formatMessage('sla_config.csv_template')}
           </Button>
           <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
             <Upload className="mr-2 h-4 w-4" />
-            Importar
+            {formatMessage('sla_config.import')}
           </Button>
           <Button onClick={() => setIsAddDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Nova Configuração
+            {formatMessage('sla_config.new_configuration')}
           </Button>
         </div>
       </div>
 
       <Tabs defaultValue="configurations" className="space-y-6">
         <TabsList>
-          <TabsTrigger value="configurations">Configurações</TabsTrigger>
-          <TabsTrigger value="matrix">Matriz SLA</TabsTrigger>
-          <TabsTrigger value="bulk">Operações em Lote</TabsTrigger>
+          <TabsTrigger value="configurations">{formatMessage('sla_config.configurations')}</TabsTrigger>
+          <TabsTrigger value="matrix">{formatMessage('sla_config.sla_matrix')}</TabsTrigger>
+          <TabsTrigger value="bulk">{formatMessage('sla_config.bulk_operations')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="configurations" className="space-y-6">
@@ -839,10 +841,10 @@ export default function SLAConfigurations() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Filter className="h-5 w-5" />
-                Filtros
+                {formatMessage('sla_config.filters')}
               </CardTitle>
               <CardDescription>
-                Use os filtros para visualizar configurações específicas
+                {formatMessage('sla_config.filters_description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -850,13 +852,13 @@ export default function SLAConfigurations() {
                 {/* Seletor de Empresa (apenas para admin) */}
                 {user?.role === 'admin' && (
                   <div className="space-y-2">
-                    <Label>Empresa</Label>
+                    <Label>{formatMessage('sla_config.company')}</Label>
                     <Select 
                       value={selectedCompanyId?.toString() || ''} 
                       onValueChange={(value) => setSelectedCompanyId(value ? parseInt(value) : undefined)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma empresa" />
+                        <SelectValue placeholder={formatMessage('sla_config.select_company')} />
                       </SelectTrigger>
                       <SelectContent>
                         {companies?.map(company => (
@@ -874,17 +876,17 @@ export default function SLAConfigurations() {
 
                 {/* Seletor de Departamento */}
                 <div className="space-y-2">
-                  <Label>Departamento</Label>
+                  <Label>{formatMessage('sla_config.department')}</Label>
                   <Select 
                     value={selectedDepartmentId?.toString() || 'all'} 
                     onValueChange={(value) => setSelectedDepartmentId(value === 'all' ? undefined : parseInt(value))}
                     disabled={!selectedCompanyId}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Todos os departamentos" />
+                      <SelectValue placeholder={formatMessage('sla_config.all_departments')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos os departamentos</SelectItem>
+                      <SelectItem value="all">{formatMessage('sla_config.all_departments')}</SelectItem>
                       {departments
                         ?.filter(dept => (dept.is_active ?? dept.active ?? true))
                         .slice()
@@ -900,17 +902,17 @@ export default function SLAConfigurations() {
 
                 {/* Seletor de Tipo de Incidente */}
                 <div className="space-y-2">
-                  <Label>Tipo de Incidente</Label>
+                  <Label>{formatMessage('sla_config.incident_type')}</Label>
                   <Select 
                     value={selectedIncidentTypeId?.toString() || 'all'} 
                     onValueChange={(value) => setSelectedIncidentTypeId(value === 'all' ? undefined : parseInt(value))}
                     disabled={!selectedCompanyId}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Todos os tipos" />
+                      <SelectValue placeholder={formatMessage('sla_config.all_types')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos os tipos</SelectItem>
+                      <SelectItem value="all">{formatMessage('sla_config.all_types')}</SelectItem>
                       {incidentTypes
                         ?.filter(type => (type.is_active ?? type.active ?? true))
                         .slice()
@@ -926,7 +928,7 @@ export default function SLAConfigurations() {
 
                 {/* Toggle Apenas Ativos */}
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label>{formatMessage('sla_config.status')}</Label>
                   <div className="flex items-center space-x-2 pt-2">
                     <Switch
                       id="show-only-active"
@@ -934,7 +936,7 @@ export default function SLAConfigurations() {
                       onCheckedChange={setShowOnlyActive}
                     />
                     <Label htmlFor="show-only-active" className="text-sm">
-                      Apenas configurações ativas
+                      {formatMessage('sla_config.only_active_configurations')}
                     </Label>
                   </div>
                 </div>
@@ -947,22 +949,22 @@ export default function SLAConfigurations() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle>Configurações SLA</CardTitle>
+                  <CardTitle>{formatMessage('sla_config.sla_configurations')}</CardTitle>
                   <CardDescription>
-                    {(Array.isArray(slaConfigurations) ? slaConfigurations.length : 0)} configuração(ões) encontrada(s)
+                    {formatMessage('sla_config.configurations_found', { count: (Array.isArray(slaConfigurations) ? slaConfigurations.length : 0) })}
                   </CardDescription>
                 </div>
                 <Button 
                   variant="outline" 
                   onClick={async () => {
-                    toast({ title: "Atualizando", description: "Recarregando configurações..." });
+                    toast({ title: formatMessage('sla_config.updating'), description: formatMessage('sla_config.reloading_configurations') });
                     await invalidateSLACache();
-                    toast({ title: "Sucesso", description: "Configurações atualizadas!" });
+                    toast({ title: formatMessage('sla_config.success'), description: formatMessage('sla_config.configurations_updated') });
                   }}
                   disabled={isLoadingSLA}
                 >
                   <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingSLA ? 'animate-spin' : ''}`} />
-                  {isLoadingSLA ? 'Carregando...' : 'Atualizar'}
+                  {isLoadingSLA ? formatMessage('sla_config.loading') : formatMessage('sla_config.refresh')}
                 </Button>
               </div>
             </CardHeader>
@@ -978,25 +980,25 @@ export default function SLAConfigurations() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
-                        <TableHead>Departamento</TableHead>
-                        <TableHead>Tipo de Incidente</TableHead>
-                           <TableHead>Categoria</TableHead>
-                        <TableHead>Prioridade</TableHead>
+                        {user?.role === 'admin' && <TableHead>{formatMessage('sla_config.company')}</TableHead>}
+                        <TableHead>{formatMessage('sla_config.department')}</TableHead>
+                        <TableHead>{formatMessage('sla_config.incident_type')}</TableHead>
+                           <TableHead>{formatMessage('sla_config.category')}</TableHead>
+                        <TableHead>{formatMessage('sla_config.priority')}</TableHead>
                         <TableHead className="text-center">
                           <div className="flex items-center justify-center gap-1">
                             <Clock className="h-4 w-4" />
-                            Resposta (h)
+                            {formatMessage('sla_config.response_hours')}
                           </div>
                         </TableHead>
                         <TableHead className="text-center">
                           <div className="flex items-center justify-center gap-1">
                             <Target className="h-4 w-4" />
-                            Resolução (h)
+                            {formatMessage('sla_config.resolution_hours')}
                           </div>
                         </TableHead>
-                        <TableHead className="text-center">Status</TableHead>
-                        <TableHead className="text-center">Ações</TableHead>
+                        <TableHead className="text-center">{formatMessage('sla_config.status')}</TableHead>
+                        <TableHead className="text-center">{formatMessage('sla_config.actions')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody className="space-y-1">
@@ -1037,12 +1039,12 @@ export default function SLAConfigurations() {
                               {config.is_active ? (
                                 <>
                                   <CheckCircle className="h-3 w-3 mr-1" />
-                                  Ativo
+                                  {formatMessage('sla_config.active')}
                                 </>
                               ) : (
                                 <>
                                   <AlertTriangle className="h-3 w-3 mr-1" />
-                                  Inativo
+                                  {formatMessage('sla_config.inactive')}
                                 </>
                               )}
                             </Badge>
@@ -1064,19 +1066,18 @@ export default function SLAConfigurations() {
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
-                                    <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                                    <AlertDialogTitle>{formatMessage('sla_config.confirm_deletion')}</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Tem certeza que deseja excluir esta configuração SLA?
-                                      Esta ação não pode ser desfeita.
+                                      {formatMessage('sla_config.confirm_deletion_description')}
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogCancel>{formatMessage('sla_config.cancel')}</AlertDialogCancel>
                                     <AlertDialogAction
                                       onClick={() => deleteSLAMutation.mutate(config.id)}
                                       className="bg-red-600 hover:bg-red-700"
                                     >
-                                      Excluir
+                                      {formatMessage('sla_config.delete')}
                                     </AlertDialogAction>
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
@@ -1092,15 +1093,15 @@ export default function SLAConfigurations() {
                 <div className="text-center py-12">
                   <SettingsIcon className="mx-auto h-12 w-12 text-neutral-400" />
                   <h3 className="mt-2 text-sm font-medium text-neutral-900">
-                    Nenhuma configuração encontrada
+                    {formatMessage('sla_config.no_configurations_found')}
                   </h3>
                   <p className="mt-1 text-sm text-neutral-500">
-                    Configure seu primeiro SLA para começar.
+                    {formatMessage('sla_config.configure_first_sla')}
                   </p>
                   <div className="mt-6">
                     <Button onClick={() => setIsAddDialogOpen(true)}>
                       <Plus className="mr-2 h-4 w-4" />
-                      Nova Configuração
+                      {formatMessage('sla_config.new_configuration')}
                     </Button>
                   </div>
                 </div>
@@ -1112,9 +1113,9 @@ export default function SLAConfigurations() {
         <TabsContent value="matrix">
           <Card>
             <CardHeader>
-              <CardTitle>Matriz SLA</CardTitle>
+              <CardTitle>{formatMessage('sla_config.sla_matrix')}</CardTitle>
               <CardDescription>
-                Visualização em matriz das configurações SLA por departamento e tipo
+                {formatMessage('sla_config.sla_matrix_description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1123,16 +1124,16 @@ export default function SLAConfigurations() {
                 {/* Empresa */}
                 {user?.role === 'admin' && (
                   <div className="space-y-2">
-                    <Label>Empresa</Label>
+                    <Label>{formatMessage('sla_config.company')}</Label>
                     <Select 
                       value={selectedCompanyId?.toString() || 'all'} 
                       onValueChange={(value) => setSelectedCompanyId(value === 'all' ? undefined : parseInt(value))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Todas as empresas" />
+                        <SelectValue placeholder={formatMessage('sla_config.all_companies')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Todas as empresas</SelectItem>
+                        <SelectItem value="all">{formatMessage('sla_config.all_companies')}</SelectItem>
                         {companies?.map(company => (
                           <SelectItem key={company.id} value={company.id.toString()}>
                             {company.name}
@@ -1145,17 +1146,17 @@ export default function SLAConfigurations() {
 
                 {/* Departamento */}
                 <div className="space-y-2">
-                  <Label>Departamento</Label>
+                  <Label>{formatMessage('sla_config.department')}</Label>
                   <Select 
                     value={selectedDepartmentId?.toString() || 'all'} 
                     onValueChange={(value) => setSelectedDepartmentId(value === 'all' ? undefined : parseInt(value))}
                     disabled={!selectedCompanyId}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Todos os departamentos" />
+                      <SelectValue placeholder={formatMessage('sla_config.all_departments')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos os departamentos</SelectItem>
+                      <SelectItem value="all">{formatMessage('sla_config.all_departments')}</SelectItem>
                       {departments?.map(dept => (
                         <SelectItem key={dept.id} value={dept.id.toString()}>
                           {dept.name}
@@ -1167,17 +1168,17 @@ export default function SLAConfigurations() {
 
                 {/* Tipo de Incidente */}
                 <div className="space-y-2">
-                  <Label>Tipo de Incidente</Label>
+                  <Label>{formatMessage('sla_config.incident_type')}</Label>
                   <Select 
                     value={selectedIncidentTypeId?.toString() || 'all'} 
                     onValueChange={(value) => setSelectedIncidentTypeId(value === 'all' ? undefined : parseInt(value))}
                     disabled={!selectedDepartmentId}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Todos os tipos" />
+                      <SelectValue placeholder={formatMessage('sla_config.all_types')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos os tipos</SelectItem>
+                      <SelectItem value="all">{formatMessage('sla_config.all_types')}</SelectItem>
                       {incidentTypes?.map(type => (
                         <SelectItem key={type.id} value={type.id.toString()}>
                           {type.name}
@@ -1199,20 +1200,20 @@ export default function SLAConfigurations() {
                 <div className="text-center py-12">
                   <Building2 className="mx-auto h-12 w-12 text-neutral-400" />
                   <h3 className="mt-2 text-sm font-medium text-neutral-900">
-                    Selecione uma empresa
+                    {formatMessage('sla_config.select_company')}
                   </h3>
                   <p className="mt-1 text-sm text-neutral-500">
-                    Escolha uma empresa para visualizar a matriz SLA
+                    {formatMessage('sla_config.choose_company_to_view_matrix')}
                   </p>
                 </div>
               ) : !slaConfigurations?.length ? (
                 <div className="text-center py-12">
                   <Target className="mx-auto h-12 w-12 text-neutral-400" />
                   <h3 className="mt-2 text-sm font-medium text-neutral-900">
-                    Nenhuma configuração SLA encontrada
+                    {formatMessage('sla_config.no_sla_configurations_found')}
                   </h3>
                   <p className="mt-1 text-sm text-neutral-500">
-                    Crie configurações SLA na aba "Configurações" para visualizar a matriz
+                    {formatMessage('sla_config.create_sla_configs_to_view_matrix')}
                   </p>
                 </div>
               ) : (
@@ -1241,7 +1242,7 @@ export default function SLAConfigurations() {
                             <Building2 className="h-4 w-4 text-neutral-600" />
                             <h3 className="font-medium text-neutral-900">{department.name}</h3>
                             <Badge variant="secondary" className="ml-2">
-                              {deptSLAs.length} configurações
+                              {formatMessage('sla_config.configurations_count', { count: deptSLAs.length })}
                             </Badge>
                           </div>
                         </div>
@@ -1251,22 +1252,22 @@ export default function SLAConfigurations() {
                             <Table>
                               <TableHeader>
                                 <TableRow>
-                                  <TableHead className="w-[200px]">Tipo de Incidente</TableHead>
-                                <TableHead>Categoria</TableHead>
-                                  <TableHead>Prioridade</TableHead>
+                                  <TableHead className="w-[200px]">{formatMessage('sla_config.incident_type')}</TableHead>
+                                <TableHead>{formatMessage('sla_config.category')}</TableHead>
+                                  <TableHead>{formatMessage('sla_config.priority')}</TableHead>
                                   <TableHead className="text-center">
                                     <div className="flex items-center justify-center gap-1">
                                       <Clock className="h-4 w-4" />
-                                      Resposta
+                                      {formatMessage('sla_config.response')}
                                     </div>
                                   </TableHead>
                                   <TableHead className="text-center">
                                     <div className="flex items-center justify-center gap-1">
                                       <Target className="h-4 w-4" />
-                                      Resolução
+                                      {formatMessage('sla_config.resolution')}
                                     </div>
                                   </TableHead>
-                                  <TableHead className="text-center">Status</TableHead>
+                                  <TableHead className="text-center">{formatMessage('sla_config.status')}</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -1316,7 +1317,7 @@ export default function SLAConfigurations() {
                                               </div>
                                             ) : (
                                               <Badge variant="outline" className="text-xs">
-                                                Padrão (todas)
+                                                {formatMessage('sla_config.default_all')}
                                               </Badge>
                                             )}
                                           </TableCell>
@@ -1334,12 +1335,12 @@ export default function SLAConfigurations() {
                                             {sla.is_active ? (
                                               <Badge variant="default" className="bg-green-100 text-green-800">
                                                 <CheckCircle className="h-3 w-3 mr-1" />
-                                                Ativo
+                                                {formatMessage('sla_config.active')}
                                               </Badge>
                                             ) : (
                                               <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
                                                 <AlertTriangle className="h-3 w-3 mr-1" />
-                                                Inativo
+                                                {formatMessage('sla_config.inactive')}
                                               </Badge>
                                             )}
                                           </TableCell>
@@ -1367,19 +1368,19 @@ export default function SLAConfigurations() {
         <TabsContent value="bulk">
           <Card>
             <CardHeader>
-              <CardTitle>Operações em Lote</CardTitle>
+              <CardTitle>{formatMessage('sla_config.bulk_operations')}</CardTitle>
               <CardDescription>
-                Crie, atualize ou copie múltiplas configurações SLA
+                {formatMessage('sla_config.bulk_operations_description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-center py-12">
                 <Copy className="mx-auto h-12 w-12 text-neutral-400" />
                 <h3 className="mt-2 text-sm font-medium text-neutral-900">
-                  Operações em Lote
+                  {formatMessage('sla_config.bulk_operations')}
                 </h3>
                 <p className="mt-1 text-sm text-neutral-500">
-                  Funcionalidade em desenvolvimento
+                  {formatMessage('sla_config.feature_in_development')}
                 </p>
               </div>
             </CardContent>
@@ -1399,10 +1400,10 @@ export default function SLAConfigurations() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {isEditDialogOpen ? 'Editar Configuração SLA' : 'Nova Configuração SLA'}
+              {isEditDialogOpen ? formatMessage('sla_config.edit_sla_configuration') : formatMessage('sla_config.new_sla_configuration')}
             </DialogTitle>
             <DialogDescription>
-              Configure os tempos de resposta e resolução para esta combinação específica.
+              {formatMessage('sla_config.configure_response_resolution_times')}
             </DialogDescription>
           </DialogHeader>
           
@@ -1412,13 +1413,13 @@ export default function SLAConfigurations() {
                 {/* Seletor de Empresa */}
                 {user?.role === 'admin' && (
                   <div className="space-y-2">
-                    <Label>Empresa *</Label>
+                    <Label>{formatMessage('sla_config.company')} *</Label>
                     <Select 
                       value={formData.companyId.toString()} 
                       onValueChange={(value) => setFormData(prev => ({ ...prev, companyId: parseInt(value) }))}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma empresa" />
+                        <SelectValue placeholder={formatMessage('sla_config.select_company')} />
                       </SelectTrigger>
                       <SelectContent>
                         {companies?.map(company => (
@@ -1433,7 +1434,7 @@ export default function SLAConfigurations() {
 
                 {/* Seletor de Departamento */}
                 <div className="space-y-2">
-                  <Label>Departamento *</Label>
+                  <Label>{formatMessage('sla_config.department')} *</Label>
                   <Select 
                     value={formData.departmentId.toString()} 
                     onValueChange={(value) => setFormData(prev => ({ 
@@ -1446,7 +1447,7 @@ export default function SLAConfigurations() {
                     disabled={!formData.companyId || !departments?.length}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione um departamento" />
+                      <SelectValue placeholder={formatMessage('sla_config.select_department')} />
                     </SelectTrigger>
                     <SelectContent>
                       {departments
@@ -1464,7 +1465,7 @@ export default function SLAConfigurations() {
 
                 {/* Seletor de Tipo de Chamado */}
                 <div className="space-y-2">
-                  <Label>Tipo de Chamado *</Label>
+                  <Label>{formatMessage('sla_config.incident_type')} *</Label>
                   <Select 
                     value={formData.incidentTypeId ? formData.incidentTypeId.toString() : ''} 
                     onValueChange={(value) => setFormData(prev => ({ 
@@ -1475,7 +1476,7 @@ export default function SLAConfigurations() {
                     disabled={!formData.departmentId || !formIncidentTypes?.length}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione um tipo" />
+                      <SelectValue placeholder={formatMessage('sla_config.select_type')} />
                     </SelectTrigger>
                     <SelectContent>
                       {formIncidentTypes
@@ -1494,7 +1495,7 @@ export default function SLAConfigurations() {
                 {/* Seletor de Categoria (apenas quando modo = category) */}
                 {departmentSlaMode === 'category' && (
                   <div className="space-y-2">
-                    <Label>Categoria *</Label>
+                    <Label>{formatMessage('sla_config.category')} *</Label>
                     <Select 
                       value={formData.categoryId?.toString() || ''} 
                       onValueChange={(value) => setFormData(prev => ({ 
@@ -1504,7 +1505,7 @@ export default function SLAConfigurations() {
                       disabled={!(formCategories && formCategories.length > 0)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder={(formCategories && formCategories.length > 0) ? 'Selecione uma categoria' : 'Sem categorias para este tipo'} />
+                        <SelectValue placeholder={(formCategories && formCategories.length > 0) ? formatMessage('sla_config.select_category') : formatMessage('sla_config.no_categories_for_type')} />
                       </SelectTrigger>
                       <SelectContent>
                         {formCategories
@@ -1523,7 +1524,7 @@ export default function SLAConfigurations() {
 
                 {/* Seletor de Prioridade */}
                 <div className="space-y-2">
-                  <Label>Prioridade {formPriorities && `(${formPriorities.length} encontradas)`}</Label>
+                  <Label>{formatMessage('sla_config.priority')} {formPriorities && `(${formPriorities.length} ${formatMessage('sla_config.found')})`}</Label>
                   <Select 
                     value={formData.priorityId?.toString() || 'null'} 
                     onValueChange={(value) => setFormData(prev => ({ 
@@ -1533,10 +1534,10 @@ export default function SLAConfigurations() {
                     disabled={!formPriorities?.length}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Padrão (todas as prioridades)" />
+                      <SelectValue placeholder={formatMessage('sla_config.default_all_priorities')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="null">Padrão (todas as prioridades)</SelectItem>
+                      <SelectItem value="null">{formatMessage('sla_config.default_all_priorities')}</SelectItem>
                       {formPriorities?.map(priority => (
                         <SelectItem key={priority.id} value={priority.id.toString()}>
                           <div className="flex items-center gap-2">
@@ -1558,7 +1559,7 @@ export default function SLAConfigurations() {
 
             {/* Unidade de tempo (toggle) */}
             <div className="flex items-center justify-between">
-              <Label htmlFor="toggle-time-unit">Usar dias</Label>
+              <Label htmlFor="toggle-time-unit">{formatMessage('sla_config.use_days')}</Label>
               <Switch
                 id="toggle-time-unit"
                 checked={timeUnit === 'days'}
@@ -1568,7 +1569,7 @@ export default function SLAConfigurations() {
 
             {/* Tempo de Resposta */}
             <div className="space-y-2">
-              <Label>Tempo de Resposta ({timeUnit === 'hours' ? 'horas' : 'dias'}) *</Label>
+              <Label>{formatMessage('sla_config.response_time')} ({timeUnit === 'hours' ? formatMessage('sla_config.hours') : formatMessage('sla_config.days')}) *</Label>
               <Input
                 type="number"
                 min={1}
@@ -1593,7 +1594,7 @@ export default function SLAConfigurations() {
 
             {/* Tempo de Resolução */}
             <div className="space-y-2">
-              <Label>Tempo de Resolução ({timeUnit === 'hours' ? 'horas' : 'dias'}) *</Label>
+              <Label>{formatMessage('sla_config.resolution_time')} ({timeUnit === 'hours' ? formatMessage('sla_config.hours') : formatMessage('sla_config.days')}) *</Label>
               <Input
                 type="number"
                 min={1}
@@ -1618,7 +1619,7 @@ export default function SLAConfigurations() {
 
             {/* Status Ativo */}
             <div className="flex items-center space-x-2">
-              <Label htmlFor="is-active">Configuração ativa</Label>
+              <Label htmlFor="is-active">{formatMessage('sla_config.active_configuration')}</Label>
               <Switch
                 id="is-active"
                 checked={formData.isActive}
@@ -1631,7 +1632,7 @@ export default function SLAConfigurations() {
               <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
                 <AlertTriangle className="h-4 w-4 text-red-500" />
                 <span className="text-sm text-red-700">
-                  Tempo de resposta deve ser menor que tempo de resolução
+                  {formatMessage('sla_config.response_time_validation')}
                 </span>
               </div>
             )}
@@ -1647,7 +1648,7 @@ export default function SLAConfigurations() {
                 resetForm();
               }}
             >
-              Cancelar
+              {formatMessage('sla_config.cancel')}
             </Button>
             <Button 
               onClick={isEditDialogOpen ? handleEditSLA : handleAddSLA}
@@ -1656,7 +1657,7 @@ export default function SLAConfigurations() {
               {(createSLAMutation.isPending || editSLAMutation.isPending) && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
-              {isEditDialogOpen ? 'Salvar Alterações' : 'Criar Configuração'}
+              {isEditDialogOpen ? formatMessage('sla_config.save_changes') : formatMessage('sla_config.create_configuration')}
             </Button>
           </div>
         </DialogContent>
@@ -1666,26 +1667,26 @@ export default function SLAConfigurations() {
       <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Importar Configurações SLA</DialogTitle>
+            <DialogTitle>{formatMessage('sla_config.import_sla_configurations')}</DialogTitle>
             <DialogDescription>
-              Faça upload de um arquivo CSV com as configurações SLA para importar em lote
+              {formatMessage('sla_config.import_sla_description')}
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
             {/* Instruções */}
             <div className="p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">📋 Como usar:</h4>
+              <h4 className="font-medium text-blue-900 mb-2">📋 {formatMessage('sla_config.how_to_use')}:</h4>
               <ol className="text-sm text-blue-800 space-y-1">
-                <li>1. Baixe o <strong>Modelo CSV</strong> para ver a estrutura necessária</li>
-                <li>2. Preencha seus dados seguindo o modelo</li>
-                <li>3. Faça upload do arquivo CSV preenchido</li>
+                <li>1. {formatMessage('sla_config.download_csv_template')}</li>
+                <li>2. {formatMessage('sla_config.fill_data_following_template')}</li>
+                <li>3. {formatMessage('sla_config.upload_filled_csv')}</li>
               </ol>
             </div>
 
             {/* Input de arquivo */}
             <div className="space-y-2">
-              <Label htmlFor="csv-file">Arquivo CSV</Label>
+              <Label htmlFor="csv-file">{formatMessage('sla_config.csv_file')}</Label>
               <Input
                 id="csv-file"
                 type="file"
@@ -1694,46 +1695,46 @@ export default function SLAConfigurations() {
                 className="cursor-pointer"
               />
               <p className="text-xs text-muted-foreground">
-                Apenas arquivos .csv são aceitos
+                {formatMessage('sla_config.only_csv_files_accepted')}
               </p>
             </div>
 
             {/* Preview dos resultados */}
             {importResults && (
               <div className="space-y-3">
-                <h4 className="font-medium">Resultados da Importação:</h4>
+                <h4 className="font-medium">{formatMessage('sla_config.import_results')}:</h4>
                 
                 <div className="grid grid-cols-3 gap-3">
                   <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-center">
                     <div className="text-lg font-bold text-green-700">
                       {importResults.successful}
                     </div>
-                    <div className="text-xs text-green-600">Sucesso</div>
+                    <div className="text-xs text-green-600">{formatMessage('sla_config.success')}</div>
                   </div>
                   
                   <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg text-center">
                     <div className="text-lg font-bold text-orange-700">
                       {importResults.duplicates}
                     </div>
-                    <div className="text-xs text-orange-600">Duplicados</div>
+                    <div className="text-xs text-orange-600">{formatMessage('sla_config.duplicates')}</div>
                   </div>
                   
                   <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-center">
                     <div className="text-lg font-bold text-red-700">
                       {importResults.errors}
                     </div>
-                    <div className="text-xs text-red-600">Erros</div>
+                    <div className="text-xs text-red-600">{formatMessage('sla_config.errors')}</div>
                   </div>
                 </div>
 
                 {/* Detalhes dos erros */}
                 {importResults.details?.errors?.length > 0 && (
                   <div className="space-y-2">
-                    <h5 className="font-medium text-red-700">Erros encontrados:</h5>
+                    <h5 className="font-medium text-red-700">{formatMessage('sla_config.errors_found')}:</h5>
                     <div className="max-h-32 overflow-y-auto space-y-1">
                       {importResults.details.errors.map((error: any, index: number) => (
                         <div key={index} className="text-xs bg-red-50 p-2 rounded border border-red-200">
-                          <strong>Linha {error.line}:</strong> {error.error}
+                          <strong>{formatMessage('sla_config.line')} {error.line}:</strong> {error.error}
                         </div>
                       ))}
                     </div>
@@ -1751,7 +1752,7 @@ export default function SLAConfigurations() {
                 setImportResults(null);
               }}
             >
-              Fechar
+              {formatMessage('sla_config.close')}
             </Button>
             {importResults && importResults.successful > 0 && (
               <Button 
@@ -1759,10 +1760,10 @@ export default function SLAConfigurations() {
                   await invalidateSLACache();
                   setIsImportDialogOpen(false);
                   setImportResults(null);
-                  toast({ title: "Sucesso", description: "Configurações importadas e atualizadas!" });
+                  toast({ title: formatMessage('sla_config.success'), description: formatMessage('sla_config.configurations_imported_updated') });
                 }}
               >
-                Concluir
+                {formatMessage('sla_config.complete')}
               </Button>
             )}
           </div>

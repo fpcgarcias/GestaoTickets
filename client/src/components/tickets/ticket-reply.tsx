@@ -32,6 +32,7 @@ import { FileUpload } from './file-upload';
 import { useAuth } from '@/hooks/use-auth';
 import { getStatusConfig, type TicketStatus } from '@shared/ticket-utils';
 import { TicketTransferDialog } from './TicketTransferDialog';
+import { useI18n } from '@/i18n';
 
 interface TicketReplyFormProps {
   ticket: Ticket;
@@ -42,6 +43,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
   const [transferOpen, setTransferOpen] = React.useState(false);
   
   // 🔥 CORREÇÃO: Determinar se o usuário é cliente NESTE TICKET específico
@@ -93,8 +95,8 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     },
     onSuccess: () => {
       toast({
-        title: "Sucesso!",
-        description: "Resposta enviada com sucesso.",
+        title: formatMessage('ticket_reply.success'),
+        description: formatMessage('ticket_reply.reply_sent_successfully'),
       });
       // 🔥 TESTE: Navegar imediatamente sem invalidateQueries
       // O WebSocket vai atualizar os dados automaticamente
@@ -102,10 +104,10 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     },
     onError: (error: any) => {
       // Extrair a mensagem de erro do backend
-      const errorMessage = error.details || error.message || "Falha ao enviar resposta";
+      const errorMessage = error.details || error.message || formatMessage('ticket_reply.failed_to_send_reply');
       
       toast({
-        title: "Erro",
+        title: formatMessage('ticket_reply.error'),
         description: errorMessage,
         variant: "destructive",
       });
@@ -124,7 +126,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     // Transformar os dados para o formato esperado pela API
     const requestData: any = {
       ticket_id: data.ticket_id || ticket.id,
-      message: data.message || "Status atualizado automaticamente",
+      message: data.message || formatMessage('ticket_reply.status_updated_automatically'),
       status: statusToUse,
       type: ticket.type,
       is_internal: false,
@@ -143,7 +145,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
 
   // Função para encontrar o nome do atendente atual
   const getCurrentOfficialName = () => {
-    if (!ticket.assigned_to_id) return 'Não atribuído';
+    if (!ticket.assigned_to_id) return formatMessage('ticket_reply.not_assigned');
     
     // Usar sempre o nome do atendente que veio no ticket
     if (ticket.official?.name) {
@@ -153,28 +155,28 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     // Se não tiver o nome no ticket, buscar na lista de atendentes (só para não-clientes)
     if (!isCustomerForThisTicket && officials && officials.length > 0) {
       const official = officials.find((o: Official) => o.id === ticket.assigned_to_id);
-      return official?.name || 'Atendente não encontrado';
+      return official?.name || formatMessage('ticket_reply.official_not_found');
     }
     
-    return 'Atendente não encontrado';
+    return formatMessage('ticket_reply.official_not_found');
   };
 
   return (
     <Card>
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-medium">Responder ao Chamado</h3>
+          <h3 className="text-lg font-medium">{formatMessage('ticket_reply.reply_to_ticket')}</h3>
           {/* Botão Transferir: oculto apenas para customer */}
           {user?.role !== 'customer' && (
             <Button variant="secondary" onClick={() => setTransferOpen(true)}>
-              Transferir Chamado
+              {formatMessage('ticket_reply.transfer_ticket')}
             </Button>
           )}
         </div>
         {/* Contexto do Chamado: Departamento / Tipo / Categoria (sem dependência do FormContext) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
           <div className="space-y-2">
-            <div className="text-sm font-medium">Departamento</div>
+            <div className="text-sm font-medium">{formatMessage('ticket_reply.department')}</div>
             <Input
               value={(ticket as any).department_name || '—'}
               readOnly
@@ -182,7 +184,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
             />
           </div>
           <div className="space-y-2">
-            <div className="text-sm font-medium">Tipo de Chamado</div>
+            <div className="text-sm font-medium">{formatMessage('ticket_reply.ticket_type')}</div>
             <Input
               value={(ticket as any).incident_type_name || '—'}
               readOnly
@@ -190,7 +192,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
             />
           </div>
           <div className="space-y-2">
-            <div className="text-sm font-medium">Categoria</div>
+            <div className="text-sm font-medium">{formatMessage('ticket_reply.category')}</div>
             <Input
               value={(ticket as any).category_name || '—'}
               readOnly
@@ -203,7 +205,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <FormItem>
-                <FormLabel>E-mail do Cliente</FormLabel>
+                <FormLabel>{formatMessage('ticket_reply.customer_email')}</FormLabel>
                 <Input 
                   value={ticket.customer_email} 
                   readOnly 
@@ -218,11 +220,11 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 name="status"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Status</FormLabel>
+                    <FormLabel>{formatMessage('ticket_reply.status')}</FormLabel>
                     {isCustomerForThisTicket ? (
                       // Para clientes: campo somente-leitura mostrando o status atual
                       <Input 
-                        value={getStatusConfig(ticket.status as TicketStatus).label}
+                        value={formatMessage(`tickets.${ticket.status}`)}
                         readOnly 
                         className="bg-muted"
                       />
@@ -234,36 +236,36 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecionar Status" />
+                            <SelectValue placeholder={formatMessage('ticket_reply.select_status')} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
                           <SelectItem value={TICKET_STATUS.NEW}>
-                            {getStatusConfig('new').icon} {getStatusConfig('new').label}
+                            {getStatusConfig('new').icon} {formatMessage('tickets.new')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.ONGOING}>
-                            {getStatusConfig('ongoing').icon} {getStatusConfig('ongoing').label}
+                            {getStatusConfig('ongoing').icon} {formatMessage('tickets.ongoing')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.SUSPENDED}>
-                            {getStatusConfig('suspended').icon} {getStatusConfig('suspended').label}
+                            {getStatusConfig('suspended').icon} {formatMessage('tickets.suspended')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.WAITING_CUSTOMER}>
-                            {getStatusConfig('waiting_customer').icon} {getStatusConfig('waiting_customer').label}
+                            {getStatusConfig('waiting_customer').icon} {formatMessage('tickets.waiting_customer')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.ESCALATED}>
-                            {getStatusConfig('escalated').icon} {getStatusConfig('escalated').label}
+                            {getStatusConfig('escalated').icon} {formatMessage('tickets.escalated')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.IN_ANALYSIS}>
-                            {getStatusConfig('in_analysis').icon} {getStatusConfig('in_analysis').label}
+                            {getStatusConfig('in_analysis').icon} {formatMessage('tickets.in_analysis')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.PENDING_DEPLOYMENT}>
-                            {getStatusConfig('pending_deployment').icon} {getStatusConfig('pending_deployment').label}
+                            {getStatusConfig('pending_deployment').icon} {formatMessage('tickets.pending_deployment')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.REOPENED}>
-                            {getStatusConfig('reopened').icon} {getStatusConfig('reopened').label}
+                            {getStatusConfig('reopened').icon} {formatMessage('tickets.reopened')}
                           </SelectItem>
                           <SelectItem value={TICKET_STATUS.RESOLVED}>
-                            {getStatusConfig('resolved').icon} {getStatusConfig('resolved').label}
+                            {getStatusConfig('resolved').icon} {formatMessage('tickets.resolved')}
                           </SelectItem>
                         </SelectContent>
                       </Select>
@@ -278,7 +280,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 name="assigned_to_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Atendente Responsável</FormLabel>
+                    <FormLabel>{formatMessage('ticket_reply.responsible_official')}</FormLabel>
                     {isCustomerForThisTicket ? (
                       // Para clientes: campo somente-leitura mostrando o atendente atual
                       <Input 
@@ -294,14 +296,14 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecionar Atendente" />
+                            <SelectValue placeholder={formatMessage('ticket_reply.select_official')} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
                           {isLoadingOfficials && (
                             <div className="flex items-center justify-center p-2">
                               <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              <span>Carregando atendentes...</span>
+                              <span>{formatMessage('ticket_reply.loading_officials')}</span>
                             </div>
                           )}
                           {(officials ?? []).map((official: Official) => (
@@ -311,7 +313,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                           ))}
                           {(!officials || officials.length === 0) && !isLoadingOfficials && (
                             <div className="p-2 text-muted-foreground text-sm text-center">
-                              Nenhum atendente encontrado
+                              {formatMessage('ticket_reply.no_officials_found')}
                             </div>
                           )}
                         </SelectContent>
@@ -329,10 +331,10 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
               name="message"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Mensagem de Resposta</FormLabel>
+                  <FormLabel>{formatMessage('ticket_reply.reply_message')}</FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder="Digite sua resposta aqui..." 
+                      placeholder={formatMessage('ticket_reply.type_reply_here')} 
                       rows={6} 
                       {...field} 
                     />
@@ -345,17 +347,17 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
             {/* Upload de Arquivos */}
             <div className="border-t pt-6">
               <div className="mb-4">
-                <h4 className="text-sm font-medium text-foreground">Anexar Arquivos</h4>
+                <h4 className="text-sm font-medium text-foreground">{formatMessage('ticket_reply.attach_files')}</h4>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Adicione documentos, imagens ou outros arquivos relacionados à sua resposta.
+                  {formatMessage('ticket_reply.attach_files_description')}
                 </p>
               </div>
               <FileUpload 
                 ticketId={ticket.id}
                 onUploadSuccess={(attachment) => {
                   toast({
-                    title: "Arquivo anexado",
-                    description: `${attachment.original_filename} foi anexado com sucesso.`,
+                    title: formatMessage('ticket_reply.file_attached'),
+                    description: formatMessage('ticket_reply.file_attached_successfully', { filename: attachment.original_filename }),
                   });
                   // Invalidar query dos anexos para recarregar a lista
                   queryClient.invalidateQueries({ 
@@ -374,7 +376,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 className="px-6"
                 disabled={replyMutation.isPending}
               >
-                {replyMutation.isPending ? "Enviando..." : "Enviar Resposta"}
+                {replyMutation.isPending ? formatMessage('ticket_reply.sending') : formatMessage('ticket_reply.send_reply')}
               </Button>
             </div>
           </form>

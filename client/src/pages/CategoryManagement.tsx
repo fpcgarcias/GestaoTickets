@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from '@/hooks/use-auth';
+import { useI18n } from '@/i18n';
 
 interface CategoryFormData {
   id?: number;
@@ -30,6 +31,7 @@ const CategoryManagement: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
   
   // Estados para filtros e busca
   const [searchTerm, setSearchTerm] = useState('');
@@ -227,8 +229,8 @@ const CategoryManagement: React.FC = () => {
     },
     onSuccess: () => {
       toast({
-        title: 'Categoria criada',
-        description: 'A categoria foi criada com sucesso.',
+        title: formatMessage('categories.add_category_dialog.created_success'),
+        description: formatMessage('categories.add_category_dialog.created_desc'),
       });
       queryClient.invalidateQueries({ queryKey: ['/categories'] });
       setIsDialogOpen(false);
@@ -236,8 +238,8 @@ const CategoryManagement: React.FC = () => {
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Erro ao criar categoria',
+        title: formatMessage('categories.add_category_dialog.error_title'),
+        description: error instanceof Error ? error.message : formatMessage('categories.add_category_dialog.error_title'),
         variant: 'destructive',
       });
     },
@@ -267,8 +269,8 @@ const CategoryManagement: React.FC = () => {
     },
     onSuccess: () => {
       toast({
-        title: 'Categoria atualizada',
-        description: 'A categoria foi atualizada com sucesso.',
+        title: formatMessage('categories.edit_category_dialog.updated_success'),
+        description: formatMessage('categories.edit_category_dialog.updated_desc'),
       });
       queryClient.invalidateQueries({ queryKey: ['/categories'] });
       setIsDialogOpen(false);
@@ -276,8 +278,8 @@ const CategoryManagement: React.FC = () => {
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Erro ao atualizar categoria',
+        title: formatMessage('categories.edit_category_dialog.error_title'),
+        description: error instanceof Error ? error.message : formatMessage('categories.edit_category_dialog.error_title'),
         variant: 'destructive',
       });
     },
@@ -297,17 +299,26 @@ const CategoryManagement: React.FC = () => {
     },
     onSuccess: () => {
       toast({
-        title: 'Categoria excluída',
-        description: 'A categoria foi excluída com sucesso.',
+        title: formatMessage('categories.delete_category_dialog.deleted_success'),
+        description: formatMessage('categories.delete_category_dialog.deleted_desc'),
       });
       queryClient.invalidateQueries({ queryKey: ['/categories'] });
       setIsDeleteDialogOpen(false);
       resetForm();
     },
     onError: (error) => {
+      // Mostrar mensagem de erro mais específica
+      let errorMessage = error instanceof Error ? error.message : formatMessage('categories.delete_category_dialog.error_title');
+      
+      // Traduzir mensagens específicas do backend
+      if (errorMessage.includes('vinculada a') && errorMessage.includes('chamado(s)')) {
+        const count = errorMessage.match(/(\d+)/)?.[1] || '0';
+        errorMessage = formatMessage('categories.delete_category_dialog.linked_to_tickets', { count });
+      }
+      
       toast({
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Erro ao excluir categoria',
+        title: formatMessage('categories.delete_category_dialog.error_title'),
+        description: errorMessage,
         variant: 'destructive',
       });
     },
@@ -367,8 +378,8 @@ const CategoryManagement: React.FC = () => {
     
     if (!currentCategory.name || !currentCategory.incident_type_id) {
       toast({
-        title: 'Erro',
-        description: 'Nome e tipo de incidente são obrigatórios',
+        title: formatMessage('categories.add_category_dialog.error_title'),
+        description: formatMessage('categories.add_category_dialog.required_fields'),
         variant: 'destructive',
       });
       return;
@@ -397,31 +408,31 @@ const CategoryManagement: React.FC = () => {
 
   // Função para obter nome da empresa
   const getCompanyName = (companyId: number | null) => {
-    if (!companyId) return 'Sistema Global';
+    if (!companyId) return formatMessage('categories.global_system');
     const company = companies.find(c => c.id === companyId);
-    return company?.name || 'Sistema Global';
+    return company?.name || formatMessage('categories.company_not_found');
   };
 
   // Função para obter nome do tipo de incidente
   const getIncidentTypeName = (incidentTypeId: number) => {
     const incidentType = incidentTypes.find(it => it.id === incidentTypeId);
-    return incidentType?.name || 'Não encontrado';
+    return incidentType?.name || formatMessage('categories.incident_type_not_found');
   };
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Categorias</h1>
+        <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('categories.title')}</h1>
         <Button onClick={handleCreate} className="flex items-center gap-2">
           <PlusIcon className="w-4 h-4" />
-          Nova Categoria
+          {formatMessage('categories.new_category')}
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Gerenciamento de Categorias</CardTitle>
-          <CardDescription>Gerencie as categorias disponíveis por tipo de incidente</CardDescription>
+          <CardTitle>{formatMessage('categories.management_title')}</CardTitle>
+          <CardDescription>{formatMessage('categories.management_description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-between mb-6">
@@ -429,7 +440,7 @@ const CategoryManagement: React.FC = () => {
               <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
                 <Input 
-                  placeholder="Buscar categorias" 
+                  placeholder={formatMessage('categories.search_placeholder')} 
                   className="pl-10" 
                   value={searchTerm}
                   onChange={(e) => handleSearchChange(e.target.value)}
@@ -443,10 +454,10 @@ const CategoryManagement: React.FC = () => {
                   disabled={isLoadingIncidentTypes || isDepartmentsLoading}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Filtrar por tipo" />
+                    <SelectValue placeholder={formatMessage('categories.filter_by_type')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os tipos</SelectItem>
+                    <SelectItem value="all">{formatMessage('categories.all_types')}</SelectItem>
                     {incidentTypes.map((incidentType) => (
                       <SelectItem key={incidentType.id} value={incidentType.id.toString()}>
                         {incidentType.name}
@@ -463,10 +474,10 @@ const CategoryManagement: React.FC = () => {
                     onValueChange={(value) => handleCompanyChange(value === "all" ? null : parseInt(value))}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Filtrar por empresa" />
+                      <SelectValue placeholder={formatMessage('categories.filter_by_company')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas as empresas</SelectItem>
+                      <SelectItem value="all">{formatMessage('categories.all_companies')}</SelectItem>
                       {companies.map((company: any) => (
                         <SelectItem key={company.id} value={company.id.toString()}>
                           {company.name}
@@ -483,7 +494,7 @@ const CategoryManagement: React.FC = () => {
                   checked={includeInactive} 
                   onCheckedChange={handleIncludeInactiveChange}
                 />
-                <Label htmlFor="includeInactive">Incluir inativos</Label>
+                <Label htmlFor="includeInactive">{formatMessage('categories.include_inactive')}</Label>
               </div>
             </div>
           </div>
@@ -491,13 +502,13 @@ const CategoryManagement: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                            <TableHead>Nome</TableHead>
-                <TableHead>Descrição</TableHead>
-                <TableHead>Tipo de Incidente</TableHead>
-                <TableHead>Departamento</TableHead>
-                {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>{formatMessage('categories.name')}</TableHead>
+                <TableHead>{formatMessage('categories.description')}</TableHead>
+                <TableHead>{formatMessage('categories.incident_type')}</TableHead>
+                <TableHead>{formatMessage('categories.department')}</TableHead>
+                {user?.role === 'admin' && <TableHead>{formatMessage('categories.company')}</TableHead>}
+                <TableHead>{formatMessage('categories.status')}</TableHead>
+                <TableHead className="text-right">{formatMessage('categories.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -517,13 +528,13 @@ const CategoryManagement: React.FC = () => {
               ) : categoriesError ? (
                 <TableRow>
                   <TableCell colSpan={user?.role === 'admin' ? 8 : 7} className="text-center py-10 text-red-500">
-                    Erro ao carregar categorias. Tente novamente mais tarde.
+                    {formatMessage('categories.error_loading')}
                   </TableCell>
                 </TableRow>
               ) : categories.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={user?.role === 'admin' ? 7 : 6} className="text-center py-10 text-neutral-500">
-                    Nenhuma categoria encontrada.
+                    {formatMessage('categories.no_categories_found')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -560,11 +571,11 @@ const CategoryManagement: React.FC = () => {
                     <TableCell>
                       {(category.is_active === undefined || category.is_active) ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Ativo
+                          {formatMessage('categories.active')}
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          Inativo
+                          {formatMessage('categories.inactive')}
                         </span>
                       )}
                     </TableCell>
@@ -574,7 +585,7 @@ const CategoryManagement: React.FC = () => {
                           variant="outline" 
                           size="sm" 
                           onClick={() => handleEdit(category)}
-                          title="Editar categoria"
+                          title={formatMessage('categories.edit_category')}
                         >
                           <PencilIcon className="h-3.5 w-3.5" />
                         </Button>
@@ -582,7 +593,7 @@ const CategoryManagement: React.FC = () => {
                           variant="destructive" 
                           size="sm"
                           onClick={() => handleDelete(category)}
-                          title="Excluir categoria"
+                          title={formatMessage('categories.delete_category')}
                         >
                           <TrashIcon className="h-3.5 w-3.5" />
                         </Button>
@@ -598,7 +609,7 @@ const CategoryManagement: React.FC = () => {
           {pagination && pagination.pages > 1 && (
             <div className="flex items-center justify-between px-2 py-4">
               <div className="text-sm text-neutral-600">
-                Mostrando {categories.length} de {pagination.total} categorias
+                {formatMessage('categories.showing_results', { count: categories.length, total: pagination.total })}
               </div>
               <div className="flex items-center space-x-2">
                 <Button
@@ -607,10 +618,10 @@ const CategoryManagement: React.FC = () => {
                   onClick={() => setCurrentPage(currentPage - 1)}
                   disabled={currentPage <= 1}
                 >
-                  Anterior
+                  {formatMessage('categories.previous')}
                 </Button>
                 <div className="text-sm text-neutral-600">
-                  Página {currentPage} de {pagination.pages}
+                  {formatMessage('categories.page')} {currentPage} {formatMessage('categories.of')} {pagination.pages}
                 </div>
                 <Button
                   variant="outline"
@@ -618,7 +629,7 @@ const CategoryManagement: React.FC = () => {
                   onClick={() => setCurrentPage(currentPage + 1)}
                   disabled={currentPage >= pagination.pages}
                 >
-                  Próxima
+                  {formatMessage('categories.next')}
                 </Button>
               </div>
             </div>
@@ -630,43 +641,41 @@ const CategoryManagement: React.FC = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{isEditing ? 'Editar Categoria' : 'Nova Categoria'}</DialogTitle>
+            <DialogTitle>{isEditing ? formatMessage('categories.edit_category_dialog.title') : formatMessage('categories.add_category_dialog.title')}</DialogTitle>
             <DialogDescription>
               {isEditing 
-                ? 'Atualize as informações da categoria abaixo.' 
-                : 'Preencha as informações para criar uma nova categoria.'}
+                ? formatMessage('categories.edit_category_dialog.description')
+                : formatMessage('categories.add_category_dialog.description')}
             </DialogDescription>
           </DialogHeader>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Nome</Label>
+              <Label htmlFor="name">{formatMessage('categories.add_category_dialog.name')}</Label>
               <Input
                 id="name"
                 name="name"
                 value={currentCategory.name}
                 onChange={handleInputChange}
-                placeholder="Ex: Hardware"
+                placeholder={formatMessage('categories.add_category_dialog.name_placeholder')}
                 required
               />
             </div>
             
-
-            
             <div className="space-y-2">
-              <Label htmlFor="description">Descrição</Label>
+              <Label htmlFor="description">{formatMessage('categories.add_category_dialog.description')}</Label>
               <Textarea
                 id="description"
                 name="description"
                 value={currentCategory.description}
                 onChange={handleInputChange}
-                placeholder="Digite uma breve descrição..."
+                placeholder={formatMessage('categories.add_category_dialog.description_placeholder')}
                 rows={3}
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="incident_type_id">Tipo de Incidente</Label>
+              <Label htmlFor="incident_type_id">{formatMessage('categories.add_category_dialog.incident_type')}</Label>
               <Select
                 value={currentCategory.incident_type_id?.toString() || ""}
                 onValueChange={(value) => 
@@ -677,7 +686,7 @@ const CategoryManagement: React.FC = () => {
                 }
               >
                 <SelectTrigger id="incident_type_id">
-                  <SelectValue placeholder="Selecione um tipo de incidente" />
+                  <SelectValue placeholder={formatMessage('categories.add_category_dialog.incident_type_placeholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {incidentTypes.map((incidentType) => (
@@ -691,7 +700,7 @@ const CategoryManagement: React.FC = () => {
             
             {user?.role === 'admin' && (
               <div className="space-y-2">
-                <Label htmlFor="company_id">Empresa</Label>
+                <Label htmlFor="company_id">{formatMessage('categories.add_category_dialog.company')}</Label>
                 <Select
                   value={currentCategory.company_id?.toString() || ""}
                   onValueChange={(value) => 
@@ -702,7 +711,7 @@ const CategoryManagement: React.FC = () => {
                   }
                 >
                   <SelectTrigger id="company_id">
-                    <SelectValue placeholder="Selecione uma empresa" />
+                    <SelectValue placeholder={formatMessage('categories.add_category_dialog.company_placeholder')} />
                   </SelectTrigger>
                   <SelectContent>
                     {companies.map((company: any) => (
@@ -713,13 +722,13 @@ const CategoryManagement: React.FC = () => {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Categorias são vinculadas a uma empresa específica
+                  {formatMessage('categories.add_category_dialog.company_help')}
                 </p>
               </div>
             )}
             
             <div className="flex items-center space-x-2">
-              <Label htmlFor="is_active">Ativo</Label>
+              <Label htmlFor="is_active">{formatMessage('categories.add_category_dialog.active')}</Label>
               <Switch
                 id="is_active"
                 checked={currentCategory.is_active}
@@ -738,7 +747,7 @@ const CategoryManagement: React.FC = () => {
                 variant="outline"
                 onClick={() => setIsDialogOpen(false)}
               >
-                Cancelar
+                {formatMessage('categories.add_category_dialog.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -747,7 +756,7 @@ const CategoryManagement: React.FC = () => {
                 {(createCategoryMutation.isPending || updateCategoryMutation.isPending) && (
                   <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                {isEditing ? 'Salvar Alterações' : 'Criar Categoria'}
+                {isEditing ? formatMessage('categories.edit_category_dialog.save') : formatMessage('categories.add_category_dialog.create')}
               </Button>
             </DialogFooter>
           </form>
@@ -758,14 +767,13 @@ const CategoryManagement: React.FC = () => {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Categoria</AlertDialogTitle>
+            <AlertDialogTitle>{formatMessage('categories.delete_category_dialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir a categoria "{currentCategory.name}"? 
-              Esta ação não pode ser desfeita.
+              {formatMessage('categories.delete_category_dialog.description', { name: currentCategory.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{formatMessage('categories.delete_category_dialog.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -774,7 +782,7 @@ const CategoryManagement: React.FC = () => {
               {deleteCategoryMutation.isPending && (
                 <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Sim, excluir
+              {formatMessage('categories.delete_category_dialog.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

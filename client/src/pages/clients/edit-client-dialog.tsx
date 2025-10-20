@@ -11,6 +11,12 @@ import { queryClient } from '@/lib/queryClient';
 import { Loader2 } from 'lucide-react';
 import { Customer } from '@shared/schema';
 import { useAuth } from '@/hooks/use-auth';
+import { useI18n } from '@/i18n';
+
+// Função para traduzir códigos de erro de senha
+const translatePasswordErrors = (errorCodes: string[], formatMessage: any): string[] => {
+  return errorCodes.map(code => formatMessage(`password_validation.${code}`));
+};
 import {
   Select,
   SelectContent,
@@ -34,6 +40,7 @@ interface EditClientDialogProps {
 export default function EditClientDialog({ open, onOpenChange, client, onSaved }: EditClientDialogProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -117,8 +124,8 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
       onOpenChange(false);
       if (onSaved) onSaved();
       toast({
-        title: 'Cliente atualizado',
-        description: 'As informações do cliente foram atualizadas com sucesso.',
+        title: formatMessage('clients.edit_client_dialog.updated_title'),
+        description: formatMessage('clients.edit_client_dialog.updated_desc'),
         variant: 'default',
       });
       
@@ -130,9 +137,26 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
       }));
     },
     onError: (error: any) => {
+      let errorMessage = error.details || error.message;
+      
+      // Se for erro de validação de senha, traduzir os códigos
+      if (error.passwordErrors && Array.isArray(error.passwordErrors)) {
+        const translatedErrors = translatePasswordErrors(error.passwordErrors, formatMessage);
+        errorMessage = (
+          <div className="space-y-1">
+            {translatedErrors.map((error, index) => (
+              <div key={index} className="flex items-start">
+                <span className="text-red-400 mr-2">•</span>
+                <span>{error}</span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      
       toast({
-        title: 'Erro ao atualizar cliente',
-        description: error.details || error.message,
+        title: formatMessage('clients.edit_client_dialog.error_update_title'),
+        description: errorMessage,
         variant: 'destructive',
       });
     },
@@ -144,8 +168,8 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
     // Validação básica
     if (!formData.name.trim()) {
       toast({
-        title: 'Erro de validação',
-        description: 'O nome do cliente é obrigatório',
+        title: formatMessage('clients.edit_client_dialog.validation_error'),
+        description: formatMessage('clients.edit_client_dialog.validation_name_required'),
         variant: 'destructive',
       });
       return;
@@ -153,8 +177,8 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
     
     if (!formData.email.trim() || !/^\S+@\S+\.\S+$/.test(formData.email)) {
       toast({
-        title: 'Erro de validação',
-        description: 'Email inválido',
+        title: formatMessage('clients.edit_client_dialog.validation_error'),
+        description: formatMessage('clients.edit_client_dialog.validation_email_invalid'),
         variant: 'destructive',
       });
       return;
@@ -163,8 +187,8 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
     // Validar que empresa foi selecionada
     if (!formData.company_id) {
       toast({
-        title: 'Erro de validação',
-        description: 'Selecione uma empresa',
+        title: formatMessage('clients.edit_client_dialog.validation_error'),
+        description: formatMessage('clients.edit_client_dialog.validation_company_required'),
         variant: 'destructive',
       });
       return;
@@ -173,8 +197,8 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
     // Verificar se senhas coincidem caso tenham sido preenchidas
     if (formData.password && formData.password !== formData.confirmPassword) {
       toast({
-        title: 'Erro de validação',
-        description: 'As senhas não coincidem',
+        title: formatMessage('clients.edit_client_dialog.validation_error'),
+        description: formatMessage('clients.edit_client_dialog.validation_password_mismatch'),
         variant: 'destructive',
       });
       return;
@@ -183,8 +207,8 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
     // Verificar comprimento mínimo da senha caso tenha sido preenchida
     if (formData.password && formData.password.length < 6) {
       toast({
-        title: 'Erro de validação',
-        description: 'A senha deve ter pelo menos 6 caracteres',
+        title: formatMessage('clients.edit_client_dialog.validation_error'),
+        description: formatMessage('clients.edit_client_dialog.validation_password_min'),
         variant: 'destructive',
       });
       return;
@@ -197,47 +221,47 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle>Editar Cliente</DialogTitle>
+          <DialogTitle>{formatMessage('clients.edit_client_dialog.title')}</DialogTitle>
           <DialogDescription>
-            Atualize as informações do cliente selecionado.
+            {formatMessage('clients.edit_client_dialog.description')}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Nome do Cliente *</Label>
+            <Label htmlFor="name">{formatMessage('clients.edit_client_dialog.client_name')} *</Label>
             <Input
               id="name"
               name="name"
-              placeholder="Digite o nome do cliente"
+              placeholder={formatMessage('clients.edit_client_dialog.client_name_placeholder')}
               value={formData.name}
               onChange={handleChange}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email *</Label>
+            <Label htmlFor="email">{formatMessage('clients.email')} *</Label>
             <Input
               id="email"
               name="email"
               type="email"
-              placeholder="Digite o email do cliente"
+              placeholder={formatMessage('clients.edit_client_dialog.email_placeholder')}
               value={formData.email}
               onChange={handleChange}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="phone">Telefone</Label>
+            <Label htmlFor="phone">{formatMessage('clients.phone')}</Label>
             <Input
               id="phone"
               name="phone"
-              placeholder="Digite o telefone do cliente"
+              placeholder={formatMessage('clients.edit_client_dialog.phone_placeholder')}
               value={formData.phone}
               onChange={handleChange}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="company_id">Empresa *</Label>
+            <Label htmlFor="company_id">{formatMessage('clients.company')} *</Label>
             {user?.role === 'admin' ? (
               // Admin pode selecionar qualquer empresa
               <Select 
@@ -246,7 +270,7 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
                 disabled={isLoadingCompanies}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione a empresa" />
+                  <SelectValue placeholder={formatMessage('clients.edit_client_dialog.company_placeholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {companies?.map(company => (
@@ -267,25 +291,25 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
           </div>
           
           <div className="pt-4">
-            <h4 className="text-sm font-medium mb-2">Alterar Senha (opcional)</h4>
+            <h4 className="text-sm font-medium mb-2">{formatMessage('clients.edit_client_dialog.change_password')}</h4>
             <div className="space-y-2">
-              <Label htmlFor="password">Nova Senha</Label>
+              <Label htmlFor="password">{formatMessage('clients.edit_client_dialog.new_password')}</Label>
               <Input
                 id="password"
                 name="password"
                 type="password"
-                placeholder="Digite a nova senha"
+                placeholder={formatMessage('clients.edit_client_dialog.new_password_placeholder')}
                 value={formData.password}
                 onChange={handleChange}
               />
             </div>
             <div className="space-y-2 mt-2">
-              <Label htmlFor="confirmPassword">Confirmar Nova Senha</Label>
+              <Label htmlFor="confirmPassword">{formatMessage('clients.edit_client_dialog.confirm_new_password')}</Label>
               <Input
                 id="confirmPassword"
                 name="confirmPassword"
                 type="password"
-                placeholder="Confirme a nova senha"
+                placeholder={formatMessage('clients.edit_client_dialog.confirm_new_password_placeholder')}
                 value={formData.confirmPassword}
                 onChange={handleChange}
               />
@@ -303,7 +327,7 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
                   }
                 />
                 <Label htmlFor="must_change_password" className="text-sm">
-                  Forçar alteração de senha no próximo login
+                  {formatMessage('clients.edit_client_dialog.force_password_change')}
                 </Label>
               </div>
             )}
@@ -311,16 +335,16 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
           
           <div className="flex justify-end space-x-2 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
+              {formatMessage('clients.edit_client_dialog.cancel')}
             </Button>
             <Button type="submit" disabled={updateClientMutation.isPending}>
               {updateClientMutation.isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Salvando...
+                  {formatMessage('clients.edit_client_dialog.saving')}
                 </>
               ) : (
-                'Salvar Alterações'
+                formatMessage('clients.edit_client_dialog.save_changes')
               )}
             </Button>
           </div>

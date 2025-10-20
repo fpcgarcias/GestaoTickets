@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from '@/hooks/use-auth';
+import { useI18n } from '@/i18n';
 
 interface DepartmentFormData {
   id?: number;
@@ -31,6 +32,7 @@ const DepartmentManagement: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
   
   // Estados para filtros e busca
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,7 +60,7 @@ const DepartmentManagement: React.FC = () => {
       const response = await apiRequest('GET', '/api/companies');
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao buscar empresas');
+        throw new Error(errorData.error || formatMessage('departments.error_loading'));
       }
       return response.json();
     },
@@ -116,7 +118,7 @@ const DepartmentManagement: React.FC = () => {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao buscar departamentos');
+        throw new Error(errorData.error || formatMessage('departments.error_loading'));
       }
       
       return response.json();
@@ -156,7 +158,7 @@ const DepartmentManagement: React.FC = () => {
       
       if (!response.ok) {
         const errorData = await response.json();
-        const errorMessage = errorData.message || errorData.error || 'Erro ao criar departamento';
+        const errorMessage = errorData.message || errorData.error || formatMessage('departments.add_department_dialog.error_title');
         throw new Error(errorMessage);
       }
       
@@ -164,17 +166,17 @@ const DepartmentManagement: React.FC = () => {
     },
     onSuccess: () => {
       toast({
-        title: 'Departamento criado',
-        description: 'O departamento foi criado com sucesso.',
+        title: formatMessage('departments.add_department_dialog.created_success'),
+        description: formatMessage('departments.add_department_dialog.created_desc'),
       });
       queryClient.invalidateQueries({ queryKey: ['/departments'] });
       setIsDialogOpen(false);
       resetForm();
     },
     onError: (error) => {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao criar departamento';
+      const errorMessage = error instanceof Error ? error.message : formatMessage('departments.add_department_dialog.error_title');
       toast({
-        title: 'Erro ao criar departamento',
+        title: formatMessage('departments.add_department_dialog.error_title'),
         description: errorMessage,
         variant: 'destructive',
       });
@@ -199,7 +201,7 @@ const DepartmentManagement: React.FC = () => {
       
       if (!response.ok) {
         const errorData = await response.json();
-        const errorMessage = errorData.message || errorData.error || 'Erro ao atualizar departamento';
+        const errorMessage = errorData.message || errorData.error || formatMessage('departments.edit_department_dialog.error_title');
         throw new Error(errorMessage);
       }
       
@@ -207,17 +209,17 @@ const DepartmentManagement: React.FC = () => {
     },
     onSuccess: () => {
       toast({
-        title: 'Departamento atualizado',
-        description: 'O departamento foi atualizado com sucesso.',
+        title: formatMessage('departments.edit_department_dialog.updated_success'),
+        description: formatMessage('departments.edit_department_dialog.updated_desc'),
       });
       queryClient.invalidateQueries({ queryKey: ['/departments'] });
       setIsDialogOpen(false);
       resetForm();
     },
     onError: (error) => {
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao atualizar departamento';
+      const errorMessage = error instanceof Error ? error.message : formatMessage('departments.edit_department_dialog.error_title');
       toast({
-        title: 'Erro ao atualizar departamento',
+        title: formatMessage('departments.edit_department_dialog.error_title'),
         description: errorMessage,
         variant: 'destructive',
       });
@@ -232,7 +234,7 @@ const DepartmentManagement: React.FC = () => {
       if (!response.ok) {
         const errorData = await response.json();
         // Extrair a mensagem específica do erro
-        const errorMessage = errorData.message || errorData.error || 'Erro ao excluir departamento';
+        const errorMessage = errorData.message || errorData.error || formatMessage('departments.delete_department_dialog.error_title');
         throw new Error(errorMessage);
       }
       
@@ -240,18 +242,33 @@ const DepartmentManagement: React.FC = () => {
     },
     onSuccess: () => {
       toast({
-        title: 'Departamento excluído',
-        description: 'O departamento foi excluído com sucesso.',
+        title: formatMessage('departments.delete_department_dialog.deleted_success'),
+        description: formatMessage('departments.delete_department_dialog.deleted_desc'),
       });
       queryClient.invalidateQueries({ queryKey: ['/departments'] });
       setIsDeleteDialogOpen(false);
     },
     onError: (error) => {
       // Mostrar mensagem de erro mais específica
-      const errorMessage = error instanceof Error ? error.message : 'Erro ao excluir departamento';
+      let errorMessage = error instanceof Error ? error.message : formatMessage('departments.delete_department_dialog.error_title');
+      
+      // Traduzir mensagens específicas do backend
+      if (errorMessage.includes('vinculado a') && errorMessage.includes('chamado(s)')) {
+        const count = errorMessage.match(/(\d+)/)?.[1] || '0';
+        errorMessage = formatMessage('departments.delete_department_dialog.linked_to_tickets', { count });
+      } else if (errorMessage.includes('vinculado a') && errorMessage.includes('tipo(s) de chamado')) {
+        const count = errorMessage.match(/(\d+)/)?.[1] || '0';
+        errorMessage = formatMessage('departments.delete_department_dialog.linked_to_incident_types', { count });
+      } else if (errorMessage.includes('vinculado a') && errorMessage.includes('oficial(is)')) {
+        const count = errorMessage.match(/(\d+)/)?.[1] || '0';
+        errorMessage = formatMessage('departments.delete_department_dialog.linked_to_officials', { count });
+      } else if (errorMessage.includes('vinculado a') && errorMessage.includes('categoria(s)')) {
+        const count = errorMessage.match(/(\d+)/)?.[1] || '0';
+        errorMessage = formatMessage('departments.delete_department_dialog.linked_to_categories', { count });
+      }
       
       toast({
-        title: 'Erro ao excluir departamento',
+        title: formatMessage('departments.delete_department_dialog.error_title'),
         description: errorMessage,
         variant: 'destructive',
       });
@@ -339,25 +356,25 @@ const DepartmentManagement: React.FC = () => {
 
   // Função para obter nome da empresa
   const getCompanyName = (companyId: number | null) => {
-    if (!companyId) return 'Sistema Global';
+    if (!companyId) return formatMessage('departments.global_system');
     const company = companies.find(c => c.id === companyId);
-    return company?.name || 'Sistema Global';
+    return company?.name || formatMessage('departments.global_system');
   };
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Departamentos</h1>
+        <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('departments.title')}</h1>
         <Button onClick={handleCreate} className="flex items-center gap-2">
           <PlusIcon className="w-4 h-4" />
-          Novo Departamento
+          {formatMessage('departments.new_department')}
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Gerenciamento de Departamentos</CardTitle>
-          <CardDescription>Gerencie os departamentos disponíveis no sistema</CardDescription>
+          <CardTitle>{formatMessage('departments.management_title')}</CardTitle>
+          <CardDescription>{formatMessage('departments.management_description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-between mb-6">
@@ -365,7 +382,7 @@ const DepartmentManagement: React.FC = () => {
               <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
                 <Input 
-                  placeholder="Buscar departamentos" 
+                  placeholder={formatMessage('departments.search_placeholder')} 
                   className="pl-10" 
                   value={searchTerm}
                   onChange={(e) => handleSearchChange(e.target.value)}
@@ -379,10 +396,10 @@ const DepartmentManagement: React.FC = () => {
                     onValueChange={(value) => handleCompanyChange(value === "all" ? null : parseInt(value))}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Filtrar por empresa" />
+                      <SelectValue placeholder={formatMessage('departments.filter_by_company')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas as empresas</SelectItem>
+                      <SelectItem value="all">{formatMessage('departments.all_companies')}</SelectItem>
                       {companies.map((company: any) => (
                         <SelectItem key={company.id} value={company.id.toString()}>
                           {company.name}
@@ -399,7 +416,7 @@ const DepartmentManagement: React.FC = () => {
                   checked={includeInactive} 
                   onCheckedChange={handleIncludeInactiveChange}
                 />
-                <Label htmlFor="includeInactive">Incluir inativos</Label>
+                <Label htmlFor="includeInactive">{formatMessage('departments.include_inactive')}</Label>
               </div>
             </div>
           </div>
@@ -407,12 +424,12 @@ const DepartmentManagement: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Descrição</TableHead>
-                {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
-                <TableHead>Status</TableHead>
-                <TableHead>Pesquisa Satisfação</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>{formatMessage('departments.name')}</TableHead>
+                <TableHead>{formatMessage('departments.description')}</TableHead>
+                {user?.role === 'admin' && <TableHead>{formatMessage('departments.company')}</TableHead>}
+                <TableHead>{formatMessage('departments.status')}</TableHead>
+                <TableHead>{formatMessage('departments.satisfaction_survey')}</TableHead>
+                <TableHead className="text-right">{formatMessage('departments.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -430,13 +447,13 @@ const DepartmentManagement: React.FC = () => {
               ) : error ? (
                 <TableRow>
                   <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-red-500">
-                    Erro ao carregar departamentos. Tente novamente mais tarde.
+                    {formatMessage('departments.error_loading')}
                   </TableCell>
                 </TableRow>
               ) : departments.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-neutral-500">
-                    Nenhum departamento encontrado.
+                    {formatMessage('departments.no_departments_found')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -457,22 +474,22 @@ const DepartmentManagement: React.FC = () => {
                     <TableCell>
                       {(dept.is_active === undefined || dept.is_active) ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Ativo
+                          {formatMessage('departments.active')}
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          Inativo
+                          {formatMessage('departments.inactive')}
                         </span>
                       )}
                     </TableCell>
                     <TableCell>
                       {(dept as any).satisfaction_survey_enabled ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          Ativada
+                          {formatMessage('departments.enabled')}
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          Desativada
+                          {formatMessage('departments.disabled')}
                         </span>
                       )}
                     </TableCell>
@@ -482,7 +499,7 @@ const DepartmentManagement: React.FC = () => {
                           variant="outline" 
                           size="sm" 
                           onClick={() => handleEdit(dept)}
-                          title="Editar departamento"
+                          title={formatMessage('departments.edit_department')}
                         >
                           <PencilIcon className="h-3.5 w-3.5" />
                         </Button>
@@ -490,7 +507,7 @@ const DepartmentManagement: React.FC = () => {
                           variant="destructive" 
                           size="sm"
                           onClick={() => handleDelete(dept)}
-                          title="Excluir departamento"
+                          title={formatMessage('departments.delete_department')}
                         >
                           <TrashIcon className="h-3.5 w-3.5" />
                         </Button>
@@ -506,7 +523,7 @@ const DepartmentManagement: React.FC = () => {
           {pagination && pagination.pages > 1 && (
             <div className="flex items-center justify-between px-2 py-4">
               <div className="text-sm text-neutral-600">
-                Mostrando {departments.length} de {pagination.total} departamentos
+                {formatMessage('departments.showing_results', { count: departments.length, total: pagination.total })}
               </div>
               <div className="flex items-center space-x-2">
                 <Button
@@ -515,10 +532,10 @@ const DepartmentManagement: React.FC = () => {
                   onClick={() => setCurrentPage(currentPage - 1)}
                   disabled={currentPage <= 1}
                 >
-                  Anterior
+                  {formatMessage('departments.previous')}
                 </Button>
                 <div className="text-sm text-neutral-600">
-                  Página {currentPage} de {pagination.pages}
+                  {formatMessage('departments.page')} {currentPage} {formatMessage('departments.of')} {pagination.pages}
                 </div>
                 <Button
                   variant="outline"
@@ -526,7 +543,7 @@ const DepartmentManagement: React.FC = () => {
                   onClick={() => setCurrentPage(currentPage + 1)}
                   disabled={currentPage >= pagination.pages}
                 >
-                  Próxima
+                  {formatMessage('departments.next')}
                 </Button>
               </div>
             </div>
@@ -538,42 +555,42 @@ const DepartmentManagement: React.FC = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{isEditing ? 'Editar Departamento' : 'Novo Departamento'}</DialogTitle>
+            <DialogTitle>{isEditing ? formatMessage('departments.edit_department_dialog.title') : formatMessage('departments.add_department_dialog.title')}</DialogTitle>
             <DialogDescription>
               {isEditing 
-                ? 'Atualize as informações do departamento abaixo.' 
-                : 'Preencha as informações para criar um novo departamento.'}
+                ? formatMessage('departments.edit_department_dialog.description') 
+                : formatMessage('departments.add_department_dialog.description')}
             </DialogDescription>
           </DialogHeader>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Nome</Label>
+              <Label htmlFor="name">{formatMessage('departments.add_department_dialog.name')}</Label>
               <Input
                 id="name"
                 name="name"
                 value={currentDepartment.name}
                 onChange={handleInputChange}
-                placeholder="Ex: Suporte Técnico"
+                placeholder={formatMessage('departments.add_department_dialog.name_placeholder')}
                 required
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="description">Descrição</Label>
+              <Label htmlFor="description">{formatMessage('departments.add_department_dialog.description')}</Label>
               <Textarea
                 id="description"
                 name="description"
                 value={currentDepartment.description}
                 onChange={handleInputChange}
-                placeholder="Digite uma breve descrição..."
+                placeholder={formatMessage('departments.add_department_dialog.description_placeholder')}
                 rows={3}
               />
             </div>
             
             {user?.role === 'admin' && (
               <div className="space-y-2">
-                <Label htmlFor="company_id">Empresa</Label>
+                <Label htmlFor="company_id">{formatMessage('departments.add_department_dialog.company')}</Label>
                 <Select
                   value={currentDepartment.company_id?.toString() || ""}
                   onValueChange={(value) => 
@@ -584,7 +601,7 @@ const DepartmentManagement: React.FC = () => {
                   }
                 >
                   <SelectTrigger id="company_id">
-                    <SelectValue placeholder="Selecione uma empresa" />
+                    <SelectValue placeholder={formatMessage('departments.add_department_dialog.company_placeholder')} />
                   </SelectTrigger>
                   <SelectContent>
                     {companies.map((company: any) => (
@@ -595,13 +612,13 @@ const DepartmentManagement: React.FC = () => {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Departamentos são vinculados a uma empresa específica
+                  {formatMessage('departments.add_department_dialog.company_help')}
                 </p>
               </div>
             )}
             
             <div className="flex items-center space-x-2">
-              <Label htmlFor="is_active">Ativo</Label>
+              <Label htmlFor="is_active">{formatMessage('departments.add_department_dialog.active')}</Label>
               <Switch
                 id="is_active"
                 checked={currentDepartment.is_active}
@@ -616,7 +633,7 @@ const DepartmentManagement: React.FC = () => {
 
             {/* Toggle: SLA por categoria */}
             <div className="flex items-center space-x-2">
-              <Label htmlFor="sla_mode">Usar SLA por categoria</Label>
+              <Label htmlFor="sla_mode">{formatMessage('departments.add_department_dialog.sla_by_category')}</Label>
               <Switch
                 id="sla_mode"
                 checked={currentDepartment.sla_mode === 'category'}
@@ -633,10 +650,10 @@ const DepartmentManagement: React.FC = () => {
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div className="space-y-1">
                 <Label htmlFor="satisfaction_survey_enabled" className="font-medium">
-                  Pesquisa de Satisfação
+                  {formatMessage('departments.add_department_dialog.satisfaction_survey')}
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Enviar automaticamente pesquisa de satisfação quando tickets deste departamento forem resolvidos
+                  {formatMessage('departments.add_department_dialog.satisfaction_survey_desc')}
                 </p>
               </div>
               <Switch
@@ -657,7 +674,7 @@ const DepartmentManagement: React.FC = () => {
                 variant="outline"
                 onClick={() => setIsDialogOpen(false)}
               >
-                Cancelar
+                {formatMessage('departments.add_department_dialog.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -666,7 +683,7 @@ const DepartmentManagement: React.FC = () => {
                 {(createDepartmentMutation.isPending || updateDepartmentMutation.isPending) && (
                   <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                {isEditing ? 'Salvar Alterações' : 'Criar Departamento'}
+                {isEditing ? formatMessage('departments.edit_department_dialog.save') : formatMessage('departments.add_department_dialog.create')}
               </Button>
             </DialogFooter>
           </form>
@@ -677,14 +694,13 @@ const DepartmentManagement: React.FC = () => {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Departamento</AlertDialogTitle>
+            <AlertDialogTitle>{formatMessage('departments.delete_department_dialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o departamento "{currentDepartment.name}"? 
-              Esta ação não pode ser desfeita.
+              {formatMessage('departments.delete_department_dialog.description', { name: currentDepartment.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{formatMessage('departments.delete_department_dialog.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -693,7 +709,7 @@ const DepartmentManagement: React.FC = () => {
               {deleteDepartmentMutation.isPending && (
                 <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Sim, excluir
+              {formatMessage('departments.delete_department_dialog.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

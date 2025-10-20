@@ -3,6 +3,7 @@ import { Upload, File, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { useI18n } from '@/i18n';
 
 interface FileUploadProps {
   ticketId: number;
@@ -51,6 +52,7 @@ export function FileUpload({
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([]);
   const { toast } = useToast();
+  const { formatMessage } = useI18n();
 
   // Ref para o input file
   const inputRef = useRef<HTMLInputElement>(null);
@@ -58,17 +60,17 @@ export function FileUpload({
   const validateFile = useCallback((file: File): string | null => {
     // Verificar tamanho
     if (file.size > maxFileSize) {
-      return `Arquivo muito grande. Tamanho máximo: ${Math.round(maxFileSize / 1024 / 1024)}MB`;
+      return formatMessage('file_upload.file_too_large', { maxSize: Math.round(maxFileSize / 1024 / 1024) });
     }
 
     // Verificar tipo
     const extension = file.name.split('.').pop()?.toLowerCase();
     if (!extension || !allowedTypes.includes(extension)) {
-      return `Tipo de arquivo não permitido. Tipos aceitos: ${allowedTypes.join(', ')}`;
+      return formatMessage('file_upload.file_type_not_allowed', { types: allowedTypes.join(', ') });
     }
 
     return null;
-  }, [maxFileSize, allowedTypes]);
+  }, [maxFileSize, allowedTypes, formatMessage]);
 
   const uploadFile = async (file: File) => {
     const formData = new FormData();
@@ -81,7 +83,7 @@ export function FileUpload({
       });
 
       if (!response.ok) {
-        let errorMessage = 'Erro inesperado ao enviar o arquivo. Tente novamente ou envie para o suporte.';
+        let errorMessage = formatMessage('file_upload.unexpected_error');
         const text = await response.text();
         try {
           const errorData = JSON.parse(text);
@@ -91,11 +93,11 @@ export function FileUpload({
         } catch (jsonErr) {
           // Se não for JSON, pode ser HTML ou texto
           if (text && text.includes('Tipo de arquivo não permitido')) {
-            errorMessage = 'Tipo de arquivo não permitido. Verifique a extensão e tente novamente.';
+            errorMessage = formatMessage('file_upload.file_type_not_allowed_retry');
           } else if (text && text.includes('Payload Too Large')) {
-            errorMessage = 'Arquivo muito grande. O tamanho máximo permitido foi excedido.';
+            errorMessage = formatMessage('file_upload.file_too_large_exceeded');
           } else {
-            errorMessage = 'Erro inesperado ao enviar o arquivo. Tente novamente ou envie para o suporte.';
+            errorMessage = formatMessage('file_upload.unexpected_error');
           }
         }
         throw new Error(errorMessage);
@@ -119,7 +121,7 @@ export function FileUpload({
       const error = validateFile(file);
       if (error) {
         toast({
-          title: "Arquivo inválido",
+          title: formatMessage('file_upload.invalid_file'),
           description: `${file.name}: ${error}`,
           variant: "destructive",
         });
@@ -165,12 +167,12 @@ export function FileUpload({
         onUploadSuccess?.(attachment);
 
         toast({
-          title: "Upload concluído",
-          description: `${file.name} foi enviado com sucesso.`,
+          title: formatMessage('file_upload.upload_completed'),
+          description: formatMessage('file_upload.upload_success', { filename: file.name }),
         });
 
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Erro no upload';
+        const errorMessage = error instanceof Error ? error.message : formatMessage('file_upload.upload_error');
         
         // Marcar erro no arquivo
         setUploadingFiles(prev => 
@@ -182,7 +184,7 @@ export function FileUpload({
         onUploadError?.(errorMessage);
 
         toast({
-          title: "Erro no upload",
+          title: formatMessage('file_upload.upload_error'),
           description: `${file.name}: ${errorMessage}`,
           variant: "destructive",
         });
@@ -253,7 +255,7 @@ export function FileUpload({
           <Upload className={`mx-auto h-12 w-12 ${isDragOver ? 'text-primary' : 'text-muted-foreground/80'}`} />
           <div className="mt-4">
             <span className="text-lg font-medium text-foreground">
-              Arraste arquivos aqui ou <span className="text-primary">clique para selecionar</span>
+              {formatMessage('file_upload.drag_or_click')}
             </span>
             <input
               ref={inputRef}
@@ -267,8 +269,8 @@ export function FileUpload({
             />
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            Máximo {Math.round(maxFileSize / 1024 / 1024)}MB por arquivo. 
-            Tipos aceitos: {allowedTypes.join(', ')}
+            {formatMessage('file_upload.max_size')} 
+            {formatMessage('file_upload.accepted_types')} {allowedTypes.join(', ')}
           </p>
         </div>
       </Card>
@@ -276,7 +278,7 @@ export function FileUpload({
       {/* Lista de Arquivos Sendo Enviados */}
       {uploadingFiles.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-foreground">Enviando arquivos:</h4>
+          <h4 className="text-sm font-medium text-foreground">{formatMessage('file_upload.uploading_files')}</h4>
           {uploadingFiles.map(({ file, progress, error }, index) => (
             <Card key={`${file.name}-${index}`} className="p-3">
               <div className="flex items-center justify-between">
@@ -296,10 +298,10 @@ export function FileUpload({
                   {error ? (
                     <div className="flex items-center space-x-1 text-destructive">
                       <AlertCircle className="h-4 w-4" />
-                      <span className="text-xs">Erro</span>
+                      <span className="text-xs">{formatMessage('file_upload.error')}</span>
                     </div>
                   ) : progress === 100 ? (
-                    <span className="text-xs text-emerald-400">Concluído</span>
+                    <span className="text-xs text-emerald-400">{formatMessage('file_upload.completed')}</span>
                   ) : (
                     <span className="text-xs text-primary">{progress}%</span>
                   )}

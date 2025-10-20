@@ -1,24 +1,7 @@
 {
-  "current": "1.0.33",
-  "releaseDate": "2025-10-20",
+  "current": "1.0.32",
+  "releaseDate": "2025-09-29",
   "versions": [
-    {
-      "version": "1.0.33",
-      "date": "2025-10-20",
-      "title": "Implementação de novas funcionalidades.",
-      "type": "feature",
-      "changes": {
-        "new": [
-          "Implementado o novo modo escuro (não implementado nos temas personalizados).",
-          "Implementada a função de apagar o arquivo anexado enquanto ainda não enviou o ticket."
-        ],
-        "fixed": [
-          "Corrigido o modal de feedback de Análise de IA na criação dos tickets.",
-          "Corrigido o dashboard de satisfação, agora exibindo as pesquisas expiradas corretamente.",
-          "Correções menores de erros no sistema que não afetavam a funcionalidade principal."
-        ]
-      }
-    },
     {
       "version": "1.0.32",
       "date": "2025-09-29",

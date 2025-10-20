@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { usePriorities, convertLegacyToWeight } from '@/hooks/use-priorities';
+import { useI18n } from '@/i18n';
 import { TextWithLinkBreaks } from '@/components/ui/text-with-links';
 
 interface TicketCardProps {
@@ -55,6 +56,7 @@ interface TicketParticipant {
 
 export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, isAssigning }) => {
   const { user } = useAuth();
+  const { formatMessage, locale } = useI18n();
   
   const {
     id,
@@ -137,7 +139,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
 
   // Função para encontrar o nome do atendente atual
   const getCurrentOfficialName = () => {
-    if (!assignedToId) return 'Não atribuído';
+    if (!assignedToId) return formatMessage('tickets.card.not_assigned');
     
     // Para clientes, usar informação básica do ticket se disponível
     if (isCustomerForThisTicket) {
@@ -150,7 +152,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
     }
     
     // Para atendentes, usar a lista completa
-    if (!officials) return 'Carregando...';
+    if (!officials) return formatMessage('tickets.card.loading_officials');
     const official = officials.find(o => o.id === assignedToId);
     return official?.name || 'Atendente não encontrado';
   };
@@ -179,7 +181,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
               />
             )}
             <div className="text-sm text-muted-foreground">
-              Criado em {createdAt ? formatDate(createdAt) : 'Data desconhecida'}
+              {formatMessage('tickets.created_at')} {createdAt ? formatDate(createdAt, locale) : 'Data desconhecida'}
             </div>
           </div>
         </div>
@@ -196,13 +198,13 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
         {/* Metadados: Departamento / Tipo / Categoria */}
         <div className="mt-2 text-xs text-muted-foreground flex flex-wrap gap-2">
           {departmentName && (
-            <span className="bg-muted border border-border px-2 py-0.5 rounded-full">Departamento: {departmentName}</span>
+            <span className="bg-muted border border-border px-2 py-0.5 rounded-full">{formatMessage('tickets.card.department')}: {departmentName}</span>
           )}
           {incidentTypeName && (
-            <span className="bg-muted border border-border px-2 py-0.5 rounded-full">Tipo: {incidentTypeName}</span>
+            <span className="bg-muted border border-border px-2 py-0.5 rounded-full">{formatMessage('tickets.card.type')}: {incidentTypeName}</span>
           )}
           {categoryName && (
-            <span className="bg-muted border border-border px-2 py-0.5 rounded-full">Categoria: {categoryName}</span>
+            <span className="bg-muted border border-border px-2 py-0.5 rounded-full">{formatMessage('tickets.card.category')}: {categoryName}</span>
           )}
         </div>
         
@@ -212,7 +214,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
               <AvatarImage src={customer?.avatar_url || ""} alt={customer?.name} />
               <AvatarFallback>{customer?.name?.charAt(0) || "C"}</AvatarFallback>
             </Avatar>
-            <span className="text-sm text-muted-foreground">{customer?.name || 'Cliente não informado'}</span>
+            <span className="text-sm text-muted-foreground">{customer?.name || formatMessage('tickets.card.customer_not_informed')}</span>
           </div>
           
           <div className="flex items-center gap-2 flex-wrap">
@@ -226,11 +228,11 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                   <SelectTrigger 
                     className="w-[180px] h-8 text-xs font-medium bg-muted border-border text-muted-foreground cursor-not-allowed"
                   >
-                    <SelectValue placeholder="Atribuir a..." />
+                    <SelectValue placeholder={formatMessage('tickets.card.assign_to')} />
                   </SelectTrigger>
                   <SelectContent position="popper" className="min-w-[180px] z-50">
                     <SelectItem value="unassigned" className="text-muted-foreground font-medium">
-                      Não atribuído
+                      {formatMessage('tickets.card.unassigned')}
                     </SelectItem>
                     <SelectItem value={assignedToId?.toString() || "unassigned"} className="text-muted-foreground font-medium">
                       {getCurrentOfficialName()}
@@ -242,7 +244,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
               // Para atendentes: dropdown editável
               <>
                 {isOfficialsLoading ? (
-                  <div className="text-xs text-muted-foreground">Carregando atendentes...</div>
+                  <div className="text-xs text-muted-foreground">{formatMessage('tickets.card.loading_officials')}</div>
                 ) : officials.length === 0 ? (
                   <div className="text-xs text-amber-500 dark:text-amber-300 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/30">
                     Sem atendentes cadastrados
@@ -258,11 +260,11 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                       <SelectTrigger 
                         className="w-[180px] h-8 text-xs font-medium bg-primary/5 border-2 border-primary/20 hover:border-primary/30 focus:border-primary/50"
                       >
-                        <SelectValue placeholder="Atribuir a..." />
+                        <SelectValue placeholder={formatMessage('tickets.card.assign_to')} />
                       </SelectTrigger>
                       <SelectContent position="popper" className="min-w-[180px] z-50">
                         <SelectItem value="unassigned" className="text-muted-foreground font-medium">
-                          Não atribuído
+                          {formatMessage('tickets.card.unassigned')}
                         </SelectItem>
                         {[...officials].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map((official) => (
                           <SelectItem 
@@ -285,7 +287,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
               className="text-primary hover:text-primary/80 text-sm font-medium px-0 h-8"
               asChild
             >
-              <Link href={`/tickets/${id}`}>Abrir</Link>
+              <Link href={`/tickets/${id}`}>{formatMessage('tickets.open')}</Link>
             </Button>
           </div>
         </div>
@@ -311,7 +313,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                         </span>
                       </div>
                       <span className="text-xs text-muted-foreground truncate max-w-16">
-                        {participant.user?.name || 'Usuário'}
+                        {participant.user?.name || formatMessage('tickets.card.user')}
                       </span>
                     </div>
                   ))}
@@ -325,10 +327,10 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs">
                     <div className="space-y-1">
-                      <div className="text-sm font-medium">Participantes ({participants.length})</div>
+                      <div className="text-sm font-medium">{formatMessage('tickets.card.participants')} ({participants.length})</div>
                       {participants.map((participant: TicketParticipant) => (
                         <div key={participant.id} className="text-xs">
-                          <span className="font-medium">{participant.user?.name || 'Usuário'}</span>
+                          <span className="font-medium">{participant.user?.name || formatMessage('tickets.card.user')}</span>
                         </div>
                       ))}
                     </div>
@@ -336,7 +338,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                 </Tooltip>
               </TooltipProvider>
               <span className="text-xs text-muted-foreground">
-                {participants.length} participante{participants.length > 1 ? 's' : ''}
+                {participants.length} {participants.length > 1 ? formatMessage('tickets.card.participants_plural') : formatMessage('tickets.card.participant')}
               </span>
             </div>
           </div>

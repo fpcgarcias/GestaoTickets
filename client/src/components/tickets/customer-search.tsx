@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/popover";
 import { Check, ChevronsUpDown, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from '@/i18n';
 
 interface Customer {
   id: number;
@@ -41,6 +42,7 @@ export function CustomerSearch({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
 
     // Query para buscar TODOS os clientes da empresa
   const { data: allCustomers = [], isLoading, error } = useQuery<Customer[]>({
@@ -103,24 +105,24 @@ export function CustomerSearch({
       <PopoverContent className="w-full p-0" align="start">
         <Command>
           <CommandInput 
-            placeholder="Digite para buscar cliente..." 
+            placeholder={formatMessage('new_ticket.type_to_search_customer')} 
             value={search}
             onValueChange={setSearch}
           />
           <CommandEmpty>
-            {isLoading ? "Carregando clientes..." : 
-             error ? `Erro: ${error.message}` :
-             "Nenhum cliente encontrado."}
+            {isLoading ? formatMessage('new_ticket.loading_customers') : 
+             error ? formatMessage('new_ticket.error_loading_customers', { error: error.message }) :
+             formatMessage('new_ticket.no_customers_found')}
           </CommandEmpty>
           <CommandGroup>
             {!isLoading && search && (
               <div className="px-2 py-1 text-xs text-muted-foreground">
-                {filteredCustomers.length} cliente(s) encontrado(s)
+                {formatMessage('new_ticket.customers_found', { count: filteredCustomers.length })}
               </div>
             )}
             {!isLoading && !search && allCustomers.length > 0 && (
               <div className="px-2 py-1 text-xs text-muted-foreground">
-                {allCustomers.length} cliente(s) disponível(is)
+                {formatMessage('new_ticket.customers_available', { count: allCustomers.length })}
               </div>
             )}
             {filteredCustomers.map((customer: Customer) => (

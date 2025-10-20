@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { useI18n } from '@/i18n';
 import { cn, generateSecurePassword } from "@/lib/utils";
 
 interface AddOfficialDialogProps {
@@ -33,6 +34,7 @@ interface ExistingUser {
 export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficialDialogProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
   const queryClient = useQueryClient();
   
   const [formData, setFormData] = useState({
@@ -169,17 +171,17 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       if (linkingUser) {
         // Mensagem diferente para vinculação
         toast({
-          title: "Usuário vinculado como atendente",
-          description: "O usuário foi vinculado como atendente com sucesso.",
+        title: formatMessage('officials.add_official_dialog.user_linked_success_toast'),
+        description: formatMessage('officials.add_official_dialog.user_linked_desc_toast'),
           variant: "default",
         });
       } else {
         // Mostrar mensagem de sucesso com botão para copiar senha
         toast({
-          title: "Atendente criado com sucesso",
+          title: formatMessage('officials.add_official_dialog.official_created_success'),
           description: (
             <div className="space-y-2">
-              <p>Senha para primeiro acesso:</p>
+              <p>{formatMessage('officials.add_official_dialog.password_for_first_access')}</p>
               <div className="flex items-center gap-2">
                 <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono select-all">
                   {generatedPassword}
@@ -190,8 +192,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                   onClick={() => {
                     navigator.clipboard.writeText(generatedPassword);
                     toast({
-                      title: "Senha copiada!",
-                      description: "A senha foi copiada para a área de transferência.",
+                      title: formatMessage('officials.add_official_dialog.password_copied'),
+                      description: formatMessage('officials.add_official_dialog.password_copied_desc'),
                       variant: "default",
                     });
                   }}
@@ -227,7 +229,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       }
       
       toast({
-        title: "Erro ao criar atendente",
+        title: formatMessage('officials.add_official_dialog.error_creating_official'),
         description: error.message,
         variant: "destructive",
       });
@@ -240,8 +242,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     // Verificar se pelo menos um departamento foi selecionado
     if (!formData.departments.length) {
       toast({
-        title: "Erro de validação",
-        description: "Selecione pelo menos um departamento para o atendente.",
+        title: formatMessage('officials.add_official_dialog.validation_error'),
+        description: formatMessage('officials.add_official_dialog.validation_departments_required'),
         variant: "destructive",
       });
       return;
@@ -250,8 +252,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     // Verificar se o email foi fornecido (não precisa mais verificar username separadamente)
     if (!formData.email.trim()) {
       toast({
-        title: "Erro de validação",
-        description: "O email é obrigatório.",
+        title: formatMessage('officials.add_official_dialog.validation_error'),
+        description: formatMessage('officials.add_official_dialog.validation_email_required'),
         variant: "destructive",
       });
       return;
@@ -260,8 +262,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     // Verificar se a empresa foi selecionada (apenas para admin)
     if (user?.role === 'admin' && !formData.company_id) {
       toast({
-        title: "Erro de validação",
-        description: "Selecione uma empresa para o atendente.",
+        title: formatMessage('officials.add_official_dialog.validation_error'),
+        description: formatMessage('officials.add_official_dialog.validation_company_required'),
         variant: "destructive",
       });
       return;
@@ -360,12 +362,12 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
             <>
               <DialogHeader>
                 <DialogTitle>
-                  {linkingUser ? "Vincular Usuário como Atendente" : "Adicionar Atendente"}
+                  {linkingUser ? formatMessage('officials.add_official_dialog.link_user_title') : formatMessage('officials.add_official_dialog.title')}
                 </DialogTitle>
                 <DialogDescription>
                   {linkingUser 
-                    ? "Vinculando usuário existente como atendente da equipe de suporte."
-                    : "Adicione um novo membro à sua equipe de suporte."
+                    ? formatMessage('officials.add_official_dialog.link_user_description')
+                    : formatMessage('officials.add_official_dialog.description')
                   }
                 </DialogDescription>
               </DialogHeader>
@@ -376,10 +378,10 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
                     <div className="space-y-3">
-                      <p>Já existe um usuário com este email:</p>
+                      <p>{formatMessage('officials.add_official_dialog.existing_user_alert')}</p>
                       <div className="bg-gray-50 p-3 rounded-md">
-                        <p><strong>Nome:</strong> {existingUser.name}</p>
-                        <p><strong>Email:</strong> {existingUser.email}</p>
+                        <p><strong>{formatMessage('officials.add_official_dialog.name')}:</strong> {existingUser.name}</p>
+                        <p><strong>{formatMessage('officials.add_official_dialog.email')}:</strong> {existingUser.email}</p>
                         <p><strong>Username:</strong> {existingUser.username}</p>
                       </div>
                       <div className="flex gap-2">
@@ -390,14 +392,14 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                           className="flex items-center gap-1"
                         >
                           <Link className="h-3 w-3" />
-                          Vincular como Atendente
+                          {formatMessage('officials.add_official_dialog.link_as_official')}
                         </Button>
                         <Button 
                           size="sm" 
                           variant="outline"
                           onClick={handleCreateNewUser}
                         >
-                          Usar Email Diferente
+                          {formatMessage('officials.add_official_dialog.use_different_email')}
                         </Button>
                       </div>
                     </div>
@@ -411,13 +413,13 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                   <UserPlus className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-green-800">
                     <div className="space-y-2">
-                      <p className="font-semibold">Vinculando usuário existente como atendente:</p>
+                      <p className='font-semibold'>{formatMessage('officials.add_official_dialog.linking_user_alert')}</p>
                       <div className="bg-white p-2 rounded border border-green-200">
                         <p><strong>{existingUser.name}</strong></p>
                         <p className="text-sm text-gray-600">{existingUser.email}</p>
                       </div>
                       <p className="text-sm">
-                        Este usuário será atualizado para ter permissões de atendente e poderá acessar o sistema de suporte.
+                        {formatMessage('officials.add_official_dialog.linking_user_description')}
                       </p>
                     </div>
                   </AlertDescription>
@@ -428,7 +430,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="name" className="text-right">
-                      Nome
+                      {formatMessage('officials.add_official_dialog.name')}
                     </Label>
                     <Input
                       id="name"
@@ -442,7 +444,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                   
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="email" className="text-right">
-                      Email (Login)
+                      {formatMessage('officials.add_official_dialog.email')}
                     </Label>
                     <Input
                       id="email"
@@ -450,7 +452,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="col-span-3"
-                      placeholder="email@empresa.com"
+                      placeholder={formatMessage('officials.add_official_dialog.email_placeholder')}
                       required
                       disabled={linkingUser}
                     />
@@ -460,7 +462,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                   {user?.role === 'admin' && (
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="company" className="text-right">
-                        Empresa
+                        {formatMessage('officials.add_official_dialog.company')}
                       </Label>
                       <div className="col-span-3">
                         <Select 
@@ -468,7 +470,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                           onValueChange={(value) => setFormData({ ...formData, company_id: value ? parseInt(value) : null })}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecionar empresa" />
+                            <SelectValue placeholder={formatMessage('officials.add_official_dialog.company_placeholder')} />
                           </SelectTrigger>
                           <SelectContent>
                             {companiesData?.map((company: any) => (
@@ -484,7 +486,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                   
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">
-                      Departamentos
+                      {formatMessage('officials.add_official_dialog.departments')}
                     </Label>
                     <div className="col-span-3">
                       <Popover>
@@ -495,15 +497,15 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                             className="w-full justify-between"
                           >
                             {formData.departments.length > 0
-                              ? `${formData.departments.length} selecionado(s)`
-                              : "Selecionar departamentos"}
+                              ? formatMessage('officials.add_official_dialog.departments_selected', { count: formData.departments.length })
+                              : formatMessage('officials.add_official_dialog.departments_placeholder')}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-full p-0">
                           <Command>
-                            <CommandInput placeholder="Buscar departamento..." />
-                            <CommandEmpty>Nenhum departamento encontrado.</CommandEmpty>
+                            <CommandInput placeholder={formatMessage('officials.add_official_dialog.departments_placeholder')} />
+                            <CommandEmpty>{formatMessage('officials.add_official_dialog.departments_placeholder')}</CommandEmpty>
                             <CommandGroup>
                               {availableDepartments.map((department: {value: string, label: string, id: number}) => (
                                 <CommandItem
@@ -542,7 +544,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                   
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="supervisor" className="text-right">
-                      Supervisor
+                      {formatMessage('officials.add_official_dialog.supervisor')}
                     </Label>
                     <div className="col-span-3">
                       <Select 
@@ -550,10 +552,10 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                         onValueChange={(value) => setFormData({ ...formData, supervisor_id: value === "none" ? null : parseInt(value) })}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecionar supervisor (opcional)" />
+                          <SelectValue placeholder={formatMessage('officials.add_official_dialog.supervisor_placeholder')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Nenhum supervisor</SelectItem>
+                          <SelectItem value="none">{formatMessage('officials.add_official_dialog.no_supervisor')}</SelectItem>
                           {Array.isArray(existingOfficials) ? existingOfficials
                             .filter((off: any) => {
                               // Filtrar apenas supervisores dos departamentos selecionados
@@ -571,7 +573,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                   
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="manager" className="text-right">
-                      Manager
+                      {formatMessage('officials.add_official_dialog.manager')}
                     </Label>
                     <div className="col-span-3">
                       <Select 
@@ -579,10 +581,10 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                         onValueChange={(value) => setFormData({ ...formData, manager_id: value === "none" ? null : parseInt(value) })}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecionar manager (opcional)" />
+                          <SelectValue placeholder={formatMessage('officials.add_official_dialog.manager_placeholder')} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">Nenhum manager</SelectItem>
+                          <SelectItem value="none">{formatMessage('officials.add_official_dialog.no_manager')}</SelectItem>
                           {Array.isArray(existingOfficials) ? existingOfficials
                             .filter((off: any) => {
                               // Filtrar apenas managers e company_admins dos departamentos selecionados
@@ -611,18 +613,18 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                     }
                   />
                   <Label htmlFor="must_change_password" className="text-sm">
-                    Forçar alteração de senha no próximo login
+                    {formatMessage('officials.add_official_dialog.force_password_change')}
                   </Label>
                 </div>
                 
                 <DialogFooter>
                   <Button variant="outline" type="button" onClick={handleCloseDialog}>
-                    Cancelar
+                    {formatMessage('officials.add_official_dialog.cancel')}
                   </Button>
                   <Button type="submit" disabled={submitting}>
                     {submitting ? 
-                      (linkingUser ? "Vinculando..." : "Adicionando...") : 
-                      (linkingUser ? "Vincular Atendente" : "Adicionar Atendente")
+                      (linkingUser ? formatMessage('officials.add_official_dialog.linking') : formatMessage('officials.add_official_dialog.adding')) : 
+                      (linkingUser ? formatMessage('officials.add_official_dialog.link_official') : formatMessage('officials.add_official_dialog.add_official'))
                     }
                   </Button>
                 </DialogFooter>
@@ -633,12 +635,12 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
               <DialogHeader>
                 <DialogTitle className="flex items-center">
                   <CheckCircle className="mr-2 h-6 w-6 text-green-600" />
-                  {linkingUser ? "Usuário Vinculado" : "Atendente Adicionado"}
+                  {linkingUser ? formatMessage('officials.add_official_dialog.user_linked') : formatMessage('officials.add_official_dialog.official_added')}
                 </DialogTitle>
                 <DialogDescription>
                   {linkingUser 
-                    ? "O usuário foi vinculado como atendente com sucesso."
-                    : "O atendente foi adicionado com sucesso."
+                    ? formatMessage('officials.add_official_dialog.user_linked_success')
+                    : formatMessage('officials.add_official_dialog.official_added_success')
                   }
                 </DialogDescription>
               </DialogHeader>
@@ -646,22 +648,22 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
               {!linkingUser && (
                 <div className="py-6">
                   <div className="mb-4">
-                    <p className="font-medium mb-1">Dados de Acesso:</p>
-                    <p><strong>Nome de Usuário (Login):</strong> {formData.email}</p>
-                    <p><strong>Email:</strong> {formData.email}</p>
-                    <p><strong>Senha Temporária:</strong> {generatedPassword}</p>
+                    <p className='font-medium mb-1'>{formatMessage('officials.add_official_dialog.access_data')}</p>
+                    <p><strong>{formatMessage('officials.add_official_dialog.username')}</strong> {formData.email}</p>
+                    <p><strong>{formatMessage('officials.add_official_dialog.email_label')}</strong> {formData.email}</p>
+                    <p><strong>{formatMessage('officials.add_official_dialog.temp_password')}</strong> {generatedPassword}</p>
                   </div>
                   
                   <div className="bg-amber-50 border border-amber-200 p-3 rounded-md">
                     <p className="text-amber-800 text-sm">
-                      Anote a senha temporária! Ela não poderá ser recuperada depois que esta janela for fechada.
+                      {formatMessage('officials.add_official_dialog.save_password_warning')}
                     </p>
                   </div>
                 </div>
               )}
               
               <DialogFooter>
-                <Button onClick={handleCloseDialog}>Fechar</Button>
+                <Button onClick={handleCloseDialog}>{formatMessage('officials.add_official_dialog.close')}</Button>
               </DialogFooter>
             </>
           )}
@@ -672,10 +674,10 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Vincular Usuário Existente?</AlertDialogTitle>
+            <AlertDialogTitle>{formatMessage('officials.add_official_dialog.link_existing_user_title')}</AlertDialogTitle>
             <AlertDialogDescription>
               <div className="space-y-3">
-                <p>Foi encontrado um usuário já cadastrado com este email:</p>
+                <p>{formatMessage('officials.add_official_dialog.link_existing_user_desc')}</p>
                 {existingUser && (
                   <div className="bg-gray-50 p-3 rounded-md border">
                     <p className="font-semibold">{existingUser.name}</p>
@@ -684,18 +686,17 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                   </div>
                 )}
                 <p className="text-sm">
-                  Deseja vincular este usuário como atendente? Ele manterá sua senha atual e 
-                  receberá permissões de atendente no sistema.
+                  {formatMessage('officials.add_official_dialog.link_existing_user_confirm')}
                 </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setShowConfirmDialog(false)}>
-              Cancelar
+              {formatMessage('officials.add_official_dialog.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction onClick={confirmLinkUser}>
-              Sim, Vincular como Atendente
+              {formatMessage('officials.add_official_dialog.yes_link_official')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

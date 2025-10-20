@@ -6,24 +6,24 @@
     "auditLog": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\.7f713aacbcf4ee76e7f9b3d8320c5af795388722-audit.json",
     "files": [
         {
-            "date": 1757947416076,
-            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-09-15.log",
-            "hash": "eeae4ef85e2a0cb4b0e97314dd328092a3436fecb8a5937573908dbb6306a7e9"
-        },
-        {
-            "date": 1758199257543,
-            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-09-18.log",
-            "hash": "f8db38eb91c7c44205db56d9e1b5c42e1ce0f707b51321eb63c8cd77cecf9209"
-        },
-        {
-            "date": 1758806058728,
-            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-09-25.log",
-            "hash": "6e6cbe25d3194a4d4ed58de4a0c822879423e76c1029a1a31b998f59c89da09a"
-        },
-        {
             "date": 1758891399238,
             "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-09-26.log",
             "hash": "8094436f1892465ee4f1e10cdac925b1837930390f2630e182cf5d3fb460c514"
+        },
+        {
+            "date": 1759760905484,
+            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-10-06.log",
+            "hash": "a51fbe36952b14d6e4f87f68424338ea282d714c37aabbf08ee87cea05ad39ce"
+        },
+        {
+            "date": 1760021935269,
+            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-10-09.log",
+            "hash": "24866b4d232f66ba9023ba954116fcc5cea0df64d124e10168949994e42073b4"
+        },
+        {
+            "date": 1760099021742,
+            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-10-10.log",
+            "hash": "1576d01fe694444b41109cff48e5c2852a9ab4eaa2629a7a514a2dfc7bb33c26"
         }
     ],
     "hashType": "sha256"

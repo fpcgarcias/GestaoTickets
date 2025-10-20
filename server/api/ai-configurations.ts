@@ -214,8 +214,8 @@ export async function testAiConfiguration(req: Request, res: Response) {
       user_prompt_template,
       department_id,
       analysis_type = 'priority',
-      test_title = "Sistema de email não está funcionando",
-      test_description = "Não consigo enviar nem receber emails desde esta manhã. Isso está afetando todo o trabalho da equipe."
+      test_title = "Email system is not working",
+      test_description = "I can't send or receive emails since this morning. This is affecting all team work."
     } = req.body;
     
     const userRole = req.session?.userRole;
@@ -247,7 +247,7 @@ export async function testAiConfiguration(req: Request, res: Response) {
     const finalUserPrompt = user_prompt_template;
     const testConfig: schema.AiConfiguration = {
       id: 0,
-      name: "Teste",
+      name: "Test",
       provider: provider as any,
       model,
       api_endpoint: null,
@@ -279,7 +279,7 @@ export async function testAiConfiguration(req: Request, res: Response) {
       res.json({
         success: true,
         result,
-        message: "Teste executado com sucesso",
+        message: "Test executed successfully",
         used_prompts: {
           system_prompt: finalSystemPrompt,
           user_prompt: finalUserPrompt
@@ -291,7 +291,7 @@ export async function testAiConfiguration(req: Request, res: Response) {
       res.json({
         success: true,
         result,
-        message: "Teste executado com sucesso",
+        message: "Test executed successfully",
         used_prompts: {
           system_prompt: finalSystemPrompt,
           user_prompt: finalUserPrompt
@@ -324,7 +324,7 @@ export async function updateAiConfiguration(req: Request, res: Response) {
       .where(eq(schema.aiConfigurations.id, configurationId))
       .limit(1);
     if (!existingConfig) {
-      return res.status(404).json({ message: "Configuração não encontrada" });
+      return res.status(404).json({ message: "Configuration not found" });
     }
     const {
       name,
@@ -385,7 +385,7 @@ export async function updateAiConfiguration(req: Request, res: Response) {
     } else {
       if (existingConfig.company_id !== userCompanyId) {
         return res.status(403).json({ 
-          message: "Você não pode editar configurações de outras empresas" 
+          message: "You cannot edit configurations from other companies" 
         });
       }
       targetCompanyId = userCompanyId;
@@ -602,7 +602,7 @@ export async function updateAiProvidersAdmin(req: Request, res: Response) {
       }
     }
 
-    res.json({ message: "Provedores atualizados com sucesso" });
+    res.json({ message: "Providers updated successfully" });
   } catch (error) {
     console.error('Erro ao atualizar provedores de IA:', error);
     res.status(500).json({ message: "Falha ao atualizar provedores de IA", error: String(error) });
@@ -633,7 +633,7 @@ export async function getAiCompanies(req: Request, res: Response) {
     res.json(companies);
   } catch (error) {
     console.error('Erro ao buscar empresas:', error);
-    res.status(500).json({ message: "Falha ao buscar empresas", error: String(error) });
+    res.status(500).json({ message: "Failed to fetch companies", error: String(error) });
   }
 }
 
@@ -653,7 +653,7 @@ export async function updateAiCompanyPermission(req: Request, res: Response) {
     }
 
     if (typeof ai_permission !== 'boolean') {
-      return res.status(400).json({ message: "Campo ai_permission deve ser um boolean" });
+      return res.status(400).json({ message: "Field ai_permission must be a boolean" });
     }
 
     // Atualizar permissão da empresa
@@ -662,7 +662,7 @@ export async function updateAiCompanyPermission(req: Request, res: Response) {
       .set({ ai_permission, updated_at: new Date() })
       .where(eq(schema.companies.id, companyId));
 
-    res.json({ message: "Permissão de IA atualizada com sucesso" });
+    res.json({ message: "AI permission updated successfully" });
   } catch (error) {
     console.error('Erro ao atualizar permissão de IA da empresa:', error);
     res.status(500).json({ message: "Falha ao atualizar permissão de IA", error: String(error) });
@@ -706,7 +706,7 @@ export async function deleteAiConfiguration(req: Request, res: Response) {
       .limit(1);
 
     if (!existingConfig) {
-      return res.status(404).json({ message: "Configuração não encontrada" });
+      return res.status(404).json({ message: "Configuration not found" });
     }
 
     // Deletar configuração
@@ -714,7 +714,7 @@ export async function deleteAiConfiguration(req: Request, res: Response) {
       .delete(schema.aiConfigurations)
       .where(eq(schema.aiConfigurations.id, configurationId));
 
-    res.json({ message: "Configuração deletada com sucesso" });
+    res.json({ message: "Configuration deleted successfully" });
   } catch (error) {
     console.error('Erro ao deletar configuração de IA:', error);
     res.status(500).json({ message: "Falha ao deletar configuração de IA", error: String(error) });

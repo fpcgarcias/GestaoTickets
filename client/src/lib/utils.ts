@@ -1,21 +1,37 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { getAiBotName } from "@/utils/ai-bot-names";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date: Date | string | number): string {
+export function formatDate(date: Date | string | number, locale: string = 'pt-BR'): string {
   const d = new Date(date);
-  return d.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }) + ' ' + d.toLocaleTimeString('pt-BR', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: false
-  });
+  
+  if (locale === 'en-US') {
+    // Formato americano: MM/dd/yyyy h:mm AM/PM
+    return d.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+    }) + ' ' + d.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+  } else {
+    // Formato brasileiro: dd/MM/yyyy HH:mm
+    return d.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }) + ' ' + d.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  }
 }
 
 export function formatBytes(bytes: number): string {
@@ -233,12 +249,16 @@ export function isPasswordValid(password: string): boolean {
 }
 
 // Função para traduzir roles de usuários para labels mais amigáveis
-export const translateUserRole = (role: string): string => {
+export const translateUserRole = (role: string, locale: string = 'pt-BR'): string => {
+  // Se for o bot de IA, usar a função de internacionalização
+  if (role === 'integration_bot') {
+    return `🤖 ${getAiBotName(locale)}`;
+  }
+  
   const roleMap: Record<string, string> = {
     'admin': '👑 Admin',
     'support': '🎧 Suporte',
     'customer': '👤 Cliente',
-    'integration_bot': '🤖 Robô IA',
     'quality': '📝 Qualidade',
     'triage': '🔍 Triagem',
     'company_admin': '🏢 Administrador',

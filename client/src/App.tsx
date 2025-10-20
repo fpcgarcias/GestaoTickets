@@ -14,6 +14,8 @@ import { WebSocketProvider } from "./contexts/websocket-context";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/hooks/use-auth";
 import { useSystemSettings } from "@/hooks/use-system-settings";
+import { IntlProvider } from "react-intl";
+import { detectLocaleFromDomain, messages } from "./i18n";
 
 // Lazy loading das páginas principais
 const Dashboard = lazy(() => import("@/pages/dashboard"));
@@ -255,14 +257,19 @@ function AppContent() {
 }
 
 export default function App() {
+  const locale = detectLocaleFromDomain();
+  const localeMessages = messages[locale];
+  
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
           <WebSocketProvider>
             <ThemeProvider>
-              <Toaster />
-              <AppContent />
+              <IntlProvider locale={locale} messages={localeMessages}>
+                <Toaster />
+                <AppContent />
+              </IntlProvider>
             </ThemeProvider>
           </WebSocketProvider>
         </AuthProvider>

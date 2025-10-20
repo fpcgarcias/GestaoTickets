@@ -2186,7 +2186,7 @@ export class EmailNotificationService {
           user: notifyUser
         };
         await this.sendEmailNotification(
-          'new_customer_registered',
+          'customer_registered',
           notifyUser.email,
           personalizedContext,
           customer.company_id || undefined,

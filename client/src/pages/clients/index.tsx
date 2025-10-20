@@ -17,6 +17,7 @@ import { useBusinessHoursRefetchInterval } from '../../hooks/use-business-hours'
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { useI18n } from '@/i18n';
 import {
   Select,
   SelectContent,
@@ -48,6 +49,7 @@ export default function ClientsIndex() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
 
   // Usar hook dinâmico para horário comercial
   const refetchInterval = useBusinessHoursRefetchInterval(30000);
@@ -119,11 +121,11 @@ export default function ClientsIndex() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Acesso Restrito</CardTitle>
-          <CardDescription>Você não tem permissão para acessar esta página.</CardDescription>
+          <CardTitle>{formatMessage('clients.restricted_access')}</CardTitle>
+          <CardDescription>{formatMessage('clients.no_permission')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <p>Esta página é reservada para administradores e atendentes do sistema.</p>
+          <p>{formatMessage('clients.admin_only')}</p>
         </CardContent>
       </Card>
     );
@@ -146,25 +148,25 @@ export default function ClientsIndex() {
 
   // Função para obter o nome da empresa
   const getCompanyName = (companyId: number | null) => {
-    if (!companyId) return 'Sistema Global';
+    if (!companyId) return formatMessage('clients.global_system');
     const company = companies.find(c => c.id === companyId);
-    return company?.name || 'Empresa não encontrada';
+    return company?.name || formatMessage('clients.company_not_found');
   };
   
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Clientes</h1>
+        <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('clients.title')}</h1>
         <div className="flex gap-2">
           {user?.role === 'admin' && (
             <Button onClick={() => setShowBulkImportDialog(true)} variant="outline">
               <Upload className="mr-2 h-4 w-4" />
-              Importar em Lote
+              {formatMessage('clients.bulk_import')}
             </Button>
           )}
           <Button onClick={() => setShowAddDialog(true)}>
             <UserPlus className="mr-2 h-4 w-4" />
-            Adicionar Cliente
+            {formatMessage('clients.add_client')}
           </Button>
         </div>
       </div>
@@ -209,8 +211,8 @@ export default function ClientsIndex() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Gerenciamento de Clientes</CardTitle>
-          <CardDescription>Gerencie os clientes cadastrados no sistema</CardDescription>
+          <CardTitle>{formatMessage('clients.management_title')}</CardTitle>
+          <CardDescription>{formatMessage('clients.management_description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-between mb-6">
@@ -218,7 +220,7 @@ export default function ClientsIndex() {
               <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
                 <Input 
-                  placeholder="Pesquisar clientes" 
+                  placeholder={formatMessage('clients.search_placeholder')} 
                   className="pl-10"
                   value={searchQuery}
                   onChange={(e) => handleSearchChange(e.target.value)}
@@ -230,12 +232,12 @@ export default function ClientsIndex() {
                 <div className="w-64">
                   <Select value={selectedCompanyId} onValueChange={handleCompanyChange}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Filtrar por empresa" />
+                      <SelectValue placeholder={formatMessage('clients.filter_by_company')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas as empresas</SelectItem>
+                      <SelectItem value="all">{formatMessage('clients.all_companies')}</SelectItem>
                       {isLoadingCompanies ? (
-                        <SelectItem value="loading" disabled>Carregando empresas...</SelectItem>
+                        <SelectItem value="loading" disabled>{formatMessage('clients.loading_companies')}</SelectItem>
                       ) : (
                         companies
                           .filter(company => company.active) // Mostrar apenas empresas ativas
@@ -257,7 +259,7 @@ export default function ClientsIndex() {
                   checked={includeInactive} 
                   onCheckedChange={setIncludeInactive}
                 />
-                <Label htmlFor="includeInactive">Incluir inativos</Label>
+                <Label htmlFor="includeInactive">{formatMessage('clients.include_inactive')}</Label>
               </div>
             </div>
           </div>
@@ -266,12 +268,12 @@ export default function ClientsIndex() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Telefone</TableHead>
-                  {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead>{formatMessage('clients.name')}</TableHead>
+                  <TableHead>{formatMessage('clients.email')}</TableHead>
+                  <TableHead>{formatMessage('clients.phone')}</TableHead>
+                  {user?.role === 'admin' && <TableHead>{formatMessage('clients.company')}</TableHead>}
+                  <TableHead>{formatMessage('clients.status')}</TableHead>
+                  <TableHead className="text-right">{formatMessage('clients.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -307,11 +309,11 @@ export default function ClientsIndex() {
                         <TableCell>
                           {(isActive === undefined || isActive) ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Ativo
+                              {formatMessage('clients.active')}
                             </span>
                           ) : (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                              Inativo
+                              {formatMessage('clients.inactive')}
                             </span>
                           )}
                         </TableCell>
@@ -321,14 +323,14 @@ export default function ClientsIndex() {
                               variant="outline" 
                               size="sm"
                               onClick={() => handleEditClient(client)}
-                              title="Editar cliente"
+                              title={formatMessage('clients.edit_client')}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button 
                               variant={isActive ? "destructive" : "default"}
                               size="sm"
-                              title={isActive ? "Desativar cliente" : "Ativar cliente"}
+                              title={isActive ? formatMessage('clients.deactivate_client') : formatMessage('clients.activate_client')}
                               onClick={() => handleToggleStatusClient(client)}
                               className={isActive ? "bg-amber-500 hover:bg-amber-500/90" : "bg-green-500 hover:bg-green-500/90"}
                             >
@@ -343,8 +345,8 @@ export default function ClientsIndex() {
                   <TableRow>
                     <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-neutral-500">
                       {searchQuery || selectedCompanyId !== 'all' 
-                        ? "Nenhum cliente encontrado com os filtros aplicados." 
-                        : "Nenhum cliente encontrado. Adicione seu primeiro cliente para começar."
+                        ? formatMessage('clients.no_clients_filtered')
+                        : formatMessage('clients.no_clients_found')
                       }
                     </TableCell>
                   </TableRow>
@@ -357,10 +359,14 @@ export default function ClientsIndex() {
           {pagination && pagination.totalPages > 1 && (
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-muted-foreground">
-                Mostrando {((pagination.page - 1) * pagination.limit) + 1} a {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total} clientes
+                {formatMessage('clients.showing_results', {
+                  start: ((pagination.page - 1) * pagination.limit) + 1,
+                  end: Math.min(pagination.page * pagination.limit, pagination.total),
+                  total: pagination.total
+                })}
                 {selectedCompanyId !== 'all' && user?.role === 'admin' && (
                   <span className="ml-2 text-neutral-500">
-                    (filtrado por: {getCompanyName(parseInt(selectedCompanyId))})
+                    {formatMessage('clients.filtered_by', { company: getCompanyName(parseInt(selectedCompanyId)) })}
                   </span>
                 )}
               </div>
@@ -371,7 +377,7 @@ export default function ClientsIndex() {
                   disabled={!pagination.hasPrev}
                   onClick={() => pagination.hasPrev && setCurrentPage(pagination.page - 1)}
                 >
-                  Anterior
+                  {formatMessage('clients.previous')}
                 </Button>
                 
                 {/* Páginas numeradas */}
@@ -406,7 +412,7 @@ export default function ClientsIndex() {
                   disabled={!pagination.hasNext}
                   onClick={() => pagination.hasNext && setCurrentPage(pagination.page + 1)}
                 >
-                  Próxima
+                  {formatMessage('clients.next')}
                 </Button>
               </div>
             </div>

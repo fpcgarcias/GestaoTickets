@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from '@/hooks/use-auth';
+import { useI18n } from '@/i18n';
 
 interface TicketTypeFormData {
   id?: number;
@@ -31,6 +32,7 @@ const TicketTypeManagement: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
   
   // Estados para filtros e busca
   const [searchTerm, setSearchTerm] = useState('');
@@ -66,9 +68,9 @@ const TicketTypeManagement: React.FC = () => {
       limit: number;
     };
   }>({
-    queryKey: ['/departments'],
+    queryKey: ['/departments', { active_only: true }],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/departments');
+      const response = await apiRequest('GET', '/api/departments?active_only=true');
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Erro ao buscar departamentos');
@@ -287,8 +289,8 @@ const TicketTypeManagement: React.FC = () => {
     },
     onSuccess: () => {
       toast({
-        title: 'Tipo de chamado criado',
-        description: 'O tipo de chamado foi criado com sucesso.',
+        title: formatMessage('ticket_types.add_ticket_type_dialog.created_success'),
+        description: formatMessage('ticket_types.add_ticket_type_dialog.created_desc'),
       });
       queryClient.invalidateQueries({ queryKey: ['/incident-types'] });
       setIsDialogOpen(false);
@@ -296,8 +298,8 @@ const TicketTypeManagement: React.FC = () => {
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Erro ao criar tipo de chamado',
+        title: formatMessage('ticket_types.add_ticket_type_dialog.error_title'),
+        description: error instanceof Error ? error.message : formatMessage('ticket_types.add_ticket_type_dialog.error_title'),
         variant: 'destructive',
       });
     },
@@ -329,8 +331,8 @@ const TicketTypeManagement: React.FC = () => {
     },
     onSuccess: () => {
       toast({
-        title: 'Tipo de chamado atualizado',
-        description: 'O tipo de chamado foi atualizado com sucesso.',
+        title: formatMessage('ticket_types.edit_ticket_type_dialog.updated_success'),
+        description: formatMessage('ticket_types.edit_ticket_type_dialog.updated_desc'),
       });
       queryClient.invalidateQueries({ queryKey: ['/incident-types'] });
       setIsDialogOpen(false);
@@ -338,8 +340,8 @@ const TicketTypeManagement: React.FC = () => {
     },
     onError: (error) => {
       toast({
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Erro ao atualizar tipo de chamado',
+        title: formatMessage('ticket_types.edit_ticket_type_dialog.error_title'),
+        description: error instanceof Error ? error.message : formatMessage('ticket_types.edit_ticket_type_dialog.error_title'),
         variant: 'destructive',
       });
     },
@@ -360,16 +362,28 @@ const TicketTypeManagement: React.FC = () => {
     },
     onSuccess: () => {
       toast({
-        title: 'Tipo de chamado excluído',
-        description: 'O tipo de chamado foi excluído com sucesso.',
+        title: formatMessage('ticket_types.delete_ticket_type_dialog.deleted_success'),
+        description: formatMessage('ticket_types.delete_ticket_type_dialog.deleted_desc'),
       });
       queryClient.invalidateQueries({ queryKey: ['/incident-types'] });
       setIsDeleteDialogOpen(false);
     },
     onError: (error) => {
+      // Mostrar mensagem de erro mais específica
+      let errorMessage = error instanceof Error ? error.message : formatMessage('ticket_types.delete_ticket_type_dialog.error_title');
+      
+      // Traduzir mensagens específicas do backend
+      if (errorMessage.includes('vinculado a') && errorMessage.includes('chamado(s)')) {
+        const count = errorMessage.match(/(\d+)/)?.[1] || '0';
+        errorMessage = formatMessage('ticket_types.delete_ticket_type_dialog.linked_to_tickets', { count });
+      } else if (errorMessage.includes('vinculado a') && errorMessage.includes('categoria(s)')) {
+        const count = errorMessage.match(/(\d+)/)?.[1] || '0';
+        errorMessage = formatMessage('ticket_types.delete_ticket_type_dialog.linked_to_categories', { count });
+      }
+      
       toast({
-        title: 'Erro',
-        description: error instanceof Error ? error.message : 'Erro ao excluir tipo de chamado',
+        title: formatMessage('ticket_types.delete_ticket_type_dialog.error_title'),
+        description: errorMessage,
         variant: 'destructive',
       });
     },
@@ -437,8 +451,8 @@ const TicketTypeManagement: React.FC = () => {
     // Validar valor de referência - apenas letras, números e sublinhados
     if (!/^[a-z0-9_]+$/.test(currentTicketType.value)) {
       toast({
-        title: 'Valor de referência inválido',
-        description: 'O valor de referência deve conter apenas letras minúsculas, números e sublinhados (_).',
+        title: formatMessage('ticket_types.add_ticket_type_dialog.invalid_value'),
+        description: formatMessage('ticket_types.add_ticket_type_dialog.invalid_value_desc'),
         variant: 'destructive',
       });
       return;
@@ -484,9 +498,9 @@ const TicketTypeManagement: React.FC = () => {
 
   // Função para obter nome da empresa
   const getCompanyName = (companyId: number | null) => {
-    if (!companyId) return 'Sistema Global';
+    if (!companyId) return formatMessage('ticket_types.global_system');
     const company = companies.find(c => c.id === companyId);
-    return company?.name || 'Sistema Global';
+    return company?.name || formatMessage('ticket_types.company_not_found');
   };
 
   const isLoading = isLoadingDepartments || isLoadingTicketTypes;
@@ -494,17 +508,17 @@ const TicketTypeManagement: React.FC = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Tipos de Chamado</h1>
+        <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('ticket_types.title')}</h1>
         <Button onClick={handleCreate} className="flex items-center gap-2">
           <PlusIcon className="w-4 h-4" />
-          Novo Tipo de Chamado
+          {formatMessage('ticket_types.new_ticket_type')}
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Gerenciamento de Tipos de Chamado</CardTitle>
-          <CardDescription>Gerencie os tipos de chamado disponíveis no sistema</CardDescription>
+          <CardTitle>{formatMessage('ticket_types.management_title')}</CardTitle>
+          <CardDescription>{formatMessage('ticket_types.management_description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex justify-between mb-6">
@@ -512,7 +526,7 @@ const TicketTypeManagement: React.FC = () => {
               <div className="relative w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
                 <Input 
-                  placeholder="Buscar tipos de chamado" 
+                  placeholder={formatMessage('ticket_types.search_placeholder')} 
                   className="pl-10" 
                   value={searchTerm}
                   onChange={(e) => handleSearchChange(e.target.value)}
@@ -526,10 +540,10 @@ const TicketTypeManagement: React.FC = () => {
                     onValueChange={(value) => handleCompanyChange(value === "all" ? null : parseInt(value))}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Filtrar por empresa" />
+                      <SelectValue placeholder={formatMessage('ticket_types.filter_by_company')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas as empresas</SelectItem>
+                      <SelectItem value="all">{formatMessage('ticket_types.all_companies')}</SelectItem>
                       {companies.map((company: any) => (
                         <SelectItem key={company.id} value={company.id.toString()}>
                           {company.name}
@@ -546,23 +560,23 @@ const TicketTypeManagement: React.FC = () => {
                   checked={includeInactive} 
                   onCheckedChange={handleIncludeInactiveChange}
                 />
-                <Label htmlFor="includeInactive">Incluir inativos</Label>
+                <Label htmlFor="includeInactive">{formatMessage('ticket_types.include_inactive')}</Label>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Label htmlFor="filterDepartment" className="text-sm whitespace-nowrap">
-                Filtrar por Departamento:
+                {formatMessage('ticket_types.filter_by_department')}
               </Label>
               <Select
                 value={selectedDepartmentId?.toString() || 'all'}
                 onValueChange={(value) => handleDepartmentChange(value === 'all' ? undefined : parseInt(value))}
               >
                 <SelectTrigger id="filterDepartment" className="w-[200px]">
-                  <SelectValue placeholder="Todos os departamentos" />
+                  <SelectValue placeholder={formatMessage('ticket_types.all_departments')} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">
-                    {user?.role === 'admin' ? 'Todos os departamentos' : 'Meus departamentos'}
+                    {user?.role === 'admin' ? formatMessage('ticket_types.all_departments') : formatMessage('ticket_types.my_departments')}
                   </SelectItem>
                   {allowedDepartments.map((dept) => (
                     <SelectItem key={dept.id} value={dept.id.toString()}>
@@ -577,12 +591,12 @@ const TicketTypeManagement: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Departamento</TableHead>
-                {user?.role === 'admin' && <TableHead>Empresa</TableHead>}
-                <TableHead>Descrição</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>{formatMessage('ticket_types.name')}</TableHead>
+                <TableHead>{formatMessage('ticket_types.department')}</TableHead>
+                {user?.role === 'admin' && <TableHead>{formatMessage('ticket_types.company')}</TableHead>}
+                <TableHead>{formatMessage('ticket_types.description')}</TableHead>
+                <TableHead>{formatMessage('ticket_types.status')}</TableHead>
+                <TableHead className="text-right">{formatMessage('ticket_types.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -600,13 +614,13 @@ const TicketTypeManagement: React.FC = () => {
               ) : ticketTypesError ? (
                 <TableRow>
                   <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-red-500">
-                    Erro ao carregar tipos de chamado. Tente novamente mais tarde.
+                    {formatMessage('ticket_types.error_loading')}
                   </TableCell>
                 </TableRow>
               ) : ticketTypes.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={user?.role === 'admin' ? 6 : 5} className="text-center py-10 text-neutral-500">
-                    Nenhum tipo de chamado encontrado.
+                    {formatMessage('ticket_types.no_ticket_types_found')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -630,11 +644,11 @@ const TicketTypeManagement: React.FC = () => {
                     <TableCell>
                       {(type.is_active === undefined || type.is_active) ? (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          Ativo
+                          {formatMessage('ticket_types.active')}
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          Inativo
+                          {formatMessage('ticket_types.inactive')}
                         </span>
                       )}
                     </TableCell>
@@ -644,7 +658,7 @@ const TicketTypeManagement: React.FC = () => {
                           variant="outline" 
                           size="sm" 
                           onClick={() => handleEdit(type)}
-                          title="Editar tipo de chamado"
+                          title={formatMessage('ticket_types.edit_ticket_type')}
                         >
                           <PencilIcon className="h-3.5 w-3.5" />
                         </Button>
@@ -652,7 +666,7 @@ const TicketTypeManagement: React.FC = () => {
                           variant="destructive" 
                           size="sm"
                           onClick={() => handleDelete(type)}
-                          title="Excluir tipo de chamado"
+                          title={formatMessage('ticket_types.delete_ticket_type')}
                         >
                           <TrashIcon className="h-3.5 w-3.5" />
                         </Button>
@@ -668,7 +682,7 @@ const TicketTypeManagement: React.FC = () => {
           {pagination && pagination.pages > 1 && (
             <div className="flex items-center justify-between px-2 py-4">
               <div className="text-sm text-neutral-600">
-                Mostrando {ticketTypes.length} de {pagination.total} tipos de chamado
+                {formatMessage('ticket_types.showing_results', { count: ticketTypes.length, total: pagination.total })}
               </div>
               <div className="flex items-center space-x-2">
                 <Button
@@ -677,10 +691,10 @@ const TicketTypeManagement: React.FC = () => {
                   onClick={() => setCurrentPage(currentPage - 1)}
                   disabled={currentPage <= 1}
                 >
-                  Anterior
+                  {formatMessage('ticket_types.previous')}
                 </Button>
                 <div className="text-sm text-neutral-600">
-                  Página {currentPage} de {pagination.pages}
+                  {formatMessage('ticket_types.page')} {currentPage} {formatMessage('ticket_types.of')} {pagination.pages}
                 </div>
                 <Button
                   variant="outline"
@@ -688,7 +702,7 @@ const TicketTypeManagement: React.FC = () => {
                   onClick={() => setCurrentPage(currentPage + 1)}
                   disabled={currentPage >= pagination.pages}
                 >
-                  Próxima
+                  {formatMessage('ticket_types.next')}
                 </Button>
               </div>
             </div>
@@ -700,41 +714,41 @@ const TicketTypeManagement: React.FC = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{isEditing ? 'Editar Tipo de Chamado' : 'Novo Tipo de Chamado'}</DialogTitle>
+            <DialogTitle>{isEditing ? formatMessage('ticket_types.edit_ticket_type_dialog.title') : formatMessage('ticket_types.add_ticket_type_dialog.title')}</DialogTitle>
             <DialogDescription>
               {isEditing 
-                ? 'Atualize as informações do tipo de chamado abaixo.' 
-                : 'Preencha as informações para criar um novo tipo de chamado.'}
+                ? formatMessage('ticket_types.edit_ticket_type_dialog.description')
+                : formatMessage('ticket_types.add_ticket_type_dialog.description')}
             </DialogDescription>
           </DialogHeader>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Nome do Tipo</Label>
+              <Label htmlFor="name">{formatMessage('ticket_types.add_ticket_type_dialog.name')}</Label>
               <Input
                 id="name"
                 name="name"
                 value={currentTicketType.name}
                 onChange={handleInputChange}
-                placeholder="Ex: Problema de Conexão"
+                placeholder={formatMessage('ticket_types.add_ticket_type_dialog.name_placeholder')}
                 required
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="description">Descrição</Label>
+              <Label htmlFor="description">{formatMessage('ticket_types.add_ticket_type_dialog.description')}</Label>
               <Textarea
                 id="description"
                 name="description"
                 value={currentTicketType.description}
                 onChange={handleInputChange}
-                placeholder="Digite uma breve descrição..."
+                placeholder={formatMessage('ticket_types.add_ticket_type_dialog.description_placeholder')}
                 rows={3}
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="department_id">Departamento</Label>
+              <Label htmlFor="department_id">{formatMessage('ticket_types.add_ticket_type_dialog.department')}</Label>
               <Select
                 value={currentTicketType.department_id?.toString() || ''}
                 onValueChange={(value) => 
@@ -746,7 +760,7 @@ const TicketTypeManagement: React.FC = () => {
                 required
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um departamento" />
+                  <SelectValue placeholder={formatMessage('ticket_types.add_ticket_type_dialog.department_placeholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {allowedDepartments.map((dept) => (
@@ -760,7 +774,7 @@ const TicketTypeManagement: React.FC = () => {
             
             {user?.role === 'admin' && (
               <div className="space-y-2">
-                <Label htmlFor="company_id">Empresa</Label>
+                <Label htmlFor="company_id">{formatMessage('ticket_types.add_ticket_type_dialog.company')}</Label>
                 <Select
                   value={currentTicketType.company_id?.toString() || ""}
                   onValueChange={(value) => 
@@ -771,7 +785,7 @@ const TicketTypeManagement: React.FC = () => {
                   }
                 >
                   <SelectTrigger id="company_id">
-                    <SelectValue placeholder="Selecione uma empresa" />
+                    <SelectValue placeholder={formatMessage('ticket_types.add_ticket_type_dialog.company_placeholder')} />
                   </SelectTrigger>
                   <SelectContent>
                     {companies.map((company: any) => (
@@ -782,13 +796,13 @@ const TicketTypeManagement: React.FC = () => {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Tipos de chamado são vinculados a uma empresa específica
+                  {formatMessage('ticket_types.add_ticket_type_dialog.company_help')}
                 </p>
               </div>
             )}
             
             <div className="flex items-center space-x-2">
-              <Label htmlFor="is_active">Ativo</Label>
+              <Label htmlFor="is_active">{formatMessage('ticket_types.add_ticket_type_dialog.active')}</Label>
               <Switch
                 id="is_active"
                 checked={currentTicketType.is_active}
@@ -807,7 +821,7 @@ const TicketTypeManagement: React.FC = () => {
                 variant="outline"
                 onClick={() => setIsDialogOpen(false)}
               >
-                Cancelar
+                {formatMessage('ticket_types.add_ticket_type_dialog.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -816,7 +830,7 @@ const TicketTypeManagement: React.FC = () => {
                 {(createTicketTypeMutation.isPending || updateTicketTypeMutation.isPending) && (
                   <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                {isEditing ? 'Salvar Alterações' : 'Criar Tipo'}
+                {isEditing ? formatMessage('ticket_types.edit_ticket_type_dialog.save') : formatMessage('ticket_types.add_ticket_type_dialog.create')}
               </Button>
             </DialogFooter>
           </form>
@@ -827,14 +841,13 @@ const TicketTypeManagement: React.FC = () => {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Tipo de Chamado</AlertDialogTitle>
+            <AlertDialogTitle>{formatMessage('ticket_types.delete_ticket_type_dialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir o tipo de chamado "{currentTicketType.name}"? 
-              Esta ação não pode ser desfeita.
+              {formatMessage('ticket_types.delete_ticket_type_dialog.description', { name: currentTicketType.name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{formatMessage('ticket_types.delete_ticket_type_dialog.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -843,7 +856,7 @@ const TicketTypeManagement: React.FC = () => {
               {deleteTicketTypeMutation.isPending && (
                 <LoaderIcon className="mr-2 h-4 w-4 animate-spin" />
               )}
-              Sim, excluir
+              {formatMessage('ticket_types.delete_ticket_type_dialog.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

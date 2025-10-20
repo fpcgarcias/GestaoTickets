@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useVersion } from '@/hooks/use-version';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/contexts/theme-context';
+import { useI18n } from '@/i18n';
 import { Link } from 'wouter';
 import { 
   LayoutDashboard, 
@@ -59,6 +60,7 @@ const SidebarItem = ({ href, icon, label, isActive }: {
 export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   const { user, logout } = useAuth();
   const { currentVersion } = useVersion();
+  const { formatMessage } = useI18n();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Usar o tema do contexto (executa apenas uma vez)
@@ -66,25 +68,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   
   // Definir itens de navegação com base no papel do usuário
   const navItems = [
-    { href: "/", icon: <LayoutDashboard size={20} />, label: "Painel de Controle", roles: ['admin', 'support', 'customer', 'company_admin', 'manager', 'supervisor', 'viewer'] },
-    { href: "/tickets", icon: <TicketIcon size={20} />, label: "Chamados", roles: ['admin', 'support', 'customer', 'company_admin', 'manager', 'supervisor', 'viewer'] },
-    { href: "/clients", icon: <Users size={20} />, label: "Clientes", roles: ['admin', 'support', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/users", icon: <Users size={20} />, label: "Usuários", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/officials", icon: <UserCog size={20} />, label: "Atendentes", roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support'] },
-    { href: "/reports", icon: <PieChart size={20} />, label: "Relatórios", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/companies", icon: <Building2 size={20} />, label: "Empresas", roles: ['admin'] },
-    { href: "/permissions", icon: <Shield size={20} />, label: "Permissões", roles: ['admin'] },
-    { href: "/departments", icon: <FolderIcon size={20} />, label: "Departamentos", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/ticket-types", icon: <TagIcon size={20} />, label: "Tipos de Chamado", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/categories", icon: <Grid3X3 size={20} />, label: "Categorias", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/priority-settings", icon: <Palette size={20} />, label: "Prioridades", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/sla-configurations", icon: <Clock size={20} />, label: "Configurações SLA", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/sla-dashboard", icon: <BarChart3 size={20} />, label: "Dashboard SLA", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/satisfaction-dashboard", icon: <Star size={20} />, label: "Dashboard Satisfação", roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/performance-dashboard", icon: <BarChart3 size={20} />, label: "Dashboard Performance", roles: ['admin'] },
-    { href: "/ai-audit", icon: <Brain size={20} />, label: "Auditoria de IA", roles: ['admin', 'company_admin'] },
-    { href: "/logs", icon: <FileText size={20} />, label: "Logs do Sistema", roles: ['admin'] },
-    { href: "/settings", icon: <Settings size={20} />, label: "Configurações", roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'viewer'] },
+    { href: "/", icon: <LayoutDashboard size={20} />, label: formatMessage('sidebar.dashboard'), roles: ['admin', 'support', 'customer', 'company_admin', 'manager', 'supervisor', 'viewer'] },
+    { href: "/tickets", icon: <TicketIcon size={20} />, label: formatMessage('sidebar.tickets'), roles: ['admin', 'support', 'customer', 'company_admin', 'manager', 'supervisor', 'viewer'] },
+    { href: "/clients", icon: <Users size={20} />, label: formatMessage('sidebar.clients'), roles: ['admin', 'support', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/users", icon: <Users size={20} />, label: formatMessage('sidebar.users'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/officials", icon: <UserCog size={20} />, label: formatMessage('sidebar.officials'), roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support'] },
+    { href: "/reports", icon: <PieChart size={20} />, label: formatMessage('sidebar.reports'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/companies", icon: <Building2 size={20} />, label: formatMessage('sidebar.companies'), roles: ['admin'] },
+    { href: "/permissions", icon: <Shield size={20} />, label: formatMessage('sidebar.permissions'), roles: ['admin'] },
+    { href: "/departments", icon: <FolderIcon size={20} />, label: formatMessage('sidebar.departments'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/ticket-types", icon: <TagIcon size={20} />, label: formatMessage('sidebar.ticket_types'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/categories", icon: <Grid3X3 size={20} />, label: formatMessage('sidebar.categories'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/priority-settings", icon: <Palette size={20} />, label: formatMessage('sidebar.priorities'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/sla-configurations", icon: <Clock size={20} />, label: formatMessage('sidebar.sla_configurations'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/sla-dashboard", icon: <BarChart3 size={20} />, label: formatMessage('sidebar.sla_dashboard'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/satisfaction-dashboard", icon: <Star size={20} />, label: formatMessage('sidebar.satisfaction_dashboard'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/performance-dashboard", icon: <BarChart3 size={20} />, label: formatMessage('sidebar.performance_dashboard'), roles: ['admin'] },
+    { href: "/ai-audit", icon: <Brain size={20} />, label: formatMessage('sidebar.ai_audit'), roles: ['admin', 'company_admin'] },
+    { href: "/logs", icon: <FileText size={20} />, label: formatMessage('sidebar.logs'), roles: ['admin'] },
+    { href: "/settings", icon: <Settings size={20} />, label: formatMessage('sidebar.settings'), roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'viewer'] },
   ];
   
   // Filtrar itens de navegação com base no papel do usuário atual
@@ -131,7 +133,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
         <div className="p-4 border-t border-sidebar-border mt-auto">
           <Link href="/changelog">
             <div className="text-xs text-muted-foreground hover:text-sidebar-foreground cursor-pointer transition-colors">
-              Versão {currentVersion}
+              {formatMessage('sidebar.version')} {currentVersion}
             </div>
           </Link>
         </div>
@@ -168,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   className="flex flex-col items-center p-2 min-w-0 flex-shrink-0 h-auto text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                 >
                   <Menu className="h-5 w-5" />
-                  <span className="text-[10px] mt-1">Mais</span>
+                  <span className='text-[10px] mt-1'>{formatMessage('sidebar.more')}</span>
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="p-0 w-80 bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
@@ -218,7 +220,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                     }}
                   >
                     <LogOut className="h-4 w-4 mr-2" />
-                    Sair
+                    {formatMessage('sidebar.logout')}
                   </Button>
                 </div>
               </SheetContent>

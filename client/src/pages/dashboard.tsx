@@ -5,13 +5,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusDot } from '@/components/tickets/status-badge';
 import { TimeMetricCard } from '@/components/ui/time-metric-card';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
-import { Clock, CheckCircle2, Users, Calendar, MoreHorizontal, Building } from 'lucide-react';
+import { Clock, CheckCircle2, Users, Calendar, MoreHorizontal, Building, ClipboardList } from 'lucide-react';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
 import { useBusinessHoursRefetchInterval } from '../hooks/use-business-hours';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, subMonths } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR, enUS } from 'date-fns/locale';
+import { useI18n } from '@/i18n';
 import { ModernPieChart } from '@/components/charts/modern-pie-chart';
 import { ModernBarChart } from '@/components/charts/modern-bar-chart';
 import { ComparisonArrow } from '@/components/ui/comparison-arrow';
@@ -50,9 +51,16 @@ interface Official {
   name: string;
   email: string;
   is_active: boolean;
+  department_id?: number | null;
   company_id?: number;
   supervisor_id?: number;
   manager_id?: number;
+}
+
+interface IncidentTypeOption {
+  id: number;
+  name: string;
+  department_id: number | null;
 }
 
 // Opções de períodos pré-definidos
@@ -84,6 +92,7 @@ function normalizarPrioridade(prioridade: string) {
 
 export default function Dashboard() {
   const { user, isLoading: isLoadingAuth } = useAuth();
+  const { formatMessage, locale } = useI18n();
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
   
   // Novo filtro de datas igual ao index.tsx
@@ -93,6 +102,7 @@ export default function Dashboard() {
 
   // Filtro de departamento
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('all');
+  const [selectedIncidentTypeId, setSelectedIncidentTypeId] = useState<string>('all');
 
   // Função para calcular datas igual ao index.tsx
   function getPeriodDates() {
@@ -138,6 +148,7 @@ export default function Dashboard() {
   // APENAS admin, company_admin, manager e supervisor devem ver o dropdown
   // Outras roles (support, customer, viewer, etc.) NÃO devem ver
   const shouldShowDepartmentFilter = user?.role && ['admin', 'company_admin', 'manager', 'supervisor'].includes(user.role);
+  const shouldShowIncidentTypeFilter = shouldShowDepartmentFilter;
 
   // Buscar departamentos apenas se necessário
   // O endpoint /api/departments já filtra automaticamente baseado na role:
@@ -156,11 +167,45 @@ export default function Dashboard() {
 
   const departments = departmentsResponse?.departments || departmentsResponse || [];
 
+  // Buscar tipos de chamado conforme departamento selecionado
+  const { data: incidentTypesResponse, isLoading: isIncidentTypesLoading } = useQuery({
+    queryKey: ['/api/incident-types', selectedDepartmentId, user?.role, user?.id],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('active_only', 'true');
+      params.append('limit', '1000');
+      if (selectedDepartmentId !== 'all') {
+        params.append('department_id', selectedDepartmentId);
+      }
+      const res = await fetch(`/api/incident-types?${params.toString()}`);
+      if (!res.ok) throw new Error('Erro ao carregar tipos de chamado');
+      return res.json();
+    },
+    enabled: shouldShowIncidentTypeFilter,
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
+
+  const rawIncidentTypes = incidentTypesResponse?.incidentTypes || incidentTypesResponse?.data || incidentTypesResponse || [];
+  const incidentTypes: IncidentTypeOption[] = Array.isArray(rawIncidentTypes) ? rawIncidentTypes : [];
+
+  React.useEffect(() => {
+    if (selectedIncidentTypeId === 'all') return;
+    const exists = incidentTypes.some((type) => type.id?.toString() === selectedIncidentTypeId);
+    if (!exists) {
+      setSelectedIncidentTypeId('all');
+    }
+  }, [incidentTypes, selectedIncidentTypeId]);
+
   // Buscar atendentes apenas se necessário
   const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
-    queryKey: ['/api/officials', user?.id, user?.role], // Incluir user.id e role na chave
+    queryKey: ['/api/officials', user?.id, user?.role, selectedDepartmentId],
     queryFn: async () => {
-      const res = await fetch('/api/officials?limit=1000'); // Buscar todos para o dashboard
+      const params = new URLSearchParams();
+      params.append('limit', '1000'); // Buscar todos para o dashboard
+      if (selectedDepartmentId !== 'all') {
+        params.append('department_id', selectedDepartmentId);
+      }
+      const res = await fetch(`/api/officials?${params.toString()}`);
       if (!res.ok) throw new Error('Erro ao carregar atendentes');
       return res.json();
     },
@@ -168,7 +213,7 @@ export default function Dashboard() {
     staleTime: 5 * 60 * 1000, // 5 minutos
   });
 
-  const officials = officialsResponse?.data || [];
+  const officials = officialsResponse?.officials || officialsResponse?.data || [];
 
   // Filtrar atendentes baseado na role do usuário
   const getFilteredOfficials = () => {
@@ -179,6 +224,52 @@ export default function Dashboard() {
   };
 
   const filteredOfficials = getFilteredOfficials();
+
+  React.useEffect(() => {
+    if (selectedOfficialId === 'all') return;
+    const exists = filteredOfficials.some((official: Official) => official.id.toString() === selectedOfficialId);
+    if (!exists) {
+      setSelectedOfficialId('all');
+    }
+  }, [filteredOfficials, selectedOfficialId]);
+
+  const handleDepartmentChange = (value: string) => {
+    setSelectedDepartmentId(value);
+    if (value !== selectedDepartmentId) {
+      setSelectedIncidentTypeId('all');
+      setSelectedOfficialId('all');
+    }
+  };
+
+  const handleIncidentTypeChange = (value: string) => {
+    setSelectedIncidentTypeId(value);
+    if (value === 'all') {
+      return;
+    }
+    const selectedType = incidentTypes.find((type) => type.id?.toString() === value);
+    if (selectedType?.department_id) {
+      const departmentIdString = selectedType.department_id.toString();
+      if (selectedDepartmentId !== departmentIdString) {
+        setSelectedDepartmentId(departmentIdString);
+        setSelectedOfficialId('all');
+      }
+    }
+  };
+
+  const handleOfficialChange = (value: string) => {
+    setSelectedOfficialId(value);
+    if (value === 'all') {
+      return;
+    }
+    const selectedOfficial = filteredOfficials.find((official: Official) => official.id.toString() === value);
+    if (!selectedOfficial) {
+      return;
+    }
+    if (selectedDepartmentId === 'all' && selectedOfficial.department_id) {
+      setSelectedDepartmentId(selectedOfficial.department_id.toString());
+      setSelectedIncidentTypeId('all');
+    }
+  };
 
   // Construir query key com filtro de atendente
   const getQueryKey = (endpoint: string) => {
@@ -195,16 +286,18 @@ export default function Dashboard() {
     if (selectedOfficialId !== 'all') {
       params.append('official_id', selectedOfficialId);
     }
-    return params.toString();
+    if (selectedIncidentTypeId !== 'all') {
+      params.append('incident_type_id', selectedIncidentTypeId);
+    }
+    if (selectedDepartmentId !== 'all') {
+      params.append('department_id', selectedDepartmentId);
+    }
+    return params;
   };
 
   // Construir parâmetros de query incluindo período
   const getQueryParamsWithPeriod = () => {
-    const periodParams = new URLSearchParams();
-    // Adicionar filtro de atendente se selecionado
-    if (selectedOfficialId !== 'all') {
-      periodParams.append('official_id', selectedOfficialId);
-    }
+    const periodParams = getQueryParams();
     // Adicionar datas do período (ajustadas para UTC-3)
     periodParams.append('start_date', toBrasiliaISOString(startDate, false));
     periodParams.append('end_date', toBrasiliaISOString(endDate, true));
@@ -216,15 +309,9 @@ export default function Dashboard() {
 
   // Query única para todas as métricas do dashboard
   const { data: dashboardData, isLoading: isDashboardLoading } = useQuery({
-    queryKey: ['dashboard-metrics', startDate.toISOString(), endDate.toISOString(), selectedOfficialId, selectedDepartmentId],
+    queryKey: ['dashboard-metrics', startDate.toISOString(), endDate.toISOString(), selectedOfficialId, selectedDepartmentId, selectedIncidentTypeId],
     queryFn: async () => {
-      let params = getQueryParamsWithPeriod();
-      // Adicionar filtro de departamento se selecionado
-      if (selectedDepartmentId !== 'all') {
-        const urlParams = new URLSearchParams(params);
-        urlParams.append('department_id', selectedDepartmentId);
-        params = urlParams.toString();
-      }
+      const params = getQueryParamsWithPeriod();
       const url = `/api/tickets/dashboard-metrics${params ? `?${params}` : ''}`;
       const response = await fetch(url, { credentials: 'include' });
       if (!response.ok) throw new Error('Failed to fetch dashboard metrics');
@@ -257,12 +344,12 @@ export default function Dashboard() {
 
   // Calcular valores anteriores para comparação (removido previousOtherStatusCount - não é mais usado)
 
-  // Dados de status transformados para português
+  // Dados de status transformados com base no idioma
   const statusData = [
-    { name: 'Novos', value: ticketStats.byStatus.new, color: '#F59E0B' },
-    { name: 'Em Andamento', value: ticketStats.byStatus.ongoing, color: '#3B82F6' },
-    { name: 'Resolvidos', value: ticketStats.byStatus.resolved, color: '#10B981' },
-    { name: 'Outros Status', value: otherStatusCount, color: '#8B5CF6' },
+    { name: locale === 'en-US' ? 'New' : 'Novos', value: ticketStats.byStatus.new, color: '#F59E0B' },
+    { name: locale === 'en-US' ? 'Ongoing' : 'Em Andamento', value: ticketStats.byStatus.ongoing, color: '#3B82F6' },
+    { name: locale === 'en-US' ? 'Resolved' : 'Resolvidos', value: ticketStats.byStatus.resolved, color: '#10B981' },
+    { name: locale === 'en-US' ? 'Other Status' : 'Outros Status', value: otherStatusCount, color: '#8B5CF6' },
   ];
 
   // Os novos componentes modernos lidam com dados vazios internamente
@@ -283,7 +370,7 @@ export default function Dashboard() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-      <h1 className="text-2xl font-semibold text-foreground">Painel de Controle</h1>
+      <h1 className="text-2xl font-semibold text-foreground">{formatMessage('dashboard.title')}</h1>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -297,19 +384,19 @@ export default function Dashboard() {
             />
             {/* Indicador discreto do período */}
             <span className="text-xs text-muted-foreground">
-              {format(startDate, 'dd/MM/yy', { locale: ptBR })} - {format(endDate, 'dd/MM/yy', { locale: ptBR })}
+              {format(startDate, locale === 'en-US' ? 'MM/dd/yy' : 'dd/MM/yy', { locale: locale === 'en-US' ? enUS : ptBR })}{formatMessage('dashboard.date_range_separator')}{format(endDate, locale === 'en-US' ? 'MM/dd/yy' : 'dd/MM/yy', { locale: locale === 'en-US' ? enUS : ptBR })}
             </span>
           </div>
           {/* Filtro de Departamento */}
           {shouldShowDepartmentFilter && (
             <div className="flex items-center gap-2">
               <Building className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedDepartmentId} onValueChange={setSelectedDepartmentId}>
+              <Select value={selectedDepartmentId} onValueChange={handleDepartmentChange}>
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Todos os Departamentos" />
+                  <SelectValue placeholder={formatMessage('dashboard.all_departments')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os Departamentos</SelectItem>
+                  <SelectItem value="all">{formatMessage('dashboard.all_departments')}</SelectItem>
                   {departments.map((department: any) => (
                     <SelectItem key={department.id} value={department.id.toString()}>
                       {department.name}
@@ -319,17 +406,50 @@ export default function Dashboard() {
               </Select>
             </div>
           )}
+          {/* Filtro de Tipo de Chamado */}
+          {shouldShowIncidentTypeFilter && (
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+              <Select value={selectedIncidentTypeId} onValueChange={handleIncidentTypeChange}>
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder={formatMessage('dashboard.all_incident_types')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{formatMessage('dashboard.all_incident_types')}</SelectItem>
+                  {isIncidentTypesLoading ? (
+                    <SelectItem value="loading" disabled>
+                      {formatMessage('dashboard.loading_incident_types')}
+                    </SelectItem>
+                  ) : incidentTypes.length > 0 ? (
+                    [...incidentTypes]
+                      .sort((a, b) => a.name.localeCompare(b.name, locale === 'en-US' ? 'en-US' : 'pt-BR', { sensitivity: 'base' }))
+                      .map((incidentType) => (
+                        <SelectItem key={incidentType.id} value={incidentType.id.toString()}>
+                          {incidentType.name}
+                        </SelectItem>
+                      ))
+                  ) : (
+                    <SelectItem value="none" disabled>
+                      {formatMessage('dashboard.no_incident_types')}
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {/* Filtro de Atendente */}
           {shouldShowOfficialFilter && (
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedOfficialId} onValueChange={setSelectedOfficialId}>
+              <Select value={selectedOfficialId} onValueChange={handleOfficialChange}>
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Todos os Atendentes" />
+                  <SelectValue placeholder={formatMessage('dashboard.all_officials')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os Atendentes</SelectItem>
-                  {[...filteredOfficials].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map((official: Official) => (
+                  <SelectItem value="all">{formatMessage('dashboard.all_officials')}</SelectItem>
+                  {[...filteredOfficials]
+                    .sort((a, b) => a.name.localeCompare(b.name, locale === 'en-US' ? 'en-US' : 'pt-BR', { sensitivity: 'base' }))
+                    .map((official: Official) => (
                     <SelectItem key={official.id} value={official.id.toString()}>
                       {official.name}
                     </SelectItem>
@@ -345,33 +465,33 @@ export default function Dashboard() {
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
         <StatCard 
-          title="Total de Chamados" 
+          title={formatMessage('dashboard.total_tickets')} 
           value={ticketStats.total}
           previousValue={previousTicketStats?.total}
           isLoading={isDashboardLoading}
         />
         <StatCard 
-          title="Chamados Novos" 
+          title={formatMessage('dashboard.new_tickets')} 
           value={ticketStats.byStatus.new}
           isLoading={isDashboardLoading}
           status={TICKET_STATUS.NEW as 'new'}
         />
         <StatCard 
-          title="Chamados em Andamento" 
+          title={formatMessage('dashboard.ongoing_tickets')} 
           value={ticketStats.byStatus.ongoing}
           previousValue={previousTicketStats?.byStatus.ongoing}
           isLoading={isDashboardLoading}
           status={TICKET_STATUS.ONGOING as 'ongoing'}
         />
         <StatCard 
-          title="Chamados Resolvidos" 
+          title={formatMessage('dashboard.resolved_tickets')} 
           value={ticketStats.byStatus.resolved}
           previousValue={previousTicketStats?.byStatus.resolved}
           isLoading={isDashboardLoading}
           status={TICKET_STATUS.RESOLVED as 'resolved'}
         />
         <StatCard 
-          title="Outros Status" 
+          title={formatMessage('dashboard.other_status')} 
           value={otherStatusCount}
           isLoading={isDashboardLoading}
           icon="other"
@@ -381,16 +501,16 @@ export default function Dashboard() {
       {/* Nova seção para métricas de tempo */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <TimeMetricCard
-          title="Tempo Médio de Início de Atendimento"
-          description="Tempo médio entre a criação e início de atendimento dos chamados"
+          title={formatMessage('dashboard.avg_first_response')}
+          description={formatMessage('dashboard.avg_first_response_desc')}
           value={avgFirstResponseData?.averageTime || 0}
           previousValue={previousAvgFirstResponseTime}
           isLoading={isDashboardLoading}
           icon={<Clock className="h-4 w-4 text-blue-500" />}
         />
         <TimeMetricCard
-          title="Tempo Médio de Resolução"
-          description="Tempo médio entre a criação e resolução dos chamados"
+          title={formatMessage('dashboard.avg_resolution')}
+          description={formatMessage('dashboard.avg_resolution_desc')}
           value={avgResolutionData?.averageTime || 0}
           previousValue={previousAvgResolutionTime}
           isLoading={isDashboardLoading}
@@ -401,8 +521,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <Card>
           <CardHeader>
-            <CardTitle>Chamados por Status</CardTitle>
-            <CardDescription>Distribuição de chamados por diferentes status</CardDescription>
+            <CardTitle>{formatMessage('dashboard.tickets_by_status')}</CardTitle>
+            <CardDescription>{formatMessage('dashboard.tickets_by_status_desc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <ModernPieChart 
@@ -414,8 +534,8 @@ export default function Dashboard() {
         
         <Card>
           <CardHeader>
-            <CardTitle>Chamados por Prioridade</CardTitle>
-            <CardDescription>Número de chamados para cada nível de prioridade</CardDescription>
+            <CardTitle>{formatMessage('dashboard.tickets_by_priority')}</CardTitle>
+            <CardDescription>{formatMessage('dashboard.tickets_by_priority_desc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <ModernBarChart 
@@ -428,8 +548,8 @@ export default function Dashboard() {
       
       <Card>
         <CardHeader>
-          <CardTitle>Chamados Recentes</CardTitle>
-          <CardDescription>Chamados mais recentes que precisam de atenção</CardDescription>
+          <CardTitle>{formatMessage('dashboard.recent_tickets')}</CardTitle>
+          <CardDescription>{formatMessage('dashboard.recent_tickets_desc')}</CardDescription>
         </CardHeader>
         <CardContent>
           {isDashboardLoading ? (
@@ -447,14 +567,14 @@ export default function Dashboard() {
                     <div>
                       <p className="font-medium">{ticket.title}</p>
                       <p className="text-sm text-muted-foreground">
-                        {ticket.customer?.name} • {new Date(ticket.created_at).toLocaleDateString('pt-BR')}
+                        {ticket.customer?.name} • {new Date(ticket.created_at).toLocaleDateString(locale === 'en-US' ? 'en-US' : 'pt-BR')}
                       </p>
                     </div>
                   </div>
                   <div className="text-sm">
                     {ticket.priority === PRIORITY_LEVELS.HIGH && (
                       <span className="text-xs font-medium text-white bg-status-high px-2 py-1 rounded">
-                        Alta Prioridade
+                        {formatMessage('dashboard.high_priority')}
                       </span>
                     )}
                   </div>

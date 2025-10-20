@@ -22,11 +22,12 @@ router.get('/dashboard-metrics', async (req: Request, res: Response) => {
     }
 
     // Filtros
-    const { start_date, end_date, official_id, department_id } = req.query;
+    const { start_date, end_date, official_id, department_id, incident_type_id } = req.query;
     const startDate = start_date ? new Date(String(start_date)) : undefined;
     const endDate = end_date ? new Date(String(end_date)) : undefined;
     const officialId = official_id && official_id !== 'all' ? Number(official_id) : undefined;
     const departmentId = department_id && department_id !== 'all' ? Number(department_id) : undefined;
+    const incidentTypeId = incident_type_id && incident_type_id !== 'all' ? Number(incident_type_id) : undefined;
 
     // Calcular período anterior para comparação
     let prevStartDate: Date | undefined;
@@ -38,10 +39,10 @@ router.get('/dashboard-metrics', async (req: Request, res: Response) => {
     }
 
     // Estatísticas do período atual
-    const stats = await storage.getTicketStatsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId);
-    const averageFirstResponseTime = await storage.getAverageFirstResponseTimeByUserRole(userId, userRole, officialId, startDate, endDate, departmentId);
-    const averageResolutionTime = await storage.getAverageResolutionTimeByUserRole(userId, userRole, officialId, startDate, endDate, departmentId);
-    const recentTickets = await storage.getRecentTicketsForDashboardByUserRole(userId, userRole, 5, officialId, startDate, endDate, departmentId);
+    const stats = await storage.getTicketStatsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId);
+    const averageFirstResponseTime = await storage.getAverageFirstResponseTimeByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId);
+    const averageResolutionTime = await storage.getAverageResolutionTimeByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId);
+    const recentTickets = await storage.getRecentTicketsForDashboardByUserRole(userId, userRole, 5, officialId, startDate, endDate, departmentId, incidentTypeId);
 
     // Estatísticas do período anterior para comparação
     let previousStats = null;
@@ -49,9 +50,9 @@ router.get('/dashboard-metrics', async (req: Request, res: Response) => {
     let previousAverageResolutionTime = null;
     
     if (prevStartDate && prevEndDate) {
-      previousStats = await storage.getTicketStatsForDashboardByUserRole(userId, userRole, officialId, prevStartDate, prevEndDate, departmentId);
-      previousAverageFirstResponseTime = await storage.getAverageFirstResponseTimeByUserRole(userId, userRole, officialId, prevStartDate, prevEndDate, departmentId);
-      previousAverageResolutionTime = await storage.getAverageResolutionTimeByUserRole(userId, userRole, officialId, prevStartDate, prevEndDate, departmentId);
+      previousStats = await storage.getTicketStatsForDashboardByUserRole(userId, userRole, officialId, prevStartDate, prevEndDate, departmentId, incidentTypeId);
+      previousAverageFirstResponseTime = await storage.getAverageFirstResponseTimeByUserRole(userId, userRole, officialId, prevStartDate, prevEndDate, departmentId, incidentTypeId);
+      previousAverageResolutionTime = await storage.getAverageResolutionTimeByUserRole(userId, userRole, officialId, prevStartDate, prevEndDate, departmentId, incidentTypeId);
     }
 
     return res.json({

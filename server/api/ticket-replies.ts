@@ -6,6 +6,7 @@ import { insertTicketReplySchema } from "@shared/schema";
 import { Request, Response } from "express";
 import { storage } from "../storage";
 import { AiService } from "../services/ai-service";
+import { getDefaultAiBotName } from "../utils/ai-bot-names";
 
 // Função auxiliar para verificar se um usuário pode responder a um ticket
 async function canUserReplyToTicket(
@@ -225,7 +226,7 @@ export async function POST(req: Request, res: Response) {
           .values({
             username: 'ai_robot',
             email: 'ai@system.internal',
-            name: 'Robo IA',
+            name: getDefaultAiBotName(),
             role: 'integration_bot',
             password: 'AiBot123!@#', // Senha que atende aos critérios de segurança
             active: true,

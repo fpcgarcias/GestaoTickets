@@ -27,7 +27,9 @@ import {
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
+import { useI18n } from '@/i18n';
 import { Link } from 'wouter';
+import { formatDate } from '@/lib/utils';
 
 interface AiAnalysisAuditItem {
   id: number;
@@ -60,6 +62,7 @@ interface AiAnalysisAuditResponse {
 export default function AiAuditPage() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { formatMessage, locale } = useI18n();
   const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState({
     analysis_type: 'all',
@@ -77,8 +80,8 @@ export default function AiAuditPage() {
   React.useEffect(() => {
     if (user && user.role !== 'admin' && user.role !== 'company_admin') {
       toast({
-        title: "Acesso Negado",
-        description: "Apenas administradores podem acessar a auditoria de IA.",
+        title: formatMessage('ai_audit.access_denied'),
+        description: formatMessage('ai_audit.access_denied_description'),
         variant: "destructive",
       });
       window.location.href = '/';
@@ -94,21 +97,34 @@ export default function AiAuditPage() {
   } = useQuery<AiAnalysisAuditResponse>({
     queryKey: ['ai-audit', currentPage, filters],
     queryFn: async () => {
+      // Converter datas do formato local para ISO
+      const convertDateToISO = (dateStr: string) => {
+        if (!dateStr || dateStr.length !== 10) return '';
+        const parts = dateStr.split('/');
+        if (locale === 'en-US') {
+          // mm/dd/yyyy -> yyyy-mm-dd
+          return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+        } else {
+          // dd/mm/yyyy -> yyyy-mm-dd
+          return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      };
+
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: '50',
         ...(filters.analysis_type && filters.analysis_type !== 'all' && { analysis_type: filters.analysis_type }),
         ...(filters.status && filters.status !== 'all' && { status: filters.status }),
         ...(filters.provider && filters.provider !== 'all' && { provider: filters.provider }),
-        ...(filters.start_date && { start_date: filters.start_date }),
-        ...(filters.end_date && { end_date: filters.end_date }),
+        ...(filters.start_date && { start_date: convertDateToISO(filters.start_date) }),
+        ...(filters.end_date && { end_date: convertDateToISO(filters.end_date) }),
         ...(filters.ticket_id && { ticket_id: filters.ticket_id }),
         ...(filters.company_id && user?.role === 'admin' && { company_id: filters.company_id }),
       });
 
       const response = await apiRequest('GET', `/api/ai-analysis-audit?${params}`);
       if (!response.ok) {
-        throw new Error('Falha ao carregar dados de auditoria');
+        throw new Error(formatMessage('ai_audit.load_data_error'));
       }
       return response.json();
     },
@@ -135,15 +151,15 @@ export default function AiAuditPage() {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'success':
-        return 'Sucesso';
+        return formatMessage('ai_audit.success');
       case 'error':
-        return 'Erro';
+        return formatMessage('ai_audit.error');
       case 'timeout':
-        return 'Timeout';
+        return formatMessage('ai_audit.timeout');
       case 'fallback':
-        return 'Fallback';
+        return formatMessage('ai_audit.fallback');
       default:
-        return 'Desconhecido';
+        return formatMessage('ai_audit.unknown');
     }
   };
 
@@ -186,9 +202,9 @@ export default function AiAuditPage() {
   const getAnalysisTypeText = (type: string) => {
     switch (type) {
       case 'priority':
-        return 'Prioridade';
+        return formatMessage('ai_audit.priority');
       case 'reopen':
-        return 'Reabertura';
+        return formatMessage('ai_audit.reopen');
       default:
         return type;
     }
@@ -213,7 +229,7 @@ export default function AiAuditPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin" />
-        <span className="ml-2">Carregando...</span>
+        <span className="ml-2">{formatMessage('ai_audit.loading')}</span>
       </div>
     );
   }
@@ -224,8 +240,8 @@ export default function AiAuditPage() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-foreground mb-2">Acesso Negado</h2>
-          <p className="text-muted-foreground">Apenas administradores podem acessar a auditoria de IA.</p>
+          <h2 className="text-xl font-semibold text-foreground mb-2">{formatMessage('ai_audit.access_denied')}</h2>
+          <p className="text-muted-foreground">{formatMessage('ai_audit.access_denied_description')}</p>
         </div>
       </div>
     );
@@ -237,7 +253,7 @@ export default function AiAuditPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Brain className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Auditoria de Análises de IA</h1>
+          <h1 className="text-2xl font-bold">{formatMessage('ai_audit.title')}</h1>
         </div>
         <Button 
           onClick={() => refetch()} 
@@ -250,7 +266,7 @@ export default function AiAuditPage() {
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          Atualizar
+          {formatMessage('ai_audit.refresh')}
         </Button>
       </div>
 
@@ -259,64 +275,64 @@ export default function AiAuditPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
-            Filtros
+            {formatMessage('ai_audit.filters')}
           </CardTitle>
           <CardDescription>
-            Filtre as análises de IA por diferentes critérios
+            {formatMessage('ai_audit.filters_description')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Tipo de Análise */}
             <div>
-              <Label htmlFor="analysis_type">Tipo de Análise</Label>
+              <Label htmlFor="analysis_type">{formatMessage('ai_audit.analysis_type')}</Label>
               <Select 
                 value={filters.analysis_type} 
                 onValueChange={(value) => setFilters(prev => ({ ...prev, analysis_type: value }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Todos os tipos" />
+                  <SelectValue placeholder={formatMessage('ai_audit.all_types')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os tipos</SelectItem>
-                  <SelectItem value="priority">Análise de Prioridade</SelectItem>
-                  <SelectItem value="reopen">Análise de Reabertura</SelectItem>
+                  <SelectItem value="all">{formatMessage('ai_audit.all_types')}</SelectItem>
+                  <SelectItem value="priority">{formatMessage('ai_audit.priority_analysis')}</SelectItem>
+                  <SelectItem value="reopen">{formatMessage('ai_audit.reopen_analysis')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {/* Status */}
             <div>
-              <Label htmlFor="status">Status</Label>
+              <Label htmlFor="status">{formatMessage('ai_audit.status')}</Label>
               <Select 
                 value={filters.status} 
                 onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Todos os status" />
+                  <SelectValue placeholder={formatMessage('ai_audit.all_status')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os status</SelectItem>
-                  <SelectItem value="success">Sucesso</SelectItem>
-                  <SelectItem value="error">Erro</SelectItem>
-                  <SelectItem value="timeout">Timeout</SelectItem>
-                  <SelectItem value="fallback">Fallback</SelectItem>
+                  <SelectItem value="all">{formatMessage('ai_audit.all_status')}</SelectItem>
+                  <SelectItem value="success">{formatMessage('ai_audit.success')}</SelectItem>
+                  <SelectItem value="error">{formatMessage('ai_audit.error')}</SelectItem>
+                  <SelectItem value="timeout">{formatMessage('ai_audit.timeout')}</SelectItem>
+                  <SelectItem value="fallback">{formatMessage('ai_audit.fallback')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {/* Provedor */}
             <div>
-              <Label htmlFor="provider">Provedor</Label>
+              <Label htmlFor="provider">{formatMessage('ai_audit.provider')}</Label>
               <Select 
                 value={filters.provider} 
                 onValueChange={(value) => setFilters(prev => ({ ...prev, provider: value }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Todos os provedores" />
+                  <SelectValue placeholder={formatMessage('ai_audit.all_providers')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os provedores</SelectItem>
+                  <SelectItem value="all">{formatMessage('ai_audit.all_providers')}</SelectItem>
                   <SelectItem value="openai">OpenAI</SelectItem>
                   <SelectItem value="google">Google</SelectItem>
                   <SelectItem value="anthropic">Anthropic</SelectItem>
@@ -326,10 +342,10 @@ export default function AiAuditPage() {
 
             {/* ID do Ticket */}
             <div>
-              <Label htmlFor="ticket_id">ID do Ticket</Label>
+              <Label htmlFor="ticket_id">{formatMessage('ai_audit.ticket_id')}</Label>
               <Input
                 id="ticket_id"
-                placeholder="Ex: 123"
+                placeholder={formatMessage('ai_audit.ticket_id_placeholder')}
                 value={filters.ticket_id}
                 onChange={(e) => setFilters(prev => ({ ...prev, ticket_id: e.target.value }))}
               />
@@ -337,33 +353,65 @@ export default function AiAuditPage() {
 
             {/* Data Início */}
             <div>
-              <Label htmlFor="start_date">Data Início</Label>
+              <Label htmlFor="start_date">{formatMessage('ai_audit.start_date')}</Label>
               <Input
                 id="start_date"
-                type="date"
+                type="text"
+                placeholder={locale === 'en-US' ? 'mm/dd/yyyy' : 'dd/mm/aaaa'}
                 value={filters.start_date}
-                onChange={(e) => setFilters(prev => ({ ...prev, start_date: e.target.value }))}
+                onChange={(e) => {
+                  let value = e.target.value;
+                  // Aplicar máscara baseada no locale
+                  if (locale === 'en-US') {
+                    // Formato americano: mm/dd/yyyy
+                    value = value.replace(/\D/g, '');
+                    if (value.length >= 2) value = value.slice(0, 2) + '/' + value.slice(2);
+                    if (value.length >= 5) value = value.slice(0, 5) + '/' + value.slice(5, 9);
+                  } else {
+                    // Formato brasileiro: dd/mm/aaaa
+                    value = value.replace(/\D/g, '');
+                    if (value.length >= 2) value = value.slice(0, 2) + '/' + value.slice(2);
+                    if (value.length >= 5) value = value.slice(0, 5) + '/' + value.slice(5, 9);
+                  }
+                  setFilters(prev => ({ ...prev, start_date: value }));
+                }}
               />
             </div>
 
             {/* Data Fim */}
             <div>
-              <Label htmlFor="end_date">Data Fim</Label>
+              <Label htmlFor="end_date">{formatMessage('ai_audit.end_date')}</Label>
               <Input
                 id="end_date"
-                type="date"
+                type="text"
+                placeholder={locale === 'en-US' ? 'mm/dd/yyyy' : 'dd/mm/aaaa'}
                 value={filters.end_date}
-                onChange={(e) => setFilters(prev => ({ ...prev, end_date: e.target.value }))}
+                onChange={(e) => {
+                  let value = e.target.value;
+                  // Aplicar máscara baseada no locale
+                  if (locale === 'en-US') {
+                    // Formato americano: mm/dd/yyyy
+                    value = value.replace(/\D/g, '');
+                    if (value.length >= 2) value = value.slice(0, 2) + '/' + value.slice(2);
+                    if (value.length >= 5) value = value.slice(0, 5) + '/' + value.slice(5, 9);
+                  } else {
+                    // Formato brasileiro: dd/mm/aaaa
+                    value = value.replace(/\D/g, '');
+                    if (value.length >= 2) value = value.slice(0, 2) + '/' + value.slice(2);
+                    if (value.length >= 5) value = value.slice(0, 5) + '/' + value.slice(5, 9);
+                  }
+                  setFilters(prev => ({ ...prev, end_date: value }));
+                }}
               />
             </div>
 
             {/* Empresa (apenas para admin) */}
             {user?.role === 'admin' && (
               <div>
-                <Label htmlFor="company_id">Empresa</Label>
+                <Label htmlFor="company_id">{formatMessage('ai_audit.company')}</Label>
                 <Input
                   id="company_id"
-                  placeholder="ID da empresa"
+                  placeholder={formatMessage('ai_audit.company_placeholder')}
                   value={filters.company_id}
                   onChange={(e) => setFilters(prev => ({ ...prev, company_id: e.target.value }))}
                 />
@@ -379,7 +427,7 @@ export default function AiAuditPage() {
               onClick={clearFilters}
             >
               <RefreshCw className="h-4 w-4 mr-1" />
-              Limpar Filtros
+              {formatMessage('ai_audit.clear_filters')}
             </Button>
             <Button
               variant="outline"
@@ -395,7 +443,7 @@ export default function AiAuditPage() {
               ) : (
                 <Search className="h-4 w-4 mr-1" />
               )}
-              Aplicar Filtros
+              {formatMessage('ai_audit.apply_filters')}
             </Button>
           </div>
         </CardContent>
@@ -407,11 +455,11 @@ export default function AiAuditPage() {
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Resultados da Auditoria
+              {formatMessage('ai_audit.audit_results')}
             </div>
             {auditData && (
               <div className="text-sm text-muted-foreground">
-                {auditData.pagination.total} registros encontrados
+                {formatMessage('ai_audit.records_found', { count: auditData.pagination.total })}
               </div>
             )}
           </CardTitle>
@@ -423,7 +471,7 @@ export default function AiAuditPage() {
             </div>
           ) : error ? (
             <div className="text-center text-destructive p-8">
-              Erro ao carregar dados de auditoria
+              {formatMessage('ai_audit.error_loading_data')}
             </div>
           ) : auditData && auditData.data.length > 0 ? (
             <div className="space-y-4">
@@ -432,31 +480,31 @@ export default function AiAuditPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="secondary" className="text-xs">
                     <Filter className="h-3 w-3 mr-1" />
-                    Filtros ativos
+                    {formatMessage('ai_audit.active_filters')}
                   </Badge>
                   {filters.analysis_type && (
                     <Badge variant="outline" className="text-xs">
-                      Tipo: {getAnalysisTypeText(filters.analysis_type)}
+                      {formatMessage('ai_audit.type')}: {getAnalysisTypeText(filters.analysis_type)}
                     </Badge>
                   )}
                   {filters.status && (
                     <Badge variant="outline" className="text-xs">
-                      Status: {getStatusText(filters.status)}
+                      {formatMessage('ai_audit.status')}: {getStatusText(filters.status)}
                     </Badge>
                   )}
                   {filters.provider && (
                     <Badge variant="outline" className="text-xs">
-                      Provedor: {filters.provider}
+                      {formatMessage('ai_audit.provider')}: {filters.provider}
                     </Badge>
                   )}
                   {filters.ticket_id && (
                     <Badge variant="outline" className="text-xs">
-                      Ticket: #{filters.ticket_id}
+                      {formatMessage('ai_audit.ticket')}: #{filters.ticket_id}
                     </Badge>
                   )}
                   {filters.company_id && user?.role === 'admin' && (
                     <Badge variant="outline" className="text-xs">
-                      Empresa: {filters.company_id}
+                      {formatMessage('ai_audit.company')}: {filters.company_id}
                     </Badge>
                   )}
                   {(filters.start_date || filters.end_date) && (
@@ -484,7 +532,7 @@ export default function AiAuditPage() {
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Clock className="h-4 w-4" />
-                        {new Date(item.created_at).toLocaleString('pt-BR')}
+                        {new Date(item.created_at).toLocaleString(locale === 'en-US' ? 'en-US' : 'pt-BR')}
                       </div>
                     </div>
 
@@ -498,7 +546,7 @@ export default function AiAuditPage() {
                       </Link>
                       <span className="text-sm text-muted-foreground">•</span>
                       <span className="text-sm text-muted-foreground truncate">
-                        {item.ticket_title || 'Sem título'}
+                        {item.ticket_title || formatMessage('ai_audit.no_title')}
                       </span>
                     </div>
 
@@ -506,13 +554,13 @@ export default function AiAuditPage() {
                     <div className="flex items-center gap-2">
                       <Building2 className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm text-muted-foreground">
-                        {item.company_name || 'Empresa não identificada'}
+                        {item.company_name || formatMessage('ai_audit.company_not_identified')}
                       </span>
                     </div>
 
                     {/* Prioridade sugerida */}
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">Prioridade sugerida:</span>
+                      <span className="text-sm font-medium">{formatMessage('ai_audit.suggested_priority')}:</span>
                       <Badge className={getPriorityColor(item.suggested_priority)}>
                         {item.suggested_priority}
                       </Badge>
@@ -521,7 +569,7 @@ export default function AiAuditPage() {
                     {/* Justificativa */}
                     {item.ai_justification && (
                       <div>
-                        <span className="text-sm font-medium">Justificativa:</span>
+                        <span className="text-sm font-medium">{formatMessage('ai_audit.justification')}:</span>
                         <div className="mt-1 p-3 bg-muted rounded-md text-sm text-muted-foreground">
                           {item.ai_justification}
                         </div>
@@ -531,13 +579,13 @@ export default function AiAuditPage() {
                     {/* Informações técnicas */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-muted-foreground">
                       <div>
-                        <span className="font-medium">Provedor:</span> {item.provider}
+                        <span className="font-medium">{formatMessage('ai_audit.provider')}:</span> {item.provider}
                       </div>
                       <div>
-                        <span className="font-medium">Modelo:</span> {item.model}
+                        <span className="font-medium">{formatMessage('ai_audit.model')}:</span> {item.model}
                       </div>
                       <div>
-                        <span className="font-medium">Configuração:</span> {item.config_name || 'N/A'}
+                        <span className="font-medium">{formatMessage('ai_audit.configuration')}:</span> {item.config_name || formatMessage('ai_audit.not_available')}
                       </div>
                       <div className="flex items-center gap-1">
                         <Zap className="h-4 w-4" />
@@ -558,10 +606,10 @@ export default function AiAuditPage() {
                     disabled={!auditData.pagination.hasPrev}
                   >
                     <ChevronLeft className="h-4 w-4 mr-1" />
-                    Anterior
+                    {formatMessage('ai_audit.previous')}
                   </Button>
                   <span className="text-sm px-4">
-                    Página {auditData.pagination.page} de {auditData.pagination.totalPages}
+                    {formatMessage('ai_audit.page_of', { current: auditData.pagination.page, total: auditData.pagination.totalPages })}
                   </span>
                   <Button
                     variant="outline"
@@ -569,7 +617,7 @@ export default function AiAuditPage() {
                     onClick={() => setCurrentPage(currentPage + 1)}
                     disabled={!auditData.pagination.hasNext}
                   >
-                    Próxima
+                    {formatMessage('ai_audit.next')}
                     <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
@@ -577,7 +625,7 @@ export default function AiAuditPage() {
             </div>
           ) : (
             <div className="text-center text-muted-foreground py-8">
-              Nenhuma análise de IA encontrada com os filtros aplicados
+              {formatMessage('ai_audit.no_analyses_found')}
             </div>
           )}
         </CardContent>

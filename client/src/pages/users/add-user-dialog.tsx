@@ -9,6 +9,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { queryClient } from '@/lib/queryClient';
 import { Loader2, Copy, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { useI18n } from '@/i18n';
 import {
   Select,
   SelectContent,
@@ -31,6 +32,7 @@ interface AddUserDialogProps {
 export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUserDialogProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -95,15 +97,15 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
         handleCloseDialog();
         if (onCreated) onCreated();
         toast({
-          title: 'Usuário adicionado com sucesso',
-          description: 'Usuário cadastrado no sistema',
+        title: formatMessage('users.add_user_dialog.user_added_success_toast'),
+        description: formatMessage('users.add_user_dialog.user_added_desc_toast'),
           variant: 'default',
         });
       }
     },
     onError: (error: Error) => {
       toast({
-        title: 'Erro ao adicionar usuário',
+        title: formatMessage('users.add_user_dialog.error_adding_user'),
         description: error.message,
         variant: 'destructive',
       });
@@ -116,8 +118,8 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
     // Validação básica
     if (!formData.name.trim()) {
       toast({
-        title: 'Erro de validação',
-        description: 'O nome do usuário é obrigatório',
+        title: formatMessage('users.add_user_dialog.validation_error'),
+        description: formatMessage('users.add_user_dialog.validation_name_required'),
         variant: 'destructive',
       });
       return;
@@ -125,8 +127,8 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
     
     if (!formData.email.trim() || !/^\S+@\S+\.\S+$/.test(formData.email)) {
       toast({
-        title: 'Erro de validação',
-        description: 'Email inválido',
+        title: formatMessage('users.add_user_dialog.validation_error'),
+        description: formatMessage('users.add_user_dialog.validation_email_invalid'),
         variant: 'destructive',
       });
       return;
@@ -134,8 +136,8 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
 
     if (!formData.username.trim()) {
       toast({
-        title: 'Erro de validação',
-        description: 'Nome de usuário é obrigatório',
+        title: formatMessage('users.add_user_dialog.validation_error'),
+        description: formatMessage('users.add_user_dialog.validation_username_required'),
         variant: 'destructive',
       });
       return;
@@ -143,8 +145,8 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
 
     if (!formData.password.trim() || formData.password.length < 6) {
       toast({
-        title: 'Erro de validação',
-        description: 'Senha deve ter pelo menos 6 caracteres',
+        title: formatMessage('users.add_user_dialog.validation_error'),
+        description: formatMessage('users.add_user_dialog.validation_password_min'),
         variant: 'destructive',
       });
       return;
@@ -152,8 +154,8 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
 
     if (!formData.role) {
       toast({
-        title: 'Erro de validação',
-        description: 'Selecione um perfil',
+        title: formatMessage('users.add_user_dialog.validation_error'),
+        description: formatMessage('users.add_user_dialog.validation_profile_required'),
         variant: 'destructive',
       });
       return;
@@ -162,8 +164,8 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
     // Validar que empresa foi selecionada
     if (!formData.company_id) {
       toast({
-        title: 'Erro de validação',
-        description: 'Selecione uma empresa',
+        title: formatMessage('users.add_user_dialog.validation_error'),
+        description: formatMessage('users.add_user_dialog.validation_company_required'),
         variant: 'destructive',
       });
       return;
@@ -189,52 +191,27 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
 
   // Função para obter os roles disponíveis baseado no perfil do usuário logado
   const getAvailableRoles = () => {
+    const roleOptions = [
+      { value: 'admin', label: formatMessage('users.roles.admin') },
+      { value: 'company_admin', label: formatMessage('users.roles.company_admin') },
+      { value: 'manager', label: formatMessage('users.roles.manager') },
+      { value: 'supervisor', label: formatMessage('users.roles.supervisor') },
+      { value: 'support', label: formatMessage('users.roles.support') },
+      { value: 'triage', label: formatMessage('users.roles.triage') },
+      { value: 'quality', label: formatMessage('users.roles.quality') },
+      { value: 'viewer', label: formatMessage('users.roles.viewer') },
+      { value: 'customer', label: formatMessage('users.roles.customer') },
+      { value: 'integration_bot', label: formatMessage('users.roles.integration_bot') }
+    ];
+    
     if (user?.role === 'admin') {
-      return [
-        { value: 'admin', label: 'Administrador Global' },
-        { value: 'company_admin', label: 'Administrador da Empresa' },
-        { value: 'manager', label: 'Gerente' },
-        { value: 'supervisor', label: 'Supervisor' },
-        { value: 'support', label: 'Atendente' },
-        { value: 'triage', label: 'Triagem' },
-        { value: 'quality', label: 'Qualidade' },
-        { value: 'viewer', label: 'Visualizador' },
-        { value: 'customer', label: 'Cliente' },
-        { value: 'integration_bot', label: 'Bot de Integração' }
-      ];
+      return roleOptions;
     } else if (user?.role === 'company_admin') {
-      return [
-        { value: 'company_admin', label: 'Administrador da Empresa' },
-        { value: 'manager', label: 'Gerente' },
-        { value: 'supervisor', label: 'Supervisor' },
-        { value: 'support', label: 'Atendente' },
-        { value: 'triage', label: 'Triagem' },
-        { value: 'quality', label: 'Qualidade' },
-        { value: 'viewer', label: 'Visualizador' },
-        { value: 'customer', label: 'Cliente' }
-      ];
+      return roleOptions.filter(role => !['admin', 'integration_bot'].includes(role.value));
     } else if (user?.role === 'manager') {
-      return [
-        { value: 'company_admin', label: 'Administrador da Empresa' },
-        { value: 'manager', label: 'Gerente' },
-        { value: 'supervisor', label: 'Supervisor' },
-        { value: 'support', label: 'Atendente' },
-        { value: 'triage', label: 'Triagem' },
-        { value: 'quality', label: 'Qualidade' },
-        { value: 'viewer', label: 'Visualizador' },
-        { value: 'customer', label: 'Cliente' }
-      ];
+      return roleOptions.filter(role => !['admin', 'integration_bot'].includes(role.value));
     } else if (user?.role === 'supervisor') {
-      return [
-        { value: 'company_admin', label: 'Administrador da Empresa' },
-        { value: 'manager', label: 'Gerente' },
-        { value: 'supervisor', label: 'Supervisor' },
-        { value: 'support', label: 'Atendente' },
-        { value: 'triage', label: 'Triagem' },
-        { value: 'quality', label: 'Qualidade' },
-        { value: 'viewer', label: 'Visualizador' },
-        { value: 'customer', label: 'Cliente' }
-      ];
+      return roleOptions.filter(role => !['admin', 'integration_bot'].includes(role.value));
     }
     return [];
   };
@@ -246,53 +223,53 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
           // Formulário de adição
           <>
             <DialogHeader>
-              <DialogTitle>Adicionar Novo Usuário</DialogTitle>
+              <DialogTitle>{formatMessage('users.add_user_dialog.title')}</DialogTitle>
               <DialogDescription>
-                Adicione as informações do novo usuário ao sistema.
+                {formatMessage('users.add_user_dialog.description')}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nome Completo *</Label>
+                <Label htmlFor="name">{formatMessage('users.add_user_dialog.name')} *</Label>
                 <Input
                   id="name"
                   name="name"
-                  placeholder="Digite o nome completo do usuário"
+                  placeholder={formatMessage('users.add_user_dialog.name_placeholder')}
                   value={formData.name}
                   onChange={handleChange}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
+                <Label htmlFor="email">{formatMessage('users.add_user_dialog.email')} *</Label>
                 <Input
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="Digite o email do usuário"
+                  placeholder={formatMessage('users.add_user_dialog.email_placeholder')}
                   value={formData.email}
                   onChange={handleChange}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="username">Nome de Usuário *</Label>
+                <Label htmlFor="username">{formatMessage('users.add_user_dialog.username')} *</Label>
                 <Input
                   id="username"
                   name="username"
-                  placeholder="Digite o nome de usuário"
+                  placeholder={formatMessage('users.add_user_dialog.username_placeholder')}
                   value={formData.username}
                   onChange={handleChange}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Senha *</Label>
+                <Label htmlFor="password">{formatMessage('users.add_user_dialog.password')} *</Label>
                 <Input
                   id="password"
                   name="password"
                   type="password"
-                  placeholder="Digite a senha (mín. 6 caracteres)"
+                  placeholder={formatMessage('users.add_user_dialog.password_placeholder')}
                   value={formData.password}
                   onChange={handleChange}
                   required
@@ -300,13 +277,13 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="role">Perfil *</Label>
+                <Label htmlFor="role">{formatMessage('users.add_user_dialog.profile')} *</Label>
                 <Select 
                   value={formData.role} 
                   onValueChange={handleRoleChange}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o perfil do usuário" />
+                    <SelectValue placeholder={formatMessage('users.add_user_dialog.profile_placeholder')} />
                   </SelectTrigger>
                   <SelectContent>
                     {getAvailableRoles().map(role => (
@@ -318,7 +295,7 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="company_id">Empresa *</Label>
+                <Label htmlFor="company_id">{formatMessage('users.add_user_dialog.company')} *</Label>
                 {user?.role === 'admin' ? (
                   // Admin pode selecionar qualquer empresa
                   <Select 
@@ -327,7 +304,7 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
                     disabled={isLoadingCompanies}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione a empresa" />
+                      <SelectValue placeholder={formatMessage('users.add_user_dialog.company_placeholder')} />
                     </SelectTrigger>
                     <SelectContent>
                       {companies?.map(company => (
@@ -348,16 +325,16 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
               </div>
               <div className="flex justify-end space-x-2 pt-4">
                 <Button type="button" variant="outline" onClick={handleCloseDialog}>
-                  Cancelar
+                  {formatMessage('users.add_user_dialog.cancel')}
                 </Button>
                 <Button type="submit" disabled={addUserMutation.isPending}>
                   {addUserMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Salvando...
+                      {formatMessage('users.add_user_dialog.saving')}
                     </>
                   ) : (
-                    'Salvar Usuário'
+                    formatMessage('users.add_user_dialog.save_user')
                   )}
                 </Button>
               </div>
@@ -369,26 +346,26 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
             <DialogHeader>
               <DialogTitle className="flex items-center">
                 <CheckCircle className="mr-2 h-6 w-6 text-green-600" />
-                Usuário Adicionado
+                {formatMessage('users.add_user_dialog.user_added')}
               </DialogTitle>
               <DialogDescription>
-                O usuário foi adicionado com sucesso.
+                {formatMessage('users.add_user_dialog.user_added_success')}
               </DialogDescription>
             </DialogHeader>
             
             <div className="py-6">
               <div className="mb-4">
-                <p className="font-medium mb-1">Credenciais de Acesso:</p>
+                <p className="font-medium mb-1">{formatMessage('users.add_user_dialog.credentials_title')}</p>
                 <p className="flex items-center gap-2">
-                  <strong>Login:</strong> {credentials.username}
+                  <strong>{formatMessage('users.add_user_dialog.login')}</strong> {credentials.username}
                   <Button 
                     variant="ghost" 
                     size="icon" 
                     onClick={() => {
                       navigator.clipboard.writeText(credentials.username);
                       toast({
-                        title: "Login copiado",
-                        description: "O login foi copiado para a área de transferência.",
+                        title: formatMessage('users.add_user_dialog.login_copied'),
+                        description: formatMessage('users.add_user_dialog.login_copied_desc'),
                         duration: 3000,
                       });
                     }}
@@ -399,15 +376,15 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
                   </Button>
                 </p>
                 <p className="flex items-center gap-2">
-                  <strong>Senha:</strong> {credentials.password}
+                  <strong>{formatMessage('users.add_user_dialog.password_label')}</strong> {credentials.password}
                   <Button 
                     variant="ghost" 
                     size="icon" 
                     onClick={() => {
                       navigator.clipboard.writeText(credentials.password);
                       toast({
-                        title: "Senha copiada",
-                        description: "A senha foi copiada para a área de transferência.",
+                        title: formatMessage('users.add_user_dialog.password_copied'),
+                        description: formatMessage('users.add_user_dialog.password_copied_desc'),
                         duration: 3000,
                       });
                     }}
@@ -421,14 +398,14 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
               
               <div className="bg-amber-50 border border-amber-200 p-3 rounded-md">
                 <p className="text-amber-800 text-sm">
-                  Anote estas credenciais! Elas não poderão ser recuperadas depois que esta janela for fechada.
+                  {formatMessage('users.add_user_dialog.save_credentials_warning')}
                 </p>
               </div>
             </div>
             
             <DialogFooter>
               <Button onClick={handleCloseDialog}>
-                Fechar
+                {formatMessage('users.add_user_dialog.close')}
               </Button>
             </DialogFooter>
           </>

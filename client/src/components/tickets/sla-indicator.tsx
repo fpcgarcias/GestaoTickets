@@ -5,6 +5,8 @@ import { calculateSLAStatus, formatTimeRemaining, getBusinessHoursConfig, conver
 import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
 import { useTicketWithSLA, slaUtils } from '@/hooks/use-sla';
 import { Badge } from '../ui/badge';
+import { useI18n } from '@/i18n';
+import { useSLAFormatting } from '@/lib/sla-utils';
 
 interface SLAIndicatorProps {
   ticketCreatedAt: string;
@@ -34,6 +36,8 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   firstResponseAt,
   className = ""
 }) => {
+  const { formatMessage } = useI18n();
+  const { formatTimeRemaining: formatTimeRemainingTranslated } = useSLAFormatting();
   const [timeRemaining, setTimeRemaining] = useState<string>('');
   const [percentConsumed, setPercentConsumed] = useState<number>(0);
   const [slaStatus, setSlaStatus] = useState<'ok' | 'warning' | 'critical' | 'breached'>('ok');
@@ -109,13 +113,13 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
       if (slaIsFinished) return;
       
       if (slaIsPaused) {
-        setTimeRemaining('SLA pausado');
+        setTimeRemaining(formatMessage('tickets.sla.paused'));
         setSlaStatus('warning');
       } else if (status.isResolutionOverdue) {
-        setTimeRemaining(slaUtils.formatTimeRemaining(status.resolutionTimeRemaining));
+        setTimeRemaining(formatTimeRemainingTranslated(status.resolutionTimeRemaining));
         setSlaStatus('breached');
       } else {
-        setTimeRemaining(slaUtils.formatTimeRemaining(status.resolutionTimeRemaining));
+        setTimeRemaining(formatTimeRemainingTranslated(status.resolutionTimeRemaining));
         
         // Determinar status baseado no tempo restante
         if (status.resolutionTimeRemaining < 2) {
@@ -239,7 +243,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
         setTimeRemaining(`Excedido em ${overdueTime}`);
       } else {
         const remainingTime = formatTimeRemaining(slaResult.timeRemaining);
-        setTimeRemaining(`${remainingTime} restantes`);
+        setTimeRemaining(formatTimeRemainingTranslated(slaResult.timeRemaining / (60 * 60 * 1000)));
       }
       
     } catch (calcError) {
@@ -251,7 +255,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     return (
       <div className="flex items-center gap-1 text-xs">
         <CheckCircle className="h-3 w-3 text-emerald-400" />
-        <span className="text-emerald-400">Resolvido</span>
+        <span className="text-emerald-400">{formatMessage('tickets.sla.resolved')}</span>
       </div>
     );
   }
@@ -261,7 +265,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     return (
       <div className={`flex items-center gap-2 ${className}`}>
         <Clock className="w-4 h-4" />
-        <span className="text-sm">Carregando SLA...</span>
+        <span className="text-sm">{formatMessage('tickets.sla.loading')}</span>
       </div>
     );
   }
@@ -271,7 +275,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     return (
       <div className={`flex items-center gap-2 ${className}`}>
         <AlertTriangle className="w-4 h-4 text-muted-foreground/80" />
-        <span className="text-sm text-muted-foreground">Sem SLA configurado</span>
+        <span className="text-sm text-muted-foreground">{formatMessage('tickets.sla.not_configured')}</span>
       </div>
     );
   }
@@ -281,7 +285,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     return (
       <div className="flex items-center gap-1 text-xs">
         <Pause className="h-3 w-3 text-amber-500 dark:text-amber-300" />
-        <span className="text-amber-500 dark:text-amber-300">SLA pausado</span>
+        <span className="text-amber-500 dark:text-amber-300">{formatMessage('tickets.sla.paused')}</span>
       </div>
     );
   }
@@ -293,14 +297,14 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   if (ticketStatus === 'new' && ticketSLAInfo) {
     const { status } = ticketSLAInfo;
     const responseTimeText = status.isResponseOverdue 
-      ? `${Math.abs(Math.round(status.responseTimeRemaining))}h atrasado`
-      : slaUtils.formatTimeRemaining(status.responseTimeRemaining);
+      ? formatTimeRemainingTranslated(status.responseTimeRemaining)
+      : formatTimeRemainingTranslated(status.responseTimeRemaining);
     
     return (
       <div className={`flex items-center gap-1 ${className}`}>
         <Badge variant="outline" className="flex items-center gap-1 w-fit border-border text-muted-foreground">
           <Clock className="w-3 h-3" />
-          <span className="text-xs">Resposta: {responseTimeText}</span>
+          <span className="text-xs">{formatMessage('tickets.sla.response')}: {responseTimeText}</span>
         </Badge>
       </div>
     );
@@ -311,7 +315,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     <div className={`flex items-center gap-1 ${className}`}>
       <Badge variant="outline" className="flex items-center gap-1 w-fit border-border text-muted-foreground">
         <Target className="w-3 h-3" />
-        <span className="text-xs">Resolução: {displayText}</span>
+        <span className="text-xs">{formatMessage('tickets.sla.resolution')}: {displayText}</span>
       </Badge>
     </div>
   );

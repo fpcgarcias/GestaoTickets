@@ -10,6 +10,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { queryClient } from '@/lib/queryClient';
 import { Loader2, Copy, CheckCircle, AlertTriangle, UserPlus, Link } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { useI18n } from '@/i18n';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
@@ -41,6 +42,7 @@ interface AddClientDialogProps {
 export default function AddClientDialog({ open, onOpenChange, onCreated }: AddClientDialogProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { formatMessage } = useI18n();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -121,8 +123,8 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
       if (linkingUser) {
         // Mensagem diferente para vinculação
         toast({
-          title: "Cliente vinculado com sucesso",
-          description: "O usuário foi vinculado como cliente com sucesso.",
+          title: formatMessage('clients.add_client_dialog.client_linked_success_toast'),
+          description: formatMessage('clients.add_client_dialog.client_linked_desc_toast'),
           variant: "default",
         });
         handleCloseDialog();
@@ -140,8 +142,8 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
         handleCloseDialog();
         if (onCreated) onCreated();
         toast({
-          title: 'Cliente adicionado com sucesso',
-          description: 'Cliente cadastrado no sistema',
+          title: formatMessage('clients.add_client_dialog.client_added_success_toast'),
+          description: formatMessage('clients.add_client_dialog.client_added_desc_toast'),
           variant: 'default',
         });
       }
@@ -160,7 +162,7 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
       }
       
       toast({
-        title: 'Erro ao adicionar cliente',
+        title: formatMessage('clients.add_client_dialog.error_adding_client'),
         description: error.message,
         variant: 'destructive',
       });
@@ -173,8 +175,8 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
     // Validação básica
     if (!formData.name.trim()) {
       toast({
-        title: 'Erro de validação',
-        description: 'O nome do cliente é obrigatório',
+        title: formatMessage('common.error'),
+        description: formatMessage('clients.add_client_dialog.validation_name_required'),
         variant: 'destructive',
       });
       return;
@@ -182,8 +184,8 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
     
     if (!formData.email.trim() || !/^\S+@\S+\.\S+$/.test(formData.email)) {
       toast({
-        title: 'Erro de validação',
-        description: 'Email inválido',
+        title: formatMessage('common.error'),
+        description: formatMessage('clients.add_client_dialog.validation_email_invalid'),
         variant: 'destructive',
       });
       return;
@@ -192,8 +194,8 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
     // Validar que empresa foi selecionada
     if (!formData.company_id) {
       toast({
-        title: 'Erro de validação',
-        description: 'Selecione uma empresa',
+        title: formatMessage('common.error'),
+        description: formatMessage('clients.add_client_dialog.validation_company_required'),
         variant: 'destructive',
       });
       return;
@@ -269,12 +271,12 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
           <>
             <DialogHeader>
               <DialogTitle>
-                {linkingUser ? "Vincular Usuário como Cliente" : "Adicionar Novo Cliente"}
+                {linkingUser ? formatMessage('clients.add_client_dialog.link_user_title') : formatMessage('clients.add_client_dialog.title')}
               </DialogTitle>
               <DialogDescription>
                 {linkingUser 
-                  ? "Vinculando usuário existente como cliente do sistema."
-                  : "Adicione as informações do novo cliente ao sistema."
+                  ? formatMessage('clients.add_client_dialog.link_user_description')
+                  : formatMessage('clients.add_client_dialog.description')
                 }
               </DialogDescription>
             </DialogHeader>
@@ -285,10 +287,10 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
                   <div className="space-y-3">
-                    <p>Já existe um usuário com este email:</p>
+                    <p>{formatMessage('clients.add_client_dialog.existing_user_alert')}</p>
                     <div className="bg-gray-50 p-3 rounded-md">
-                      <p><strong>Nome:</strong> {existingUser.name}</p>
-                      <p><strong>Email:</strong> {existingUser.email}</p>
+                      <p><strong>{formatMessage('clients.name')}:</strong> {existingUser.name}</p>
+                      <p><strong>{formatMessage('clients.email')}:</strong> {existingUser.email}</p>
                       <p><strong>Username:</strong> {existingUser.username}</p>
                     </div>
                     <div className="flex gap-2">
@@ -299,14 +301,14 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
                         className="flex items-center gap-1"
                       >
                         <Link className="h-3 w-3" />
-                        Vincular como Cliente
+                        {formatMessage('clients.add_client_dialog.link_as_client')}
                       </Button>
                       <Button 
                         size="sm" 
                         variant="outline"
                         onClick={handleCreateNewUser}
                       >
-                        Usar Email Diferente
+                        {formatMessage('clients.add_client_dialog.use_different_email')}
                       </Button>
                     </div>
                   </div>
@@ -320,13 +322,13 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
                 <UserPlus className="h-4 w-4 text-green-600" />
                 <AlertDescription className="text-green-800">
                   <div className="space-y-2">
-                    <p className="font-semibold">Vinculando usuário existente como cliente:</p>
+                    <p className="font-semibold">{formatMessage('clients.add_client_dialog.linking_user_alert')}</p>
                     <div className="bg-white p-2 rounded border border-green-200">
                       <p><strong>{existingUser.name}</strong></p>
                       <p className="text-sm text-gray-600">{existingUser.email}</p>
                     </div>
                     <p className="text-sm">
-                      Este usuário será atualizado para ter permissões de cliente e poderá acessar o sistema.
+                      {formatMessage('clients.add_client_dialog.linking_user_description')}
                     </p>
                   </div>
                 </AlertDescription>
@@ -335,40 +337,40 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
             
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nome do Cliente *</Label>
+                <Label htmlFor="name">{formatMessage('clients.add_client_dialog.client_name')} *</Label>
                 <Input
                   id="name"
                   name="name"
-                  placeholder="Digite o nome do cliente"
+                  placeholder={formatMessage('clients.add_client_dialog.client_name_placeholder')}
                   value={formData.name}
                   onChange={handleChange}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
+                <Label htmlFor="email">{formatMessage('clients.email')} *</Label>
                 <Input
                   id="email"
                   name="email"
                   type="email"
-                  placeholder="Digite o email do cliente"
+                  placeholder={formatMessage('clients.add_client_dialog.email_placeholder')}
                   value={formData.email}
                   onChange={handleChange}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">Telefone</Label>
+                <Label htmlFor="phone">{formatMessage('clients.phone')}</Label>
                 <Input
                   id="phone"
                   name="phone"
-                  placeholder="Digite o telefone do cliente"
+                  placeholder={formatMessage('clients.add_client_dialog.phone_placeholder')}
                   value={formData.phone}
                   onChange={handleChange}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="company_id">Empresa *</Label>
+                <Label htmlFor="company_id">{formatMessage('clients.company')} *</Label>
                 {user?.role === 'admin' ? (
                   // Admin pode selecionar qualquer empresa
                   <Select 
@@ -377,7 +379,7 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
                     disabled={isLoadingCompanies}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione a empresa" />
+                      <SelectValue placeholder={formatMessage('clients.add_client_dialog.company_placeholder')} />
                     </SelectTrigger>
                     <SelectContent>
                       {companies?.map(company => (
@@ -408,21 +410,21 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
                   }
                 />
                 <Label htmlFor="must_change_password" className="text-sm">
-                  Forçar alteração de senha no próximo login
+                  {formatMessage('clients.add_client_dialog.force_password_change')}
                 </Label>
               </div>
               <div className="flex justify-end space-x-2 pt-4">
                 <Button type="button" variant="outline" onClick={handleCloseDialog}>
-                  Cancelar
+                  {formatMessage('clients.add_client_dialog.cancel')}
                 </Button>
                 <Button type="submit" disabled={addClientMutation.isPending}>
                   {addClientMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {linkingUser ? "Vinculando..." : "Salvando..."}
+                      {linkingUser ? formatMessage('clients.add_client_dialog.linking') : formatMessage('clients.add_client_dialog.saving')}
                     </>
                   ) : (
-                    linkingUser ? "Vincular Cliente" : "Salvar Cliente"
+                    linkingUser ? formatMessage('clients.add_client_dialog.link_client') : formatMessage('clients.add_client_dialog.save_client')
                   )}
                 </Button>
               </div>
@@ -434,29 +436,29 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
             <DialogHeader>
               <DialogTitle className="flex items-center">
                 <CheckCircle className="mr-2 h-6 w-6 text-green-600" />
-                {linkingUser ? "Cliente Vinculado" : "Cliente Adicionado"}
+                {linkingUser ? formatMessage('clients.add_client_dialog.client_linked') : formatMessage('clients.add_client_dialog.client_added')}
               </DialogTitle>
               <DialogDescription>
                 {linkingUser 
-                  ? "O usuário foi vinculado como cliente com sucesso."
-                  : "O cliente foi adicionado com sucesso."
+                  ? formatMessage('clients.add_client_dialog.client_linked_success')
+                  : formatMessage('clients.add_client_dialog.client_added_success')
                 }
               </DialogDescription>
             </DialogHeader>
             
             <div className="py-6">
               <div className="mb-4">
-                <p className="font-medium mb-1">Credenciais Geradas:</p>
+                <p className="font-medium mb-1">{formatMessage('clients.add_client_dialog.generated_credentials')}</p>
                 <p className="flex items-center gap-2">
-                  <strong>Login:</strong> {credentials.username}
+                  <strong>{formatMessage('clients.add_client_dialog.login')}</strong> {credentials.username}
                   <Button 
                     variant="ghost" 
                     size="icon" 
                     onClick={() => {
                       navigator.clipboard.writeText(credentials.username);
                       toast({
-                        title: "Login copiado",
-                        description: "O login foi copiado para a área de transferência.",
+                        title: formatMessage('clients.add_client_dialog.login_copied'),
+                        description: formatMessage('clients.add_client_dialog.login_copied_desc'),
                         duration: 3000,
                       });
                     }}
@@ -467,15 +469,15 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
                   </Button>
                 </p>
                 <p className="flex items-center gap-2">
-                  <strong>Senha temporária:</strong> {credentials.password}
+                  <strong>{formatMessage('clients.add_client_dialog.temp_password')}</strong> {credentials.password}
                   <Button 
                     variant="ghost" 
                     size="icon" 
                     onClick={() => {
                       navigator.clipboard.writeText(credentials.password);
                       toast({
-                        title: "Senha copiada",
-                        description: "A senha foi copiada para a área de transferência.",
+                        title: formatMessage('clients.add_client_dialog.password_copied'),
+                        description: formatMessage('clients.add_client_dialog.password_copied_desc'),
                         duration: 3000,
                       });
                     }}
@@ -489,14 +491,14 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
               
               <div className="bg-amber-50 border border-amber-200 p-3 rounded-md">
                 <p className="text-amber-800 text-sm">
-                  Anote estas credenciais! Elas não poderão ser recuperadas depois que esta janela for fechada.
+                  {formatMessage('clients.add_client_dialog.save_credentials_warning')}
                 </p>
               </div>
             </div>
             
             <DialogFooter>
               <Button onClick={handleCloseDialog}>
-                Fechar
+                {formatMessage('clients.add_client_dialog.close')}
               </Button>
             </DialogFooter>
           </>
@@ -508,10 +510,10 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
     <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Vincular Usuário Existente?</AlertDialogTitle>
+          <AlertDialogTitle>{formatMessage('clients.add_client_dialog.link_existing_user_title')}</AlertDialogTitle>
           <AlertDialogDescription>
             <div className="space-y-3">
-              <p>Foi encontrado um usuário já cadastrado com este email:</p>
+              <p>{formatMessage('clients.add_client_dialog.link_existing_user_desc')}</p>
               {existingUser && (
                 <div className="bg-gray-50 p-3 rounded-md border">
                   <p className="font-semibold">{existingUser.name}</p>
@@ -520,18 +522,17 @@ export default function AddClientDialog({ open, onOpenChange, onCreated }: AddCl
                 </div>
               )}
               <p className="text-sm">
-                Deseja vincular este usuário como cliente? Ele manterá sua senha atual e 
-                receberá permissões de cliente no sistema.
+                {formatMessage('clients.add_client_dialog.link_existing_user_confirm')}
               </p>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => setShowConfirmDialog(false)}>
-            Cancelar
+            {formatMessage('clients.add_client_dialog.cancel')}
           </AlertDialogCancel>
           <AlertDialogAction onClick={confirmLinkUser}>
-            Sim, Vincular como Cliente
+            {formatMessage('clients.add_client_dialog.yes_link_client')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
