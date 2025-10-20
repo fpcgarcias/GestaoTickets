@@ -285,10 +285,10 @@ export default function Dashboard() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('dashboard.title')}</h1>
+      <h1 className="text-2xl font-semibold text-foreground">{formatMessage('dashboard.title')}</h1>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-neutral-500" />
+              <Calendar className="h-4 w-4 text-muted-foreground" />
             <DateRangeFilter
               timeFilter={timeFilter}
               setTimeFilter={setTimeFilter}
@@ -305,7 +305,7 @@ export default function Dashboard() {
           {/* Filtro de Departamento */}
           {shouldShowDepartmentFilter && (
             <div className="flex items-center gap-2">
-              <Building className="h-4 w-4 text-neutral-500" />
+              <Building className="h-4 w-4 text-muted-foreground" />
               <Select value={selectedDepartmentId} onValueChange={setSelectedDepartmentId}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder={formatMessage('dashboard.all_departments')} />
@@ -324,7 +324,7 @@ export default function Dashboard() {
           {/* Filtro de Atendente */}
           {shouldShowOfficialFilter && (
             <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-neutral-500" />
+              <Users className="h-4 w-4 text-muted-foreground" />
               <Select value={selectedOfficialId} onValueChange={setSelectedOfficialId}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder={formatMessage('dashboard.all_officials')} />
@@ -448,7 +448,7 @@ export default function Dashboard() {
                     <StatusDot status={ticket.status} className="mr-2" />
                     <div>
                       <p className="font-medium">{ticket.title}</p>
-                      <p className="text-sm text-neutral-500">
+                      <p className="text-sm text-muted-foreground">
                         {ticket.customer?.name} • {new Date(ticket.created_at).toLocaleDateString(locale === 'en-US' ? 'en-US' : 'pt-BR')}
                       </p>
                     </div>
@@ -485,7 +485,7 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, previousValue, isLoad
       <CardContent className="p-6">
         <div className="flex items-center mb-2">
           {status && <StatusDot status={status} className="mr-2" />}
-          {icon === 'other' && <MoreHorizontal className="h-4 w-4 mr-2 text-gray-500" />}
+          {icon === 'other' && <MoreHorizontal className="h-4 w-4 mr-2 text-muted-foreground" />}
           <h3 className="font-medium">{title}</h3>
         </div>
         {isLoading ? (

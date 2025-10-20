@@ -254,8 +254,8 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   if (isSlaFinished(ticketStatus)) {
     return (
       <div className="flex items-center gap-1 text-xs">
-        <CheckCircle className="h-3 w-3 text-green-600" />
-        <span className="text-green-600">{formatMessage('tickets.sla.resolved')}</span>
+        <CheckCircle className="h-3 w-3 text-emerald-400" />
+        <span className="text-emerald-400">{formatMessage('tickets.sla.resolved')}</span>
       </div>
     );
   }
@@ -274,8 +274,8 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   if (!ticketSLAInfo && !useNewSLA && (oldSLAError || !slaSettingsData) && !timeRemaining) {
     return (
       <div className={`flex items-center gap-2 ${className}`}>
-        <AlertTriangle className="w-4 h-4 text-gray-400" />
-        <span className="text-sm text-gray-500">{formatMessage('tickets.sla.not_configured')}</span>
+        <AlertTriangle className="w-4 h-4 text-muted-foreground/80" />
+        <span className="text-sm text-muted-foreground">{formatMessage('tickets.sla.not_configured')}</span>
       </div>
     );
   }
@@ -284,8 +284,8 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   if (isPaused) {
     return (
       <div className="flex items-center gap-1 text-xs">
-        <Pause className="h-3 w-3 text-orange-600" />
-        <span className="text-orange-600">{formatMessage('tickets.sla.paused')}</span>
+        <Pause className="h-3 w-3 text-amber-500 dark:text-amber-300" />
+        <span className="text-amber-500 dark:text-amber-300">{formatMessage('tickets.sla.paused')}</span>
       </div>
     );
   }
@@ -302,7 +302,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
     
     return (
       <div className={`flex items-center gap-1 ${className}`}>
-        <Badge variant="outline" className="flex items-center gap-1 w-fit border-gray-700 text-gray-700">
+        <Badge variant="outline" className="flex items-center gap-1 w-fit border-border text-muted-foreground">
           <Clock className="w-3 h-3" />
           <span className="text-xs">{formatMessage('tickets.sla.response')}: {responseTimeText}</span>
         </Badge>
@@ -313,10 +313,11 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   // Para outros status, mostrar tempo de resolução
   return (
     <div className={`flex items-center gap-1 ${className}`}>
-      <Badge variant="outline" className="flex items-center gap-1 w-fit border-gray-700 text-gray-700">
+      <Badge variant="outline" className="flex items-center gap-1 w-fit border-border text-muted-foreground">
         <Target className="w-3 h-3" />
         <span className="text-xs">{formatMessage('tickets.sla.resolution')}: {displayText}</span>
       </Badge>
     </div>
   );
 };
+

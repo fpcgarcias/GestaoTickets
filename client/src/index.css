@@ -79,11 +79,7 @@
 }
 
 .dark {
-  /* Status colors in dark mode */
-  --status-new: 210 90% 50%;
-  --status-ongoing: 32 100% 50%;
-  --status-resolved: 120 40% 50%;
-  --status-high: 0 72% 50%;
+  color-scheme: dark;
 }
 
 @layer base {
@@ -97,7 +93,7 @@
 }
 
 .sidebar-item.active {
-  @apply bg-accent text-primary border-l-2 border-primary;
+  @apply bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary;
 }
 
 .bg-status-new {

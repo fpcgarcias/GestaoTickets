@@ -584,25 +584,32 @@ export default function PrioritySettings() {
                       <div className="space-y-2">
                         <Label>{formatMessage('priorities.add_priority_dialog.color')}</Label>
                         <div className="flex gap-2 flex-wrap">
-                          {DEFAULT_COLORS.map((color) => (
-                            <button
-                              key={color}
-                              type="button"
-                              className={`w-8 h-8 rounded-full border-2 ${
-                                formData.color === color ? 'border-gray-900' : 'border-gray-300'
-                              }`}
-                              style={{ backgroundColor: color }}
-                              onClick={() => setFormData(prev => ({ ...prev, color }))}
-                            />
-                          ))}
+                {DEFAULT_COLORS.map((color) => {
+                  const isActive = formData.color === color;
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      className={`w-8 h-8 rounded-full transition-all ${
+                        isActive
+                          ? 'border-primary border-[3px] ring-2 ring-primary/40'
+                          : 'border border-border hover:ring-2 hover:ring-primary/20'
+                      }`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => setFormData(prev => ({ ...prev, color }))}
+                    />
+                  );
+                })}
                         </div>
                         <div className="flex items-center gap-2 mt-2">
-                          <Input
-                            type="color"
-                            value={formData.color}
-                            onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                            className="w-12 h-8 p-0 border-0"
-                          />
+                <div className="relative">
+                  <Input
+                    type="color"
+                    value={formData.color}
+                    onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                    className="w-12 h-8 p-0 border border-border rounded-md bg-card"
+                  />
+                </div>
                           <span className="text-sm text-muted-foreground">
                             {formatMessage('priorities.add_priority_dialog.custom_color')}
                           </span>
@@ -676,10 +683,10 @@ export default function PrioritySettings() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className="flex items-center justify-between p-4 border rounded-lg bg-white hover:bg-gray-50 transition-colors"
+                        className="flex items-center justify-between p-4 border border-border rounded-lg bg-card text-card-foreground shadow-sm hover:bg-muted/80 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <GripVertical className="h-5 w-5 text-gray-400" />
+                          <GripVertical className="h-5 w-5 text-muted-foreground/80" />
                           <div className="flex items-center gap-3">
                             <Badge 
                               style={{ backgroundColor: priority.color, color: '#fff' }}
@@ -687,8 +694,13 @@ export default function PrioritySettings() {
                             >
                               {priority.name}
                             </Badge>
+<<<<<<< HEAD
                             <span className="text-sm text-gray-500">
                               {formatMessage('priorities.weight', { weight: priority.weight })}
+=======
+                            <span className="text-sm text-muted-foreground">
+                              Peso: {priority.weight}
+>>>>>>> main
                             </span>
                             {isUsingDefaults && (
                               <Badge variant="outline" className="text-xs">
@@ -715,7 +727,7 @@ export default function PrioritySettings() {
                                 size="sm"
                                 disabled={isUsingDefaults}
                               >
-                                <Trash2 className="h-4 w-4 text-red-500" />
+                                <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
@@ -729,7 +741,7 @@ export default function PrioritySettings() {
                                 <AlertDialogCancel>{formatMessage('priorities.delete_priority_dialog.cancel')}</AlertDialogCancel>
                                 <AlertDialogAction
                                   onClick={() => deletePriorityMutation.mutate(priority.id)}
-                                  className="bg-red-600 hover:bg-red-700"
+                                  className="bg-destructive hover:bg-destructive/90"
                                 >
                                   {formatMessage('priorities.delete_priority_dialog.delete')}
                                 </AlertDialogAction>
@@ -786,25 +798,32 @@ export default function PrioritySettings() {
             <div className="space-y-2">
               <Label>{formatMessage('priorities.edit_priority_dialog.color')}</Label>
               <div className="flex gap-2 flex-wrap">
-                {DEFAULT_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    className={`w-8 h-8 rounded-full border-2 ${
-                      formData.color === color ? 'border-gray-900' : 'border-gray-300'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => setFormData(prev => ({ ...prev, color }))}
-                  />
-                ))}
+                {DEFAULT_COLORS.map((color) => {
+                  const isActive = formData.color === color;
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      className={`w-8 h-8 rounded-full transition-all ${
+                        isActive
+                          ? 'border-primary border-[3px] ring-2 ring-primary/40'
+                          : 'border border-border hover:ring-2 hover:ring-primary/20'
+                      }`}
+                      style={{ backgroundColor: color }}
+                      onClick={() => setFormData(prev => ({ ...prev, color }))}
+                    />
+                  );
+                })}
               </div>
               <div className="flex items-center gap-2 mt-2">
-                <Input
-                  type="color"
-                  value={formData.color}
-                  onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
-                  className="w-12 h-8 p-0 border-0"
-                />
+                <div className="relative">
+                  <Input
+                    type="color"
+                    value={formData.color}
+                    onChange={(e) => setFormData(prev => ({ ...prev, color: e.target.value }))}
+                    className="w-12 h-8 p-0 border border-border rounded-md bg-card"
+                  />
+                </div>
                 <span className="text-sm text-muted-foreground">
                   {formatMessage('priorities.edit_priority_dialog.custom_color')}
                 </span>
@@ -849,3 +868,15 @@ export default function PrioritySettings() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+

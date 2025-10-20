@@ -369,7 +369,7 @@ function validateRequest(schemaToValidate: z.ZodType<any, any>) {
 
           message: "Validation error",
 
-          errors: error.errors,
+          errors: error.issues,
 
         });
 
@@ -598,17 +598,18 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   const router = express.Router();
 
   // === IMPORTS DE SEGURANÇA (movidos para cá para evitar conflitos com trust proxy) ===
+  const securityMiddleware = await import('./middleware/security');
+  const authLimiter = securityMiddleware.authLimiter as any;
+  const apiLimiter = securityMiddleware.apiLimiter as any;
+  const uploadLimiter = securityMiddleware.uploadLimiter as any;
   const { 
-    authLimiter, 
-    apiLimiter, 
-    uploadLimiter, 
     validateSchema, 
     loginSchema, 
     ticketSchema, 
     sanitizeHtml, 
     securityLogger, 
     validateFileUpload
-  } = await import('./middleware/security');
+  } = securityMiddleware;
 
   
 
@@ -1104,9 +1105,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                   inArray(schema.tickets.department_id, departmentIds) // Dos departamentos relevantes
 
-                )
+                )!!!!!!
 
-              );
+              )!!!;
 
             }
 
@@ -1208,9 +1209,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                   inArray(schema.tickets.department_id, departmentIds) // Dos departamentos relevantes
 
-                )
+                )!!!!!!
 
-              );
+              )!!!;
 
             }
 
@@ -1272,11 +1273,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                       inArray(schema.tickets.department_id, departmentIds)
 
-                    )
+                    )!!!!!!!!
 
-                  )
+                  )!!!!!!!
 
-                );
+                )!!!!!!;
 
               } else {
 
@@ -1626,7 +1627,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       // Usar o método paginado que aplica filtros no SQL
 
-      const result = await storage.getTicketsByUserRolePaginated(userId, userRole, filters, page, limit);
+      const result = await storage.getTicketsByUserRolePaginated!(userId, userRole, filters, page, limit);
 
       
 
@@ -3084,7 +3085,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                 eq(schema.categories.is_active, true)
 
-              ))
+              )!!!)
 
               .limit(1);
 
@@ -3168,7 +3169,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                 `Ticket escalado manualmente por ${req.session?.adUsername || 'usuário'}`
 
-              ).catch((escalationError) => {
+              )!!!.catch((escalationError) => {
 
                 console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de escalação:`, escalationError);
 
@@ -3646,7 +3647,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                 eq(schema.categories.is_active, true)
 
-              ))
+              )!!!)
 
               .limit(1);
 
@@ -3692,7 +3693,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           ...ticketData,
 
-          priority: finalPriority, // Prioridade inicial (será atualizada pela IA se necessário)
+          priority: finalPriority || undefined, // Prioridade inicial (será atualizada pela IA se necessário)
 
           customer_id: customerId || undefined,
 
@@ -3854,9 +3855,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                   eq(schema.departmentPriorities.is_active, true)
 
-                )
+                )!!!!!!
 
-              )
+              )!!!
 
               .limit(1);
 
@@ -3890,17 +3891,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     eq(schema.departmentPriorities.is_active, true)
 
-                  )
+                  )!!!!!!!
 
-                );
+                )!!!!!!;
 
 
 
               const foundPriority = allPriorities.find(p => 
 
-                p.name.toLowerCase() === finalPriority.toLowerCase()
+                p.name.toLowerCase() === (finalPriority || '').toLowerCase()
 
-              );
+              )!!!;
 
 
 
@@ -4128,7 +4129,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         ticketCode: ticket.ticket_id,
 
-        priority: finalPriority,
+        priority: finalPriority as 'low' | 'medium' | 'high' | 'critical' | undefined,
 
         timestamp: new Date()
 
@@ -4202,7 +4203,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               companyId || undefined
 
-            ).catch((emailError) => {
+            )!.catch((emailError) => {
 
               console.error('[Email] Erro ao enviar confirmação para o cliente:', emailError);
 
@@ -4284,7 +4285,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           message: "Dados inválidos", 
 
-          errors: error.errors 
+          errors: error.issues 
 
         });
 
@@ -5963,9 +5964,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     dataWithDepartment.company_id ? eq(schema.departments.company_id, dataWithDepartment.company_id) : isNull(schema.departments.company_id)
 
-                  )
+                  )!!!!!!!
 
-                );
+                )!!!!!!;
 
               deptRecord = rec;
 
@@ -5989,9 +5990,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     dataWithDepartment.company_id ? eq(schema.departments.company_id, dataWithDepartment.company_id) : isNull(schema.departments.company_id)
 
-                  )
+                  )!!!!!!!
 
-                );
+                )!!!!!!;
 
               deptRecord = recByName;
 
@@ -6459,7 +6460,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               eq(schema.officialDepartments.department_id, dept.department_id)
 
-            ));
+            )!);
 
         }
 
@@ -6531,9 +6532,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     effectiveCompanyId ? eq(schema.departments.company_id, effectiveCompanyId) : isNull(schema.departments.company_id)
 
-                  )
+                  )!!!!!!!
 
-                );
+                )!!!!!!;
 
               deptRecord = rec;
 
@@ -6557,9 +6558,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     effectiveCompanyId ? eq(schema.departments.company_id, effectiveCompanyId) : isNull(schema.departments.company_id)
 
-                  )
+                  )!!!!!!!
 
-                );
+                )!!!!!!;
 
               deptRecord = recByName;
 
@@ -8504,7 +8505,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               eq(schema.incidentTypes.company_id, sessionCompanyId)
 
-            )
+            )!
 
           );
 
@@ -8544,7 +8545,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (searchCondition) {
 
-          conditions.push(searchCondition);
+          if (searchCondition) conditions.push(searchCondition);
 
         }
 
@@ -8888,7 +8889,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (error instanceof z.ZodError) {
 
-          return res.status(400).json({ message: "Validation failed", errors: error.errors });
+          return res.status(400).json({ message: "Validation failed", errors: error.issues });
 
         }
 
@@ -9010,7 +9011,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           );
 
-          conditions.push(searchCondition);
+          if (searchCondition) conditions.push(searchCondition);
 
         }
 
@@ -9402,7 +9403,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (searchCondition) {
 
-          conditions.push(searchCondition);
+          if (searchCondition) conditions.push(searchCondition);
 
         }
 
@@ -9598,7 +9599,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               eq(departmentsSchema.company_id, company_id)
 
-            )
+            )!
 
           )
 
@@ -9800,7 +9801,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             message: "Validation failed",
 
-            errors: error.errors,
+            errors: error.issues,
 
           });
 
@@ -9972,7 +9973,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             message: "Validation failed",
 
-            errors: error.errors,
+            errors: error.issues,
 
           });
 
@@ -10156,9 +10157,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                                       .from(schema.categories)
 
-                                      .innerJoin(schema.incidentTypes, eq(schema.categories.incident_type_id, schema.incidentTypes.id))
-
-                                      .where(eq(schema.incidentTypes.department_id, departmentIdParam));
+                                      // Categorias não têm department_id - removido filtro incorreto
 
         if(categoryLink && categoryLink.count > 0) {
 
@@ -10900,7 +10899,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (error instanceof z.ZodError) {
 
-          return res.status(400).json({ message: "Validation failed", errors: error.errors });
+          return res.status(400).json({ message: "Validation failed", errors: error.issues });
 
         }
 
@@ -11000,7 +10999,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               eq(schema.incidentTypes.company_id, sessionCompanyId)
 
-            );
+            )!;
 
             if (managerDeleteCondition) {
 
@@ -11080,7 +11079,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               eq(schema.incidentTypes.company_id, sessionCompanyId)
 
-            );
+            )!;
 
             if (supervisorDeleteCondition) {
 
@@ -11264,9 +11263,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                    inArray(schema.ticketTypes.department_id, departmentIds)
 
-                 )
+                 )!!!!!!
 
-               );
+               )!!!!;
 
              } else {
 
@@ -11324,7 +11323,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (searchCondition) {
 
-          conditions.push(searchCondition);
+          if (searchCondition) conditions.push(searchCondition);
 
         }
 
@@ -11706,7 +11705,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           if (effectiveCompanyId !== null) {
 
-            const [department] = await db.select().from(schema.departments).where(and(eq(schema.departments.id, department_id), eq(schema.departments.company_id, effectiveCompanyId)));
+            const [department] = await db.select().from(schema.departments).where(and(eq(schema.departments.id, department_id), effectiveCompanyId !== undefined ? eq(schema.departments.company_id, effectiveCompanyId) : undefined)!);
 
             if (!department) {
 
@@ -12076,7 +12075,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           );
 
-          conditions.push(searchCondition);
+          if (searchCondition) conditions.push(searchCondition);
 
         }
 
@@ -12246,9 +12245,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     inArray(schema.incidentTypes.department_id, departmentIds)
 
-                  )
+                  )!!!!!!!
 
-                );
+                )!!!!!!;
 
               
 
@@ -12264,9 +12263,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     inArray(schema.categories.incident_type_id, incidentTypeIds)
 
-                  )
+                  )!!!!!!!
 
-                );
+                )!!!!!!;
 
               } else {
 
@@ -12308,7 +12307,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               eq(schema.categories.is_active, true)
 
-            )
+            )!
 
           );
 
@@ -12358,7 +12357,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (searchCondition) {
 
-          conditions.push(searchCondition);
+          if (searchCondition) conditions.push(searchCondition);
 
         }
 
@@ -12572,7 +12571,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             eq(schema.categories.incident_type_id, incident_type_id),
 
-            eq(schema.categories.company_id, effectiveCompanyId)
+            effectiveCompanyId !== null ? eq(schema.categories.company_id, effectiveCompanyId) : undefined
 
           )
 
@@ -12736,11 +12735,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               eq(schema.categories.incident_type_id, incident_type_id || existingCategory.incident_type_id),
 
-              eq(schema.categories.company_id, existingCategory.company_id),
+              existingCategory.company_id !== null ? eq(schema.categories.company_id, existingCategory.company_id) : undefined,
 
               not(eq(schema.categories.id, categoryId))
 
-            )
+            )!
 
           );
 
@@ -13208,7 +13207,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               eq(schema.slaDefinitions.priority, priority)
 
-            )
+            )!
 
           });
 
@@ -13976,6 +13975,196 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
+  // Remover anexo de um ticket
+
+  router.delete("/attachments/:attachmentId", authRequired, async (req: Request, res: Response) => {
+
+    try {
+
+      const attachmentId = parseInt(req.params.attachmentId);
+
+      if (isNaN(attachmentId)) {
+
+        return res.status(400).json({ message: "ID do anexo inválido" });
+
+      }
+
+      const userId = req.session.userId!;
+
+      const userRole = req.session.userRole as string | undefined;
+
+      const userCompanyId = req.session.companyId;
+
+
+
+      if (!userRole) {
+
+        return res.status(403).json({ message: "Acesso negado" });
+
+      }
+
+
+
+      const [attachment] = await db
+
+        .select({
+
+          id: schema.ticketAttachments.id,
+
+          ticket_id: schema.ticketAttachments.ticket_id,
+
+          user_id: schema.ticketAttachments.user_id,
+
+          s3_key: schema.ticketAttachments.s3_key,
+
+          uploaded_at: schema.ticketAttachments.uploaded_at,
+
+        })
+
+        .from(schema.ticketAttachments)
+
+        .where(
+
+          and(
+
+            eq(schema.ticketAttachments.id, attachmentId),
+
+            eq(schema.ticketAttachments.is_deleted, false)
+
+          )
+
+        )
+
+        .limit(1);
+
+
+
+      if (!attachment) {
+
+        return res.status(404).json({ message: "Anexo não encontrado" });
+
+      }
+
+
+
+      const ticket = await storage.getTicket(attachment.ticket_id, userRole, userCompanyId || undefined);
+
+      if (!ticket) {
+
+        return res.status(404).json({ message: "Ticket não encontrado ou acesso negado" });
+
+      }
+
+
+
+      const privilegedRoles = ['admin', 'company_admin'];
+
+      const draftRemovalRoles = ['support', 'manager', 'supervisor'];
+
+
+
+      const hasPrivilegedAccess = privilegedRoles.includes(userRole);
+
+
+
+      if (!hasPrivilegedAccess) {
+
+        if (!draftRemovalRoles.includes(userRole)) {
+
+          return res.status(403).json({ message: "Você não possui permissão para remover este anexo." });
+
+        }
+
+
+
+        if (attachment.user_id !== userId) {
+
+          return res.status(403).json({ message: "Apenas o autor do anexo pode removê-lo antes de enviar a resposta." });
+
+        }
+
+
+
+        const [replyAfterUpload] = await db
+
+          .select({ id: schema.ticketReplies.id })
+
+          .from(schema.ticketReplies)
+
+          .where(
+
+            and(
+
+              eq(schema.ticketReplies.ticket_id, attachment.ticket_id),
+
+              eq(schema.ticketReplies.user_id, userId),
+
+              gte(schema.ticketReplies.created_at, attachment.uploaded_at)
+
+            )!
+
+          )
+
+          .limit(1);
+
+
+
+        if (replyAfterUpload) {
+
+          return res.status(403).json({ message: "Este anexo já faz parte de uma resposta enviada e não pode ser removido." });
+
+        }
+
+      }
+
+
+
+      try {
+
+        await s3Service.deleteFile(attachment.s3_key);
+
+      } catch (error) {
+
+        console.error('Erro ao remover arquivo do armazenamento:', error);
+
+        return res.status(500).json({ message: "Falha ao remover o arquivo do armazenamento. Tente novamente." });
+
+      }
+
+
+
+      await db
+
+        .update(schema.ticketAttachments)
+
+        .set({
+
+          is_deleted: true,
+
+          deleted_at: new Date(),
+
+          deleted_by_id: userId,
+
+        })
+
+        .where(eq(schema.ticketAttachments.id, attachmentId));
+
+
+
+      res.json({ success: true });
+
+    } catch (error) {
+
+      console.error('Erro ao remover anexo:', error);
+
+      res.status(500).json({ message: "Erro interno ao remover o anexo" });
+
+    }
+
+  });
+
+
+
   // Endpoint para testar conexão com S3/Wasabi (apenas admins)
 
   router.get("/test-s3-connection", authRequired, adminRequired, async (req: Request, res: Response) => {
@@ -14432,7 +14621,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const existingTypes = templates.map(t => t.type);
 
-        const missingTypes = allTemplateTypes.filter(type => !existingTypes.includes(type));
+        const missingTypes = allTemplateTypes.filter(type => !existingTypes.includes(type as any));
 
         
 
@@ -18221,7 +18410,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       for (const template of defaultTemplates) {
 
-        if (existingTypes.has(template.type)) {
+        if (existingTypes.has(template.type as any)) {
 
           console.log(`Template ${template.type} já existe para empresa ${targetCompanyId}, pulando...`);
 
@@ -18238,12 +18427,12 @@ Obrigado por nos ajudar a melhorar continuamente.
           await emailConfigService.saveEmailTemplate({
 
             ...template,
+            
+            type: template.type as any,
 
             company_id: targetCompanyId,
 
-            created_by_id: userId,
-
-            updated_by_id: userId
+            // created_by_id e updated_by_id removidos - não existem no schema
 
           });
 

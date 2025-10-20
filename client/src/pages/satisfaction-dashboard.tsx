@@ -26,7 +26,8 @@ import {
   Filter,
   Download,
   Calendar,
-  Loader2
+  Loader2,
+  Timer
 } from 'lucide-react';
 import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 import { ptBR, enUS } from 'date-fns/locale';
@@ -322,7 +323,11 @@ const SatisfactionDashboard: React.FC = () => {
   };
 
   const renderStars = (rating: number | null) => {
+<<<<<<< HEAD
     if (rating === null) return <span className="text-gray-400">{formatMessage('satisfaction_dashboard.not_rated')}</span>;
+=======
+    if (rating === null) return <span className="text-muted-foreground/80">Não avaliado</span>;
+>>>>>>> main
     
     return (
       <div className="flex gap-1">
@@ -331,7 +336,7 @@ const SatisfactionDashboard: React.FC = () => {
             key={star}
             size={16}
             fill={star <= rating ? '#FCD34D' : 'none'}
-            className={star <= rating ? 'text-yellow-400' : 'text-gray-300'}
+            className={star <= rating ? 'text-amber-400' : 'text-muted-foreground/60'}
           />
         ))}
       </div>
@@ -352,11 +357,19 @@ const SatisfactionDashboard: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'sent':
+<<<<<<< HEAD
         return <Badge variant="outline" className="bg-blue-50 text-blue-700">{formatMessage('satisfaction_dashboard.sent')}</Badge>;
       case 'responded':
         return <Badge variant="outline" className="bg-green-50 text-green-700">{formatMessage('satisfaction_dashboard.responded')}</Badge>;
       case 'expired':
         return <Badge variant="outline" className="bg-gray-50 text-gray-700">{formatMessage('satisfaction_dashboard.expired')}</Badge>;
+=======
+        return <Badge variant="outline" className="bg-primary/10 text-primary">Enviado</Badge>;
+      case 'responded':
+        return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400">Respondido</Badge>;
+      case 'expired':
+        return <Badge variant="outline" className="bg-muted text-muted-foreground">Expirado</Badge>;
+>>>>>>> main
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -366,8 +379,13 @@ const SatisfactionDashboard: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
+<<<<<<< HEAD
           <h2 className="text-xl font-semibold text-gray-900 mb-2">{formatMessage('satisfaction_dashboard.access_denied')}</h2>
           <p className="text-gray-600">{formatMessage('satisfaction_dashboard.access_denied_description')}</p>
+=======
+          <h2 className="text-xl font-semibold text-foreground mb-2">Acesso Negado</h2>
+          <p className="text-muted-foreground">Você não tem permissão para acessar este dashboard.</p>
+>>>>>>> main
         </div>
       </div>
     );
@@ -378,8 +396,13 @@ const SatisfactionDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
+<<<<<<< HEAD
           <h1 className="text-2xl font-bold text-gray-900">{formatMessage('satisfaction_dashboard.title')}</h1>
           <p className="text-gray-600">{formatMessage('satisfaction_dashboard.description')}</p>
+=======
+          <h1 className="text-2xl font-bold text-foreground">Dashboard de Satisfação</h1>
+          <p className="text-muted-foreground">Acompanhe as avaliações dos clientes sobre o atendimento</p>
+>>>>>>> main
         </div>
         <Button onClick={exportData} variant="outline">
           <Download className="h-4 w-4 mr-2" />
@@ -506,8 +529,8 @@ const SatisfactionDashboard: React.FC = () => {
             <Card key={i}>
               <CardContent className="p-6">
                 <div className="animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+                  <div className="h-4 bg-muted/70 rounded w-3/4 mb-2"></div>
+                  <div className="h-8 bg-muted/70 rounded w-1/2"></div>
                 </div>
               </CardContent>
             </Card>
@@ -520,11 +543,16 @@ const SatisfactionDashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
+<<<<<<< HEAD
                   <p className="text-sm font-medium text-gray-600">{formatMessage('satisfaction_dashboard.total_sent')}</p>
                   <p className="text-3xl font-bold text-gray-900">{stats?.total_sent || 0}</p>
+=======
+                  <p className="text-sm font-medium text-muted-foreground">Total Enviado</p>
+                  <p className="text-3xl font-bold text-foreground">{stats?.total_sent || 0}</p>
+>>>>>>> main
                 </div>
-                <div className="p-3 bg-blue-100 rounded-full">
-                  <MessageSquare className="h-6 w-6 text-blue-600" />
+                <div className="p-3 bg-primary/10 rounded-full">
+                  <MessageSquare className="h-6 w-6 text-primary" />
                 </div>
               </div>
             </CardContent>
@@ -535,22 +563,26 @@ const SatisfactionDashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
+<<<<<<< HEAD
                   <p className="text-sm font-medium text-gray-600">{formatMessage('satisfaction_dashboard.response_rate')}</p>
+=======
+                  <p className="text-sm font-medium text-muted-foreground">Taxa de Resposta</p>
+>>>>>>> main
                   <div className="flex items-center gap-2">
-                    <p className="text-3xl font-bold text-gray-900">
+                    <p className="text-3xl font-bold text-foreground">
                       {stats?.response_rate ? `${stats.response_rate.toFixed(1)}%` : '0%'}
                     </p>
                     {stats?.trend?.response_rate_trend !== undefined && stats.trend.response_rate_trend !== 0 && (
                       stats.trend.response_rate_trend > 0 ? (
-                        <TrendingUp className="h-4 w-4 text-green-600" />
+                        <TrendingUp className="h-4 w-4 text-emerald-400" />
                       ) : (
                         <TrendingDown className="h-4 w-4 text-red-600" />
                       )
                     )}
                   </div>
                 </div>
-                <div className="p-3 bg-green-100 rounded-full">
-                  <Users className="h-6 w-6 text-green-600" />
+                <div className="p-3 bg-emerald-500/10 rounded-full">
+                  <Users className="h-6 w-6 text-emerald-400" />
                 </div>
               </div>
             </CardContent>
@@ -561,14 +593,18 @@ const SatisfactionDashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
+<<<<<<< HEAD
                   <p className="text-sm font-medium text-gray-600">{formatMessage('satisfaction_dashboard.average_rating')}</p>
+=======
+                  <p className="text-sm font-medium text-muted-foreground">Avaliação Média</p>
+>>>>>>> main
                   <div className="flex items-center gap-2">
-                    <p className="text-3xl font-bold text-gray-900">
+                    <p className="text-3xl font-bold text-foreground">
                       {stats?.average_rating ? stats.average_rating.toFixed(1) : '0.0'}
                     </p>
                     {stats?.trend?.rating_trend !== undefined && stats.trend.rating_trend !== 0 && (
                       stats.trend.rating_trend > 0 ? (
-                        <TrendingUp className="h-4 w-4 text-green-600" />
+                        <TrendingUp className="h-4 w-4 text-emerald-400" />
                       ) : (
                         <TrendingDown className="h-4 w-4 text-red-600" />
                       )
@@ -578,8 +614,8 @@ const SatisfactionDashboard: React.FC = () => {
                     {renderStars(Math.round(stats?.average_rating || 0))}
                   </div>
                 </div>
-                <div className="p-3 bg-yellow-100 rounded-full">
-                  <Star className="h-6 w-6 text-yellow-600" />
+                <div className="p-3 bg-amber-500/10 rounded-full">
+                  <Star className="h-6 w-6 text-amber-500" />
                 </div>
               </div>
             </CardContent>
@@ -590,8 +626,13 @@ const SatisfactionDashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
+<<<<<<< HEAD
                   <p className="text-sm font-medium text-gray-600">{formatMessage('satisfaction_dashboard.total_responded')}</p>
                   <p className="text-3xl font-bold text-gray-900">{stats?.total_responded || 0}</p>
+=======
+                  <p className="text-sm font-medium text-muted-foreground">Total Respondido</p>
+                  <p className="text-3xl font-bold text-foreground">{stats?.total_responded || 0}</p>
+>>>>>>> main
                 </div>
                 <div className="p-3 bg-purple-100 rounded-full">
                   <BarChart3 className="h-6 w-6 text-purple-600" />
@@ -623,19 +664,28 @@ const SatisfactionDashboard: React.FC = () => {
                 <div className="space-y-4">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="animate-pulse">
-                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                      <div className="h-4 bg-muted/70 rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-muted/70 rounded w-1/2"></div>
                     </div>
                   ))}
                 </div>
               ) : surveys.length === 0 ? (
                 <div className="text-center py-8">
+<<<<<<< HEAD
                   <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
                     {formatMessage('satisfaction_dashboard.no_surveys_found')}
                   </h3>
                   <p className="text-gray-600">
                     {formatMessage('satisfaction_dashboard.no_surveys_description')}
+=======
+                  <MessageSquare className="h-12 w-12 text-muted-foreground/80 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">
+                    Nenhuma pesquisa encontrada
+                  </h3>
+                  <p className="text-muted-foreground">
+                    Não há pesquisas de satisfação para os filtros selecionados.
+>>>>>>> main
                   </p>
                 </div>
               ) : (
@@ -643,18 +693,18 @@ const SatisfactionDashboard: React.FC = () => {
                   {surveys.map((survey) => (
                     <div
                       key={survey.id}
-                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                      className="border rounded-lg p-4 hover:bg-muted transition-colors"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
-                            <h3 className="font-medium text-gray-900">
+                            <h3 className="font-medium text-foreground">
                               Ticket #{survey.ticket?.ticket_id}
                             </h3>
                             {getStatusBadge(survey.status)}
                           </div>
                           
-                          <p className="text-sm text-gray-600 mb-2">
+                          <p className="text-sm text-muted-foreground mb-2">
                             {survey.ticket?.title}
                           </p>
                           
@@ -691,20 +741,45 @@ const SatisfactionDashboard: React.FC = () => {
                                   {survey.rating}/5
                                 </span>
                               </div>
-                              <p className="text-xs text-gray-600">
+                              <p className="text-xs text-muted-foreground">
                                 {getRatingText(survey.rating)}
                               </p>
                               {survey.responded_at && (
+<<<<<<< HEAD
                                 <p className="text-xs text-gray-500 mt-1">
                                   {formatMessage('satisfaction_dashboard.responded_at')}{' '}
                                   {format(new Date(survey.responded_at), locale === 'en-US' ? 'MM/dd/yyyy' : 'dd/MM/yyyy', { locale: locale === 'en-US' ? enUS : ptBR })}
+=======
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Respondido em{' '}
+                                  {format(new Date(survey.responded_at), 'dd/MM/yyyy', { locale: ptBR })}
+>>>>>>> main
                                 </p>
                               )}
                             </div>
                           ) : (
+<<<<<<< HEAD
                             <div className="text-gray-400">
                               <MessageSquare className="h-8 w-8 mx-auto mb-1" />
                               <p className="text-xs">{formatMessage('satisfaction_dashboard.waiting_response')}</p>
+=======
+                            <div className="text-muted-foreground/80 text-center">
+                              {survey.status === 'expired' ? (
+                                <>
+                                  <Timer className="h-8 w-8 mx-auto mb-1" />
+                                  <p className="text-xs font-medium text-destructive">Expirado</p>
+                                  <p className="text-[11px] mt-1">
+                                    Expirou em{' '}
+                                    {format(new Date(survey.expires_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <MessageSquare className="h-8 w-8 mx-auto mb-1" />
+                                  <p className="text-xs">Aguardando resposta</p>
+                                </>
+                              )}
+>>>>>>> main
                             </div>
                           )}
                         </div>
@@ -712,8 +787,13 @@ const SatisfactionDashboard: React.FC = () => {
                       
                       {survey.comments && (
                         <div className="mt-3 pt-3 border-t">
+<<<<<<< HEAD
                           <p className="text-sm text-gray-600">
                             <span className="font-medium">{formatMessage('satisfaction_dashboard.comment')}:</span> "{survey.comments}"
+=======
+                          <p className="text-sm text-muted-foreground">
+                            <span className="font-medium">Comentário:</span> "{survey.comments}"
+>>>>>>> main
                           </p>
                         </div>
                       )}
@@ -749,15 +829,15 @@ const SatisfactionDashboard: React.FC = () => {
                         <div key={rating} className="flex items-center gap-3">
                           <div className="flex items-center gap-1 w-20">
                             <span className="text-sm font-medium">{rating}</span>
-                            <Star size={14} fill="#FCD34D" className="text-yellow-400" />
+                            <Star size={14} fill="#FCD34D" className="text-amber-400" />
                           </div>
-                          <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <div className="flex-1 bg-muted/70 rounded-full h-2">
                             <div
-                              className="bg-yellow-400 h-2 rounded-full transition-all duration-300"
+                              className="bg-amber-400 h-2 rounded-full transition-all duration-300"
                               style={{ width: `${percentage}%` }}
                             />
                           </div>
-                          <span className="text-sm text-gray-600 w-16 text-right">
+                          <span className="text-sm text-muted-foreground w-16 text-right">
                             {count} ({percentage.toFixed(1)}%)
                           </span>
                         </div>
@@ -779,6 +859,7 @@ const SatisfactionDashboard: React.FC = () => {
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center py-2 border-b">
+<<<<<<< HEAD
                     <span className="text-sm font-medium">{formatMessage('satisfaction_dashboard.surveys_sent')}</span>
                     <span className="text-sm text-gray-600">{stats?.total_sent || 0}</span>
                   </div>
@@ -789,13 +870,25 @@ const SatisfactionDashboard: React.FC = () => {
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-sm font-medium">{formatMessage('satisfaction_dashboard.response_rate')}</span>
                     <span className="text-sm text-gray-600">
+=======
+                    <span className="text-sm font-medium">Pesquisas enviadas</span>
+                    <span className="text-sm text-muted-foreground">{stats?.total_sent || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b">
+                    <span className="text-sm font-medium">Pesquisas respondidas</span>
+                    <span className="text-sm text-muted-foreground">{stats?.total_responded || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b">
+                    <span className="text-sm font-medium">Taxa de resposta</span>
+                    <span className="text-sm text-muted-foreground">
+>>>>>>> main
                       {stats?.response_rate ? `${stats.response_rate.toFixed(1)}%` : '0%'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-2">
                     <span className="text-sm font-medium">{formatMessage('satisfaction_dashboard.average_rating')}</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">
+                      <span className="text-sm text-muted-foreground">
                         {stats?.average_rating ? stats.average_rating.toFixed(1) : '0.0'}
                       </span>
                       {renderStars(Math.round(stats?.average_rating || 0))}
@@ -812,3 +905,27 @@ const SatisfactionDashboard: React.FC = () => {
 };
 
 export default SatisfactionDashboard;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

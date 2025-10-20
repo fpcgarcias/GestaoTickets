@@ -257,7 +257,7 @@ export default function PerformanceReports() {
       
     } catch (error) {
       console.error('Erro ao exportar:', error);
-      alert(`Erro ao exportar relatório: ${error.message}`);
+      alert(`Erro ao exportar relatório: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   };
 

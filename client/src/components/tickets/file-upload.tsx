@@ -240,7 +240,7 @@ export function FileUpload({
       <Card
         className={`
           relative border-2 border-dashed transition-colors cursor-pointer
-          ${isDragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}
+          ${isDragOver ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/60'}
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
         onDragOver={handleDragOver}
@@ -252,9 +252,9 @@ export function FileUpload({
         aria-disabled={disabled}
       >
         <div className="p-8 text-center">
-          <Upload className={`mx-auto h-12 w-12 ${isDragOver ? 'text-blue-500' : 'text-gray-400'}`} />
+          <Upload className={`mx-auto h-12 w-12 ${isDragOver ? 'text-primary' : 'text-muted-foreground/80'}`} />
           <div className="mt-4">
-            <span className="text-lg font-medium text-gray-900">
+            <span className="text-lg font-medium text-foreground">
               {formatMessage('file_upload.drag_or_click')}
             </span>
             <input
@@ -268,7 +268,7 @@ export function FileUpload({
               accept={allowedTypes.map(type => `.${type}`).join(',')}
             />
           </div>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-muted-foreground">
             {formatMessage('file_upload.max_size')} 
             {formatMessage('file_upload.accepted_types')} {allowedTypes.join(', ')}
           </p>
@@ -278,17 +278,17 @@ export function FileUpload({
       {/* Lista de Arquivos Sendo Enviados */}
       {uploadingFiles.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-medium text-gray-900">{formatMessage('file_upload.uploading_files')}</h4>
+          <h4 className="text-sm font-medium text-foreground">{formatMessage('file_upload.uploading_files')}</h4>
           {uploadingFiles.map(({ file, progress, error }, index) => (
             <Card key={`${file.name}-${index}`} className="p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3 flex-1 min-w-0">
-                  <File className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                  <File className="h-5 w-5 text-muted-foreground/80 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-sm font-medium text-foreground truncate">
                       {file.name}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       {(file.size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
@@ -296,14 +296,14 @@ export function FileUpload({
                 
                 <div className="flex items-center space-x-2">
                   {error ? (
-                    <div className="flex items-center space-x-1 text-red-600">
+                    <div className="flex items-center space-x-1 text-destructive">
                       <AlertCircle className="h-4 w-4" />
                       <span className="text-xs">{formatMessage('file_upload.error')}</span>
                     </div>
                   ) : progress === 100 ? (
-                    <span className="text-xs text-green-600">{formatMessage('file_upload.completed')}</span>
+                    <span className="text-xs text-emerald-400">{formatMessage('file_upload.completed')}</span>
                   ) : (
-                    <span className="text-xs text-blue-600">{progress}%</span>
+                    <span className="text-xs text-primary">{progress}%</span>
                   )}
                   
                   <Button
@@ -320,9 +320,9 @@ export function FileUpload({
               {/* Barra de Progresso */}
               {!error && progress < 100 && (
                 <div className="mt-2">
-                  <div className="w-full bg-gray-200 rounded-full h-1">
+                  <div className="w-full bg-muted/70 rounded-full h-1">
                     <div 
-                      className="bg-blue-600 h-1 rounded-full transition-all duration-300"
+                      className="bg-primary h-1 rounded-full transition-all duration-300"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
@@ -332,7 +332,7 @@ export function FileUpload({
               {/* Erro */}
               {error && (
                 <div className="mt-2">
-                  <p className="text-xs text-red-600">{error}</p>
+                  <p className="text-xs text-destructive">{error}</p>
                 </div>
               )}
             </Card>
@@ -342,3 +342,11 @@ export function FileUpload({
     </div>
   );
 } 
+
+
+
+
+
+
+
+

@@ -49,10 +49,10 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
 
   if (error || !ticket) {
     return (
-      <Card className="bg-red-50">
+      <Card className="bg-destructive/10">
         <CardContent className="p-6">
-          <h2 className="text-lg font-semibold text-red-700">Erro ao Carregar Chamado</h2>
-          <p className="text-red-600">
+          <h2 className="text-lg font-semibold text-destructive">Erro ao Carregar Chamado</h2>
+          <p className="text-destructive">
             {error instanceof Error ? error.message : "Falha ao carregar detalhes do chamado"}
           </p>
         </CardContent>
@@ -67,34 +67,55 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
           <div>
             <div className="flex items-center mb-2">
               <StatusDot status={ticket.status} className="mr-2" />
+<<<<<<< HEAD
               <span className="font-medium text-neutral-800">{formatMessage('tickets.ticket_number', { number: ticket.ticket_id })}</span>
             </div>
             <h2 className="text-xl font-semibold">{ticket.title}</h2>
           </div>
           <div className="text-sm text-neutral-500">
             {formatMessage('tickets.created_at')} {ticket.created_at ? formatDate(ticket.created_at, locale) : formatMessage('tickets.unknown_date')}
+=======
+              <span className="font-medium text-foreground">Chamado #{ticket.ticket_id}</span>
+            </div>
+            <h2 className="text-xl font-semibold">{ticket.title}</h2>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            Criado em {ticket.created_at ? formatDate(ticket.created_at) : 'Data desconhecida'}
+>>>>>>> main
           </div>
         </div>
         
         {/* Exibir detalhes do cliente apenas se ele existir (pelo ID ou nome) */}
         {ticket.customer?.id || ticket.customer?.name ? (
-          <div className="flex items-center gap-2 mb-4 bg-blue-50 p-3 rounded-md">
-            <Building className="h-5 w-5 text-blue-500" />
+          <div className="flex items-center gap-2 mb-4 bg-primary/10 p-3 rounded-md">
+            <Building className="h-5 w-5 text-primary" />
             <div>
+<<<<<<< HEAD
               <span className="text-sm text-blue-700 font-medium">{formatMessage('tickets.client')}: </span>
               <span className="text-sm text-blue-800">{ticket.customer.name}</span>
               {ticket.customer.email && (
                 <> - <span className="text-sm text-blue-600">{ticket.customer.email}</span></>
+=======
+              <span className="text-sm text-primary font-medium">Cliente: </span>
+              <span className="text-sm text-primary">{ticket.customer?.name}</span>
+              {ticket.customer?.email && (
+                <> - <span className="text-sm text-primary">{ticket.customer?.email}</span></>
+>>>>>>> main
               )}
             </div>
           </div>
         ) : ticket.customer_email ? (
           // Se não há cliente cadastrado, mas temos o email, mostramos isso
-          <div className="flex items-center gap-2 mb-4 bg-yellow-50 p-3 rounded-md">
-            <Building className="h-5 w-5 text-yellow-500" />
+          <div className="flex items-center gap-2 mb-4 bg-amber-500/10 p-3 rounded-md">
+            <Building className="h-5 w-5 text-amber-500" />
             <div>
+<<<<<<< HEAD
               <span className="text-sm text-yellow-700 font-medium">{formatMessage('tickets.client')}: </span>
               <span className="text-sm text-yellow-800">(Não cadastrado) - {ticket.customer_email}</span>
+=======
+              <span className="text-sm text-amber-500 font-medium">Cliente: </span>
+              <span className="text-sm text-amber-600">(Não cadastrado) - {ticket.customer_email}</span>
+>>>>>>> main
             </div>
           </div>
         ) : null}
@@ -119,19 +140,19 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
         
         {/* Atendente responsável */}
         {ticket.assigned_to_id && ticket.official && (
-          <div className="flex items-center gap-2 mb-4 bg-green-50 p-3 rounded-md">
-            <UserCircle2 className="h-5 w-5 text-green-500" />
+          <div className="flex items-center gap-2 mb-4 bg-emerald-500/10 p-3 rounded-md">
+            <UserCircle2 className="h-5 w-5 text-emerald-400" />
             <div>
-              <span className="text-sm text-green-700 font-medium">Atendente Responsável: </span>
-              <span className="text-sm text-green-800">{ticket.official.name}</span>
-              {ticket.official.email && (
-                <> - <span className="text-sm text-green-600">{ticket.official.email}</span></>
+              <span className="text-sm text-emerald-400 font-medium">Atendente Responsável: </span>
+              <span className="text-sm text-emerald-400">{ticket.official?.name}</span>
+              {ticket.official?.email && (
+                <> - <span className="text-sm text-emerald-400">{ticket.official?.email}</span></>
               )}
             </div>
           </div>
         )}
         
-        <div className="mb-8 text-neutral-700 space-y-4">
+        <div className="mb-8 text-muted-foreground space-y-4">
           <TextWithBreakAll text={ticket.description} />
         </div>
 
@@ -155,3 +176,5 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
     </Card>
   );
 };
+
+

@@ -27,15 +27,15 @@ interface AiAnalysisHistoryProps {
 const getStatusIcon = (status: string) => {
   switch (status) {
     case 'success':
-      return <CheckCircle className="h-4 w-4 text-green-500" />;
+      return <CheckCircle className="h-4 w-4 text-emerald-400" />;
     case 'error':
-      return <XCircle className="h-4 w-4 text-red-500" />;
+      return <XCircle className="h-4 w-4 text-destructive" />;
     case 'timeout':
-      return <Clock className="h-4 w-4 text-yellow-500" />;
+      return <Clock className="h-4 w-4 text-amber-400" />;
     case 'fallback':
-      return <AlertCircle className="h-4 w-4 text-orange-500" />;
+      return <AlertCircle className="h-4 w-4 text-primary" />;
     default:
-      return <AlertCircle className="h-4 w-4 text-gray-500" />;
+      return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
   }
 };
 
@@ -60,30 +60,30 @@ const getPriorityColor = (priority: string) => {
     case 'crítica':
     case 'critica':
     case 'critical':
-      return 'bg-red-100 text-red-800';
+      return 'bg-destructive/15 text-destructive';
     case 'alta':
     case 'high':
-      return 'bg-orange-100 text-orange-800';
+      return 'bg-amber-500/10 text-amber-500 dark:text-amber-300';
     case 'média':
     case 'media':
     case 'medium':
-      return 'bg-yellow-100 text-yellow-800';
+      return 'bg-primary/10 text-primary';
     case 'baixa':
     case 'low':
-      return 'bg-green-100 text-green-800';
+      return 'bg-emerald-500/10 text-emerald-400';
     default:
-      return 'bg-gray-100 text-gray-800';
+      return 'bg-muted/60 text-muted-foreground';
   }
 };
 
 const getAnalysisTypeColor = (type: string) => {
   switch (type) {
     case 'priority':
-      return 'bg-blue-100 text-blue-800';
+      return 'bg-primary/10 text-primary';
     case 'reopen':
-      return 'bg-blue-100 text-blue-800';
+      return 'bg-indigo-500/10 text-indigo-400 dark:text-indigo-300';
     default:
-      return 'bg-gray-100 text-gray-800';
+      return 'bg-muted/60 text-muted-foreground';
   }
 };
 
@@ -128,7 +128,7 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center p-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
             <span className="ml-2">{formatMessage('ai_analysis.loading')}</span>
           </div>
         </CardContent>
@@ -146,7 +146,7 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center p-4 text-red-600">
+          <div className="text-center p-4 text-destructive">
             {formatMessage('ai_analysis.error_loading')}
           </div>
         </CardContent>
@@ -167,7 +167,7 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="text-center p-4 text-gray-500">
+          <div className="text-center p-4 text-muted-foreground">
             {formatMessage('ai_analysis.no_analysis')}
           </div>
         </CardContent>
@@ -201,7 +201,7 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
                     {getAnalysisTypeText(item.analysis_type, formatMessage)}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
                   {new Date(item.created_at).toLocaleString(locale === 'en-US' ? 'en-US' : 'pt-BR', {
                     month: '2-digit',
@@ -228,7 +228,7 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
               {item.ai_justification && (
                 <div>
                   <span className="text-sm font-medium">{formatMessage('ai_analysis.justification')}</span>
-                  <div className="mt-1 p-3 bg-gray-50 rounded-md text-sm text-gray-700">
+                  <div className="mt-1 p-3 bg-muted rounded-md text-sm text-muted-foreground">
                     {item.ai_justification}
                   </div>
                 </div>
@@ -236,7 +236,7 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
 
               {/* Informações técnicas - ocultar para customers */}
               {!isCustomer && (
-                <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
                   <div>
                     <span className="font-medium">{formatMessage('ai_analysis.provider')}</span> {item.provider}
                   </div>
@@ -259,3 +259,4 @@ export default function AiAnalysisHistory({ ticketId }: AiAnalysisHistoryProps) 
     </Card>
   );
 } 
+

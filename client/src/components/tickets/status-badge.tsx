@@ -45,8 +45,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) =
   return (
     <span
       className={cn(
-        'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium',
-        'bg-gray-100 text-gray-800', // Cor uniforme cinza claro
+        'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium gap-1',
+        'bg-muted/60 text-foreground',
         className
       )}
     >
@@ -111,10 +111,10 @@ export const PriorityBadge: React.FC<PriorityBadgeProps> = ({
   };
 
   const priorityColors: Record<string, string> = {
-    'low': 'bg-gray-100 text-gray-800',
-    'medium': 'bg-blue-100 text-blue-800',
-    'high': 'bg-orange-100 text-orange-800',
-    'critical': 'bg-red-100 text-red-800'
+    'low': 'bg-muted/60 text-muted-foreground',
+    'medium': 'bg-primary/15 text-primary',
+    'high': 'bg-amber-100 text-amber-700 dark:bg-amber-400/20 dark:text-amber-200',
+    'critical': 'bg-destructive/15 text-destructive'
   };
 
   // Determinar label e cor
@@ -126,12 +126,12 @@ export const PriorityBadge: React.FC<PriorityBadgeProps> = ({
   if (weight !== undefined || name) {
     displayName = name || priority; // Usar priority como fallback ao invés de 'Customizada'
     indicatorColor = color || getPriorityColorByWeight(weight || 2);
-    colorClasses = 'bg-gray-50 text-gray-700 border border-gray-200';
+    colorClasses = 'bg-muted/60 text-muted-foreground border border-border';
   } else {
     // Prioridade legada
     const legacyKey = priority as keyof typeof priorityLabels;
     displayName = priorityLabels[legacyKey] || priority;
-    colorClasses = priorityColors[legacyKey] || 'bg-gray-100 text-gray-800';
+    colorClasses = priorityColors[legacyKey] || 'bg-muted/60 text-foreground';
   }
 
   return (

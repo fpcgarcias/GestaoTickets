@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Download, File, FileText, Image, Archive, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Download, File, FileText, Image, Archive, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { TicketAttachment } from '@shared/schema';
 import { useQuery } from '@tanstack/react-query';
 import { useI18n } from '@/i18n';
+import { useAuth } from '@/hooks/use-auth';
 
 // Usar o tipo do schema
 type Attachment = TicketAttachment;
@@ -25,8 +26,10 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
   showUploader = false 
 }: AttachmentsListProps, ref) {
   const [downloadingIds, setDownloadingIds] = useState<Set<number>>(new Set());
+  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
   const { toast } = useToast();
   const { formatMessage, locale } = useI18n();
+  const { user } = useAuth();
 
   // Usar React Query para buscar anexos
   const { data: attachments = [], isLoading: loading, refetch: fetchAttachments } = useQuery<Attachment[]>({
@@ -47,22 +50,87 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
   // Expor refetch para uso externo (se necessário)
   React.useImperativeHandle(ref, () => ({ fetchAttachments }), [fetchAttachments]);
 
+  const canDeleteAttachment = (attachment: Attachment) => {
+    if (!user) {
+      return false;
+    }
+
+    if (['admin', 'company_admin'].includes(user.role)) {
+      return true;
+    }
+
+    if (['support', 'manager', 'supervisor'].includes(user.role) && attachment.user_id === user.id) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleDeleteAttachment = async (attachment: Attachment) => {
+    if (!canDeleteAttachment(attachment)) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Remover o anexo "${attachment.original_filename}"?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingIds(prev => {
+      const next = new Set(prev);
+      next.add(attachment.id);
+      return next;
+    });
+
+    try {
+      const response = await fetch(`/api/attachments/${attachment.id}`, { method: 'DELETE' });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const errorMessage = errorBody?.message || 'Falha ao remover o anexo.';
+        throw new Error(errorMessage);
+      }
+
+      toast({
+        title: "Anexo removido",
+        description: `${attachment.original_filename} foi removido com sucesso.`,
+      });
+
+      const result = await fetchAttachments();
+      if (result.data) {
+        onAttachmentsChange?.(result.data);
+      }
+    } catch (error) {
+      toast({
+        title: "Erro ao remover anexo",
+        description: error instanceof Error ? error.message : "Não foi possível remover o anexo.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingIds(prev => {
+        const next = new Set(prev);
+        next.delete(attachment.id);
+        return next;
+      });
+    }
+  };
+
   const getFileIcon = (mimeType: string, filename: string) => {
     const extension = filename.split('.').pop()?.toLowerCase();
     
     if (mimeType.startsWith('image/')) {
-      return <Image className="h-5 w-5 text-blue-500" />;
+      return <Image className="h-5 w-5 text-primary" />;
     }
     
     if (['zip', 'rar', '7z'].includes(extension || '')) {
-      return <Archive className="h-5 w-5 text-purple-500" />;
+      return <Archive className="h-5 w-5 text-purple-400 dark:text-purple-300" />;
     }
     
     if (['pdf', 'doc', 'docx', 'txt'].includes(extension || '')) {
-      return <FileText className="h-5 w-5 text-red-500" />;
+      return <FileText className="h-5 w-5 text-destructive" />;
     }
     
-    return <File className="h-5 w-5 text-gray-500" />;
+    return <File className="h-5 w-5 text-muted-foreground" />;
   };
 
   const formatFileSize = (bytes: number) => {
@@ -172,8 +240,8 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
       {/* Lista de Anexos */}
       {attachments.length === 0 ? (
         <Card className="p-6">
-          <div className="text-center text-gray-500">
-            <File className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+          <div className="text-center text-muted-foreground">
+            <File className="mx-auto h-12 w-12 text-muted-foreground/60 mb-4" />
             <p>{formatMessage('attachments.no_attachments')}</p>
             {showUploader && (
               <p className="text-sm mt-2">{formatMessage('attachments.use_form_to_add')}</p>
@@ -190,7 +258,7 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="text-sm font-medium text-foreground truncate">
                         {attachment.original_filename}
                       </p>
                       <Badge variant="outline" className="text-xs">
@@ -199,11 +267,11 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
                     </div>
                     
                     <div className="flex items-center space-x-4 mt-1">
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         {formatMessage('attachments.sent_on')} {formatDate(attachment.uploaded_at, locale)}
                       </p>
                       {attachment.user && (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                           {formatMessage('attachments.by')} {attachment.user.name}
                         </p>
                       )}
@@ -228,6 +296,25 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
                       {downloadingIds.has(attachment.id) ? formatMessage('attachments.downloading') : formatMessage('attachments.download')}
                     </span>
                   </Button>
+                  {canDeleteAttachment(attachment) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteAttachment(attachment)}
+                      disabled={deletingIds.has(attachment.id)}
+                      className="flex items-center space-x-1 text-destructive hover:text-destructive focus-visible:ring-destructive"
+                    >
+                      {deletingIds.has(attachment.id) ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                      <span className="hidden sm:inline">
+                        {deletingIds.has(attachment.id) ? 'Removendo...' : 'Excluir'}
+                      </span>
+                      <span className="sr-only">Remover anexo</span>
+                    </Button>
+                  )}
                 </div>
               </div>
             </Card>

@@ -1,18 +1,7 @@
 {
-  "current": "1.1.0-beta",
-  "releaseDate": "2025-10-13",
+  "current": "1.0.32",
+  "releaseDate": "2025-09-29",
   "versions": [
-    {
-      "version": "1.1.0-beta",
-      "date": "2025-10-13",
-      "title": "Implementação de novas funcionalidades.",
-      "type": "feature",
-      "changes": {
-        "new": [
-          "Sistema totalmente traduzido para o inglês. Sistema detecta o idioma do navegador e exibe em português brasileiro ou inglês americano."
-        ]
-      }
-    },
     {
       "version": "1.0.32",
       "date": "2025-09-29",

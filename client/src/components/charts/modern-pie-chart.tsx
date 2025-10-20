@@ -17,15 +17,15 @@ const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0];
     return (
-      <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
+      <div className="bg-card text-card-foreground p-3 rounded-lg shadow-lg border border-border">
         <div className="flex items-center gap-2">
           <div 
             className="w-3 h-3 rounded-full" 
             style={{ backgroundColor: data.payload.color }}
           />
-          <span className="font-medium text-gray-900">{data.payload.name}</span>
+          <span className="font-medium text-foreground">{data.payload.name}</span>
         </div>
-        <p className="text-sm text-gray-600 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           {formatMessage('dashboard.quantity')}: <span className="font-semibold">{data.value}</span>
         </p>
       </div>
@@ -61,7 +61,7 @@ export const ModernPieChart: React.FC<ModernPieChartProps> = ({ data, isLoading 
   if (isLoading) {
     return (
       <div className="w-full h-80 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -70,13 +70,13 @@ export const ModernPieChart: React.FC<ModernPieChartProps> = ({ data, isLoading 
     return (
       <div className="w-full h-80 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+            <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
           </div>
-          <p className="text-gray-500 font-medium">Nenhum dado disponível</p>
-          <p className="text-sm text-gray-400 mt-1">Os dados aparecerão aqui quando houver chamados</p>
+          <p className="text-muted-foreground font-medium">Nenhum dado disponível</p>
+          <p className="text-sm text-muted-foreground mt-1 opacity-80">Os dados aparecerão aqui quando houver chamados</p>
         </div>
       </div>
     );
@@ -130,17 +130,17 @@ export const ModernPieChart: React.FC<ModernPieChartProps> = ({ data, isLoading 
           {data.map((item, index) => {
             const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
             return (
-              <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200">
+              <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/60 hover:bg-muted transition-colors duration-200">
                 <div className="flex items-center gap-3">
                   <div 
                     className="w-4 h-4 rounded-full shadow-sm" 
                     style={{ backgroundColor: item.color }}
                   />
-                  <span className="text-sm font-medium text-gray-700">{item.name}</span>
+                  <span className="text-sm font-medium text-muted-foreground">{item.name}</span>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-bold text-gray-900">{item.value}</div>
-                  <div className="text-xs text-gray-500">{percentage}%</div>
+                  <div className="text-lg font-bold text-foreground">{item.value}</div>
+                  <div className="text-xs text-muted-foreground">{percentage}%</div>
                 </div>
               </div>
             );

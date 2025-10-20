@@ -17,7 +17,7 @@ export default function NewTicket() {
             {formatMessage('new_ticket.back_to_tickets')}
           </Link>
         </Button>
-        <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('new_ticket.title')}</h1>
+        <h1 className="text-2xl font-semibold text-foreground">{formatMessage('new_ticket.title')}</h1>
       </div>
 
       <TicketForm />

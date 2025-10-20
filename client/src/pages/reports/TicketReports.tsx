@@ -178,7 +178,8 @@ export default function TicketReports() {
     const newFilters = {
       status: searchParams.get('status') || 'all',
       priority: searchParams.get('priority') || 'all',
-      departmentId: searchParams.get('departmentId') || 'all'
+      departmentId: searchParams.get('departmentId') || 'all',
+      showInactiveOfficials: searchParams.get('showInactiveOfficials') === 'true' || false
     };
     setFilters(newFilters);
     

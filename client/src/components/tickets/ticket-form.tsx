@@ -27,7 +27,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { insertTicketSchema, type InsertTicket } from '@shared/schema';
+import { insertTicketSchema, type InsertTicket, type AiConfiguration } from '@shared/schema';
 import { TICKET_TYPES, PRIORITY_LEVELS } from '@/lib/utils';
 import { z } from 'zod';
 import { apiRequest } from '@/lib/queryClient';
@@ -171,7 +171,7 @@ export const TicketForm = () => {
   // Não precisamos mais buscar todos os clientes antecipadamente
   // O componente CustomerSearch fará a busca conforme necessário
 
-  const form = useForm<ExtendedInsertTicket>({
+  const form = useForm({
     resolver: zodResolver(extendedInsertTicketSchema),
     defaultValues: {
       title: '',
@@ -179,7 +179,7 @@ export const TicketForm = () => {
       customer_email: '',
       customerId: undefined,
       type: '',
-      priority: undefined, // Não definir prioridade padrão - deixar a IA definir
+      priority: '', // Definir como string vazia ao invés de undefined
       department_id: undefined,
       incident_type_id: undefined,
       category_id: undefined,
@@ -510,14 +510,19 @@ export const TicketForm = () => {
     <>
       <Card>
         <CardContent className="p-6">
+<<<<<<< HEAD
           <h2 className="text-lg font-medium mb-2">{formatMessage('new_ticket.create_new_ticket')}</h2>
           <p className="text-neutral-600 mb-6">{formatMessage('new_ticket.add_new_support_ticket')}</p>
+=======
+          <h2 className="text-lg font-medium mb-2">Criar Novo Chamado</h2>
+          <p className="text-muted-foreground mb-6">Adicione um novo chamado de suporte</p>
+>>>>>>> main
           
           <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="customerId"
                 render={({ field }) => (
                   <FormItem>
@@ -527,7 +532,7 @@ export const TicketForm = () => {
                       <Input 
                         value={user?.name || ''} // Usar user.name diretamente
                         disabled
-                        className="bg-gray-100"
+                        className="bg-muted"
                       />
                     ) : (
                       // Se for admin/support, mostrar o componente de busca de clientes
@@ -548,7 +553,7 @@ export const TicketForm = () => {
               />
               
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="customer_email"
                 render={({ field }) => (
                   <FormItem>
@@ -562,7 +567,7 @@ export const TicketForm = () => {
                         name={field.name}
                         ref={field.ref}
                         disabled={(user?.role as any) === 'customer' || ((user?.role as any) !== 'customer' && !form.getValues('customerId'))} // Desabilitar se não for customer e nenhum cliente selecionado
-                        className={(user?.role as any) === 'customer' ? "bg-gray-100" : ""}
+                        className={(user?.role as any) === 'customer' ? "bg-muted" : ""}
                       />
                     </FormControl>
                     <FormMessage />
@@ -571,7 +576,7 @@ export const TicketForm = () => {
               />
               
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="participants"
                 render={({ field }) => (
                   <FormItem>
@@ -596,7 +601,7 @@ export const TicketForm = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="department_id"
                 render={({ field }) => (
                   <FormItem>
@@ -632,7 +637,7 @@ export const TicketForm = () => {
                 )}
               />
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="type"
                 render={({ field }) => (
                   <FormItem>
@@ -680,7 +685,7 @@ export const TicketForm = () => {
               />
               
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="category_id"
                 render={({ field }) => (
                   <FormItem>
@@ -705,8 +710,13 @@ export const TicketForm = () => {
                       </FormControl>
                       <SelectContent>
                         {categories.length === 0 ? (
+<<<<<<< HEAD
                           <div className="p-2 text-neutral-500 text-sm text-center">
                             {formatMessage('new_ticket.no_categories_for_type')}
+=======
+                          <div className="p-2 text-muted-foreground text-sm text-center">
+                            Nenhuma categoria disponível para este tipo
+>>>>>>> main
                           </div>
                         ) : (
                           categories.map((category: Category) => (
@@ -726,7 +736,7 @@ export const TicketForm = () => {
               />
               
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="priority"
                 render={({ field }) => (
                   <FormItem>
@@ -796,24 +806,36 @@ export const TicketForm = () => {
             {/* Upload de Arquivos */}
             <div className="border-t pt-6">
               <div className="mb-4">
+<<<<<<< HEAD
                 <h4 className="text-sm font-medium text-gray-900">{formatMessage('new_ticket.attach_files_optional')}</h4>
                 <p className="text-xs text-gray-500 mt-1">
                   {formatMessage('new_ticket.attach_files_description')}
+=======
+                <h4 className="text-sm font-medium text-foreground">Anexar Arquivos (Opcional)</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Adicione documentos, imagens ou outros arquivos que ajudem a descrever o problema.
+                  Os arquivos serão anexados após a criação do chamado.
+>>>>>>> main
                 </p>
               </div>
 
               {/* Preview simples dos arquivos selecionados */}
               {pendingFiles.length > 0 && (
                 <div className="mb-4">
+<<<<<<< HEAD
                   <h5 className="text-sm font-medium text-gray-700 mb-2">
                     {formatMessage('new_ticket.selected_files', { count: pendingFiles.length })}
+=======
+                  <h5 className="text-sm font-medium text-muted-foreground mb-2">
+                    Arquivos selecionados ({pendingFiles.length}):
+>>>>>>> main
                   </h5>
                   <div className="space-y-2">
                     {pendingFiles.map((file, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
                         <div className="flex items-center space-x-2">
-                          <span className="text-sm text-gray-600">{file.name}</span>
-                          <span className="text-xs text-gray-400">
+                          <span className="text-sm text-muted-foreground">{file.name}</span>
+                          <span className="text-xs text-muted-foreground/80">
                             ({(file.size / 1024 / 1024).toFixed(2)} MB)
                           </span>
                         </div>
@@ -835,7 +857,7 @@ export const TicketForm = () => {
               )}
 
               {/* Área de seleção de arquivos */}
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+              <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/60 transition-colors">
                 <input
                   type="file"
                   multiple
@@ -850,14 +872,22 @@ export const TicketForm = () => {
                 />
                 <label htmlFor="file-input" className="cursor-pointer">
                   <div className="flex flex-col items-center">
-                    <svg className="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-12 w-12 text-muted-foreground/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
+<<<<<<< HEAD
                     <span className="mt-2 text-sm font-medium text-gray-900">
                       {formatMessage('new_ticket.click_to_select_files')}
                     </span>
                     <span className="text-xs text-gray-500 mt-1">
                       {formatMessage('new_ticket.supported_file_types')}
+=======
+                    <span className="mt-2 text-sm font-medium text-foreground">
+                      Clique para selecionar arquivos
+                    </span>
+                    <span className="text-xs text-muted-foreground mt-1">
+                      PDF, DOC, Excel, PowerPoint, SQL, imagens, vídeos, áudio, ZIP e outros (máx. 50MB cada)
+>>>>>>> main
                     </span>
                   </div>
                 </label>
@@ -903,7 +933,7 @@ export const TicketForm = () => {
                   className="h-8 w-8 animate-spin" 
                   style={{ color: companyColors.primary }}
                 />
-                <FileText className="h-6 w-6 text-gray-400" />
+                <FileText className="h-6 w-6 text-muted-foreground/80" />
               </div>
             )}
             
@@ -941,19 +971,24 @@ export const TicketForm = () => {
 
           {/* Mensagem de status */}
           <div className="text-center">
-            <p className="text-sm font-medium text-gray-900">
+            <p className="text-sm font-medium text-foreground">
               {creationProgress.message}
             </p>
             
             {creationProgress.step === 'analyzing' && (
+<<<<<<< HEAD
               <p className="text-xs text-gray-500 mt-2">
                 {formatMessage('new_ticket.ai_analyzing_content')}
+=======
+              <p className="text-xs text-muted-foreground mt-2">
+                Nossa IA está analisando o conteúdo do seu ticket para definir a prioridade ideal...
+>>>>>>> main
               </p>
             )}
           </div>
 
           {/* Barra de progresso visual */}
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-muted/70 rounded-full h-2">
             <div 
               className="h-2 rounded-full transition-all duration-500"
               style={{
@@ -988,3 +1023,4 @@ export const TicketForm = () => {
     </>
   );
 };
+

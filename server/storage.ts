@@ -14,6 +14,7 @@ import {
   SLADefinition,
   OfficialDepartment,
   InsertOfficialDepartment,
+  Company,
   ticketStatusEnum, ticketPriorityEnum, userRoleEnum
 } from "@shared/schema";
 import { generateTicketId } from "@shared/utils";
@@ -111,7 +112,7 @@ export interface IStorage {
   getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>>;
 
   // Company operations (adicionar se não existir)
-  getCompany(id: number): Promise<any | undefined>;
+  getCompany(id: number): Promise<Company | undefined>;
 
   // Ticket participants operations
   addTicketParticipant(ticketId: number, userId: number, addedById: number): Promise<any>;
@@ -1093,14 +1094,14 @@ export class MemStorage implements IStorage {
     return Math.round((totalResolutionTime / resolvedTickets.length) * 100) / 100;
   }
 
-  async getCompany(id: number): Promise<any | undefined> {
+  async getCompany(id: number): Promise<Company | undefined> {
     // Simulação para MemStorage - Em uma implementação real, buscaria de this.companies
     // Este método pode precisar ser implementado de forma mais completa se companies for uma Map
     console.warn(`[MemStorage] getCompany(${id}) não totalmente implementado para Map, retornando placeholder.`);
     // Adicionando uma simulação de mapa de empresas para MemStorage
     if (!this.companies) { // Se this.companies não existir, inicialize-o.
-        this.companies = new Map<number, any>();
-        this.companies.set(1, { id: 1, name: "Empresa Padrão", email: "padrao@empresa.com", domain: "empresa.com", active: true, cnpj: "00000000000100", phone: "123456789", createdAt: new Date(), updatedAt: new Date() });
+        this.companies = new Map<number, Company>();
+        this.companies.set(1, { id: 1, name: "Empresa Padrão", email: "padrao@empresa.com", domain: "empresa.com", active: true, cnpj: "00000000000100", phone: "123456789", ai_permission: true, uses_flexible_sla: false, created_at: new Date(), updated_at: new Date() });
     }
     for (const company of this.companies.values()) { // Assumindo que this.companies existe e é um Map
         if (company.id === id) return company;

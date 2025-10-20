@@ -29,7 +29,7 @@ export default function TicketDetailPage() {
             {formatMessage('tickets.back_to_tickets')}
           </Link>
         </Button>
-        <h1 className="text-2xl font-semibold text-neutral-900">{formatMessage('tickets.title')}</h1>
+        <h1 className="text-2xl font-semibold text-foreground">{formatMessage('tickets.title')}</h1>
       </div>
 
       {isLoading ? (
@@ -38,9 +38,9 @@ export default function TicketDetailPage() {
           <Skeleton className="w-full h-80" />
         </div>
       ) : error ? (
-        <div className="bg-red-50 p-4 rounded-md">
-          <h2 className="text-lg font-medium text-red-800">Error</h2>
-          <p className="text-red-600">{error instanceof Error ? error.message : "An error occurred"}</p>
+        <div className="bg-destructive/10 p-4 rounded-md">
+          <h2 className="text-lg font-medium text-destructive">Error</h2>
+          <p className="text-destructive">{error instanceof Error ? error.message : "An error occurred"}</p>
         </div>
       ) : ticket ? (
         <div className="space-y-6">
