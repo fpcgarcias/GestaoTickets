@@ -14,7 +14,8 @@
         ],
         "fixed": [
           "Corrigido o modal de feedback de Análise de IA na criação dos tickets.",
-          "Corrigido o dashboard de satisfação, agora exibindo as pesquisas expiradas corretamente."
+          "Corrigido o dashboard de satisfação, agora exibindo as pesquisas expiradas corretamente.",
+          "Correções menores de erros no sistema que não afetavam a funcionalidade principal."
         ]
       }
     },
