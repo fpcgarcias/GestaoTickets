@@ -1,7 +1,26 @@
 {
-  "current": "1.0.32",
-  "releaseDate": "2025-09-29",
+  "current": "1.1.0",
+  "releaseDate": "2025-10-20",
   "versions": [
+    {
+      "version": "1.1.0",
+      "date": "2025-10.20",
+      "title": "Implementação de novas funcionalidades.",
+      "type": "feature",
+      "changes": {
+        "new": [
+          "Tradução do sistema para o inglês, reconhecendo a lingagem do navegador.",
+          "Implementação do tema escuro no sistema (não válido para empresas com temas personalizados).",
+          "Implementação do filtro de Tipo de Chamado no dashboard.",
+          "Implementação do botão de excluir arquivos anexados enquanto o ticket ainda não foi enviado."
+        ],
+        "fixed": [
+          "Correção do dashboard de satisfação, que agora exibe corretamente as pesquisas expiradas.",
+          "Correção do modal de Análise de IA na criação de novos tickets.",
+          "Correções menores no sistema."
+        ]
+      }
+    },
     {
       "version": "1.0.32",
       "date": "2025-09-29",
