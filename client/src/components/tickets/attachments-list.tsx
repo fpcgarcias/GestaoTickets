@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { Download, File, FileText, Image, Archive, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Download, File, FileText, Image, Archive, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { TicketAttachment } from '@shared/schema';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/use-auth';
 
 // Usar o tipo do schema
 type Attachment = TicketAttachment;
@@ -24,7 +25,9 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
   showUploader = false 
 }: AttachmentsListProps, ref) {
   const [downloadingIds, setDownloadingIds] = useState<Set<number>>(new Set());
+  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Usar React Query para buscar anexos
   const { data: attachments = [], isLoading: loading, refetch: fetchAttachments } = useQuery<Attachment[]>({
@@ -44,6 +47,71 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
 
   // Expor refetch para uso externo (se necessário)
   React.useImperativeHandle(ref, () => ({ fetchAttachments }), [fetchAttachments]);
+
+  const canDeleteAttachment = (attachment: Attachment) => {
+    if (!user) {
+      return false;
+    }
+
+    if (['admin', 'company_admin'].includes(user.role)) {
+      return true;
+    }
+
+    if (['support', 'manager', 'supervisor'].includes(user.role) && attachment.user_id === user.id) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleDeleteAttachment = async (attachment: Attachment) => {
+    if (!canDeleteAttachment(attachment)) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Remover o anexo "${attachment.original_filename}"?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingIds(prev => {
+      const next = new Set(prev);
+      next.add(attachment.id);
+      return next;
+    });
+
+    try {
+      const response = await fetch(`/api/attachments/${attachment.id}`, { method: 'DELETE' });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const errorMessage = errorBody?.message || 'Falha ao remover o anexo.';
+        throw new Error(errorMessage);
+      }
+
+      toast({
+        title: "Anexo removido",
+        description: `${attachment.original_filename} foi removido com sucesso.`,
+      });
+
+      const result = await fetchAttachments();
+      if (result.data) {
+        onAttachmentsChange?.(result.data);
+      }
+    } catch (error) {
+      toast({
+        title: "Erro ao remover anexo",
+        description: error instanceof Error ? error.message : "Não foi possível remover o anexo.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingIds(prev => {
+        const next = new Set(prev);
+        next.delete(attachment.id);
+        return next;
+      });
+    }
+  };
 
   const getFileIcon = (mimeType: string, filename: string) => {
     const extension = filename.split('.').pop()?.toLowerCase();
@@ -211,6 +279,25 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
                       {downloadingIds.has(attachment.id) ? 'Baixando...' : 'Baixar'}
                     </span>
                   </Button>
+                  {canDeleteAttachment(attachment) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteAttachment(attachment)}
+                      disabled={deletingIds.has(attachment.id)}
+                      className="flex items-center space-x-1 text-destructive hover:text-destructive focus-visible:ring-destructive"
+                    >
+                      {deletingIds.has(attachment.id) ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                      <span className="hidden sm:inline">
+                        {deletingIds.has(attachment.id) ? 'Removendo...' : 'Excluir'}
+                      </span>
+                      <span className="sr-only">Remover anexo</span>
+                    </Button>
+                  )}
                 </div>
               </div>
             </Card>

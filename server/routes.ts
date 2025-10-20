@@ -13911,6 +13911,196 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
+  // Remover anexo de um ticket
+
+  router.delete("/attachments/:attachmentId", authRequired, async (req: Request, res: Response) => {
+
+    try {
+
+      const attachmentId = parseInt(req.params.attachmentId);
+
+      if (isNaN(attachmentId)) {
+
+        return res.status(400).json({ message: "ID do anexo inválido" });
+
+      }
+
+      const userId = req.session.userId!;
+
+      const userRole = req.session.userRole as string | undefined;
+
+      const userCompanyId = req.session.companyId;
+
+
+
+      if (!userRole) {
+
+        return res.status(403).json({ message: "Acesso negado" });
+
+      }
+
+
+
+      const [attachment] = await db
+
+        .select({
+
+          id: schema.ticketAttachments.id,
+
+          ticket_id: schema.ticketAttachments.ticket_id,
+
+          user_id: schema.ticketAttachments.user_id,
+
+          s3_key: schema.ticketAttachments.s3_key,
+
+          uploaded_at: schema.ticketAttachments.uploaded_at,
+
+        })
+
+        .from(schema.ticketAttachments)
+
+        .where(
+
+          and(
+
+            eq(schema.ticketAttachments.id, attachmentId),
+
+            eq(schema.ticketAttachments.is_deleted, false)
+
+          )
+
+        )
+
+        .limit(1);
+
+
+
+      if (!attachment) {
+
+        return res.status(404).json({ message: "Anexo não encontrado" });
+
+      }
+
+
+
+      const ticket = await storage.getTicket(attachment.ticket_id, userRole, userCompanyId || undefined);
+
+      if (!ticket) {
+
+        return res.status(404).json({ message: "Ticket não encontrado ou acesso negado" });
+
+      }
+
+
+
+      const privilegedRoles = ['admin', 'company_admin'];
+
+      const draftRemovalRoles = ['support', 'manager', 'supervisor'];
+
+
+
+      const hasPrivilegedAccess = privilegedRoles.includes(userRole);
+
+
+
+      if (!hasPrivilegedAccess) {
+
+        if (!draftRemovalRoles.includes(userRole)) {
+
+          return res.status(403).json({ message: "Você não possui permissão para remover este anexo." });
+
+        }
+
+
+
+        if (attachment.user_id !== userId) {
+
+          return res.status(403).json({ message: "Apenas o autor do anexo pode removê-lo antes de enviar a resposta." });
+
+        }
+
+
+
+        const [replyAfterUpload] = await db
+
+          .select({ id: schema.ticketReplies.id })
+
+          .from(schema.ticketReplies)
+
+          .where(
+
+            and(
+
+              eq(schema.ticketReplies.ticket_id, attachment.ticket_id),
+
+              eq(schema.ticketReplies.user_id, userId),
+
+              gte(schema.ticketReplies.created_at, attachment.uploaded_at)
+
+            )
+
+          )
+
+          .limit(1);
+
+
+
+        if (replyAfterUpload) {
+
+          return res.status(403).json({ message: "Este anexo já faz parte de uma resposta enviada e não pode ser removido." });
+
+        }
+
+      }
+
+
+
+      try {
+
+        await s3Service.deleteFile(attachment.s3_key);
+
+      } catch (error) {
+
+        console.error('Erro ao remover arquivo do armazenamento:', error);
+
+        return res.status(500).json({ message: "Falha ao remover o arquivo do armazenamento. Tente novamente." });
+
+      }
+
+
+
+      await db
+
+        .update(schema.ticketAttachments)
+
+        .set({
+
+          is_deleted: true,
+
+          deleted_at: new Date(),
+
+          deleted_by_id: userId,
+
+        })
+
+        .where(eq(schema.ticketAttachments.id, attachmentId));
+
+
+
+      res.json({ success: true });
+
+    } catch (error) {
+
+      console.error('Erro ao remover anexo:', error);
+
+      res.status(500).json({ message: "Erro interno ao remover o anexo" });
+
+    }
+
+  });
+
+
+
   // Endpoint para testar conexão com S3/Wasabi (apenas admins)
 
   router.get("/test-s3-connection", authRequired, adminRequired, async (req: Request, res: Response) => {

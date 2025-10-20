@@ -15,7 +15,8 @@ import {
   categories, type Category,
   companies, departments,
   ticketParticipants, type TicketParticipant,
-  type InsertTicketParticipant
+  type InsertTicketParticipant,
+  type Company
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "./db";
@@ -130,14 +131,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Company operations
-  async getCompany(id: number): Promise<{id: number, name: string} | undefined> {
+  async getCompany(id: number): Promise<Company | undefined> {
     const [company] = await db
-      .select({
-        id: companies.id,
-        name: companies.name
-      })
+      .select(getTableColumns(companies))
       .from(companies)
-      .where(eq(companies.id, id));
+      .where(eq(companies.id, id))
+      .limit(1);
     return company || undefined;
   }
   
