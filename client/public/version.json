@@ -13,7 +13,8 @@
           "Implementada a função de apagar o arquivo anexado enquanto ainda não enviou o ticket."
         ],
         "fixed": [
-          "Corrigido o modal de feedback de Análise de IA na criação dos tickets."
+          "Corrigido o modal de feedback de Análise de IA na criação dos tickets.",
+          "Corrigido o dashboard de satisfação, agora exibindo as pesquisas expiradas corretamente."
         ]
       }
     },
