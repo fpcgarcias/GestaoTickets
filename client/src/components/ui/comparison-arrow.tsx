@@ -46,14 +46,14 @@ export const ComparisonArrow: React.FC<ComparisonArrowProps> = ({
   // Para métricas de tempo, crescimento é ruim (vermelho), redução é boa (verde)
   // Para quantidade de tickets, crescimento pode ser neutro/informativo
   const getColorClass = () => {
-    if (isNeutral) return 'text-gray-500';
-    
+    if (isNeutral) return 'text-muted-foreground';
+
     if (format === 'time') {
       // Para tempo: menos tempo = melhor (verde), mais tempo = pior (vermelho)
-      return isPositive ? 'text-red-500' : 'text-green-500';
+      return isPositive ? 'text-destructive' : 'text-emerald-400';
     } else {
-      // Para números gerais: apenas informativo (azul para crescimento, laranja para redução)
-      return isPositive ? 'text-blue-500' : 'text-orange-500';
+      // Para números gerais: informativo (usar primário para alta, âmbar para baixa)
+      return isPositive ? 'text-primary' : 'text-amber-500';
     }
   };
 

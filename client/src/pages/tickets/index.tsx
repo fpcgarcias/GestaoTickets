@@ -242,7 +242,7 @@ export default function TicketsIndex() {
         <Skeleton className="h-16 w-full mb-6" /> {/* Legend */}
         <div className="space-y-4">
           {Array(3).fill(0).map((_, i) => (
-            <div key={i} className="bg-white rounded-md border border-neutral-200 p-4 shadow-sm">
+            <div key={i} className="bg-card rounded-md border border-border p-4 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <Skeleton className="h-6 w-40" />
                 <Skeleton className="h-4 w-24" />
@@ -263,7 +263,7 @@ export default function TicketsIndex() {
   return (
     <div className="mb-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-neutral-900">Chamados</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Chamados</h1>
         <Button onClick={() => navigate('/tickets/new')}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Chamado
@@ -275,7 +275,7 @@ export default function TicketsIndex() {
         {/* Primeira linha: Busca e Período */}
         <div className="flex flex-wrap items-center gap-4">
           <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 h-4 w-4" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input 
               placeholder="Buscar chamado" 
               className="pl-10"
@@ -492,7 +492,7 @@ export default function TicketsIndex() {
         onValueChange={handleFilterChange(setStatusFilter)}
         className="mb-6"
       >
-        <TabsList className="border-b border-neutral-200 w-full justify-start rounded-none bg-transparent">
+        <TabsList className="border-b border-border w-full justify-start rounded-none bg-transparent">
           <TabsTrigger value="all" className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
             Todos os Chamados
           </TabsTrigger>
@@ -521,7 +521,7 @@ export default function TicketsIndex() {
       <div className="space-y-4">
         {isTicketsLoading ? (
           Array(3).fill(0).map((_, i) => (
-            <div key={i} className="bg-white rounded-md border border-neutral-200 p-4 shadow-sm">
+            <div key={i} className="bg-card rounded-md border border-border p-4 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <Skeleton className="h-6 w-40" />
                 <Skeleton className="h-4 w-24" />
@@ -544,9 +544,9 @@ export default function TicketsIndex() {
             />
           ))
         ) : (
-          <div className="bg-white rounded-md border border-neutral-200 p-8 text-center">
-            <h3 className="text-lg font-medium text-neutral-700 mb-2">Nenhum chamado encontrado</h3>
-            <p className="text-neutral-500 mb-4">
+          <div className="bg-card rounded-md border border-border p-8 text-center">
+            <h3 className="text-lg font-medium text-muted-foreground mb-2">Nenhum chamado encontrado</h3>
+            <p className="text-muted-foreground mb-4">
               {searchQuery ? 'Tente ajustar seus termos de busca' : 'Crie seu primeiro chamado para começar'}
             </p>
             {!searchQuery && (

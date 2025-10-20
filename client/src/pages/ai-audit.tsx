@@ -118,18 +118,18 @@ export default function AiAuditPage() {
   // Função para obter ícone de status
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'success':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'error':
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      case 'timeout':
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-      case 'fallback':
-        return <AlertCircle className="h-4 w-4 text-orange-500" />;
-      default:
-        return <AlertCircle className="h-4 w-4 text-gray-500" />;
-    }
-  };
+    case 'success':
+      return <CheckCircle className="h-4 w-4 text-emerald-400" />;
+    case 'error':
+      return <XCircle className="h-4 w-4 text-destructive" />;
+    case 'timeout':
+      return <Clock className="h-4 w-4 text-amber-500" />;
+    case 'fallback':
+      return <AlertCircle className="h-4 w-4 text-primary" />;
+    default:
+      return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
+  }
+};
 
   // Função para obter texto de status
   const getStatusText = (status: string) => {
@@ -154,19 +154,19 @@ export default function AiAuditPage() {
       case 'crítica':
       case 'critica':
       case 'critical':
-        return 'bg-red-100 text-red-800';
+        return 'bg-destructive/15 text-destructive';
       case 'alta':
       case 'high':
         return 'bg-orange-100 text-orange-800';
       case 'média':
       case 'media':
       case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-amber-500/10 text-amber-500 dark:text-amber-300';
       case 'baixa':
       case 'low':
-        return 'bg-green-100 text-green-800';
+        return 'bg-emerald-500/10 text-emerald-400';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted/60 text-muted-foreground';
     }
   };
 
@@ -174,11 +174,11 @@ export default function AiAuditPage() {
   const getAnalysisTypeColor = (type: string) => {
     switch (type) {
       case 'priority':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-primary/10 text-primary';
       case 'reopen':
         return 'bg-purple-100 text-purple-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-muted/60 text-muted-foreground';
     }
   };
 
@@ -223,9 +223,9 @@ export default function AiAuditPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Acesso Negado</h2>
-          <p className="text-gray-600">Apenas administradores podem acessar a auditoria de IA.</p>
+          <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-foreground mb-2">Acesso Negado</h2>
+          <p className="text-muted-foreground">Apenas administradores podem acessar a auditoria de IA.</p>
         </div>
       </div>
     );
@@ -410,7 +410,7 @@ export default function AiAuditPage() {
               Resultados da Auditoria
             </div>
             {auditData && (
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-muted-foreground">
                 {auditData.pagination.total} registros encontrados
               </div>
             )}
@@ -422,7 +422,7 @@ export default function AiAuditPage() {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : error ? (
-            <div className="text-center text-red-600 p-8">
+            <div className="text-center text-destructive p-8">
               Erro ao carregar dados de auditoria
             </div>
           ) : auditData && auditData.data.length > 0 ? (
@@ -470,7 +470,7 @@ export default function AiAuditPage() {
               {/* Lista de análises */}
               <div className="space-y-4">
                 {auditData.data.map((item) => (
-                  <div key={item.id} className="border rounded-lg p-4 space-y-3">
+                  <div key={item.id} className="border border-border rounded-lg p-4 space-y-3">
                     {/* Cabeçalho */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -482,7 +482,7 @@ export default function AiAuditPage() {
                           {getAnalysisTypeText(item.analysis_type)}
                         </Badge>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Clock className="h-4 w-4" />
                         {new Date(item.created_at).toLocaleString('pt-BR')}
                       </div>
@@ -490,22 +490,22 @@ export default function AiAuditPage() {
 
                     {/* Informações do ticket */}
                     <div className="flex items-center gap-2">
-                      <TicketIcon className="h-4 w-4 text-gray-500" />
+                      <TicketIcon className="h-4 w-4 text-muted-foreground" />
                       <Link href={`/tickets/${item.ticket_id}`}>
-                        <span className="text-sm text-blue-600 hover:underline cursor-pointer">
+                        <span className="text-sm text-primary hover:underline cursor-pointer">
                           Ticket #{item.ticket_id}
                         </span>
                       </Link>
-                      <span className="text-sm text-gray-500">•</span>
-                      <span className="text-sm text-gray-700 truncate">
+                      <span className="text-sm text-muted-foreground">•</span>
+                      <span className="text-sm text-muted-foreground truncate">
                         {item.ticket_title || 'Sem título'}
                       </span>
                     </div>
 
                     {/* Empresa */}
                     <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-gray-500" />
-                      <span className="text-sm text-gray-700">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
                         {item.company_name || 'Empresa não identificada'}
                       </span>
                     </div>
@@ -522,14 +522,14 @@ export default function AiAuditPage() {
                     {item.ai_justification && (
                       <div>
                         <span className="text-sm font-medium">Justificativa:</span>
-                        <div className="mt-1 p-3 bg-gray-50 rounded-md text-sm text-gray-700">
+                        <div className="mt-1 p-3 bg-muted rounded-md text-sm text-muted-foreground">
                           {item.ai_justification}
                         </div>
                       </div>
                     )}
 
                     {/* Informações técnicas */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-muted-foreground">
                       <div>
                         <span className="font-medium">Provedor:</span> {item.provider}
                       </div>
@@ -576,7 +576,7 @@ export default function AiAuditPage() {
               )}
             </div>
           ) : (
-            <div className="text-center text-gray-500 py-8">
+            <div className="text-center text-muted-foreground py-8">
               Nenhuma análise de IA encontrada com os filtros aplicados
             </div>
           )}
@@ -585,3 +585,20 @@ export default function AiAuditPage() {
     </div>
   );
 } 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

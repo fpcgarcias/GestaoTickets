@@ -49,18 +49,18 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
     const extension = filename.split('.').pop()?.toLowerCase();
     
     if (mimeType.startsWith('image/')) {
-      return <Image className="h-5 w-5 text-blue-500" />;
+      return <Image className="h-5 w-5 text-primary" />;
     }
     
     if (['zip', 'rar', '7z'].includes(extension || '')) {
-      return <Archive className="h-5 w-5 text-purple-500" />;
+      return <Archive className="h-5 w-5 text-purple-400 dark:text-purple-300" />;
     }
     
     if (['pdf', 'doc', 'docx', 'txt'].includes(extension || '')) {
-      return <FileText className="h-5 w-5 text-red-500" />;
+      return <FileText className="h-5 w-5 text-destructive" />;
     }
     
-    return <File className="h-5 w-5 text-gray-500" />;
+    return <File className="h-5 w-5 text-muted-foreground" />;
   };
 
   const formatFileSize = (bytes: number) => {
@@ -155,8 +155,8 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
       {/* Lista de Anexos */}
       {attachments.length === 0 ? (
         <Card className="p-6">
-          <div className="text-center text-gray-500">
-            <File className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+          <div className="text-center text-muted-foreground">
+            <File className="mx-auto h-12 w-12 text-muted-foreground/60 mb-4" />
             <p>Nenhum anexo encontrado</p>
             {showUploader && (
               <p className="text-sm mt-2">Use o formulário acima para adicionar arquivos.</p>
@@ -173,7 +173,7 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="text-sm font-medium text-foreground truncate">
                         {attachment.original_filename}
                       </p>
                       <Badge variant="outline" className="text-xs">
@@ -182,11 +182,11 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
                     </div>
                     
                     <div className="flex items-center space-x-4 mt-1">
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         Enviado em {formatDate(attachment.uploaded_at)}
                       </p>
                       {attachment.user && (
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                           por {attachment.user.name}
                         </p>
                       )}

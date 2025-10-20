@@ -54,10 +54,14 @@ export const TimeMetricCard: React.FC<TimeMetricCardProps> = ({
 
   const getTrendColor = (trend?: 'up' | 'down' | 'neutral'): string => {
     switch (trend) {
-      case 'up': return 'text-red-500';
-      case 'down': return 'text-green-500';
-      case 'neutral': return 'text-gray-500';
-      default: return 'text-gray-500';
+      case 'up':
+        return 'text-destructive';
+      case 'down':
+        return 'text-emerald-400';
+      case 'neutral':
+        return 'text-muted-foreground';
+      default:
+        return 'text-muted-foreground';
     }
   };
 

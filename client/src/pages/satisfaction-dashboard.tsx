@@ -320,7 +320,7 @@ const SatisfactionDashboard: React.FC = () => {
   };
 
   const renderStars = (rating: number | null) => {
-    if (rating === null) return <span className="text-gray-400">Não avaliado</span>;
+    if (rating === null) return <span className="text-muted-foreground/80">Não avaliado</span>;
     
     return (
       <div className="flex gap-1">
@@ -329,7 +329,7 @@ const SatisfactionDashboard: React.FC = () => {
             key={star}
             size={16}
             fill={star <= rating ? '#FCD34D' : 'none'}
-            className={star <= rating ? 'text-yellow-400' : 'text-gray-300'}
+            className={star <= rating ? 'text-amber-400' : 'text-muted-foreground/60'}
           />
         ))}
       </div>
@@ -350,11 +350,11 @@ const SatisfactionDashboard: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'sent':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700">Enviado</Badge>;
+        return <Badge variant="outline" className="bg-primary/10 text-primary">Enviado</Badge>;
       case 'responded':
-        return <Badge variant="outline" className="bg-green-50 text-green-700">Respondido</Badge>;
+        return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400">Respondido</Badge>;
       case 'expired':
-        return <Badge variant="outline" className="bg-gray-50 text-gray-700">Expirado</Badge>;
+        return <Badge variant="outline" className="bg-muted text-muted-foreground">Expirado</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -364,8 +364,8 @@ const SatisfactionDashboard: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Acesso Negado</h2>
-          <p className="text-gray-600">Você não tem permissão para acessar este dashboard.</p>
+          <h2 className="text-xl font-semibold text-foreground mb-2">Acesso Negado</h2>
+          <p className="text-muted-foreground">Você não tem permissão para acessar este dashboard.</p>
         </div>
       </div>
     );
@@ -376,8 +376,8 @@ const SatisfactionDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard de Satisfação</h1>
-          <p className="text-gray-600">Acompanhe as avaliações dos clientes sobre o atendimento</p>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard de Satisfação</h1>
+          <p className="text-muted-foreground">Acompanhe as avaliações dos clientes sobre o atendimento</p>
         </div>
         <Button onClick={exportData} variant="outline">
           <Download className="h-4 w-4 mr-2" />
@@ -504,8 +504,8 @@ const SatisfactionDashboard: React.FC = () => {
             <Card key={i}>
               <CardContent className="p-6">
                 <div className="animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+                  <div className="h-4 bg-muted/70 rounded w-3/4 mb-2"></div>
+                  <div className="h-8 bg-muted/70 rounded w-1/2"></div>
                 </div>
               </CardContent>
             </Card>
@@ -518,11 +518,11 @@ const SatisfactionDashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Enviado</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats?.total_sent || 0}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Total Enviado</p>
+                  <p className="text-3xl font-bold text-foreground">{stats?.total_sent || 0}</p>
                 </div>
-                <div className="p-3 bg-blue-100 rounded-full">
-                  <MessageSquare className="h-6 w-6 text-blue-600" />
+                <div className="p-3 bg-primary/10 rounded-full">
+                  <MessageSquare className="h-6 w-6 text-primary" />
                 </div>
               </div>
             </CardContent>
@@ -533,22 +533,22 @@ const SatisfactionDashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Taxa de Resposta</p>
+                  <p className="text-sm font-medium text-muted-foreground">Taxa de Resposta</p>
                   <div className="flex items-center gap-2">
-                    <p className="text-3xl font-bold text-gray-900">
+                    <p className="text-3xl font-bold text-foreground">
                       {stats?.response_rate ? `${stats.response_rate.toFixed(1)}%` : '0%'}
                     </p>
                     {stats?.trend?.response_rate_trend !== undefined && stats.trend.response_rate_trend !== 0 && (
                       stats.trend.response_rate_trend > 0 ? (
-                        <TrendingUp className="h-4 w-4 text-green-600" />
+                        <TrendingUp className="h-4 w-4 text-emerald-400" />
                       ) : (
                         <TrendingDown className="h-4 w-4 text-red-600" />
                       )
                     )}
                   </div>
                 </div>
-                <div className="p-3 bg-green-100 rounded-full">
-                  <Users className="h-6 w-6 text-green-600" />
+                <div className="p-3 bg-emerald-500/10 rounded-full">
+                  <Users className="h-6 w-6 text-emerald-400" />
                 </div>
               </div>
             </CardContent>
@@ -559,14 +559,14 @@ const SatisfactionDashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Avaliação Média</p>
+                  <p className="text-sm font-medium text-muted-foreground">Avaliação Média</p>
                   <div className="flex items-center gap-2">
-                    <p className="text-3xl font-bold text-gray-900">
+                    <p className="text-3xl font-bold text-foreground">
                       {stats?.average_rating ? stats.average_rating.toFixed(1) : '0.0'}
                     </p>
                     {stats?.trend?.rating_trend !== undefined && stats.trend.rating_trend !== 0 && (
                       stats.trend.rating_trend > 0 ? (
-                        <TrendingUp className="h-4 w-4 text-green-600" />
+                        <TrendingUp className="h-4 w-4 text-emerald-400" />
                       ) : (
                         <TrendingDown className="h-4 w-4 text-red-600" />
                       )
@@ -576,8 +576,8 @@ const SatisfactionDashboard: React.FC = () => {
                     {renderStars(Math.round(stats?.average_rating || 0))}
                   </div>
                 </div>
-                <div className="p-3 bg-yellow-100 rounded-full">
-                  <Star className="h-6 w-6 text-yellow-600" />
+                <div className="p-3 bg-amber-500/10 rounded-full">
+                  <Star className="h-6 w-6 text-amber-500" />
                 </div>
               </div>
             </CardContent>
@@ -588,8 +588,8 @@ const SatisfactionDashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Respondido</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats?.total_responded || 0}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Total Respondido</p>
+                  <p className="text-3xl font-bold text-foreground">{stats?.total_responded || 0}</p>
                 </div>
                 <div className="p-3 bg-purple-100 rounded-full">
                   <BarChart3 className="h-6 w-6 text-purple-600" />
@@ -621,18 +621,18 @@ const SatisfactionDashboard: React.FC = () => {
                 <div className="space-y-4">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="animate-pulse">
-                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                      <div className="h-4 bg-muted/70 rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-muted/70 rounded w-1/2"></div>
                     </div>
                   ))}
                 </div>
               ) : surveys.length === 0 ? (
                 <div className="text-center py-8">
-                  <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  <MessageSquare className="h-12 w-12 text-muted-foreground/80 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">
                     Nenhuma pesquisa encontrada
                   </h3>
-                  <p className="text-gray-600">
+                  <p className="text-muted-foreground">
                     Não há pesquisas de satisfação para os filtros selecionados.
                   </p>
                 </div>
@@ -641,18 +641,18 @@ const SatisfactionDashboard: React.FC = () => {
                   {surveys.map((survey) => (
                     <div
                       key={survey.id}
-                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                      className="border rounded-lg p-4 hover:bg-muted transition-colors"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
-                            <h3 className="font-medium text-gray-900">
+                            <h3 className="font-medium text-foreground">
                               Ticket #{survey.ticket?.ticket_id}
                             </h3>
                             {getStatusBadge(survey.status)}
                           </div>
                           
-                          <p className="text-sm text-gray-600 mb-2">
+                          <p className="text-sm text-muted-foreground mb-2">
                             {survey.ticket?.title}
                           </p>
                           
@@ -689,18 +689,18 @@ const SatisfactionDashboard: React.FC = () => {
                                   {survey.rating}/5
                                 </span>
                               </div>
-                              <p className="text-xs text-gray-600">
+                              <p className="text-xs text-muted-foreground">
                                 {getRatingText(survey.rating)}
                               </p>
                               {survey.responded_at && (
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-muted-foreground mt-1">
                                   Respondido em{' '}
                                   {format(new Date(survey.responded_at), 'dd/MM/yyyy', { locale: ptBR })}
                                 </p>
                               )}
                             </div>
                           ) : (
-                            <div className="text-gray-400">
+                            <div className="text-muted-foreground/80">
                               <MessageSquare className="h-8 w-8 mx-auto mb-1" />
                               <p className="text-xs">Aguardando resposta</p>
                             </div>
@@ -710,7 +710,7 @@ const SatisfactionDashboard: React.FC = () => {
                       
                       {survey.comments && (
                         <div className="mt-3 pt-3 border-t">
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm text-muted-foreground">
                             <span className="font-medium">Comentário:</span> "{survey.comments}"
                           </p>
                         </div>
@@ -747,15 +747,15 @@ const SatisfactionDashboard: React.FC = () => {
                         <div key={rating} className="flex items-center gap-3">
                           <div className="flex items-center gap-1 w-20">
                             <span className="text-sm font-medium">{rating}</span>
-                            <Star size={14} fill="#FCD34D" className="text-yellow-400" />
+                            <Star size={14} fill="#FCD34D" className="text-amber-400" />
                           </div>
-                          <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <div className="flex-1 bg-muted/70 rounded-full h-2">
                             <div
-                              className="bg-yellow-400 h-2 rounded-full transition-all duration-300"
+                              className="bg-amber-400 h-2 rounded-full transition-all duration-300"
                               style={{ width: `${percentage}%` }}
                             />
                           </div>
-                          <span className="text-sm text-gray-600 w-16 text-right">
+                          <span className="text-sm text-muted-foreground w-16 text-right">
                             {count} ({percentage.toFixed(1)}%)
                           </span>
                         </div>
@@ -778,22 +778,22 @@ const SatisfactionDashboard: React.FC = () => {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-sm font-medium">Pesquisas enviadas</span>
-                    <span className="text-sm text-gray-600">{stats?.total_sent || 0}</span>
+                    <span className="text-sm text-muted-foreground">{stats?.total_sent || 0}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-sm font-medium">Pesquisas respondidas</span>
-                    <span className="text-sm text-gray-600">{stats?.total_responded || 0}</span>
+                    <span className="text-sm text-muted-foreground">{stats?.total_responded || 0}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-sm font-medium">Taxa de resposta</span>
-                    <span className="text-sm text-gray-600">
+                    <span className="text-sm text-muted-foreground">
                       {stats?.response_rate ? `${stats.response_rate.toFixed(1)}%` : '0%'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-2">
                     <span className="text-sm font-medium">Avaliação média</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-600">
+                      <span className="text-sm text-muted-foreground">
                         {stats?.average_rating ? stats.average_rating.toFixed(1) : '0.0'}
                       </span>
                       {renderStars(Math.round(stats?.average_rating || 0))}
@@ -810,3 +810,27 @@ const SatisfactionDashboard: React.FC = () => {
 };
 
 export default SatisfactionDashboard;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -279,11 +279,11 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
         {participantsLoading ? (
           <div className="space-y-2">
             {[1, 2, 3].map(i => (
-              <div key={i} className="flex items-center gap-3 p-2 bg-gray-50 rounded animate-pulse">
-                <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+              <div key={i} className="flex items-center gap-3 p-2 bg-muted rounded animate-pulse">
+                <div className="w-8 h-8 bg-muted/70 rounded-full"></div>
                 <div className="flex-1">
-                  <div className="h-4 bg-gray-200 rounded w-32 mb-1"></div>
-                  <div className="h-3 bg-gray-200 rounded w-24"></div>
+                  <div className="h-4 bg-muted/70 rounded w-32 mb-1"></div>
+                  <div className="h-3 bg-muted/70 rounded w-24"></div>
                 </div>
               </div>
             ))}
@@ -291,7 +291,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
         ) : (Array.isArray(participantsData) && participantsData.length > 0) ? (
           <div className="space-y-2">
             {participantsData.map((participant: TicketParticipant) => (
-              <div key={participant.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={participant.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                 <div className="flex items-center gap-3">
                   <Avatar className="w-8 h-8">
                     <AvatarImage src={participant.user?.avatar_url || ""} alt={participant.user?.name || ""} />
@@ -303,10 +303,10 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                     <div className="font-medium text-sm">
                       {participant.user?.name || 'Usuário'}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-muted-foreground">
                       {participant.user?.email || 'Email não informado'}
                     </div>
-                    <div className="text-xs text-gray-400">
+                    <div className="text-xs text-muted-foreground/80">
                       Adicionado por {participant.added_by?.name || 'Sistema'} em {formatDate(participant.added_at)}
                     </div>
                   </div>
@@ -319,7 +319,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         >
                           <UserMinus className="h-4 w-4" />
                         </Button>
@@ -345,7 +345,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => handleRemoveParticipant(participant.user_id)}
-                            className="bg-red-600 hover:bg-red-700"
+                            className="bg-destructive hover:bg-destructive/90"
                           >
                             {participant.user_id === user?.id ? 'Sair' : 'Remover'}
                           </AlertDialogAction>
@@ -358,8 +358,8 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
             ))}
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500">
-            <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+          <div className="text-center py-8 text-muted-foreground">
+            <Users className="h-12 w-12 mx-auto mb-3 text-muted-foreground/60" />
             <p>Nenhum participante adicionado</p>
             <p className="text-sm">Adicione participantes para colaborar neste ticket</p>
           </div>
@@ -382,8 +382,8 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                     {item.action === 'added' ? 'Adicionado' : 'Removido'}
                   </Badge>
                   <span className="font-medium">{item.user?.name || 'Usuário'}</span>
-                  <span className="text-gray-500">por {item.performed_by?.name || 'Sistema'}</span>
-                  <span className="text-gray-400 text-xs">
+                  <span className="text-muted-foreground">por {item.performed_by?.name || 'Sistema'}</span>
+                  <span className="text-muted-foreground/80 text-xs">
                     {formatDate(item.performed_at)}
                   </span>
                 </div>
@@ -394,12 +394,12 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
 
         {/* Aviso para participantes */}
         {isParticipant && !canManageParticipants && (
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center gap-2 text-blue-700">
+          <div className="mt-4 p-3 bg-primary/10 border border-primary/30 rounded-lg">
+            <div className="flex items-center gap-2 text-primary">
               <AlertCircle className="h-4 w-4" />
               <span className="text-sm font-medium">Você é participante deste ticket</span>
             </div>
-            <p className="text-sm text-blue-600 mt-1">
+            <p className="text-sm text-primary mt-1">
               Você pode visualizar todas as atualizações e colaborar com a equipe.
             </p>
           </div>
@@ -408,3 +408,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
     </Card>
   );
 }; 
+
+
+
+

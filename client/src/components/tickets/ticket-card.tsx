@@ -161,7 +161,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center">
             <StatusDot status={status} className="mr-2" />
-            <span className="font-medium text-neutral-800">Ticket# {ticketId}</span>
+            <span className="font-medium text-foreground">Ticket# {ticketId}</span>
           </div>
           <div className="flex items-center flex-wrap gap-2">
             {priority && (
@@ -178,7 +178,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                 )?.name || priority}
               />
             )}
-            <div className="text-sm text-neutral-500">
+            <div className="text-sm text-muted-foreground">
               Criado em {createdAt ? formatDate(createdAt) : 'Data desconhecida'}
             </div>
           </div>
@@ -189,30 +189,30 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
             <h3 className="text-lg font-medium break-words">{title}</h3>
             <StatusBadge status={status} />
           </div>
-          <div className="text-neutral-600 line-clamp-2">
+          <div className="text-muted-foreground line-clamp-2">
             <TextWithLinkBreaks text={description} />
           </div>
         </div>
         {/* Metadados: Departamento / Tipo / Categoria */}
-        <div className="mt-2 text-xs text-neutral-600 flex flex-wrap gap-2">
+        <div className="mt-2 text-xs text-muted-foreground flex flex-wrap gap-2">
           {departmentName && (
-            <span className="bg-neutral-50 border border-neutral-200 px-2 py-0.5 rounded-full">Departamento: {departmentName}</span>
+            <span className="bg-muted border border-border px-2 py-0.5 rounded-full">Departamento: {departmentName}</span>
           )}
           {incidentTypeName && (
-            <span className="bg-neutral-50 border border-neutral-200 px-2 py-0.5 rounded-full">Tipo: {incidentTypeName}</span>
+            <span className="bg-muted border border-border px-2 py-0.5 rounded-full">Tipo: {incidentTypeName}</span>
           )}
           {categoryName && (
-            <span className="bg-neutral-50 border border-neutral-200 px-2 py-0.5 rounded-full">Categoria: {categoryName}</span>
+            <span className="bg-muted border border-border px-2 py-0.5 rounded-full">Categoria: {categoryName}</span>
           )}
         </div>
         
-        <div className="flex justify-between items-center mt-3 pt-3 border-t border-neutral-100 flex-wrap gap-3">
+        <div className="flex justify-between items-center mt-3 pt-3 border-t border-border flex-wrap gap-3">
           <div className="flex items-center">
             <Avatar className="w-7 h-7 mr-2">
-              <AvatarImage src={customer.avatar_url || ""} alt={customer.name} />
-              <AvatarFallback>{customer.name?.charAt(0) || "C"}</AvatarFallback>
+              <AvatarImage src={customer?.avatar_url || ""} alt={customer?.name} />
+              <AvatarFallback>{customer?.name?.charAt(0) || "C"}</AvatarFallback>
             </Avatar>
-            <span className="text-sm text-neutral-700">{customer.name || 'Cliente não informado'}</span>
+            <span className="text-sm text-muted-foreground">{customer?.name || 'Cliente não informado'}</span>
           </div>
           
           <div className="flex items-center gap-2 flex-wrap">
@@ -224,15 +224,15 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                   disabled={true} // Sempre desabilitado para clientes
                 >
                   <SelectTrigger 
-                    className="w-[180px] h-8 text-xs font-medium bg-neutral-50 border-neutral-200 text-neutral-600 cursor-not-allowed"
+                    className="w-[180px] h-8 text-xs font-medium bg-muted border-border text-muted-foreground cursor-not-allowed"
                   >
                     <SelectValue placeholder="Atribuir a..." />
                   </SelectTrigger>
                   <SelectContent position="popper" className="min-w-[180px] z-50">
-                    <SelectItem value="unassigned" className="text-gray-500 font-medium">
+                    <SelectItem value="unassigned" className="text-muted-foreground font-medium">
                       Não atribuído
                     </SelectItem>
-                    <SelectItem value={assignedToId?.toString() || "unassigned"} className="text-neutral-600 font-medium">
+                    <SelectItem value={assignedToId?.toString() || "unassigned"} className="text-muted-foreground font-medium">
                       {getCurrentOfficialName()}
                     </SelectItem>
                   </SelectContent>
@@ -242,9 +242,9 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
               // Para atendentes: dropdown editável
               <>
                 {isOfficialsLoading ? (
-                  <div className="text-xs text-gray-500">Carregando atendentes...</div>
+                  <div className="text-xs text-muted-foreground">Carregando atendentes...</div>
                 ) : officials.length === 0 ? (
-                  <div className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                  <div className="text-xs text-amber-500 dark:text-amber-300 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/30">
                     Sem atendentes cadastrados
                   </div>
                 ) : (
@@ -261,14 +261,14 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                         <SelectValue placeholder="Atribuir a..." />
                       </SelectTrigger>
                       <SelectContent position="popper" className="min-w-[180px] z-50">
-                        <SelectItem value="unassigned" className="text-gray-500 font-medium">
+                        <SelectItem value="unassigned" className="text-muted-foreground font-medium">
                           Não atribuído
                         </SelectItem>
                         {[...officials].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map((official) => (
                           <SelectItem 
                             key={official.id} 
                             value={official.id.toString()} 
-                            className="text-primary-dark font-medium"
+                            className="text-primary/80 font-medium"
                           >
                             {official.name || `Atendente ${official.id}`}
                           </SelectItem>
@@ -282,7 +282,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
             
             <Button 
               variant="link" 
-              className="text-primary hover:text-primary-dark text-sm font-medium px-0 h-8"
+              className="text-primary hover:text-primary/80 text-sm font-medium px-0 h-8"
               asChild
             >
               <Link href={`/tickets/${id}`}>Abrir</Link>
@@ -292,31 +292,31 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
         
         {/* Participantes do Ticket */}
         {participants.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-neutral-100">
+          <div className="mt-2 pt-2 border-t border-border">
             <div className="flex items-center justify-between">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex items-center gap-1 cursor-help">
-                      <span className="text-xs text-neutral-500 mr-1">👥</span>
+                      <span className="text-xs text-muted-foreground mr-1">👥</span>
                       <div className="flex items-center gap-1">
                                           {participants.slice(0, 2).map((participant: TicketParticipant) => (
                     <div
                       key={participant.id}
-                      className="flex items-center gap-1 bg-neutral-50 px-2 py-1 rounded-full"
+                      className="flex items-center gap-1 bg-muted px-2 py-1 rounded-full"
                     >
                       <div className="w-4 h-4 bg-primary/10 rounded-full flex items-center justify-center">
                         <span className="text-xs font-medium text-primary">
                           {participant.user?.name?.charAt(0).toUpperCase() || 'U'}
                         </span>
                       </div>
-                      <span className="text-xs text-neutral-700 truncate max-w-16">
+                      <span className="text-xs text-muted-foreground truncate max-w-16">
                         {participant.user?.name || 'Usuário'}
                       </span>
                     </div>
                   ))}
                         {participants.length > 2 && (
-                          <span className="text-xs text-neutral-500 bg-neutral-50 px-2 py-1 rounded-full">
+                          <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
                             +{participants.length - 2}
                           </span>
                         )}
@@ -335,7 +335,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              <span className="text-xs text-neutral-500">
+              <span className="text-xs text-muted-foreground">
                 {participants.length} participante{participants.length > 1 ? 's' : ''}
               </span>
             </div>
@@ -362,3 +362,8 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
     </Card>
   );
 };
+
+
+
+
+

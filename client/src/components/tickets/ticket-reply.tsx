@@ -178,7 +178,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
             <Input
               value={(ticket as any).department_name || '—'}
               readOnly
-              className="bg-neutral-50"
+              className="bg-muted"
             />
           </div>
           <div className="space-y-2">
@@ -186,7 +186,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
             <Input
               value={(ticket as any).incident_type_name || '—'}
               readOnly
-              className="bg-neutral-50"
+              className="bg-muted"
             />
           </div>
           <div className="space-y-2">
@@ -194,7 +194,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
             <Input
               value={(ticket as any).category_name || '—'}
               readOnly
-              className="bg-neutral-50"
+              className="bg-muted"
             />
           </div>
         </div>
@@ -207,7 +207,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                 <Input 
                   value={ticket.customer_email} 
                   readOnly 
-                  className="bg-neutral-50"
+                  className="bg-muted"
                 />
               </FormItem>
               
@@ -224,7 +224,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                       <Input 
                         value={getStatusConfig(ticket.status as TicketStatus).label}
                         readOnly 
-                        className="bg-neutral-50"
+                        className="bg-muted"
                       />
                     ) : (
                       // Para atendentes: campo editável
@@ -284,7 +284,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                       <Input 
                         value={getCurrentOfficialName()}
                         readOnly 
-                        className="bg-neutral-50"
+                        className="bg-muted"
                       />
                     ) : (
                       // Para atendentes: campo editável
@@ -310,7 +310,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                             </SelectItem>
                           ))}
                           {(!officials || officials.length === 0) && !isLoadingOfficials && (
-                            <div className="p-2 text-neutral-500 text-sm text-center">
+                            <div className="p-2 text-muted-foreground text-sm text-center">
                               Nenhum atendente encontrado
                             </div>
                           )}
@@ -345,8 +345,8 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
             {/* Upload de Arquivos */}
             <div className="border-t pt-6">
               <div className="mb-4">
-                <h4 className="text-sm font-medium text-gray-900">Anexar Arquivos</h4>
-                <p className="text-xs text-gray-500 mt-1">
+                <h4 className="text-sm font-medium text-foreground">Anexar Arquivos</h4>
+                <p className="text-xs text-muted-foreground mt-1">
                   Adicione documentos, imagens ou outros arquivos relacionados à sua resposta.
                 </p>
               </div>
@@ -390,3 +390,14 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     </Card>
   );
 };
+
+
+
+
+
+
+
+
+
+
+

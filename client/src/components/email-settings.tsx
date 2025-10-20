@@ -1044,7 +1044,7 @@ export default function EmailSettings() {
       </div>
 
       {smtpConfig.provider === 'smtp' && (
-        <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
+        <div className="space-y-4 p-4 border border-border rounded-lg bg-muted">
           <h4 className="font-medium">Configurações SMTP</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1092,8 +1092,8 @@ export default function EmailSettings() {
       )}
 
       {smtpConfig.provider !== 'smtp' && (
-        <div className="p-4 border rounded-lg bg-blue-50">
-          <h4 className="font-medium mb-3 text-blue-800">
+        <div className="p-4 border border-border rounded-lg bg-primary/10">
+          <h4 className="font-medium mb-3 text-primary">
             Configuração da API {PROVIDERS.find(p => p.value === smtpConfig.provider)?.label}
           </h4>
           <div className="space-y-3">
@@ -1107,19 +1107,19 @@ export default function EmailSettings() {
               />
             </div>
             {smtpConfig.provider === 'brevo' && (
-              <div className="text-sm text-blue-700 bg-blue-100 p-3 rounded">
+              <div className="text-sm text-primary bg-primary/10 p-3 rounded">
                 💡 <strong>Brevo (SendinBlue):</strong> Você pode encontrar sua chave de API em: 
                 Configurações → Chaves da API → Criar uma nova chave
               </div>
             )}
             {smtpConfig.provider === 'sendgrid' && (
-              <div className="text-sm text-blue-700 bg-blue-100 p-3 rounded">
+              <div className="text-sm text-primary bg-primary/10 p-3 rounded">
                 💡 <strong>SendGrid:</strong> Crie uma chave de API em: 
                 Settings → API Keys → Create API Key
               </div>
             )}
             {smtpConfig.provider === 'mailgun' && (
-              <div className="text-sm text-blue-700 bg-blue-100 p-3 rounded">
+              <div className="text-sm text-primary bg-primary/10 p-3 rounded">
                 💡 <strong>Mailgun:</strong> Encontre sua chave de API em: 
                 Settings → API Keys → Private API key
               </div>
@@ -1217,11 +1217,11 @@ export default function EmailSettings() {
                         <Badge variant="outline">Padrão</Badge>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 mb-2">
+                    <p className="text-sm text-muted-foreground mb-2">
                       Tipo: {EMAIL_TEMPLATE_TYPES.find(t => t.value === template.type)?.label}
                     </p>
                     {template.description && (
-                      <p className="text-sm text-gray-500">{template.description}</p>
+                      <p className="text-sm text-muted-foreground">{template.description}</p>
                     )}
                   </div>
                   <div className="flex gap-2">
@@ -1244,7 +1244,7 @@ export default function EmailSettings() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-red-600 hover:text-red-700"
+                          className="text-destructive hover:text-destructive/90"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1260,7 +1260,7 @@ export default function EmailSettings() {
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => handleDeleteTemplate(template.id)}
-                            className="bg-red-600 hover:bg-red-700"
+                            className="bg-destructive hover:bg-destructive/90"
                           >
                             Excluir
                           </AlertDialogAction>
@@ -1302,10 +1302,10 @@ export default function EmailSettings() {
             <CardContent>
               {/* Dropdown de seleção de empresa para admin */}
               {user?.role === 'admin' && (
-                <div className="mb-6 p-4 border rounded-lg bg-blue-50">
+                <div className="mb-6 p-4 border border-border rounded-lg bg-primary/10">
                   <div className="flex items-center gap-2 mb-2">
-                    <Building2 className="h-4 w-4 text-blue-600" />
-                    <Label className="text-sm font-medium text-blue-800">
+                    <Building2 className="h-4 w-4 text-primary" />
+                    <Label className="text-sm font-medium text-primary">
                       Selecionar Empresa
                     </Label>
                   </div>
@@ -1330,7 +1330,7 @@ export default function EmailSettings() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-xs text-primary mt-1">
                     Configurações de email são específicas por empresa
                   </p>
                 </div>
@@ -1338,8 +1338,8 @@ export default function EmailSettings() {
 
               {/* Mensagem para admin que ainda não selecionou empresa */}
               {user?.role === 'admin' && !selectedCompanyId && (
-                <div className="text-center text-neutral-500 p-8 rounded-md border border-dashed">
-                  <Building2 className="h-12 w-12 mx-auto mb-4 text-neutral-400" />
+                <div className="text-center text-muted-foreground p-8 rounded-md border border-dashed">
+                  <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground/60" />
                   <p className="text-lg font-medium mb-2">Selecione uma empresa</p>
                   <p className="text-sm">
                     Para configurar as definições de email, primeiro selecione a empresa desejada.
@@ -1375,10 +1375,10 @@ export default function EmailSettings() {
             <CardContent>
               {/* Dropdown de seleção de empresa para admin */}
               {user?.role === 'admin' && (
-                <div className="mb-6 p-4 border rounded-lg bg-blue-50">
+                <div className="mb-6 p-4 border border-border rounded-lg bg-primary/10">
                   <div className="flex items-center gap-2 mb-2">
-                    <Building2 className="h-4 w-4 text-blue-600" />
-                    <Label className="text-sm font-medium text-blue-800">
+                    <Building2 className="h-4 w-4 text-primary" />
+                    <Label className="text-sm font-medium text-primary">
                       Selecionar Empresa
                     </Label>
                   </div>
@@ -1400,7 +1400,7 @@ export default function EmailSettings() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-xs text-primary mt-1">
                     Templates de email são específicos por empresa
                   </p>
                 </div>
@@ -1408,8 +1408,8 @@ export default function EmailSettings() {
 
               {/* Mensagem para admin que ainda não selecionou empresa */}
               {user?.role === 'admin' && !selectedCompanyId && (
-                <div className="text-center text-neutral-500 p-8 rounded-md border border-dashed">
-                  <Building2 className="h-12 w-12 mx-auto mb-4 text-neutral-400" />
+                <div className="text-center text-muted-foreground p-8 rounded-md border border-dashed">
+                  <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground/60" />
                   <p className="text-lg font-medium mb-2">Selecione uma empresa</p>
                   <p className="text-sm">
                     Para gerenciar templates de email, primeiro selecione a empresa desejada.
@@ -1459,7 +1459,7 @@ export default function EmailSettings() {
             <div className="space-y-4">
               <div>
                 <Label className="font-medium">Assunto</Label>
-                <div className="mt-1 p-3 bg-gray-50 rounded border">
+                <div className="mt-1 p-3 bg-muted rounded border">
                   {previewMode === 'visual' ? (
                     <span className="text-sm">
                       {renderTemplateWithSampleData(
@@ -1476,9 +1476,9 @@ export default function EmailSettings() {
               {previewMode === 'visual' ? (
                 <div>
                   <Label className="font-medium">Preview do Email</Label>
-                  <div className="mt-1 border rounded-lg bg-white">
-                    <div className="p-4 border-b bg-gray-50 rounded-t-lg">
-                      <div className="text-sm text-gray-600">
+                  <div className="mt-1 border border-border rounded-lg bg-card">
+                    <div className="p-4 border-b bg-muted rounded-t-lg">
+                      <div className="text-sm text-muted-foreground">
                         <strong>De:</strong> {(() => {
                           const sampleData = generateSampleData(selectedTemplate.type);
                           return `${sampleData.system.from_name} <${sampleData.system.from_email}>`;
@@ -1500,7 +1500,7 @@ export default function EmailSettings() {
                       }}
                     />
                   </div>
-                  <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                  <div className="mt-2 p-2 bg-primary/10 rounded text-xs text-primary">
                     💡 Este é um preview com dados de exemplo. As variáveis serão substituídas pelos dados reais quando o email for enviado.
                   </div>
                 </div>
@@ -1530,11 +1530,11 @@ export default function EmailSettings() {
               {/* Seção de Variáveis Disponíveis */}
               <div>
                 <Label className="font-medium">Variáveis Disponíveis para este Tipo</Label>
-                <div className="mt-1 p-3 bg-gray-50 rounded border text-xs">
+                <div className="mt-1 p-3 bg-muted rounded border text-xs">
                   {(() => {
                     const availableVars = getVariablesByTemplateType(selectedTemplate.type);
                     if (availableVars.length === 0) {
-                      return <span className="text-gray-500">Nenhuma variável específica para este tipo</span>;
+                      return <span className="text-muted-foreground">Nenhuma variável específica para este tipo</span>;
                     }
                     
                     return (
@@ -1548,14 +1548,14 @@ export default function EmailSettings() {
                           
                           return (
                             <div key={category}>
-                              <h4 className="font-medium text-gray-700 mb-2">{info.label}</h4>
+                              <h4 className="font-medium text-muted-foreground mb-2">{info.label}</h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 {categoryVars.map((variable) => (
-                                  <div key={variable.key} className="bg-white p-2 rounded border">
-                                    <code className="text-blue-600 font-medium">
+                                  <div key={variable.key} className="bg-card p-2 rounded border border-border">
+                                    <code className="text-primary font-medium">
                                       {"{{"}{variable.key}{"}}"}
                                     </code>
-                                    <div className="text-gray-600 text-xs mt-1">
+                                    <div className="text-muted-foreground text-xs mt-1">
                                       {variable.description}
                                     </div>
                                   </div>
@@ -1661,7 +1661,7 @@ export default function EmailSettings() {
                 readOnly={false}
                 style={{ pointerEvents: 'auto' }}
               />
-              <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+              <div className="mt-2 p-2 bg-primary/10 rounded text-xs text-primary">
                 💡 Dica: Use variáveis como {`{{ticket.title}}`}, {`{{customer.name}}`}, {`{{ticket.ticket_id}}`}, {`{{user.name}}`}, etc. 
                 Você pode ver um preview do template após salvá-lo.
               </div>
@@ -1669,8 +1669,8 @@ export default function EmailSettings() {
 
             {/* Documentação de Variáveis Disponíveis */}
             {templateForm.type && (
-              <div className="border rounded-lg p-4 bg-gray-50">
-                <h4 className="font-medium text-gray-800 mb-3">
+              <div className="border border-border rounded-lg p-4 bg-muted">
+                <h4 className="font-medium text-foreground mb-3">
                   📋 Variáveis Disponíveis para "{EMAIL_TEMPLATE_TYPES.find(t => t.value === templateForm.type)?.label}"
                 </h4>
                 <div className="max-h-32 overflow-y-auto">
@@ -1681,12 +1681,12 @@ export default function EmailSettings() {
                         .find(v => v.key === variable);
                       
                       return (
-                        <div key={variable} className="bg-white p-2 rounded border">
-                          <code className="text-blue-600 font-medium">
+                        <div key={variable} className="bg-card p-2 rounded border border-border">
+                          <code className="text-primary font-medium">
                             {"{{"}{variable}{"}}"}
                           </code>
                           {variableInfo && (
-                            <div className="text-gray-600 text-xs mt-1">
+                            <div className="text-muted-foreground text-xs mt-1">
                               {variableInfo.description}
                             </div>
                           )}
@@ -1749,15 +1749,15 @@ export default function EmailSettings() {
           </DialogHeader>
           <div className="space-y-6">
             {Object.entries(AVAILABLE_VARIABLES).map(([category, info]) => (
-              <div key={category} className="border rounded-lg p-4">
-                <h3 className="font-semibold text-lg mb-3 text-gray-800">{info.label}</h3>
+              <div key={category} className="border border-border rounded-lg p-4">
+                <h3 className="font-semibold text-lg mb-3 text-foreground">{info.label}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {info.variables.map((variable) => (
-                    <div key={variable.key} className="bg-gray-50 p-3 rounded border">
-                      <code className="text-blue-600 font-bold text-sm">
+                    <div key={variable.key} className="bg-muted p-3 rounded border">
+                      <code className="text-primary font-bold text-sm">
                         {"{{"}{variable.key}{"}}"}
                       </code>
-                      <div className="text-gray-700 text-sm mt-2">
+                      <div className="text-muted-foreground text-sm mt-2">
                         {variable.description}
                       </div>
                     </div>
@@ -1766,9 +1766,9 @@ export default function EmailSettings() {
               </div>
             ))}
             
-            <div className="border rounded-lg p-4 bg-blue-50">
-              <h3 className="font-semibold text-lg mb-3 text-blue-800">💡 Dicas de Uso</h3>
-              <ul className="text-sm text-blue-700 space-y-1">
+            <div className="border border-border rounded-lg p-4 bg-primary/10">
+              <h3 className="font-semibold text-lg mb-3 text-primary">💡 Dicas de Uso</h3>
+              <ul className="text-sm text-primary space-y-1">
                 <li>• Use as variáveis exatamente como mostrado, incluindo as chaves duplas</li>
                 <li>• Nem todas as variáveis estão disponíveis para todos os tipos de template</li>
                 <li>• O sistema substitui automaticamente as variáveis pelos valores reais</li>
@@ -1787,3 +1787,8 @@ export default function EmailSettings() {
     </div>
   );
 }
+
+
+
+
+

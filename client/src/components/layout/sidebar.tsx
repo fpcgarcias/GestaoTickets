@@ -42,13 +42,15 @@ const SidebarItem = ({ href, icon, label, isActive }: {
   return (
     <Link href={href}>
       <div className={cn(
-        "sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer",
+        "sidebar-item flex items-center px-4 py-3 rounded-md mb-1 cursor-pointer transition-colors",
         isActive 
-          ? "active" 
-          : "text-neutral-700 hover:bg-neutral-100"
+          ? "active bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm"
+          : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
       )}>
         <span className="mr-3 text-lg">{icon}</span>
-        <span className={isActive ? "font-medium" : ""}>{label}</span>
+        <span className={cn("text-sm font-medium", isActive ? "text-sidebar-accent-foreground" : "text-inherit")}>
+          {label}
+        </span>
       </div>
     </Link>
   );
@@ -94,8 +96,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   return (
     <>
       {/* Versão desktop da barra lateral */}
-      <div className="w-64 bg-white border-r border-neutral-200 flex-shrink-0 hidden md:flex md:flex-col h-screen">
-        <div className="p-6 border-b border-neutral-200">
+      <div className="w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex-shrink-0 hidden md:flex md:flex-col h-screen transition-colors">
+        <div className="p-6 border-b border-sidebar-border">
           {companyLogo ? (
             <div className="flex justify-center">
               <img 
@@ -106,7 +108,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
               />
             </div>
           ) : (
-            <h1 className="text-xl font-semibold text-neutral-900">{companyName}</h1>
+            <h1 className="text-xl font-semibold text-sidebar-foreground">{companyName}</h1>
           )}
         </div>
         <nav className="p-4 flex-1 overflow-y-auto">
@@ -122,13 +124,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   : currentPath.startsWith(item.href)
               }
             />
-          ))}
+          ))} 
         </nav>
         
         {/* Versão do Sistema - Fixo no final */}
-        <div className="p-4 border-t border-neutral-200 mt-auto">
+        <div className="p-4 border-t border-sidebar-border mt-auto">
           <Link href="/changelog">
-            <div className="text-xs text-neutral-500 hover:text-neutral-700 cursor-pointer transition-colors">
+            <div className="text-xs text-muted-foreground hover:text-sidebar-foreground cursor-pointer transition-colors">
               Versão {currentVersion}
             </div>
           </Link>
@@ -136,7 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       </div>
       
       {/* Versão mobile da barra lateral (visível apenas em telas pequenas) */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 md:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-sidebar border-t border-sidebar-border text-sidebar-foreground md:hidden transition-colors">
         <nav className="flex justify-around p-2 overflow-x-auto">
           {filteredNavItems.slice(0, 5).map((item) => (
             <Link 
@@ -147,8 +149,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                 (item.href === "/" 
                   ? currentPath === "/" 
                   : currentPath.startsWith(item.href))
-                ? "text-primary bg-primary/10" 
-                : "text-neutral-700 hover:text-primary hover:bg-neutral-100"
+                ? "text-sidebar-primary bg-sidebar-primary/15" 
+                : "text-muted-foreground hover:text-sidebar-primary hover:bg-sidebar-accent/60"
               )}
             >
               {item.icon}
@@ -163,14 +165,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  className="flex flex-col items-center p-2 min-w-0 flex-shrink-0 h-auto"
+                  className="flex flex-col items-center p-2 min-w-0 flex-shrink-0 h-auto text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
                 >
                   <Menu className="h-5 w-5" />
                   <span className="text-[10px] mt-1">Mais</span>
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-80">
-                <div className="p-6 border-b border-neutral-200">
+              <SheetContent side="left" className="p-0 w-80 bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+                <div className="p-6 border-b border-sidebar-border">
                   {companyLogo ? (
                     <div className="flex justify-center">
                       <img 
@@ -181,7 +183,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                       />
                     </div>
                   ) : (
-                    <h2 className="text-lg font-semibold">{companyName}</h2>
+                    <h2 className="text-lg font-semibold text-sidebar-foreground">{companyName}</h2>
                   )}
                 </div>
                 <ScrollArea className="flex-1">
@@ -191,12 +193,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         key={index}
                         href={item.href}
                         className={cn(
-                          'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground',
+                          'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                           (item.href === "/" 
                             ? currentPath === "/" 
                             : currentPath.startsWith(item.href))
-                          ? 'bg-accent text-accent-foreground' 
-                          : 'text-muted-foreground'
+                          ? 'bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm' 
+                          : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground'
                         )}
                         onClick={() => setIsMobileMenuOpen(false)}
                       >
@@ -206,7 +208,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                     ))}
                   </nav>
                 </ScrollArea>
-                <div className="mt-auto p-4 border-t">
+                <div className="mt-auto p-4 border-t border-sidebar-border">
                   <Button
                     variant="outline"
                     className="w-full justify-start"

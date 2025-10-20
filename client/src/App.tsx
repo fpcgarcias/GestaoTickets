@@ -58,11 +58,11 @@ function MainLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex bg-background text-foreground transition-colors">
       <Sidebar currentPath={location} />
       <div className="flex-1 flex flex-col">
         <Header />
-        <div className="flex-1 overflow-auto p-6 bg-neutral-50 pb-20 md:pb-6">
+        <div className="flex-1 overflow-auto p-6 bg-muted/30 pb-20 md:pb-6 transition-colors">
           <Suspense fallback={<PageLoading />}>
             {children}
           </Suspense>

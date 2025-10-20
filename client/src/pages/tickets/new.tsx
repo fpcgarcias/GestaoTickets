@@ -14,7 +14,7 @@ export default function NewTicket() {
             Voltar para chamados
           </Link>
         </Button>
-        <h1 className="text-2xl font-semibold text-neutral-900">Novo Chamado</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Novo Chamado</h1>
       </div>
 
       <TicketForm />
