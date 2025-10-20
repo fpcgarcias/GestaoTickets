@@ -106,8 +106,8 @@ try {
       standardHeaders: true,
       legacyHeaders: false,
       // USAR HELPER DO EXPRESS-RATE-LIMIT PARA IP CORRETO
-      keyGenerator: ipKeyGenerator,
-      trustProxy: true
+      keyGenerator: (req) => ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown')
+      // trustProxy é configurado globalmente no express
     });
 
     authLimiter = rateLimit({
@@ -121,8 +121,8 @@ try {
       standardHeaders: true,
       legacyHeaders: false,
       // USAR HELPER DO EXPRESS-RATE-LIMIT PARA IP CORRETO
-      keyGenerator: ipKeyGenerator,
-      trustProxy: true
+      keyGenerator: (req) => ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown')
+      // trustProxy é configurado globalmente no express
     });
 
     uploadLimiter = rateLimit({
@@ -135,8 +135,8 @@ try {
       standardHeaders: true,
       legacyHeaders: false,
       // USAR HELPER DO EXPRESS-RATE-LIMIT PARA IP CORRETO
-      keyGenerator: ipKeyGenerator,
-      trustProxy: true
+      keyGenerator: (req) => ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown')
+      // trustProxy é configurado globalmente no express
     });
   } else {
     // Em desenvolvimento, criar middlewares vazios que não fazem nada

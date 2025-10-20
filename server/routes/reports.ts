@@ -1784,7 +1784,11 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
       try {
         browser = await puppeteer.launch({
           headless: true,
-          args: ['--no-sandbox', '--disable-setuid-sandbox']
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+          // Configuração para Windows - usar Chrome/Chromium instalado
+          executablePath: process.platform === 'win32' 
+            ? undefined // Deixa o Puppeteer encontrar automaticamente
+            : '/usr/bin/chromium-browser'
         });
         
         const page = await browser.newPage();

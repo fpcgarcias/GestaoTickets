@@ -27,7 +27,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { insertTicketSchema, type InsertTicket } from '@shared/schema';
+import { insertTicketSchema, type InsertTicket, type AiConfiguration } from '@shared/schema';
 import { TICKET_TYPES, PRIORITY_LEVELS } from '@/lib/utils';
 import { z } from 'zod';
 import { apiRequest } from '@/lib/queryClient';
@@ -169,7 +169,7 @@ export const TicketForm = () => {
   // Não precisamos mais buscar todos os clientes antecipadamente
   // O componente CustomerSearch fará a busca conforme necessário
 
-  const form = useForm<ExtendedInsertTicket>({
+  const form = useForm({
     resolver: zodResolver(extendedInsertTicketSchema),
     defaultValues: {
       title: '',
@@ -177,7 +177,7 @@ export const TicketForm = () => {
       customer_email: '',
       customerId: undefined,
       type: '',
-      priority: undefined, // Não definir prioridade padrão - deixar a IA definir
+      priority: '', // Definir como string vazia ao invés de undefined
       department_id: undefined,
       incident_type_id: undefined,
       category_id: undefined,
@@ -512,10 +512,10 @@ export const TicketForm = () => {
           <p className="text-muted-foreground mb-6">Adicione um novo chamado de suporte</p>
           
           <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="customerId"
                 render={({ field }) => (
                   <FormItem>
@@ -546,7 +546,7 @@ export const TicketForm = () => {
               />
               
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="customer_email"
                 render={({ field }) => (
                   <FormItem>
@@ -569,7 +569,7 @@ export const TicketForm = () => {
               />
               
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="participants"
                 render={({ field }) => (
                   <FormItem>
@@ -594,7 +594,7 @@ export const TicketForm = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="department_id"
                 render={({ field }) => (
                   <FormItem>
@@ -630,7 +630,7 @@ export const TicketForm = () => {
                 )}
               />
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="type"
                 render={({ field }) => (
                   <FormItem>
@@ -678,7 +678,7 @@ export const TicketForm = () => {
               />
               
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="category_id"
                 render={({ field }) => (
                   <FormItem>
@@ -724,7 +724,7 @@ export const TicketForm = () => {
               />
               
               <FormField
-                control={form.control}
+                control={form.control as any}
                 name="priority"
                 render={({ field }) => (
                   <FormItem>

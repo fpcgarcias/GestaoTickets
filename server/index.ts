@@ -175,9 +175,8 @@ try {
       standardHeaders: true,
       legacyHeaders: false,
       // USAR HELPER DO EXPRESS-RATE-LIMIT PARA IP CORRETO
-      keyGenerator: ipKeyGenerator,
-      // Configurar para aceitar trust proxy
-      trustProxy: true
+      keyGenerator: (req) => ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown')
+      // trustProxy é configurado globalmente no express
     });
 
     authLimiter = rateLimit({
@@ -186,8 +185,8 @@ try {
       message: "Muitas tentativas de login. Tente novamente em 15 minutos.",
       skipSuccessfulRequests: true,
       // USAR HELPER DO EXPRESS-RATE-LIMIT PARA IP CORRETO
-      keyGenerator: ipKeyGenerator,
-      trustProxy: true
+      keyGenerator: (req) => ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown')
+      // trustProxy é configurado globalmente no express
     });
 
     app.use(generalLimiter);
