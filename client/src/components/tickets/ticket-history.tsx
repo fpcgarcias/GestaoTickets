@@ -113,29 +113,16 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                   <AvatarImage src={reply.user.avatar_url || ""} />
                   <AvatarFallback className="text-xs">{reply.user.name?.charAt(0) || "U"}</AvatarFallback>
                 </Avatar>
-<<<<<<< HEAD
-                <span className="font-semibold text-sm text-blue-700">{getUserDisplayName(reply.user.name, locale)}</span>
-                <span className="text-sm text-gray-500">{formatMessage('ticket_history.added_comment')}</span>
-              </>
-            ) : (
-              <>
-                <User className="w-4 h-4 text-gray-400" />
-                <span className="text-sm text-gray-500 italic">{formatMessage('ticket_history.unidentified_user')}</span>
-              </>
-            )}
-            <span className="text-xs text-gray-400 ml-auto">{formatDate(reply.created_at, locale)}</span>
-=======
-                <span className="font-semibold text-sm text-primary">{reply.user.name}</span>
-                <span className="text-sm text-muted-foreground">adicionou um comentário</span>
+                <span className="font-semibold text-sm text-primary">{getUserDisplayName(reply.user.name, locale)}</span>
+                <span className="text-sm text-muted-foreground">{formatMessage('ticket_history.added_comment')}</span>
               </>
             ) : (
               <>
                 <User className="w-4 h-4 text-muted-foreground/80" />
-                <span className="text-sm text-muted-foreground italic">Usuário não identificado adicionou um comentário</span>
+                <span className="text-sm text-muted-foreground italic">{formatMessage('ticket_history.unidentified_user')}</span>
               </>
             )}
-            <span className="text-xs text-muted-foreground/80 ml-auto">{formatDate(reply.created_at)}</span>
->>>>>>> main
+            <span className="text-xs text-muted-foreground/80 ml-auto">{formatDate(reply.created_at, locale)}</span>
           </div>
           
           <div className="mt-2 p-3 bg-muted rounded-lg text-muted-foreground text-sm border-l-3 border-l-primary/60">
@@ -149,13 +136,8 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
               </Badge>
             )}
             {reply.user?.role && ['integration_bot', 'quality', 'triage', 'admin'].includes(reply.user.role) && (
-<<<<<<< HEAD
-              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                {translateUserRole(reply.user.role, locale)}
-=======
               <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">
-                {translateUserRole(reply.user.role)}
->>>>>>> main
+                {translateUserRole(reply.user.role, locale)}
               </Badge>
             )}
           </div>
@@ -180,57 +162,32 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                     {deptChange.user.role === 'integration_bot' ? '🤖' : deptChange.user.name?.charAt(0) || "U"}
                   </AvatarFallback>
                 </Avatar>
-<<<<<<< HEAD
                 <span className="font-semibold text-sm text-indigo-700">{getUserDisplayName(deptChange.user.name, locale)}</span>
-                <span className="text-sm text-gray-500">{formatMessage('ticket_history.transferred_ticket')}</span>
-              </>
-            ) : (
-              <>
-                <User className="w-4 h-4 text-gray-400" />
-                <span className="text-sm text-gray-500 italic">{formatMessage('ticket_history.unidentified_transferred')}</span>
-              </>
-            )}
-            <span className="text-xs text-gray-400 ml-auto">{formatDate(deptChange.created_at, locale)}</span>
-=======
-                <span className="font-semibold text-sm text-indigo-700">{deptChange.user.name}</span>
-                <span className="text-sm text-muted-foreground">transferiu o chamado</span>
+                <span className="text-sm text-muted-foreground">{formatMessage('ticket_history.transferred_ticket')}</span>
               </>
             ) : (
               <>
                 <User className="w-4 h-4 text-muted-foreground/80" />
-                <span className="text-sm text-muted-foreground italic">Usuário não identificado transferiu o chamado</span>
+                <span className="text-sm text-muted-foreground italic">{formatMessage('ticket_history.unidentified_transferred')}</span>
               </>
             )}
-            <span className="text-xs text-muted-foreground/80 ml-auto">{formatDate(deptChange.created_at)}</span>
->>>>>>> main
+            <span className="text-xs text-muted-foreground/80 ml-auto">{formatDate(deptChange.created_at, locale)}</span>
           </div>
           <div className="mt-1 text-sm text-muted-foreground space-y-1">
             <div>
-<<<<<<< HEAD
-              <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">{formatMessage('ticket_history.department')}</Badge>
-=======
-              <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-border">Departamento:</Badge>
->>>>>>> main
+              <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-border">{formatMessage('ticket_history.department')}</Badge>
               <span className="ml-2">{deptChange.old_department_name || '—'}</span>
               <span className="mx-2 text-muted-foreground/80">→</span>
               <span>{deptChange.new_department_name || '—'}</span>
             </div>
             <div>
-<<<<<<< HEAD
-              <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">{formatMessage('ticket_history.type')}</Badge>
-=======
-              <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-border">Tipo:</Badge>
->>>>>>> main
+              <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-border">{formatMessage('ticket_history.type')}</Badge>
               <span className="ml-2">{deptChange.old_incident_type_name || '—'}</span>
               <span className="mx-2 text-muted-foreground/80">→</span>
               <span>{deptChange.new_incident_type_name || '—'}</span>
             </div>
             <div>
-<<<<<<< HEAD
-              <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">{formatMessage('ticket_history.category')}</Badge>
-=======
-              <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-border">Categoria:</Badge>
->>>>>>> main
+              <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-border">{formatMessage('ticket_history.category')}</Badge>
               <span className="ml-2">{deptChange.old_category_name || '—'}</span>
               <span className="mx-2 text-muted-foreground/80">→</span>
               <span>{deptChange.new_category_name || '—'}</span>
@@ -259,37 +216,20 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                   <AvatarImage src={assignment.user.avatar_url || ""} />
                   <AvatarFallback className="text-xs">{assignment.user.name?.charAt(0) || "U"}</AvatarFallback>
                 </Avatar>
-<<<<<<< HEAD
                 <span className="font-semibold text-sm text-teal-700">{getUserDisplayName(assignment.user.name, locale)}</span>
-                <span className="text-sm text-gray-500">{formatMessage('ticket_history.transferred_responsibility')}</span>
-              </>
-            ) : (
-              <>
-                <User className="w-4 h-4 text-gray-400" />
-                <span className="text-sm text-gray-500 italic">{formatMessage('ticket_history.unidentified_transferred_responsibility')}</span>
-              </>
-            )}
-            <span className="text-xs text-gray-400 ml-auto">{formatDate(assignment.created_at, locale)}</span>
-          </div>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <Badge variant="outline" className="text-xs bg-gray-50 text-gray-700 border-gray-200">
-              {formatMessage('ticket_history.from_assignment')} {oldOfficial?.name || formatMessage('ticket_history.not_assigned')}
-=======
-                <span className="font-semibold text-sm text-teal-700">{assignment.user.name}</span>
-                <span className="text-sm text-muted-foreground">transferiu a responsabilidade</span>
+                <span className="text-sm text-muted-foreground">{formatMessage('ticket_history.transferred_responsibility')}</span>
               </>
             ) : (
               <>
                 <User className="w-4 h-4 text-muted-foreground/80" />
-                <span className="text-sm text-muted-foreground italic">Usuário não identificado transferiu a responsabilidade</span>
+                <span className="text-sm text-muted-foreground italic">{formatMessage('ticket_history.unidentified_transferred_responsibility')}</span>
               </>
             )}
-            <span className="text-xs text-muted-foreground/80 ml-auto">{formatDate(assignment.created_at)}</span>
+            <span className="text-xs text-muted-foreground/80 ml-auto">{formatDate(assignment.created_at, locale)}</span>
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <Badge variant="outline" className="text-xs bg-muted text-muted-foreground border-border">
-              De: {oldOfficial?.name || 'Não atribuído'}
->>>>>>> main
+              {formatMessage('ticket_history.from_assignment')} {oldOfficial?.name || formatMessage('ticket_history.not_assigned')}
             </Badge>
             <span className="text-sm text-muted-foreground/80">→</span>
             <Badge variant="outline" className="text-xs bg-teal-50 text-teal-700 border-teal-200">
@@ -330,29 +270,16 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                       {statusChange.user.role === 'integration_bot' ? '🤖' : statusChange.user.name?.charAt(0) || "U"}
                     </AvatarFallback>
                   </Avatar>
-<<<<<<< HEAD
-                  <span className="font-semibold text-sm text-purple-700">{getUserDisplayName(statusChange.user.name, locale)}</span>
-                  <span className="text-sm text-gray-500">{formatMessage('ticket_history.changed_priority')}</span>
-                </>
-              ) : (
-                <>
-                  <User className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-500 italic">{formatMessage('ticket_history.unidentified_changed_priority')}</span>
-                </>
-              )}
-              <span className="text-xs text-gray-400 ml-auto">{formatDate(statusChange.created_at, locale)}</span>
-=======
-                  <span className="font-semibold text-sm text-purple-400">{statusChange.user.name}</span>
-                  <span className="text-sm text-muted-foreground">alterou a prioridade de</span>
+                  <span className="font-semibold text-sm text-purple-400">{getUserDisplayName(statusChange.user.name, locale)}</span>
+                  <span className="text-sm text-muted-foreground">{formatMessage('ticket_history.changed_priority')}</span>
                 </>
               ) : (
                 <>
                   <User className="w-4 h-4 text-muted-foreground/80" />
-                  <span className="text-sm text-muted-foreground italic">Usuário não identificado alterou a prioridade de</span>
+                  <span className="text-sm text-muted-foreground italic">{formatMessage('ticket_history.unidentified_changed_priority')}</span>
                 </>
               )}
-              <span className="text-xs text-muted-foreground/80 ml-auto">{formatDate(statusChange.created_at)}</span>
->>>>>>> main
+              <span className="text-xs text-muted-foreground/80 ml-auto">{formatDate(statusChange.created_at, locale)}</span>
             </div>
             
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -365,13 +292,8 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
               </Badge>
               
               {statusChange.user?.role && ['integration_bot', 'quality', 'triage', 'admin'].includes(statusChange.user.role) && (
-<<<<<<< HEAD
-                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 ml-2">
-                  {translateUserRole(statusChange.user.role, locale)}
-=======
                 <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-400 border-purple-400/30 ml-2">
-                  {translateUserRole(statusChange.user.role)}
->>>>>>> main
+                  {translateUserRole(statusChange.user.role, locale)}
                 </Badge>
               )}
             </div>
@@ -400,29 +322,16 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
                       {statusChange.user.role === 'integration_bot' ? '🤖' : statusChange.user.name?.charAt(0) || "U"}
                     </AvatarFallback>
                   </Avatar>
-<<<<<<< HEAD
-                  <span className="font-semibold text-sm text-purple-700">{getUserDisplayName(statusChange.user.name, locale)}</span>
-                  <span className="text-sm text-gray-500">{formatMessage('ticket_history.changed_status')}</span>
-                </>
-              ) : (
-                <>
-                  <User className="w-4 h-4 text-gray-400" />
-                  <span className="text-sm text-gray-500 italic">{formatMessage('ticket_history.unidentified_changed_status')}</span>
-                </>
-              )}
-              <span className="text-xs text-gray-400 ml-auto">{formatDate(statusChange.created_at, locale)}</span>
-=======
-                                     <span className="font-semibold text-sm text-purple-400">{statusChange.user.name}</span>
-                  <span className="text-sm text-muted-foreground">alterou o status de</span>
+                  <span className="font-semibold text-sm text-purple-400">{getUserDisplayName(statusChange.user.name, locale)}</span>
+                  <span className="text-sm text-muted-foreground">{formatMessage('ticket_history.changed_status')}</span>
                 </>
               ) : (
                 <>
                   <User className="w-4 h-4 text-muted-foreground/80" />
-                  <span className="text-sm text-muted-foreground italic">Usuário não identificado alterou o status de</span>
+                  <span className="text-sm text-muted-foreground italic">{formatMessage('ticket_history.unidentified_changed_status')}</span>
                 </>
               )}
-              <span className="text-xs text-muted-foreground/80 ml-auto">{formatDate(statusChange.created_at)}</span>
->>>>>>> main
+              <span className="text-xs text-muted-foreground/80 ml-auto">{formatDate(statusChange.created_at, locale)}</span>
             </div>
             
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -435,13 +344,8 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
               </Badge>
               
               {statusChange.user?.role && ['integration_bot', 'quality', 'triage', 'admin'].includes(statusChange.user.role) && (
-<<<<<<< HEAD
-                <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 ml-2">
-                  {translateUserRole(statusChange.user.role, locale)}
-=======
                 <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-400 border-purple-400/30 ml-2">
-                  {translateUserRole(statusChange.user.role)}
->>>>>>> main
+                  {translateUserRole(statusChange.user.role, locale)}
                 </Badge>
               )}
             </div>
@@ -544,17 +448,10 @@ export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticketId }) => {
       </CardHeader>
       <CardContent>
         {historyItems.length === 0 ? (
-<<<<<<< HEAD
-          <div className="text-gray-500 p-4 bg-gray-50 rounded-md text-center">
+          <div className="text-muted-foreground p-4 bg-muted rounded-md text-center">
             📝 {formatMessage('ticket_history.no_activity')}
             <br />
-            <span className="text-xs text-gray-400">{formatMessage('ticket_history.start_history')}</span>
-=======
-          <div className="text-muted-foreground p-4 bg-muted rounded-md text-center">
-            📝 Nenhuma atividade registrada para este chamado.
-            <br />
-            <span className="text-xs text-muted-foreground/80">Adicione um comentário ou altere o status para começar o histórico.</span>
->>>>>>> main
+            <span className="text-xs text-muted-foreground/80">{formatMessage('ticket_history.start_history')}</span>
           </div>
         ) : (
           <div className="space-y-2">

@@ -694,13 +694,8 @@ export default function PrioritySettings() {
                             >
                               {priority.name}
                             </Badge>
-<<<<<<< HEAD
-                            <span className="text-sm text-gray-500">
-                              {formatMessage('priorities.weight', { weight: priority.weight })}
-=======
                             <span className="text-sm text-muted-foreground">
-                              Peso: {priority.weight}
->>>>>>> main
+                              {formatMessage('priorities.weight', { weight: priority.weight })}
                             </span>
                             {isUsingDefaults && (
                               <Badge variant="outline" className="text-xs">

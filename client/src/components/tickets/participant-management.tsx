@@ -310,7 +310,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                       {participant.user?.email || 'Email não informado'}
                     </div>
                     <div className="text-xs text-muted-foreground/80">
-                      {formatMessage('participants.added_by')} {participant.added_by?.name || formatMessage('participants.system')} em {formatDate(participant.added_at, locale)}
+                      {formatMessage('participants.added_by')} {participant.added_by?.name || formatMessage('participants.system')} em {formatDate(participant.added_at)}
                     </div>
                   </div>
                 </div>
@@ -387,7 +387,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                   <span className="font-medium">{item.user?.name || 'Usuário'}</span>
                   <span className="text-muted-foreground">{formatMessage('participants.by')} {item.performed_by?.name || formatMessage('participants.system')}</span>
                   <span className="text-muted-foreground/80 text-xs">
-                    {formatDate(item.performed_at, locale)}
+                    {formatDate(item.performed_at)}
                   </span>
                 </div>
               ))}

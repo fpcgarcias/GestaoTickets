@@ -268,7 +268,7 @@ const AttachmentsList = React.forwardRef(function AttachmentsList({
                     
                     <div className="flex items-center space-x-4 mt-1">
                       <p className="text-xs text-muted-foreground">
-                        {formatMessage('attachments.sent_on')} {formatDate(attachment.uploaded_at, locale)}
+                        {formatMessage('attachments.sent_on')} {formatDate(attachment.uploaded_at)}
                       </p>
                       {attachment.user && (
                         <p className="text-xs text-muted-foreground">

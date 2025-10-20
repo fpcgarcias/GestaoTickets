@@ -67,21 +67,12 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
           <div>
             <div className="flex items-center mb-2">
               <StatusDot status={ticket.status} className="mr-2" />
-<<<<<<< HEAD
-              <span className="font-medium text-neutral-800">{formatMessage('tickets.ticket_number', { number: ticket.ticket_id })}</span>
-            </div>
-            <h2 className="text-xl font-semibold">{ticket.title}</h2>
-          </div>
-          <div className="text-sm text-neutral-500">
-            {formatMessage('tickets.created_at')} {ticket.created_at ? formatDate(ticket.created_at, locale) : formatMessage('tickets.unknown_date')}
-=======
-              <span className="font-medium text-foreground">Chamado #{ticket.ticket_id}</span>
+              <span className="font-medium text-foreground">{formatMessage('tickets.ticket_number', { number: ticket.ticket_id })}</span>
             </div>
             <h2 className="text-xl font-semibold">{ticket.title}</h2>
           </div>
           <div className="text-sm text-muted-foreground">
-            Criado em {ticket.created_at ? formatDate(ticket.created_at) : 'Data desconhecida'}
->>>>>>> main
+            {formatMessage('tickets.created_at')} {ticket.created_at ? formatDate(ticket.created_at, locale) : formatMessage('tickets.unknown_date')}
           </div>
         </div>
         
@@ -90,17 +81,10 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
           <div className="flex items-center gap-2 mb-4 bg-primary/10 p-3 rounded-md">
             <Building className="h-5 w-5 text-primary" />
             <div>
-<<<<<<< HEAD
-              <span className="text-sm text-blue-700 font-medium">{formatMessage('tickets.client')}: </span>
-              <span className="text-sm text-blue-800">{ticket.customer.name}</span>
-              {ticket.customer.email && (
-                <> - <span className="text-sm text-blue-600">{ticket.customer.email}</span></>
-=======
-              <span className="text-sm text-primary font-medium">Cliente: </span>
+              <span className="text-sm text-primary font-medium">{formatMessage('tickets.client')}: </span>
               <span className="text-sm text-primary">{ticket.customer?.name}</span>
               {ticket.customer?.email && (
                 <> - <span className="text-sm text-primary">{ticket.customer?.email}</span></>
->>>>>>> main
               )}
             </div>
           </div>
@@ -109,13 +93,8 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
           <div className="flex items-center gap-2 mb-4 bg-amber-500/10 p-3 rounded-md">
             <Building className="h-5 w-5 text-amber-500" />
             <div>
-<<<<<<< HEAD
-              <span className="text-sm text-yellow-700 font-medium">{formatMessage('tickets.client')}: </span>
-              <span className="text-sm text-yellow-800">(Não cadastrado) - {ticket.customer_email}</span>
-=======
-              <span className="text-sm text-amber-500 font-medium">Cliente: </span>
+              <span className="text-sm text-amber-500 font-medium">{formatMessage('tickets.client')}: </span>
               <span className="text-sm text-amber-600">(Não cadastrado) - {ticket.customer_email}</span>
->>>>>>> main
             </div>
           </div>
         ) : null}

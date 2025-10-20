@@ -323,11 +323,7 @@ const SatisfactionDashboard: React.FC = () => {
   };
 
   const renderStars = (rating: number | null) => {
-<<<<<<< HEAD
-    if (rating === null) return <span className="text-gray-400">{formatMessage('satisfaction_dashboard.not_rated')}</span>;
-=======
-    if (rating === null) return <span className="text-muted-foreground/80">Não avaliado</span>;
->>>>>>> main
+    if (rating === null) return <span className="text-muted-foreground/80">{formatMessage('satisfaction_dashboard.not_rated')}</span>;
     
     return (
       <div className="flex gap-1">
@@ -357,19 +353,11 @@ const SatisfactionDashboard: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'sent':
-<<<<<<< HEAD
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700">{formatMessage('satisfaction_dashboard.sent')}</Badge>;
+        return <Badge variant="outline" className="bg-primary/10 text-primary">{formatMessage('satisfaction_dashboard.sent')}</Badge>;
       case 'responded':
-        return <Badge variant="outline" className="bg-green-50 text-green-700">{formatMessage('satisfaction_dashboard.responded')}</Badge>;
+        return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400">{formatMessage('satisfaction_dashboard.responded')}</Badge>;
       case 'expired':
-        return <Badge variant="outline" className="bg-gray-50 text-gray-700">{formatMessage('satisfaction_dashboard.expired')}</Badge>;
-=======
-        return <Badge variant="outline" className="bg-primary/10 text-primary">Enviado</Badge>;
-      case 'responded':
-        return <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400">Respondido</Badge>;
-      case 'expired':
-        return <Badge variant="outline" className="bg-muted text-muted-foreground">Expirado</Badge>;
->>>>>>> main
+        return <Badge variant="outline" className="bg-muted text-muted-foreground">{formatMessage('satisfaction_dashboard.expired')}</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -379,13 +367,8 @@ const SatisfactionDashboard: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-<<<<<<< HEAD
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">{formatMessage('satisfaction_dashboard.access_denied')}</h2>
-          <p className="text-gray-600">{formatMessage('satisfaction_dashboard.access_denied_description')}</p>
-=======
-          <h2 className="text-xl font-semibold text-foreground mb-2">Acesso Negado</h2>
-          <p className="text-muted-foreground">Você não tem permissão para acessar este dashboard.</p>
->>>>>>> main
+          <h2 className="text-xl font-semibold text-foreground mb-2">{formatMessage('satisfaction_dashboard.access_denied')}</h2>
+          <p className="text-muted-foreground">{formatMessage('satisfaction_dashboard.access_denied_description')}</p>
         </div>
       </div>
     );
@@ -396,13 +379,8 @@ const SatisfactionDashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-<<<<<<< HEAD
-          <h1 className="text-2xl font-bold text-gray-900">{formatMessage('satisfaction_dashboard.title')}</h1>
-          <p className="text-gray-600">{formatMessage('satisfaction_dashboard.description')}</p>
-=======
-          <h1 className="text-2xl font-bold text-foreground">Dashboard de Satisfação</h1>
-          <p className="text-muted-foreground">Acompanhe as avaliações dos clientes sobre o atendimento</p>
->>>>>>> main
+          <h1 className="text-2xl font-bold text-foreground">{formatMessage('satisfaction_dashboard.title')}</h1>
+          <p className="text-muted-foreground">{formatMessage('satisfaction_dashboard.description')}</p>
         </div>
         <Button onClick={exportData} variant="outline">
           <Download className="h-4 w-4 mr-2" />
@@ -543,13 +521,8 @@ const SatisfactionDashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-<<<<<<< HEAD
-                  <p className="text-sm font-medium text-gray-600">{formatMessage('satisfaction_dashboard.total_sent')}</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats?.total_sent || 0}</p>
-=======
-                  <p className="text-sm font-medium text-muted-foreground">Total Enviado</p>
+                  <p className="text-sm font-medium text-muted-foreground">{formatMessage('satisfaction_dashboard.total_sent')}</p>
                   <p className="text-3xl font-bold text-foreground">{stats?.total_sent || 0}</p>
->>>>>>> main
                 </div>
                 <div className="p-3 bg-primary/10 rounded-full">
                   <MessageSquare className="h-6 w-6 text-primary" />
@@ -563,11 +536,7 @@ const SatisfactionDashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-<<<<<<< HEAD
-                  <p className="text-sm font-medium text-gray-600">{formatMessage('satisfaction_dashboard.response_rate')}</p>
-=======
-                  <p className="text-sm font-medium text-muted-foreground">Taxa de Resposta</p>
->>>>>>> main
+                  <p className="text-sm font-medium text-muted-foreground">{formatMessage('satisfaction_dashboard.response_rate')}</p>
                   <div className="flex items-center gap-2">
                     <p className="text-3xl font-bold text-foreground">
                       {stats?.response_rate ? `${stats.response_rate.toFixed(1)}%` : '0%'}
@@ -593,11 +562,7 @@ const SatisfactionDashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-<<<<<<< HEAD
-                  <p className="text-sm font-medium text-gray-600">{formatMessage('satisfaction_dashboard.average_rating')}</p>
-=======
-                  <p className="text-sm font-medium text-muted-foreground">Avaliação Média</p>
->>>>>>> main
+                  <p className="text-sm font-medium text-muted-foreground">{formatMessage('satisfaction_dashboard.average_rating')}</p>
                   <div className="flex items-center gap-2">
                     <p className="text-3xl font-bold text-foreground">
                       {stats?.average_rating ? stats.average_rating.toFixed(1) : '0.0'}
@@ -626,13 +591,8 @@ const SatisfactionDashboard: React.FC = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-<<<<<<< HEAD
-                  <p className="text-sm font-medium text-gray-600">{formatMessage('satisfaction_dashboard.total_responded')}</p>
-                  <p className="text-3xl font-bold text-gray-900">{stats?.total_responded || 0}</p>
-=======
-                  <p className="text-sm font-medium text-muted-foreground">Total Respondido</p>
+                  <p className="text-sm font-medium text-muted-foreground">{formatMessage('satisfaction_dashboard.total_responded')}</p>
                   <p className="text-3xl font-bold text-foreground">{stats?.total_responded || 0}</p>
->>>>>>> main
                 </div>
                 <div className="p-3 bg-purple-100 rounded-full">
                   <BarChart3 className="h-6 w-6 text-purple-600" />
@@ -671,21 +631,12 @@ const SatisfactionDashboard: React.FC = () => {
                 </div>
               ) : surveys.length === 0 ? (
                 <div className="text-center py-8">
-<<<<<<< HEAD
-                  <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    {formatMessage('satisfaction_dashboard.no_surveys_found')}
-                  </h3>
-                  <p className="text-gray-600">
-                    {formatMessage('satisfaction_dashboard.no_surveys_description')}
-=======
                   <MessageSquare className="h-12 w-12 text-muted-foreground/80 mx-auto mb-4" />
                   <h3 className="text-lg font-medium text-foreground mb-2">
-                    Nenhuma pesquisa encontrada
+                    {formatMessage('satisfaction_dashboard.no_surveys_found')}
                   </h3>
                   <p className="text-muted-foreground">
-                    Não há pesquisas de satisfação para os filtros selecionados.
->>>>>>> main
+                    {formatMessage('satisfaction_dashboard.no_surveys_description')}
                   </p>
                 </div>
               ) : (
@@ -745,41 +696,29 @@ const SatisfactionDashboard: React.FC = () => {
                                 {getRatingText(survey.rating)}
                               </p>
                               {survey.responded_at && (
-<<<<<<< HEAD
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-muted-foreground mt-1">
                                   {formatMessage('satisfaction_dashboard.responded_at')}{' '}
                                   {format(new Date(survey.responded_at), locale === 'en-US' ? 'MM/dd/yyyy' : 'dd/MM/yyyy', { locale: locale === 'en-US' ? enUS : ptBR })}
-=======
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Respondido em{' '}
-                                  {format(new Date(survey.responded_at), 'dd/MM/yyyy', { locale: ptBR })}
->>>>>>> main
                                 </p>
                               )}
                             </div>
                           ) : (
-<<<<<<< HEAD
-                            <div className="text-gray-400">
-                              <MessageSquare className="h-8 w-8 mx-auto mb-1" />
-                              <p className="text-xs">{formatMessage('satisfaction_dashboard.waiting_response')}</p>
-=======
                             <div className="text-muted-foreground/80 text-center">
                               {survey.status === 'expired' ? (
                                 <>
                                   <Timer className="h-8 w-8 mx-auto mb-1" />
-                                  <p className="text-xs font-medium text-destructive">Expirado</p>
+                                  <p className="text-xs font-medium text-destructive">{formatMessage('satisfaction_dashboard.expired')}</p>
                                   <p className="text-[11px] mt-1">
-                                    Expirou em{' '}
-                                    {format(new Date(survey.expires_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                                    {formatMessage('satisfaction_dashboard.expired_at')}{' '}
+                                    {format(new Date(survey.expires_at), locale === 'en-US' ? 'MM/dd/yyyy HH:mm' : 'dd/MM/yyyy HH:mm', { locale: locale === 'en-US' ? enUS : ptBR })}
                                   </p>
                                 </>
                               ) : (
                                 <>
                                   <MessageSquare className="h-8 w-8 mx-auto mb-1" />
-                                  <p className="text-xs">Aguardando resposta</p>
+                                  <p className="text-xs">{formatMessage('satisfaction_dashboard.waiting_response')}</p>
                                 </>
                               )}
->>>>>>> main
                             </div>
                           )}
                         </div>
@@ -787,13 +726,8 @@ const SatisfactionDashboard: React.FC = () => {
                       
                       {survey.comments && (
                         <div className="mt-3 pt-3 border-t">
-<<<<<<< HEAD
-                          <p className="text-sm text-gray-600">
-                            <span className="font-medium">{formatMessage('satisfaction_dashboard.comment')}:</span> "{survey.comments}"
-=======
                           <p className="text-sm text-muted-foreground">
-                            <span className="font-medium">Comentário:</span> "{survey.comments}"
->>>>>>> main
+                            <span className="font-medium">{formatMessage('satisfaction_dashboard.comment')}:</span> "{survey.comments}"
                           </p>
                         </div>
                       )}
@@ -859,29 +793,16 @@ const SatisfactionDashboard: React.FC = () => {
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center py-2 border-b">
-<<<<<<< HEAD
                     <span className="text-sm font-medium">{formatMessage('satisfaction_dashboard.surveys_sent')}</span>
-                    <span className="text-sm text-gray-600">{stats?.total_sent || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-sm font-medium">{formatMessage('satisfaction_dashboard.surveys_responded')}</span>
-                    <span className="text-sm text-gray-600">{stats?.total_responded || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-sm font-medium">{formatMessage('satisfaction_dashboard.response_rate')}</span>
-                    <span className="text-sm text-gray-600">
-=======
-                    <span className="text-sm font-medium">Pesquisas enviadas</span>
                     <span className="text-sm text-muted-foreground">{stats?.total_sent || 0}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-sm font-medium">Pesquisas respondidas</span>
+                    <span className="text-sm font-medium">{formatMessage('satisfaction_dashboard.surveys_responded')}</span>
                     <span className="text-sm text-muted-foreground">{stats?.total_responded || 0}</span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">
-                    <span className="text-sm font-medium">Taxa de resposta</span>
+                    <span className="text-sm font-medium">{formatMessage('satisfaction_dashboard.response_rate')}</span>
                     <span className="text-sm text-muted-foreground">
->>>>>>> main
                       {stats?.response_rate ? `${stats.response_rate.toFixed(1)}%` : '0%'}
                     </span>
                   </div>

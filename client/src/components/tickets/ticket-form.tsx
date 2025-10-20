@@ -510,13 +510,8 @@ export const TicketForm = () => {
     <>
       <Card>
         <CardContent className="p-6">
-<<<<<<< HEAD
           <h2 className="text-lg font-medium mb-2">{formatMessage('new_ticket.create_new_ticket')}</h2>
-          <p className="text-neutral-600 mb-6">{formatMessage('new_ticket.add_new_support_ticket')}</p>
-=======
-          <h2 className="text-lg font-medium mb-2">Criar Novo Chamado</h2>
-          <p className="text-muted-foreground mb-6">Adicione um novo chamado de suporte</p>
->>>>>>> main
+          <p className="text-muted-foreground mb-6">{formatMessage('new_ticket.add_new_support_ticket')}</p>
           
           <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
@@ -710,13 +705,8 @@ export const TicketForm = () => {
                       </FormControl>
                       <SelectContent>
                         {categories.length === 0 ? (
-<<<<<<< HEAD
-                          <div className="p-2 text-neutral-500 text-sm text-center">
-                            {formatMessage('new_ticket.no_categories_for_type')}
-=======
                           <div className="p-2 text-muted-foreground text-sm text-center">
-                            Nenhuma categoria disponível para este tipo
->>>>>>> main
+                            {formatMessage('new_ticket.no_categories_for_type')}
                           </div>
                         ) : (
                           categories.map((category: Category) => (
@@ -806,29 +796,17 @@ export const TicketForm = () => {
             {/* Upload de Arquivos */}
             <div className="border-t pt-6">
               <div className="mb-4">
-<<<<<<< HEAD
-                <h4 className="text-sm font-medium text-gray-900">{formatMessage('new_ticket.attach_files_optional')}</h4>
-                <p className="text-xs text-gray-500 mt-1">
-                  {formatMessage('new_ticket.attach_files_description')}
-=======
-                <h4 className="text-sm font-medium text-foreground">Anexar Arquivos (Opcional)</h4>
+                <h4 className="text-sm font-medium text-foreground">{formatMessage('new_ticket.attach_files_optional')}</h4>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Adicione documentos, imagens ou outros arquivos que ajudem a descrever o problema.
-                  Os arquivos serão anexados após a criação do chamado.
->>>>>>> main
+                  {formatMessage('new_ticket.attach_files_description')}
                 </p>
               </div>
 
               {/* Preview simples dos arquivos selecionados */}
               {pendingFiles.length > 0 && (
                 <div className="mb-4">
-<<<<<<< HEAD
-                  <h5 className="text-sm font-medium text-gray-700 mb-2">
-                    {formatMessage('new_ticket.selected_files', { count: pendingFiles.length })}
-=======
                   <h5 className="text-sm font-medium text-muted-foreground mb-2">
-                    Arquivos selecionados ({pendingFiles.length}):
->>>>>>> main
+                    {formatMessage('new_ticket.selected_files', { count: pendingFiles.length })}
                   </h5>
                   <div className="space-y-2">
                     {pendingFiles.map((file, index) => (
@@ -875,19 +853,11 @@ export const TicketForm = () => {
                     <svg className="h-12 w-12 text-muted-foreground/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
-<<<<<<< HEAD
-                    <span className="mt-2 text-sm font-medium text-gray-900">
+                    <span className="mt-2 text-sm font-medium text-foreground">
                       {formatMessage('new_ticket.click_to_select_files')}
                     </span>
-                    <span className="text-xs text-gray-500 mt-1">
-                      {formatMessage('new_ticket.supported_file_types')}
-=======
-                    <span className="mt-2 text-sm font-medium text-foreground">
-                      Clique para selecionar arquivos
-                    </span>
                     <span className="text-xs text-muted-foreground mt-1">
-                      PDF, DOC, Excel, PowerPoint, SQL, imagens, vídeos, áudio, ZIP e outros (máx. 50MB cada)
->>>>>>> main
+                      {formatMessage('new_ticket.supported_file_types')}
                     </span>
                   </div>
                 </label>
@@ -976,13 +946,8 @@ export const TicketForm = () => {
             </p>
             
             {creationProgress.step === 'analyzing' && (
-<<<<<<< HEAD
-              <p className="text-xs text-gray-500 mt-2">
-                {formatMessage('new_ticket.ai_analyzing_content')}
-=======
               <p className="text-xs text-muted-foreground mt-2">
-                Nossa IA está analisando o conteúdo do seu ticket para definir a prioridade ideal...
->>>>>>> main
+                {formatMessage('new_ticket.ai_analyzing_content')}
               </p>
             )}
           </div>
