@@ -18187,11 +18187,11 @@ Atenciosamente,
 
         {
 
-          name: 'Lembrete Pesquisa de Satisfacao',
+          name: 'Lembrete Pesquisa de Satisfação',
 
           type: 'satisfaction_survey_reminder',
 
-          description: 'Lembrete enviado antes da expiracao da pesquisa de satisfacao',
+          description: 'Lembrete enviado antes da expiracao da pesquisa de satisfação',
 
           subject_template: 'Ainda da tempo! Sua pesquisa expira em {{survey.days_until_expiration}} dia(s)',
 
@@ -18205,7 +18205,7 @@ Atenciosamente,
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Lembrete de Pesquisa de Satisfacao</title>
+  <title>Lembrete de Pesquisa de Satisfação</title>
 
 </head>
 
@@ -19780,10 +19780,11 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   
 
-  // Rotas de pesquisa de satisfação (sem autenticação - acesso público via token)
+  // Rotas de pesquisa de satisfação (autenticadas para pendencias e publicas via token)
 
   const satisfactionSurveyHandlers = await import("./api/satisfaction-surveys");
 
+  router.get("/satisfaction-surveys/pending", authRequired, satisfactionSurveyHandlers.getPendingForCustomer);
   router.get("/satisfaction-surveys/:token", satisfactionSurveyHandlers.GET);
 
   router.post("/satisfaction-surveys/:token", satisfactionSurveyHandlers.POST);

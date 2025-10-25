@@ -327,8 +327,8 @@ export const emailTemplateTypeEnum = pgEnum('email_template_type', [
   'system_maintenance',   // Manutenção do sistema
   'ticket_participant_added',    // Participante adicionado ao ticket
   'ticket_participant_removed',  // Participante removido do ticket
-  'satisfaction_survey',         // Pesquisa de satisfacao
-  'satisfaction_survey_reminder', // Lembrete da pesquisa de satisfacao
+  'satisfaction_survey',         // Pesquisa de satisfação
+  'satisfaction_survey_reminder', // Lembrete da pesquisa de satisfação
 ]);
 
 // Tabela para templates de email

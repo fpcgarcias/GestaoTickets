@@ -1421,13 +1421,7 @@ export class EmailNotificationService {
       
       console.log(`[📧 EMAIL PROD] ✅ Ticket encontrado: ${ticket.ticket_id}`);
 
-      // 🎯 DISPARAR PESQUISA DE SATISFAÇÃO IMEDIATAMENTE SE TICKET FOI RESOLVIDO
-      if (newStatus === 'resolved') {
-        console.log(`[📧 SATISFACTION] 🎯 TICKET RESOLVIDO! DISPARANDO PESQUISA DE SATISFAÇÃO AGORA!`);
-        this.sendSatisfactionSurvey(ticketId).catch((surveyError) => {
-          console.error(`[📧 SATISFACTION] ❌ Erro ao enviar pesquisa de satisfação:`, surveyError);
-        });
-      }
+      // REMOVIDO: Pesquisa de satisfação duplicada - já é enviada no final da função (linha 1739)
 
       // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
       let customer = null;

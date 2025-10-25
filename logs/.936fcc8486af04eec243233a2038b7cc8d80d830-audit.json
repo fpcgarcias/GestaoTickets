@@ -14,6 +14,16 @@
             "date": 1760966740479,
             "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-10-20.log",
             "hash": "374944eebdf01a742a11f02d7373f14b93a2eddc532772f6056cdba73b096f95"
+        },
+        {
+            "date": 1761131564146,
+            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-10-22.log",
+            "hash": "3e18396151937468e898032704c370a27fb3af2075b9286e7388f04ac952ec20"
+        },
+        {
+            "date": 1761347136401,
+            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-10-24.log",
+            "hash": "00f0eb069201b591ee0b2a7d671eaa834e30cbfedcf91913fe9b8b7b06f8a1ab"
         }
     ],
     "hashType": "sha256"

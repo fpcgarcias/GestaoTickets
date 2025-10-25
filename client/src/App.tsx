@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useSystemSettings } from "@/hooks/use-system-settings";
 import { IntlProvider } from "react-intl";
 import { detectLocaleFromDomain, messages } from "./i18n";
+import { PWAInstaller } from "@/components/PWAInstaller";
 
 // Lazy loading das páginas principais
 const Dashboard = lazy(() => import("@/pages/dashboard"));
@@ -268,6 +269,7 @@ export default function App() {
             <ThemeProvider>
               <IntlProvider locale={locale} messages={localeMessages}>
                 <Toaster />
+                <PWAInstaller />
                 <AppContent />
               </IntlProvider>
             </ThemeProvider>

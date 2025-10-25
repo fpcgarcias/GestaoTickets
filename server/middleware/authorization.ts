@@ -9,6 +9,15 @@ export function authRequired(req: Request, res: Response, next: NextFunction) {
   if (!req.session || !req.session.userId) {
     return res.status(401).json({ message: "Não autenticado" });
   }
+  
+  // Popular req.user com dados da sessão para compatibilidade
+  (req as any).user = {
+    id: req.session.userId,
+    username: req.session.username,
+    role: req.session.userRole,
+    companyId: req.session.companyId
+  };
+  
   next();
 }
 

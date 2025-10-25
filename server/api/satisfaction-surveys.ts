@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from '../db';
-import { satisfactionSurveys, companies, tickets } from '@shared/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { satisfactionSurveys, companies, tickets, users } from '@shared/schema';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { z } from 'zod';
 
 // Schema de validação para resposta da pesquisa
@@ -238,6 +238,82 @@ export async function POST(req: Request, res: Response) {
 
   } catch (error) {
     console.error(`[📊 SATISFACTION API] ❌ Erro ao salvar resposta:`, error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+}
+
+// GET /api/satisfaction-surveys/pending - Obter pesquisas pendentes para o cliente autenticado
+export async function getPendingForCustomer(req: Request, res: Response) {
+  try {
+    if (!req.session || !req.session.userId) {
+      return res.status(401).json({ message: 'Usuário não autenticado' });
+    }
+
+    const userId = req.session.userId;
+
+    // Buscar email do usuário
+    const [user] = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    
+    if (!user || !user.email) {
+      return res.status(404).json({ message: 'Usuário não encontrado' });
+    }
+
+    // Buscar pesquisas pendentes
+    const surveys = await db
+      .select({
+        id: satisfactionSurveys.id,
+        survey_token: satisfactionSurveys.survey_token,
+        ticket_id: satisfactionSurveys.ticket_id,
+        ticket_number: tickets.ticket_id,
+        ticket_title: tickets.title,
+        sent_at: satisfactionSurveys.sent_at,
+        expires_at: satisfactionSurveys.expires_at,
+        company_id: companies.id,
+        company_name: companies.name,
+        company_domain: companies.domain,
+      })
+      .from(satisfactionSurveys)
+      .innerJoin(tickets, eq(satisfactionSurveys.ticket_id, tickets.id))
+      .innerJoin(companies, eq(satisfactionSurveys.company_id, companies.id))
+      .where(
+        and(
+          eq(satisfactionSurveys.customer_email, user.email),
+          eq(satisfactionSurveys.status, 'sent'),
+          sql`${satisfactionSurveys.expires_at} > NOW()`
+        )
+      )
+      .orderBy(desc(satisfactionSurveys.sent_at));
+
+    // Mapear para formato esperado pelo frontend
+    const result = surveys.map((survey) => ({
+      id: survey.id,
+      survey_token: survey.survey_token,
+      ticket_id: survey.ticket_id,
+      ticket_number: survey.ticket_number,
+      ticket_title: survey.ticket_title,
+      sent_at: survey.sent_at,
+      expires_at: survey.expires_at,
+      company: {
+        id: survey.company_id,
+        name: survey.company_name,
+        colors: {
+          primary: '#3B82F6',
+          secondary: '#F3F4F6',
+          accent: '#10B981',
+          background: '#F9FAFB',
+          text: '#111827'
+        }
+      }
+    }));
+
+    res.json(result);
+
+  } catch (error) {
+    console.error(`[📊 SATISFACTION API] Erro:`, error);
     res.status(500).json({ message: 'Erro interno do servidor' });
   }
 }

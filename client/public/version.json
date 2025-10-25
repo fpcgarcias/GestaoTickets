@@ -12,7 +12,8 @@
           "Tradução do sistema para o inglês, reconhecendo a lingagem do navegador.",
           "Implementação do tema escuro no sistema (não válido para empresas com temas personalizados).",
           "Implementação do filtro de Tipo de Chamado no dashboard.",
-          "Implementação do botão de excluir arquivos anexados enquanto o ticket ainda não foi enviado."
+          "Implementação do botão de excluir arquivos anexados enquanto o ticket ainda não foi enviado.",
+          "Modal de pesquisa de satisfacao exibido apos o login, evitando duplicidade por chamado e mostrando o titulo do ticket."
         ],
         "fixed": [
           "Correção do dashboard de satisfação, que agora exibe corretamente as pesquisas expiradas.",

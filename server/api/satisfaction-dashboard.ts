@@ -44,7 +44,7 @@ async function expireOutdatedSurveysForScope(companyId?: number) {
       .set({ status: 'expired' })
       .where(and(...expireConditions));
   } catch (error) {
-    console.error('Erro ao expirar pesquisas de satisfacao atrasadas:', error);
+    console.error('Erro ao expirar pesquisas de satisfação atrasadas:', error);
   }
 }
 

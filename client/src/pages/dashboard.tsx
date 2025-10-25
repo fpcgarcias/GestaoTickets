@@ -16,6 +16,7 @@ import { useI18n } from '@/i18n';
 import { ModernPieChart } from '@/components/charts/modern-pie-chart';
 import { ModernBarChart } from '@/components/charts/modern-bar-chart';
 import { ComparisonArrow } from '@/components/ui/comparison-arrow';
+import { PendingSatisfactionSurveys } from '@/components/satisfaction/pending-survey-modal';
 
 // Definir tipos para os dados das consultas
 interface TicketStats {
@@ -94,6 +95,7 @@ export default function Dashboard() {
   const { user, isLoading: isLoadingAuth } = useAuth();
   const { formatMessage, locale } = useI18n();
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
+  const shouldShowSatisfactionPrompt = user?.role === 'customer';
   
   // Novo filtro de datas igual ao index.tsx
   const [timeFilter, setTimeFilter] = useState('this-month');
@@ -369,6 +371,9 @@ export default function Dashboard() {
 
   return (
     <div>
+      {shouldShowSatisfactionPrompt && (
+        <PendingSatisfactionSurveys enabled={shouldShowSatisfactionPrompt} />
+      )}
       <div className="flex justify-between items-center mb-6">
       <h1 className="text-2xl font-semibold text-foreground">{formatMessage('dashboard.title')}</h1>
         <div className="flex items-center gap-4">
