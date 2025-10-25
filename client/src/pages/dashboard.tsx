@@ -374,11 +374,11 @@ export default function Dashboard() {
       {shouldShowSatisfactionPrompt && (
         <PendingSatisfactionSurveys enabled={shouldShowSatisfactionPrompt} />
       )}
-      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-6 gap-4">
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start mb-6 gap-4">
         <h1 className="text-2xl font-semibold text-foreground">{formatMessage('dashboard.title')}</h1>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
           <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Calendar className="h-4 w-4 text-muted-foreground" />
             <DateRangeFilter
               timeFilter={timeFilter}
               setTimeFilter={setTimeFilter}
@@ -395,9 +395,9 @@ export default function Dashboard() {
           {/* Filtro de Departamento */}
           {shouldShowDepartmentFilter && (
             <div className="flex items-center gap-2">
-              <Building className="h-4 w-4 text-muted-foreground" />
+              <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <Select value={selectedDepartmentId} onValueChange={handleDepartmentChange}>
-                <SelectTrigger className="w-full sm:w-48">
+                <SelectTrigger className="w-full lg:w-56">
                   <SelectValue placeholder={formatMessage('dashboard.all_departments')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -414,9 +414,9 @@ export default function Dashboard() {
           {/* Filtro de Tipo de Chamado */}
           {shouldShowIncidentTypeFilter && (
             <div className="flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+              <ClipboardList className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <Select value={selectedIncidentTypeId} onValueChange={handleIncidentTypeChange}>
-                <SelectTrigger className="w-full sm:w-52">
+                <SelectTrigger className="w-full lg:w-64">
                   <SelectValue placeholder={formatMessage('dashboard.all_incident_types')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -445,9 +445,9 @@ export default function Dashboard() {
           {/* Filtro de Atendente */}
           {shouldShowOfficialFilter && (
             <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <Select value={selectedOfficialId} onValueChange={handleOfficialChange}>
-                <SelectTrigger className="w-full sm:w-48">
+                <SelectTrigger className="w-full lg:w-56">
                   <SelectValue placeholder={formatMessage('dashboard.all_officials')} />
                 </SelectTrigger>
                 <SelectContent>
