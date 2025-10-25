@@ -374,9 +374,9 @@ export default function Dashboard() {
       {shouldShowSatisfactionPrompt && (
         <PendingSatisfactionSurveys enabled={shouldShowSatisfactionPrompt} />
       )}
-      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start mb-6 gap-4">
+      <div className="flex flex-col mb-6 gap-4">
         <h1 className="text-2xl font-semibold text-foreground">{formatMessage('dashboard.title')}</h1>
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+        <div className="flex flex-col xl:flex-row xl:items-center gap-4">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <DateRangeFilter
@@ -397,7 +397,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <Select value={selectedDepartmentId} onValueChange={handleDepartmentChange}>
-                <SelectTrigger className="w-full lg:w-56">
+                <SelectTrigger className="w-full xl:w-56">
                   <SelectValue placeholder={formatMessage('dashboard.all_departments')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -416,7 +416,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <Select value={selectedIncidentTypeId} onValueChange={handleIncidentTypeChange}>
-                <SelectTrigger className="w-full lg:w-64">
+                <SelectTrigger className="w-full xl:w-64">
                   <SelectValue placeholder={formatMessage('dashboard.all_incident_types')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -447,7 +447,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <Select value={selectedOfficialId} onValueChange={handleOfficialChange}>
-                <SelectTrigger className="w-full lg:w-56">
+                <SelectTrigger className="w-full xl:w-56">
                   <SelectValue placeholder={formatMessage('dashboard.all_officials')} />
                 </SelectTrigger>
                 <SelectContent>

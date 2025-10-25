@@ -140,7 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       </div>
       
       {/* Versão mobile da barra lateral (visível apenas em telas pequenas) */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-sidebar border-t border-sidebar-border text-sidebar-foreground md:hidden transition-colors">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-sidebar/95 backdrop-blur-sm border-t border-sidebar-border text-sidebar-foreground md:hidden transition-colors">
         <nav className="flex justify-around p-2 overflow-x-auto">
           {filteredNavItems.slice(0, 5).map((item) => (
             <Link 
