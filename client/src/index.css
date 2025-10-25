@@ -142,4 +142,13 @@
   .dashboard-filters [role="combobox"] {
     width: 100% !important;
   }
+  
+  /* Evitar overflow horizontal em cards e gráficos */
+  .recharts-wrapper {
+    max-width: 100% !important;
+  }
+  
+  .recharts-surface {
+    overflow: visible !important;
+  }
 }

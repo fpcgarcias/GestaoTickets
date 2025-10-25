@@ -126,7 +126,7 @@ export const ModernBarChart: React.FC<ModernBarChartProps> = ({ data, isLoading 
       
       {/* Estatísticas resumidas */}
       <div className="mt-6">
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
           {data.map((item, index) => {
             const percentage = total > 0 ? ((item.Qtde / total) * 100).toFixed(1) : '0';
             const isHighest = item.Qtde === maxValue;
