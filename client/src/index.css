@@ -120,3 +120,26 @@
   transform: translateY(-2px);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
 }
+
+/* Mobile Dashboard Overrides */
+@media (max-width: 1023px) {
+  .dashboard-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+  
+  .dashboard-filters {
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 1rem !important;
+  }
+  
+  .dashboard-filters > div {
+    width: 100% !important;
+  }
+  
+  .dashboard-filters button[class*="w-"],
+  .dashboard-filters [role="combobox"] {
+    width: 100% !important;
+  }
+}

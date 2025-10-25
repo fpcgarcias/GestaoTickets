@@ -28,6 +28,17 @@ export const PWAInstaller: React.FC = () => {
 
     checkIfInstalled();
 
+    // Limpar cache antigo se necessário
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          if (registration.scope.includes('localhost') || registration.scope.includes('127.0.0.1')) {
+            registration.unregister();
+          }
+        });
+      });
+    }
+
     // Listener para o evento beforeinstallprompt - DEIXAR O NAVEGADOR FAZER O TRABALHO
     const handleBeforeInstallPrompt = (e: Event) => {
       console.log('🎯 Evento beforeinstallprompt disparado!');
@@ -77,6 +88,17 @@ export const PWAInstaller: React.FC = () => {
   const handleDismissUpdate = () => {
     setNeedRefresh(false);
   };
+
+  // Verificar se há atualizações disponíveis
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.addEventListener('updatefound', () => {
+          setNeedRefresh(true);
+        });
+      });
+    }
+  }, []);
 
   // NÃO MOSTRAR NADA - DEIXAR O NAVEGADOR FAZER O TRABALHO
   return null;
