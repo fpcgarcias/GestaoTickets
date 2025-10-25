@@ -374,9 +374,9 @@ export default function Dashboard() {
       {shouldShowSatisfactionPrompt && (
         <PendingSatisfactionSurveys enabled={shouldShowSatisfactionPrompt} />
       )}
-      <div className="flex justify-between items-center mb-6">
-      <h1 className="text-2xl font-semibold text-foreground">{formatMessage('dashboard.title')}</h1>
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-6 gap-4">
+        <h1 className="text-2xl font-semibold text-foreground">{formatMessage('dashboard.title')}</h1>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
             <DateRangeFilter
@@ -397,7 +397,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <Building className="h-4 w-4 text-muted-foreground" />
               <Select value={selectedDepartmentId} onValueChange={handleDepartmentChange}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full sm:w-48">
                   <SelectValue placeholder={formatMessage('dashboard.all_departments')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -416,7 +416,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4 text-muted-foreground" />
               <Select value={selectedIncidentTypeId} onValueChange={handleIncidentTypeChange}>
-                <SelectTrigger className="w-52">
+                <SelectTrigger className="w-full sm:w-52">
                   <SelectValue placeholder={formatMessage('dashboard.all_incident_types')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -447,7 +447,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
               <Select value={selectedOfficialId} onValueChange={handleOfficialChange}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full sm:w-48">
                   <SelectValue placeholder={formatMessage('dashboard.all_officials')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -468,7 +468,7 @@ export default function Dashboard() {
       
 
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 lg:gap-6 mb-6">
         <StatCard 
           title={formatMessage('dashboard.total_tickets')} 
           value={ticketStats.total}
@@ -504,7 +504,7 @@ export default function Dashboard() {
       </div>
       
       {/* Nova seção para métricas de tempo */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mb-6">
         <TimeMetricCard
           title={formatMessage('dashboard.avg_first_response')}
           description={formatMessage('dashboard.avg_first_response_desc')}
@@ -523,7 +523,7 @@ export default function Dashboard() {
         />
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mb-6">
         <Card>
           <CardHeader>
             <CardTitle>{formatMessage('dashboard.tickets_by_status')}</CardTitle>
@@ -566,17 +566,17 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-4">
               {recentTickets.slice(0, 5).map((ticket: RecentTicket) => (
-                <div key={ticket.id} className="flex items-center justify-between border-b pb-4">
-                  <div className="flex items-center">
-                    <StatusDot status={ticket.status} className="mr-2" />
-                    <div>
-                      <p className="font-medium">{ticket.title}</p>
+                <div key={ticket.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b pb-4 gap-2">
+                  <div className="flex items-start sm:items-center">
+                    <StatusDot status={ticket.status} className="mr-2 mt-1 sm:mt-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{ticket.title}</p>
                       <p className="text-sm text-muted-foreground">
                         {ticket.customer?.name} • {new Date(ticket.created_at).toLocaleDateString(locale === 'en-US' ? 'en-US' : 'pt-BR')}
                       </p>
                     </div>
                   </div>
-                  <div className="text-sm">
+                  <div className="text-sm flex-shrink-0">
                     {ticket.priority === PRIORITY_LEVELS.HIGH && (
                       <span className="text-xs font-medium text-white bg-status-high px-2 py-1 rounded">
                         {formatMessage('dashboard.high_priority')}

@@ -65,7 +65,7 @@ function MainLayout({ children }: { children: React.ReactNode }) {
       <Sidebar currentPath={location} />
       <div className="flex-1 flex flex-col">
         <Header />
-        <div className="flex-1 overflow-auto p-6 bg-muted/30 pb-20 md:pb-6 transition-colors">
+        <div className="flex-1 overflow-auto p-4 sm:p-6 bg-muted/30 pb-20 md:pb-6 transition-colors">
           <Suspense fallback={<PageLoading />}>
             {children}
           </Suspense>
