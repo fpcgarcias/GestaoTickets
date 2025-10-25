@@ -10,6 +10,7 @@
   "scope": "/",
   "lang": "pt-BR",
   "categories": ["business", "productivity", "utilities"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/pwa-72x72.png",
