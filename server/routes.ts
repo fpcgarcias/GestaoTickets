@@ -12015,9 +12015,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Suporte ao contexto de criação de ticket: liberar categorias da empresa, sem restringir por departamentos do atendente
+      // Suporte ao contexto de criação/transferência de ticket: liberar categorias da empresa, sem restringir por departamentos do atendente
 
-      if (context === 'create_ticket') {
+      if (context === 'create_ticket' || context === 'transfer_ticket') {
 
         let effectiveCompanyId: number | null = null;
 
@@ -12027,7 +12027,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           if (!effectiveCompanyId) {
 
-            return res.status(400).json({ message: "Para context=create_ticket, admin deve informar company_id." });
+            return res.status(400).json({ message: `Para context=${context}, admin deve informar company_id.` });
 
           }
 

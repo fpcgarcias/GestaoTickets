@@ -63,12 +63,13 @@ export const TicketTransferDialog: React.FC<TicketTransferDialogProps> = ({ open
   const incidentTypes = Array.isArray(incidentTypesResp?.incidentTypes) ? incidentTypesResp.incidentTypes : Array.isArray(incidentTypesResp) ? incidentTypesResp : [];
 
   const { data: categoriesResp } = useQuery({
-    queryKey: ['/api/categories', { incident_type_id: incidentTypeId, active_only: true }],
+    queryKey: ['/api/categories', { incident_type_id: incidentTypeId, active_only: true, context: 'transfer_ticket' }],
     queryFn: async () => {
       if (!incidentTypeId) return { categories: [] };
       const params = new URLSearchParams();
       params.append('active_only', 'true');
       params.append('incident_type_id', String(incidentTypeId));
+      params.append('context', 'transfer_ticket');
       const res = await fetch(`/api/categories?${params.toString()}`);
       if (!res.ok) throw new Error('Erro ao carregar categorias');
       return res.json();
