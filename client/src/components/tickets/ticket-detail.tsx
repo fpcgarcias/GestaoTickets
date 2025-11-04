@@ -8,6 +8,7 @@ import { StatusDot } from './status-badge';
 import { SLAStatus } from './sla-status';
 import { AttachmentsList } from './attachments-list';
 import { ParticipantManagement } from './participant-management';
+import { ServiceProviderManagement } from './service-provider-management';
 import { TextWithBreakAll } from '@/components/ui/text-with-links';
 import { Building, UserCircle2 } from 'lucide-react';
 import { useI18n } from '@/i18n';
@@ -143,6 +144,17 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
             ticketCreatorId={ticket.customer?.user_id || undefined}
           />
         </div>
+
+        {/* Gerenciamento de Prestadores de Serviços */}
+        {ticket.department_id && (
+          <div className="mt-6 border-t pt-6">
+            <ServiceProviderManagement
+              ticketId={ticket.id}
+              departmentId={ticket.department_id}
+              ticketCompanyId={ticket.company_id || undefined}
+            />
+          </div>
+        )}
 
         {/* Lista de Anexos */}
         <div className="mt-6 border-t pt-6">

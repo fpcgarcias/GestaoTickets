@@ -28,6 +28,7 @@ const OfficialsIndex = lazy(() => import("@/pages/officials/index"));
 const ClientsIndex = lazy(() => import("@/pages/clients/index"));
 const CompaniesIndex = lazy(() => import("@/pages/companies/index"));
 const DepartmentManagement = lazy(() => import("@/pages/DepartmentManagement"));
+const ServiceProvidersManagement = lazy(() => import("@/pages/ServiceProvidersManagement"));
 const TicketTypeManagement = lazy(() => import("@/pages/TicketTypeManagement"));
 const CategoryManagement = lazy(() => import("@/pages/CategoryManagement"));
 const Settings = lazy(() => import("@/pages/settings"));
@@ -171,6 +172,12 @@ function AppContent() {
       <ProtectedRoute path="/departments" component={() => (
         <MainLayout>
           <DepartmentManagement />
+        </MainLayout>
+      )} />
+      
+      <ProtectedRoute path="/service-providers" component={() => (
+        <MainLayout>
+          <ServiceProvidersManagement />
         </MainLayout>
       )} />
       

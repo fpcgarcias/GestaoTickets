@@ -16,7 +16,9 @@ import {
   companies, departments,
   ticketParticipants, type TicketParticipant,
   type InsertTicketParticipant,
-  type Company
+  type Company,
+  serviceProviders, departmentServiceProviders, ticketServiceProviders,
+  type ServiceProvider
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db } from "./db";
@@ -2392,6 +2394,298 @@ export class DatabaseStorage implements IStorage {
       console.error('Erro ao buscar histórico de participantes:', error);
       throw new Error('Falha ao buscar histórico de participantes');
     }
+  }
+
+  // ========================================
+  // MÉTODOS PARA PRESTADORES DE SERVIÇOS
+  // ========================================
+
+  /**
+   * Obtém prestadores de serviços com filtros opcionais
+   */
+  async getServiceProviders(filters?: {
+    companyId?: number;
+    isActive?: boolean;
+    isExternal?: boolean;
+    departmentId?: number;
+  }): Promise<ServiceProvider[]> {
+    let query = db.select().from(serviceProviders);
+
+    const conditions = [];
+    
+    if (filters?.companyId !== undefined) {
+      conditions.push(eq(serviceProviders.company_id, filters.companyId));
+    }
+    
+    if (filters?.isActive !== undefined) {
+      conditions.push(eq(serviceProviders.is_active, filters.isActive));
+    }
+    
+    if (filters?.isExternal !== undefined) {
+      conditions.push(eq(serviceProviders.is_external, filters.isExternal));
+    }
+
+    if (filters?.departmentId) {
+      // Se filtro por departamento, fazer join com department_service_providers
+      query = db
+        .select({
+          id: serviceProviders.id,
+          name: serviceProviders.name,
+          is_external: serviceProviders.is_external,
+          company_id: serviceProviders.company_id,
+          company_name: serviceProviders.company_name,
+          cnpj: serviceProviders.cnpj,
+          address: serviceProviders.address,
+          phone: serviceProviders.phone,
+          email: serviceProviders.email,
+          notes: serviceProviders.notes,
+          is_active: serviceProviders.is_active,
+          created_at: serviceProviders.created_at,
+          updated_at: serviceProviders.updated_at,
+        })
+        .from(serviceProviders)
+        .innerJoin(
+          departmentServiceProviders,
+          eq(serviceProviders.id, departmentServiceProviders.service_provider_id)
+        )
+        .where(and(
+          eq(departmentServiceProviders.department_id, filters.departmentId),
+          ...conditions
+        ));
+    } else if (conditions.length > 0) {
+      query = db.select().from(serviceProviders).where(and(...conditions));
+    }
+
+    return await query;
+  }
+
+  /**
+   * Obtém um prestador de serviço por ID
+   */
+  async getServiceProvider(id: number): Promise<ServiceProvider | undefined> {
+    const [provider] = await db
+      .select()
+      .from(serviceProviders)
+      .where(eq(serviceProviders.id, id))
+      .limit(1);
+    
+    return provider || undefined;
+  }
+
+  /**
+   * Cria um novo prestador de serviço
+   */
+  async createServiceProvider(data: {
+    name: string;
+    is_external: boolean;
+    company_id?: number | null;
+    company_name?: string | null;
+    cnpj?: string | null;
+    address?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    notes?: string | null;
+    is_active?: boolean;
+  }): Promise<ServiceProvider> {
+    const [provider] = await db
+      .insert(serviceProviders)
+      .values({
+        ...data,
+        is_active: data.is_active ?? true,
+        created_at: new Date(),
+        updated_at: new Date(),
+      })
+      .returning();
+    
+    return provider;
+  }
+
+  /**
+   * Atualiza um prestador de serviço
+   */
+  async updateServiceProvider(id: number, data: Partial<{
+    name: string;
+    is_external: boolean;
+    company_id: number | null;
+    company_name: string | null;
+    cnpj: string | null;
+    address: string | null;
+    phone: string | null;
+    email: string | null;
+    notes: string | null;
+    is_active: boolean;
+  }>): Promise<ServiceProvider> {
+    const [provider] = await db
+      .update(serviceProviders)
+      .set({
+        ...data,
+        updated_at: new Date(),
+      })
+      .where(eq(serviceProviders.id, id))
+      .returning();
+    
+    if (!provider) {
+      throw new Error('Prestador de serviço não encontrado');
+    }
+    
+    return provider;
+  }
+
+  /**
+   * Desativa um prestador de serviço (soft delete)
+   */
+  async deleteServiceProvider(id: number): Promise<boolean> {
+    await db
+      .update(serviceProviders)
+      .set({
+        is_active: false,
+        updated_at: new Date(),
+      })
+      .where(eq(serviceProviders.id, id));
+    
+    return true;
+  }
+
+  /**
+   * Obtém prestadores vinculados a um departamento
+   */
+  async getDepartmentServiceProviders(departmentId: number): Promise<ServiceProvider[]> {
+    const providers = await db
+      .select({
+        id: serviceProviders.id,
+        name: serviceProviders.name,
+        is_external: serviceProviders.is_external,
+        company_id: serviceProviders.company_id,
+        company_name: serviceProviders.company_name,
+        cnpj: serviceProviders.cnpj,
+        address: serviceProviders.address,
+        phone: serviceProviders.phone,
+        email: serviceProviders.email,
+        notes: serviceProviders.notes,
+        is_active: serviceProviders.is_active,
+        created_at: serviceProviders.created_at,
+        updated_at: serviceProviders.updated_at,
+      })
+      .from(serviceProviders)
+      .innerJoin(
+        departmentServiceProviders,
+        eq(serviceProviders.id, departmentServiceProviders.service_provider_id)
+      )
+      .where(eq(departmentServiceProviders.department_id, departmentId));
+    
+    return providers;
+  }
+
+  /**
+   * Vincula um prestador a um departamento
+   */
+  async addDepartmentServiceProvider(departmentId: number, providerId: number): Promise<boolean> {
+    try {
+      await db
+        .insert(departmentServiceProviders)
+        .values({
+          department_id: departmentId,
+          service_provider_id: providerId,
+          created_at: new Date(),
+        });
+      
+      return true;
+    } catch (error: any) {
+      // Se já existe, retornar true sem erro
+      if (error?.code === '23505') { // Unique violation
+        return true;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Remove vinculação de prestador a um departamento
+   */
+  async removeDepartmentServiceProvider(departmentId: number, providerId: number): Promise<boolean> {
+    await db
+      .delete(departmentServiceProviders)
+      .where(
+        and(
+          eq(departmentServiceProviders.department_id, departmentId),
+          eq(departmentServiceProviders.service_provider_id, providerId)
+        )
+      );
+    
+    return true;
+  }
+
+  /**
+   * Obtém prestadores vinculados a um ticket
+   */
+  async getTicketServiceProviders(ticketId: number): Promise<Array<ServiceProvider & { added_by_id?: number | null; added_at?: Date }>> {
+    const providers = await db
+      .select({
+        id: serviceProviders.id,
+        name: serviceProviders.name,
+        is_external: serviceProviders.is_external,
+        company_id: serviceProviders.company_id,
+        company_name: serviceProviders.company_name,
+        cnpj: serviceProviders.cnpj,
+        address: serviceProviders.address,
+        phone: serviceProviders.phone,
+        email: serviceProviders.email,
+        notes: serviceProviders.notes,
+        is_active: serviceProviders.is_active,
+        created_at: serviceProviders.created_at,
+        updated_at: serviceProviders.updated_at,
+        added_by_id: ticketServiceProviders.added_by_id,
+        added_at: ticketServiceProviders.added_at,
+      })
+      .from(serviceProviders)
+      .innerJoin(
+        ticketServiceProviders,
+        eq(serviceProviders.id, ticketServiceProviders.service_provider_id)
+      )
+      .where(eq(ticketServiceProviders.ticket_id, ticketId))
+      .orderBy(asc(ticketServiceProviders.added_at));
+    
+    return providers;
+  }
+
+  /**
+   * Vincula um prestador a um ticket
+   */
+  async addTicketServiceProvider(ticketId: number, providerId: number, userId: number): Promise<boolean> {
+    try {
+      await db
+        .insert(ticketServiceProviders)
+        .values({
+          ticket_id: ticketId,
+          service_provider_id: providerId,
+          added_by_id: userId,
+          added_at: new Date(),
+        });
+      
+      return true;
+    } catch (error: any) {
+      // Se já existe, retornar true sem erro
+      if (error?.code === '23505') { // Unique violation
+        return true;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Remove vinculação de prestador a um ticket
+   */
+  async removeTicketServiceProvider(ticketId: number, providerId: number): Promise<boolean> {
+    await db
+      .delete(ticketServiceProviders)
+      .where(
+        and(
+          eq(ticketServiceProviders.ticket_id, ticketId),
+          eq(ticketServiceProviders.service_provider_id, providerId)
+        )
+      );
+    
+    return true;
   }
 
 }

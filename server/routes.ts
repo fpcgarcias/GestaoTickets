@@ -38,6 +38,9 @@ import dashboardRouter from './routes/dashboard';
 import logsRouter from './routes/logs';
 
 import ticketParticipantsRouter from './routes/ticket-participants';
+import serviceProvidersRouter from './routes/service-providers';
+import departmentServiceProvidersRouter from './routes/department-service-providers';
+import ticketServiceProvidersRouter from './routes/ticket-service-providers';
 
 import reportsRouter from './routes/reports';
 
@@ -9643,7 +9646,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       try {
 
-        const { name, description, is_active, company_id: company_id_from_body, sla_mode, satisfaction_survey_enabled } = req.body;
+        const { name, description, is_active, company_id: company_id_from_body, sla_mode, satisfaction_survey_enabled, use_service_providers } = req.body;
 
         const userRole = req.session.userRole as string;
 
@@ -9780,6 +9783,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             sla_mode: slaModeToUse,
 
             satisfaction_survey_enabled: satisfaction_survey_enabled !== undefined ? satisfaction_survey_enabled : false,
+            
+            use_service_providers: use_service_providers !== undefined ? use_service_providers : false,
 
             created_at: new Date(),
 
@@ -9841,7 +9846,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-        const { name, description, is_active, company_id: new_company_id, sla_mode, satisfaction_survey_enabled } = req.body; // Captura company_id, sla_mode e satisfaction_survey_enabled do corpo
+        const { name, description, is_active, company_id: new_company_id, sla_mode, satisfaction_survey_enabled, use_service_providers } = req.body; // Captura company_id, sla_mode, satisfaction_survey_enabled e use_service_providers do corpo
 
         const userRole = req.session.userRole as string;
 
@@ -9872,6 +9877,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         }
 
         if (satisfaction_survey_enabled !== undefined) updatePayload.satisfaction_survey_enabled = satisfaction_survey_enabled;
+        
+        if (use_service_providers !== undefined) updatePayload.use_service_providers = use_service_providers;
 
 
 
@@ -19771,6 +19778,10 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   app.use("/api/logs", logsRouter);
 
   app.use("/api/ticket-participants", ticketParticipantsRouter);
+
+  app.use("/api/service-providers", serviceProvidersRouter);
+  app.use("/api/departments", departmentServiceProvidersRouter);
+  app.use("/api/tickets", ticketServiceProvidersRouter);
 
   
 

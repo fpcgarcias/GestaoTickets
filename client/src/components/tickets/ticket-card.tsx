@@ -125,6 +125,25 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
 
   const participants = participantsResponse?.data || [];
 
+  // Buscar prestadores do ticket (apenas para atendentes e se o departamento usar prestadores)
+  const { data: serviceProvidersData = [] } = useQuery({
+    queryKey: [`/api/tickets/${id}/service-providers`],
+    queryFn: async () => {
+      const response = await fetch(`/api/tickets/${id}/service-providers`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          return [];
+        }
+        return [];
+      }
+      return response.json();
+    },
+    staleTime: 2 * 60 * 1000,
+    enabled: !isCustomerForThisTicket && !!departmentId,
+  });
+
+  const serviceProviders = Array.isArray(serviceProvidersData) ? serviceProvidersData : [];
+
   const allOfficialsData = officialsResponse?.data || [];
 
   // Filtrar atendentes por departamento do ticket
@@ -339,6 +358,56 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
               </TooltipProvider>
               <span className="text-xs text-muted-foreground">
                 {participants.length} {participants.length > 1 ? formatMessage('tickets.card.participants_plural') : formatMessage('tickets.card.participant')}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* Prestadores de Serviços do Ticket */}
+        {!isCustomerForThisTicket && serviceProviders.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-border">
+            <div className="flex items-center justify-between">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-help">
+                      <span className="text-xs text-muted-foreground mr-1">💼</span>
+                      <div className="flex items-center gap-1">
+                        {serviceProviders.slice(0, 2).map((provider: any) => (
+                          <div
+                            key={provider.id}
+                            className="flex items-center gap-1 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded-full"
+                          >
+                            <span className="text-xs text-muted-foreground truncate max-w-16">
+                              {provider.name}
+                            </span>
+                          </div>
+                        ))}
+                        {serviceProviders.length > 2 && (
+                          <span className="text-xs text-muted-foreground bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded-full">
+                            +{serviceProviders.length - 2}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs">
+                    <div className="space-y-1">
+                      <div className="text-sm font-medium">Prestadores ({serviceProviders.length})</div>
+                      {serviceProviders.map((provider: any) => (
+                        <div key={provider.id} className="text-xs">
+                          <span className="font-medium">{provider.name}</span>
+                          {provider.is_external && provider.company_name && (
+                            <span className="text-muted-foreground"> - {provider.company_name}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <span className="text-xs text-muted-foreground">
+                {serviceProviders.length} prestador{serviceProviders.length > 1 ? 'es' : ''}
               </span>
             </div>
           </div>

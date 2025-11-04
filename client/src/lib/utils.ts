@@ -126,22 +126,76 @@ export function translateTicketStatus(status: string): string {
 }
 
 // 🆕 Funções para formatação de CNPJ
-export function formatCNPJ(cnpj: string): string {
+export function formatCNPJ(cnpj: string | null | undefined): string {
+  if (!cnpj) return '';
+  
   // Remove todos os caracteres não numéricos
   const numbers = cnpj.replace(/\D/g, '');
   
-  // Se não tiver números suficientes, retorna como está
-  if (numbers.length !== 14) {
-    return cnpj;
+  // Se não tiver números, retorna vazio
+  if (numbers.length === 0) {
+    return '';
   }
   
-  // Aplica a formatação: XX.XXX.XXX/0001-XX
-  return numbers.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  // Se tiver menos de 14 dígitos, retorna formatado parcialmente
+  if (numbers.length <= 2) {
+    return numbers;
+  } else if (numbers.length <= 5) {
+    return numbers.replace(/^(\d{2})(\d+)$/, '$1.$2');
+  } else if (numbers.length <= 8) {
+    return numbers.replace(/^(\d{2})(\d{3})(\d+)$/, '$1.$2.$3');
+  } else if (numbers.length <= 12) {
+    return numbers.replace(/^(\d{2})(\d{3})(\d{3})(\d+)$/, '$1.$2.$3/$4');
+  } else {
+    // Aplica a formatação completa: XX.XXX.XXX/XXXX-XX
+    return numbers.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  }
 }
 
 export function cleanCNPJ(cnpj: string): string {
   // Remove todos os caracteres não numéricos para salvar no banco
   return cnpj.replace(/\D/g, '');
+}
+
+// Funções para formatação de telefone
+export function formatPhone(phone: string | null | undefined): string {
+  if (!phone) return '';
+  
+  // Remove todos os caracteres não numéricos
+  const numbers = phone.replace(/\D/g, '');
+  
+  // Se não tiver números, retorna vazio
+  if (numbers.length === 0) {
+    return '';
+  }
+  
+  // Se tiver 10 dígitos (fixo): (xx) xxxx-xxxx
+  if (numbers.length === 10) {
+    return numbers.replace(/^(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3');
+  }
+  
+  // Se tiver 11 dígitos (celular): (xx) xxxxx-xxxx
+  if (numbers.length === 11) {
+    return numbers.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+  }
+  
+  // Se tiver menos de 10 dígitos, formata parcialmente
+  if (numbers.length <= 2) {
+    return numbers.length > 0 ? `(${numbers}` : '';
+  } else if (numbers.length <= 6) {
+    return numbers.replace(/^(\d{2})(\d+)$/, '($1) $2');
+  } else if (numbers.length <= 10) {
+    return numbers.replace(/^(\d{2})(\d{4})(\d+)$/, '($1) $2-$3');
+  } else {
+    // Mais de 11 dígitos, formata como celular mas limita
+    const limited = numbers.substring(0, 11);
+    return limited.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+  }
+}
+
+export function cleanPhone(phone: string): string {
+  // Remove todos os caracteres não numéricos para salvar no banco
+  return phone.replace(/\D/g, '');
 }
 
 export function isValidCNPJ(cnpj: string): boolean {

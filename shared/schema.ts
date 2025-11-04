@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, pgEnum, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -99,6 +99,7 @@ export const departments = pgTable("departments", {
   is_active: boolean("is_active").default(true).notNull(),
   sla_mode: slaModeEnum("sla_mode").notNull().default('type'),
   satisfaction_survey_enabled: boolean("satisfaction_survey_enabled").default(false).notNull(),
+  use_service_providers: boolean("use_service_providers").default(false).notNull(),
 });
 
 // Support staff table (ajustado para usar department_id ao invés de enum)
@@ -309,6 +310,42 @@ export const ticketParticipants = pgTable("ticket_participants", {
   id: serial("id").primaryKey(),
   ticket_id: integer("ticket_id").references(() => tickets.id, { onDelete: 'cascade' }).notNull(),
   user_id: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  added_by_id: integer("added_by_id").references(() => users.id),
+  added_at: timestamp("added_at").defaultNow().notNull(),
+});
+
+// Tabela de prestadores de serviços
+export const serviceProviders = pgTable("service_providers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  is_external: boolean("is_external").default(false).notNull(),
+  company_id: integer("company_id").references(() => companies.id),
+  // Campos para prestadores externos (todos opcionais)
+  company_name: text("company_name"),
+  cnpj: text("cnpj"),
+  address: text("address"),
+  phone: text("phone"),
+  email: text("email"),
+  notes: text("notes"),
+  is_active: boolean("is_active").default(true).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Tabela de relacionamento N:N entre departamentos e prestadores de serviços
+export const departmentServiceProviders = pgTable("department_service_providers", {
+  department_id: integer("department_id").references(() => departments.id, { onDelete: 'cascade' }).notNull(),
+  service_provider_id: integer("service_provider_id").references(() => serviceProviders.id, { onDelete: 'cascade' }).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.department_id, table.service_provider_id] }),
+}));
+
+// Tabela de prestadores vinculados a tickets
+export const ticketServiceProviders = pgTable("ticket_service_providers", {
+  id: serial("id").primaryKey(),
+  ticket_id: integer("ticket_id").references(() => tickets.id, { onDelete: 'cascade' }).notNull(),
+  service_provider_id: integer("service_provider_id").references(() => serviceProviders.id, { onDelete: 'cascade' }).notNull(),
   added_by_id: integer("added_by_id").references(() => users.id),
   added_at: timestamp("added_at").defaultNow().notNull(),
 });
@@ -711,6 +748,9 @@ export type Department = typeof departments.$inferSelect & {
 };
 export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
 
+export type ServiceProvider = typeof serviceProviders.$inferSelect;
+export type InsertServiceProvider = typeof serviceProviders.$inferInsert;
+
 export type TicketType = typeof ticketTypes.$inferSelect;
 export type InsertTicketType = z.infer<typeof insertTicketTypeSchema>;
 
@@ -771,6 +811,7 @@ export type InsertSatisfactionSurvey = z.infer<typeof insertSatisfactionSurveySc
 
 // Relações para a tabela de tickets
 export const ticketsRelations = relations(tickets, ({ one, many }) => ({
+  ticketServiceProviders: many(ticketServiceProviders),
   customer: one(customers, {
     fields: [tickets.customer_id],
     references: [customers.id],
@@ -817,6 +858,7 @@ export const departmentsRelations = relations(departments, ({ many, one }) => ({
   }),
   ticketTypes: many(ticketTypes),
   officials: many(officialDepartments, { relationName: "department_officials" }),
+  departmentServiceProviders: many(departmentServiceProviders),
 }));
 
 export const ticketTypesRelations = relations(ticketTypes, ({ one }) => ({
@@ -969,5 +1011,43 @@ export const satisfactionSurveysRelations = relations(satisfactionSurveys, ({ on
   company: one(companies, {
     fields: [satisfactionSurveys.company_id],
     references: [companies.id],
+  }),
+}));
+
+// Relações para prestadores de serviços
+export const serviceProvidersRelations = relations(serviceProviders, ({ one, many }) => ({
+  company: one(companies, {
+    fields: [serviceProviders.company_id],
+    references: [companies.id],
+  }),
+  departmentServiceProviders: many(departmentServiceProviders),
+  ticketServiceProviders: many(ticketServiceProviders),
+}));
+
+// Relações para departamento-prestadores
+export const departmentServiceProvidersRelations = relations(departmentServiceProviders, ({ one }) => ({
+  department: one(departments, {
+    fields: [departmentServiceProviders.department_id],
+    references: [departments.id],
+  }),
+  serviceProvider: one(serviceProviders, {
+    fields: [departmentServiceProviders.service_provider_id],
+    references: [serviceProviders.id],
+  }),
+}));
+
+// Relações para ticket-prestadores
+export const ticketServiceProvidersRelations = relations(ticketServiceProviders, ({ one }) => ({
+  ticket: one(tickets, {
+    fields: [ticketServiceProviders.ticket_id],
+    references: [tickets.id],
+  }),
+  serviceProvider: one(serviceProviders, {
+    fields: [ticketServiceProviders.service_provider_id],
+    references: [serviceProviders.id],
+  }),
+  addedBy: one(users, {
+    fields: [ticketServiceProviders.added_by_id],
+    references: [users.id],
   }),
 }));

@@ -26,6 +26,7 @@ interface DepartmentFormData {
   is_active: boolean;
   sla_mode?: 'type' | 'category';
   satisfaction_survey_enabled?: boolean;
+  use_service_providers?: boolean;
 }
 
 const DepartmentManagement: React.FC = () => {
@@ -50,6 +51,7 @@ const DepartmentManagement: React.FC = () => {
     is_active: true,
     sla_mode: 'type',
     satisfaction_survey_enabled: false,
+    use_service_providers: false,
   });
   const [isEditing, setIsEditing] = useState(false);
 
@@ -196,7 +198,8 @@ const DepartmentManagement: React.FC = () => {
         company_id: data.company_id,
         is_active: data.is_active,
         sla_mode: data.sla_mode || 'type',
-        satisfaction_survey_enabled: data.satisfaction_survey_enabled || false
+        satisfaction_survey_enabled: data.satisfaction_survey_enabled || false,
+        use_service_providers: data.use_service_providers || false
       });
       
       if (!response.ok) {
@@ -284,6 +287,7 @@ const DepartmentManagement: React.FC = () => {
       is_active: true,
       sla_mode: 'type',
       satisfaction_survey_enabled: false,
+      use_service_providers: false,
     });
     setIsEditing(false);
   };
@@ -304,6 +308,7 @@ const DepartmentManagement: React.FC = () => {
       is_active: department.is_active,
       sla_mode: (department as any).sla_mode || 'type',
       satisfaction_survey_enabled: (department as any).satisfaction_survey_enabled || false,
+      use_service_providers: (department as any).use_service_providers || false,
     });
     setIsEditing(true);
     setIsDialogOpen(true);
@@ -663,6 +668,28 @@ const DepartmentManagement: React.FC = () => {
                   setCurrentDepartment((prev) => ({
                     ...prev,
                     satisfaction_survey_enabled: checked,
+                  }))
+                }
+              />
+            </div>
+
+            {/* Toggle: Prestadores de Serviços */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-1">
+                <Label htmlFor="use_service_providers" className="font-medium">
+                  Utilizar Prestadores de Serviços
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Habilita o uso de prestadores de serviços (internos ou externos) para tickets deste departamento
+                </p>
+              </div>
+              <Switch
+                id="use_service_providers"
+                checked={currentDepartment.use_service_providers || false}
+                onCheckedChange={(checked) =>
+                  setCurrentDepartment((prev) => ({
+                    ...prev,
+                    use_service_providers: checked,
                   }))
                 }
               />
