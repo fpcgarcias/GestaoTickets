@@ -29,7 +29,6 @@ router.get('/:id/service-providers', authRequired, async (req: Request, res: Res
       return res.status(400).json({ error: 'ID do departamento inválido' });
     }
 
-    const userRole = req.session?.userRole as string;
     const userCompanyId = req.session?.companyId as number | undefined;
 
     // Verificar se o departamento existe e tem acesso
@@ -73,7 +72,6 @@ router.post('/:id/service-providers', authRequired, async (req: Request, res: Re
       return res.status(400).json({ error: 'ID do departamento inválido' });
     }
 
-    const userRole = req.session?.userRole as string;
     const userCompanyId = req.session?.companyId as number | undefined;
 
     // Verificar se o departamento existe e tem acesso
@@ -150,7 +148,6 @@ router.delete('/:id/service-providers/:providerId', authRequired, async (req: Re
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const userRole = req.session?.userRole as string;
     const userCompanyId = req.session?.companyId as number | undefined;
 
     // Verificar se o departamento existe e tem acesso
