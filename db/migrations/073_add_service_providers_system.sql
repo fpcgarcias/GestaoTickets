@@ -112,3 +112,4 @@ COMMENT ON COLUMN ticket_service_providers.ticket_id IS 'ID do ticket';
 COMMENT ON COLUMN ticket_service_providers.service_provider_id IS 'ID do prestador de serviço';
 COMMENT ON COLUMN ticket_service_providers.added_by_id IS 'ID do usuário que adicionou o prestador ao ticket';
 
+
