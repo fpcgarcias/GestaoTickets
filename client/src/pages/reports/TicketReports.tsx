@@ -409,13 +409,32 @@ export default function TicketReports() {
       if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incident_type_id', filters.incidentTypeId);
       if (filters.showInactiveOfficials) params.append('showInactiveOfficials', 'true');
       params.append('format', format);
-      
-      // Usar método simples para todos os formatos
-      window.open(`/api/reports/tickets/export?${params}`, '_blank');
+
+      console.log('Exportando com parâmetros:', params.toString());
+
+      const response = await fetch(`/api/reports/tickets/export?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro ao exportar relatório' }));
+        throw new Error(errorData.error || 'Erro ao exportar relatório');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `relatorio-chamados.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
       
     } catch (error) {
       console.error('Erro ao exportar:', error);
-      alert('Erro ao exportar relatório. Tente novamente.');
+      alert(error instanceof Error ? error.message : 'Erro ao exportar relatório. Tente novamente.');
     }
   };
 
