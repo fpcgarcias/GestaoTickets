@@ -482,6 +482,20 @@ const ServiceProvidersManagement: React.FC = () => {
     return company?.name || '—';
   };
 
+  // Verificar permissões - bloquear customer
+  if (!user || user.role === 'customer') {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-foreground mb-2">Acesso Negado</h2>
+          <p className="text-muted-foreground">
+            Você não tem permissão para acessar esta página.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">

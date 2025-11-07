@@ -16,6 +16,13 @@ const linkServiceProviderSchema = z.object({
 // GET /api/tickets/:id/service-providers - Listar prestadores do ticket
 router.get('/:id/service-providers', authRequired, ticketAccessRequired, async (req: Request, res: Response) => {
   try {
+    const userRole = req.session?.userRole as string;
+    
+    // Bloquear customer
+    if (userRole === 'customer') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
     const ticketId = parseInt(req.params.id);
     
     if (isNaN(ticketId)) {
@@ -34,6 +41,13 @@ router.get('/:id/service-providers', authRequired, ticketAccessRequired, async (
 // POST /api/tickets/:id/service-providers - Vincular prestador ao ticket
 router.post('/:id/service-providers', authRequired, ticketAccessRequired, async (req: Request, res: Response) => {
   try {
+    const userRole = req.session?.userRole as string;
+    
+    // Bloquear customer
+    if (userRole === 'customer') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
     const ticketId = parseInt(req.params.id);
     
     if (isNaN(ticketId)) {
@@ -41,7 +55,6 @@ router.post('/:id/service-providers', authRequired, ticketAccessRequired, async 
     }
 
     const userId = req.session?.userId as number;
-    const userRole = req.session?.userRole as string;
 
     // Apenas atendentes, supervisores, managers, company_admin e admin podem vincular prestadores
     if (!['admin', 'company_admin', 'support', 'supervisor', 'manager'].includes(userRole)) {
@@ -115,14 +128,19 @@ router.post('/:id/service-providers', authRequired, ticketAccessRequired, async 
 // DELETE /api/tickets/:id/service-providers/:providerId - Desvincular prestador do ticket
 router.delete('/:id/service-providers/:providerId', authRequired, ticketAccessRequired, async (req: Request, res: Response) => {
   try {
+    const userRole = req.session?.userRole as string;
+    
+    // Bloquear customer
+    if (userRole === 'customer') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
     const ticketId = parseInt(req.params.id);
     const providerId = parseInt(req.params.providerId);
     
     if (isNaN(ticketId) || isNaN(providerId)) {
       return res.status(400).json({ error: 'ID inválido' });
     }
-
-    const userRole = req.session?.userRole as string;
 
     // Apenas atendentes, supervisores, managers, company_admin e admin podem remover prestadores
     if (!['admin', 'company_admin', 'support', 'supervisor', 'manager'].includes(userRole)) {

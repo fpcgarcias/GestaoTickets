@@ -42,6 +42,11 @@ router.get('/', authRequired, async (req: Request, res: Response) => {
     const userRole = req.session?.userRole as string;
     const userCompanyId = req.session?.companyId as number | undefined;
     
+    // Bloquear customer
+    if (userRole === 'customer') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
     // Parâmetros de filtro
     const isActive = req.query.is_active !== undefined ? req.query.is_active === 'true' : undefined;
     const isExternal = req.query.is_external !== undefined ? req.query.is_external === 'true' : undefined;
@@ -81,13 +86,19 @@ router.get('/', authRequired, async (req: Request, res: Response) => {
 // GET /api/service-providers/:id - Buscar prestador específico
 router.get('/:id', authRequired, async (req: Request, res: Response) => {
   try {
+    const userRole = req.session?.userRole as string;
+    
+    // Bloquear customer
+    if (userRole === 'customer') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
     const id = parseInt(req.params.id);
     
     if (isNaN(id)) {
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const userRole = req.session?.userRole as string;
     const userCompanyId = req.session?.companyId as number | undefined;
 
     const provider = await storage.getServiceProvider(id);
@@ -112,6 +123,12 @@ router.get('/:id', authRequired, async (req: Request, res: Response) => {
 router.post('/', authRequired, async (req: Request, res: Response) => {
   try {
     const userRole = req.session?.userRole as string;
+    
+    // Bloquear customer
+    if (userRole === 'customer') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
     const userCompanyId = req.session?.companyId as number | undefined;
 
     const validatedData = createServiceProviderSchema.parse(req.body);
@@ -141,13 +158,19 @@ router.post('/', authRequired, async (req: Request, res: Response) => {
 // PATCH /api/service-providers/:id - Atualizar prestador
 router.patch('/:id', authRequired, async (req: Request, res: Response) => {
   try {
+    const userRole = req.session?.userRole as string;
+    
+    // Bloquear customer
+    if (userRole === 'customer') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
     const id = parseInt(req.params.id);
     
     if (isNaN(id)) {
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const userRole = req.session?.userRole as string;
     const userCompanyId = req.session?.companyId as number | undefined;
 
     // Verificar se o prestador existe e tem acesso
@@ -184,13 +207,19 @@ router.patch('/:id', authRequired, async (req: Request, res: Response) => {
 // DELETE /api/service-providers/:id - Desativar prestador (soft delete)
 router.delete('/:id', authRequired, async (req: Request, res: Response) => {
   try {
+    const userRole = req.session?.userRole as string;
+    
+    // Bloquear customer
+    if (userRole === 'customer') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
     const id = parseInt(req.params.id);
     
     if (isNaN(id)) {
       return res.status(400).json({ error: 'ID inválido' });
     }
 
-    const userRole = req.session?.userRole as string;
     const userCompanyId = req.session?.companyId as number | undefined;
 
     // Verificar se o prestador existe e tem acesso

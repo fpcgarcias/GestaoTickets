@@ -16,6 +16,13 @@ const linkServiceProviderSchema = z.object({
 // GET /api/departments/:id/service-providers - Listar prestadores do departamento
 router.get('/:id/service-providers', authRequired, async (req: Request, res: Response) => {
   try {
+    const userRole = req.session?.userRole as string;
+    
+    // Bloquear customer
+    if (userRole === 'customer') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
     const departmentId = parseInt(req.params.id);
     
     if (isNaN(departmentId)) {
@@ -53,6 +60,13 @@ router.get('/:id/service-providers', authRequired, async (req: Request, res: Res
 // POST /api/departments/:id/service-providers - Vincular prestador ao departamento
 router.post('/:id/service-providers', authRequired, async (req: Request, res: Response) => {
   try {
+    const userRole = req.session?.userRole as string;
+    
+    // Bloquear customer
+    if (userRole === 'customer') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
     const departmentId = parseInt(req.params.id);
     
     if (isNaN(departmentId)) {
@@ -122,6 +136,13 @@ router.post('/:id/service-providers', authRequired, async (req: Request, res: Re
 // DELETE /api/departments/:id/service-providers/:providerId - Desvincular prestador
 router.delete('/:id/service-providers/:providerId', authRequired, async (req: Request, res: Response) => {
   try {
+    const userRole = req.session?.userRole as string;
+    
+    // Bloquear customer
+    if (userRole === 'customer') {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    
     const departmentId = parseInt(req.params.id);
     const providerId = parseInt(req.params.providerId);
     

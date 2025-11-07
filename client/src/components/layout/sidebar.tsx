@@ -78,7 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     { href: "/companies", icon: <Building2 size={20} />, label: formatMessage('sidebar.companies'), roles: ['admin'] },
     { href: "/permissions", icon: <Shield size={20} />, label: formatMessage('sidebar.permissions'), roles: ['admin'] },
     { href: "/departments", icon: <FolderIcon size={20} />, label: formatMessage('sidebar.departments'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/service-providers", icon: <Briefcase size={20} />, label: formatMessage('sidebar.service_providers'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
+    { href: "/service-providers", icon: <Briefcase size={20} />, label: formatMessage('sidebar.service_providers'), roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support'] },
     { href: "/ticket-types", icon: <TagIcon size={20} />, label: formatMessage('sidebar.ticket_types'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/categories", icon: <Grid3X3 size={20} />, label: formatMessage('sidebar.categories'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
     { href: "/priority-settings", icon: <Palette size={20} />, label: formatMessage('sidebar.priorities'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
