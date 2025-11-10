@@ -6,6 +6,7 @@
 import { db } from '../db';
 import { 
   slaConfigurations,
+  slaDefinitions,
   departments,
   incidentTypes,
   tickets,
@@ -18,7 +19,7 @@ import {
   ticketStatusHistory
 } from '@shared/schema';
 import { eq, and, count, sql, desc, asc, isNull, isNotNull, inArray } from 'drizzle-orm';
-import { SLAService } from '../services/sla-service';
+import { type ResolvedSLA, type SLAResolutionParams } from '../services/sla-service';
 import { convertStatusHistoryToPeriods, calculateEffectiveBusinessTime, getBusinessHoursConfig } from '../../shared/utils/sla-calculator';
 
 // Interfaces para responses
@@ -71,11 +72,415 @@ export interface SLAConfigurationOverview {
   }[];
 }
 
-export class SLADashboardAPI {
-  private slaService: SLAService;
+// Interface para dados pré-carregados de SLA
+interface PreloadedSLAData {
+  // Configurações SLA ativas indexadas por chave
+  slaConfigs: Map<string, SlaConfiguration>;
+  // Modos dos departamentos (category | type)
+  departmentModes: Map<number, 'category' | 'type'>;
+  // Prioridades por departamento indexadas por nome (case-insensitive)
+  prioritiesByDept: Map<number, Map<string, { id: number; name: string }>>;
+  // SLA Definitions (fallback empresa) indexadas por priority
+  companySlaDefinitions: Map<string, { responseTimeHours: number; resolutionTimeHours: number }>;
+}
 
+export class SLADashboardAPI {
   constructor() {
-    this.slaService = SLAService.getInstance();
+    // SLA Service removido - usando resolver em memória otimizado
+  }
+
+  /**
+   * Pré-carrega todas as configurações SLA em batch para otimização
+   */
+  private async preloadSLAData(companyId: number, departmentIds?: number[]): Promise<PreloadedSLAData> {
+    // Filtros base
+    const companyFilter = eq(slaConfigurations.company_id, companyId);
+    const baseFilters = [companyFilter];
+    
+    if (departmentIds && departmentIds.length > 0) {
+      baseFilters.push(inArray(slaConfigurations.department_id, departmentIds));
+    }
+
+    // 1. Buscar todas as configurações SLA ativas de uma vez
+    const allSlaConfigs = await db
+      .select()
+      .from(slaConfigurations)
+      .where(and(...baseFilters, eq(slaConfigurations.is_active, true)));
+
+    // 2. Buscar modos dos departamentos
+    let deptFilter: any[] = [eq(departments.company_id, companyId)];
+    if (departmentIds && departmentIds.length > 0) {
+      deptFilter.push(inArray(departments.id, departmentIds));
+    }
+    const allDepartments = await db
+      .select({ id: departments.id, sla_mode: departments.sla_mode })
+      .from(departments)
+      .where(and(...deptFilter));
+
+    // 3. Buscar todas as prioridades por departamento
+    let priorityFilter: any[] = [eq(departmentPriorities.company_id, companyId), eq(departmentPriorities.is_active, true)];
+    if (departmentIds && departmentIds.length > 0) {
+      priorityFilter.push(inArray(departmentPriorities.department_id, departmentIds));
+    }
+    const allPriorities = await db
+      .select({
+        id: departmentPriorities.id,
+        name: departmentPriorities.name,
+        departmentId: departmentPriorities.department_id
+      })
+      .from(departmentPriorities)
+      .where(and(...priorityFilter));
+
+    // 4. Buscar SLA Definitions (fallback empresa)
+    const allSlaDefinitions = await db
+      .select()
+      .from(slaDefinitions)
+      .where(eq(slaDefinitions.company_id, companyId));
+
+    // Construir estruturas de dados indexadas
+    const slaConfigsMap = new Map<string, SlaConfiguration>();
+    for (const config of allSlaConfigs) {
+      const key = this.buildSLAConfigKey(
+        config.department_id,
+        config.incident_type_id,
+        config.category_id,
+        config.priority_id
+      );
+      slaConfigsMap.set(key, config);
+    }
+
+    const departmentModesMap = new Map<number, 'category' | 'type'>();
+    for (const dept of allDepartments) {
+      departmentModesMap.set(dept.id, (dept.sla_mode || 'type') as 'category' | 'type');
+    }
+
+    const prioritiesByDeptMap = new Map<number, Map<string, { id: number; name: string }>>();
+    for (const priority of allPriorities) {
+      if (!prioritiesByDeptMap.has(priority.departmentId)) {
+        prioritiesByDeptMap.set(priority.departmentId, new Map());
+      }
+      const deptPriorities = prioritiesByDeptMap.get(priority.departmentId)!;
+      // Indexar por nome normalizado (case-insensitive)
+      const normalizedName = this.normalizePriorityName(priority.name);
+      deptPriorities.set(normalizedName, { id: priority.id, name: priority.name });
+    }
+
+    const companySlaDefinitionsMap = new Map<string, { responseTimeHours: number; resolutionTimeHours: number }>();
+    for (const def of allSlaDefinitions) {
+      const normalizedPriority = this.normalizePriorityName(def.priority);
+      companySlaDefinitionsMap.set(normalizedPriority, {
+        responseTimeHours: def.response_time_hours,
+        resolutionTimeHours: def.resolution_time_hours
+      });
+    }
+
+    return {
+      slaConfigs: slaConfigsMap,
+      departmentModes: departmentModesMap,
+      prioritiesByDept: prioritiesByDeptMap,
+      companySlaDefinitions: companySlaDefinitionsMap
+    };
+  }
+
+  /**
+   * Constrói chave para índice de configurações SLA
+   */
+  private buildSLAConfigKey(
+    departmentId: number,
+    incidentTypeId: number,
+    categoryId: number | null,
+    priorityId: number | null
+  ): string {
+    return `${departmentId}:${incidentTypeId}:${categoryId ?? 'null'}:${priorityId ?? 'null'}`;
+  }
+
+  /**
+   * Normaliza nome de prioridade para comparação case-insensitive
+   */
+  private normalizePriorityName(priority: string): string {
+    return priority.charAt(0).toUpperCase() + priority.slice(1).toLowerCase();
+  }
+
+  /**
+   * Resolve SLA em memória usando dados pré-carregados
+   * Replica exatamente a lógica do SLAService.resolveSLA
+   */
+  private resolveSLAInMemory(
+    params: SLAResolutionParams,
+    data: PreloadedSLAData
+  ): ResolvedSLA {
+    const departmentMode = data.departmentModes.get(params.departmentId);
+    const isCategoryMode = departmentMode === 'category';
+
+    if (isCategoryMode) {
+      // Modo categoria: procurar apenas configs com category_id
+      return this.tryCategoryModeInMemory(params, data) || this.getNoSLAResult();
+    } else {
+      // Modo tipo: hierarquia completa
+      // Nível 1: Configuração específica
+      const specific = this.trySpecificConfigurationInMemory(params, data);
+      if (specific && specific.source === 'specific') {
+        return specific;
+      }
+
+      // Nível 2: Configuração padrão do departamento
+      const deptDefault = this.tryDepartmentDefaultInMemory(params, data);
+      if (deptDefault && deptDefault.source === 'department_default') {
+        return deptDefault;
+      }
+
+      // Nível 3: Configuração padrão da empresa
+      const companyDefault = this.tryCompanyDefaultInMemory(params, data);
+      if (companyDefault && companyDefault.source === 'company_default') {
+        return companyDefault;
+      }
+
+      // Nível 4: Sem configuração
+      return this.getNoSLAResult();
+    }
+  }
+
+  /**
+   * Tenta encontrar configuração específica (com prioridade)
+   */
+  private trySpecificConfigurationInMemory(
+    params: SLAResolutionParams,
+    data: PreloadedSLAData
+  ): ResolvedSLA | null {
+    const priorityName = params.priorityName || 'Média';
+    const normalizedPriority = this.normalizePriorityName(priorityName);
+    
+    // Buscar prioridade no departamento
+    const deptPriorities = data.prioritiesByDept.get(params.departmentId);
+    if (!deptPriorities) {
+      return null;
+    }
+
+    // Tentar encontrar prioridade com diferentes variações
+    const priorityVariants = [
+      normalizedPriority,
+      priorityName,
+      priorityName.toLowerCase(),
+      priorityName.toUpperCase(),
+      priorityName.charAt(0).toUpperCase() + priorityName.slice(1).toLowerCase()
+    ];
+
+    // Mapeamento legado
+    const legacyMap: Record<string, string> = {
+      'low': 'Baixa',
+      'medium': 'Média',
+      'high': 'Alta',
+      'critical': 'Crítica',
+      'baixa': 'Baixa',
+      'média': 'Média',
+      'media': 'Média',
+      'alta': 'Alta',
+      'crítica': 'Crítica',
+      'critica': 'Crítica'
+    };
+
+    if (legacyMap[priorityName.toLowerCase()]) {
+      priorityVariants.push(legacyMap[priorityName.toLowerCase()]);
+    }
+
+    let priorityId: number | null = null;
+    for (const variant of priorityVariants) {
+      const normalizedVariant = this.normalizePriorityName(variant);
+      const priority = deptPriorities.get(normalizedVariant);
+      if (priority) {
+        priorityId = priority.id;
+        break;
+      }
+    }
+
+    // Se encontrou priorityId, buscar configuração
+    if (priorityId) {
+      const key = this.buildSLAConfigKey(
+        params.departmentId,
+        params.incidentTypeId,
+        params.categoryId ?? null,
+        priorityId
+      );
+      const config = data.slaConfigs.get(key);
+      if (config) {
+        return {
+          responseTimeHours: config.response_time_hours,
+          resolutionTimeHours: config.resolution_time_hours,
+          source: 'specific',
+          configId: config.id
+        };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Tenta encontrar configuração padrão do departamento (sem prioridade)
+   */
+  private tryDepartmentDefaultInMemory(
+    params: SLAResolutionParams,
+    data: PreloadedSLAData
+  ): ResolvedSLA | null {
+    const key = this.buildSLAConfigKey(
+      params.departmentId,
+      params.incidentTypeId,
+      params.categoryId ?? null,
+      null // priority_id NULL = padrão do departamento
+    );
+    const config = data.slaConfigs.get(key);
+    if (config) {
+      return {
+        responseTimeHours: config.response_time_hours,
+        resolutionTimeHours: config.resolution_time_hours,
+        source: 'department_default',
+        configId: config.id
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Tenta encontrar configuração padrão da empresa (SLA Definitions)
+   */
+  private tryCompanyDefaultInMemory(
+    params: SLAResolutionParams,
+    data: PreloadedSLAData
+  ): ResolvedSLA | null {
+    let priorityName = params.priorityName || 'Média';
+    
+    // Se temos priorityId, tentar buscar o nome
+    if (params.priorityId) {
+      const deptPriorities = data.prioritiesByDept.get(params.departmentId);
+      if (deptPriorities) {
+        for (const [normalized, priority] of deptPriorities.entries()) {
+          if (priority.id === params.priorityId) {
+            priorityName = priority.name;
+            break;
+          }
+        }
+      }
+    }
+
+    const normalizedPriority = this.normalizePriorityName(priorityName);
+    const def = data.companySlaDefinitions.get(normalizedPriority);
+    
+    if (def) {
+      return {
+        responseTimeHours: def.responseTimeHours,
+        resolutionTimeHours: def.resolutionTimeHours,
+        source: 'company_default'
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Tenta encontrar configuração em modo categoria
+   */
+  private tryCategoryModeInMemory(
+    params: SLAResolutionParams,
+    data: PreloadedSLAData
+  ): ResolvedSLA | null {
+    if (!params.categoryId) {
+      return null;
+    }
+
+    const priorityName = params.priorityName || 'Média';
+    const normalizedPriority = this.normalizePriorityName(priorityName);
+    
+    // Buscar prioridade no departamento
+    const deptPriorities = data.prioritiesByDept.get(params.departmentId);
+    if (!deptPriorities) {
+      return null;
+    }
+
+    // Tentar encontrar prioridade
+    const priorityVariants = [
+      normalizedPriority,
+      priorityName,
+      priorityName.toLowerCase(),
+      priorityName.toUpperCase()
+    ];
+
+    const legacyMap: Record<string, string> = {
+      'low': 'Baixa',
+      'medium': 'Média',
+      'high': 'Alta',
+      'critical': 'Crítica',
+      'baixa': 'Baixa',
+      'média': 'Média',
+      'media': 'Média',
+      'alta': 'Alta',
+      'crítica': 'Crítica',
+      'critica': 'Crítica'
+    };
+
+    if (legacyMap[priorityName.toLowerCase()]) {
+      priorityVariants.push(legacyMap[priorityName.toLowerCase()]);
+    }
+
+    let priorityId: number | null = null;
+    for (const variant of priorityVariants) {
+      const normalizedVariant = this.normalizePriorityName(variant);
+      const priority = deptPriorities.get(normalizedVariant);
+      if (priority) {
+        priorityId = priority.id;
+        break;
+      }
+    }
+
+    // 1) Tentar com priority_id
+    if (priorityId) {
+      const key = this.buildSLAConfigKey(
+        params.departmentId,
+        params.incidentTypeId,
+        params.categoryId,
+        priorityId
+      );
+      const config = data.slaConfigs.get(key);
+      if (config) {
+        return {
+          responseTimeHours: config.response_time_hours,
+          resolutionTimeHours: config.resolution_time_hours,
+          source: 'specific',
+          configId: config.id
+        };
+      }
+    }
+
+    // 2) Tentar padrão de categoria (priority_id NULL)
+    const defaultKey = this.buildSLAConfigKey(
+      params.departmentId,
+      params.incidentTypeId,
+      params.categoryId,
+      null
+    );
+    const defaultConfig = data.slaConfigs.get(defaultKey);
+    if (defaultConfig) {
+      return {
+        responseTimeHours: defaultConfig.response_time_hours,
+        resolutionTimeHours: defaultConfig.resolution_time_hours,
+        source: 'department_default',
+        configId: defaultConfig.id
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Retorna resultado quando não há configuração SLA
+   */
+  private getNoSLAResult(): ResolvedSLA {
+    return {
+      responseTimeHours: 24,
+      resolutionTimeHours: 72,
+      source: 'no_config',
+      configId: undefined,
+      fallbackReason: 'no_configuration'
+    };
   }
 
   /**
@@ -228,6 +633,7 @@ export class SLADashboardAPI {
 
   /**
    * Calcular métricas de cumprimento de SLA
+   * OTIMIZADO: Usa resolver em memória ao invés de N queries
    */
   private async getSLAComplianceMetrics(companyId: number, departmentIds?: number[]): Promise<SLADashboardStats['slaCompliance']> {
     // Construir filtros base
@@ -241,6 +647,9 @@ export class SLADashboardAPI {
     if (departmentIds && departmentIds.length > 0) {
       baseFilters.push(inArray(tickets.department_id, departmentIds));
     }
+
+    // OTIMIZAÇÃO: Pré-carregar todas as configurações SLA em batch
+    const preloadedData = await this.preloadSLAData(companyId, departmentIds);
 
     // Buscar tickets com informações de SLA dos últimos 30 dias
     const ticketsWithSLA = await db
@@ -302,6 +711,7 @@ export class SLADashboardAPI {
       resolvedTickets: number;
     }>();
 
+    // OTIMIZAÇÃO: Loop sem await - resolver SLA em memória
     for (const ticket of ticketsWithSLA) {
       if (!ticket.departmentId) continue;
       if (!departmentMetrics.has(ticket.departmentId)) {
@@ -317,16 +727,19 @@ export class SLADashboardAPI {
       }
       const metrics = departmentMetrics.get(ticket.departmentId)!;
       try {
-        const sla = await this.slaService.resolveSLA({
+        // OTIMIZAÇÃO: Resolver SLA em memória (sem query ao banco)
+        const sla = this.resolveSLAInMemory({
           companyId,
           departmentId: ticket.departmentId,
           incidentTypeId: ticket.incidentTypeId!,
           priorityName: ticket.priority,
           categoryId: ticket.categoryId ?? undefined
-        });
+        }, preloadedData);
+
         if (!sla) continue; // Sem SLA: não conta em cumprimento
         metrics.totalTickets++;
         // Calcular tempos de resposta e resolução usando tempo útil
+        // MANTÉM A MESMA LÓGICA DE CÁLCULO
         const statusHistory = statusMap.get(ticket.ticketId) || [];
         // Resposta - Se não tem firstResponseAt mas tem resolvedAt, usar resolvedAt
         if ((ticket.firstResponseAt || ticket.resolvedAt) && sla) {
