@@ -9,10 +9,14 @@
       "type": "feature",
       "changes": {
         "new": [
-          "Implementação do filtro de categorias no dashboard."
+          "Implementação do filtro de categorias no dashboard.",
+          "Criação da função de prestadores de serviços, utilizados para atribuir prestadores de serviços aos tickets.",
+          "Implementação do PWA, transformando o sistema em uma aplicação web progressiva (PWA) instalável em Android e iOS."
         ],
         "fixed": [
-          "Correção da função de exportação dos relatórios para Excel."
+          "Correção da função de exportação dos relatórios para Excel.",
+          "Melhorias de performance na tela de Dashboard de SLA",
+          "Correção na transferência de tickets entre departamentos que não exibia as categorias."
         ]
       }
     },
