@@ -1359,6 +1359,7 @@
     "not_assigned": "Not assigned",
     "sent_at": "Sent at",
     "responded_at": "Responded at",
+    "expired_at": "Expired at",
     "waiting_response": "Waiting for response",
     "comment": "Comment",
     "rating_distribution": "Rating Distribution",
