@@ -501,7 +501,7 @@ export default function Dashboard() {
               <Collapsible open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
                 <CollapsibleTrigger asChild>
                   <Button variant="outline" className="w-fit whitespace-nowrap">
-                    {locale === 'en-US' ? 'More Filters' : 'Mais Filtros'}
+                    {formatMessage('dashboard.more_filters')}
                     <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${isFiltersOpen ? 'rotate-180' : ''}`} />
                   </Button>
                 </CollapsibleTrigger>
@@ -552,13 +552,13 @@ export default function Dashboard() {
                     <Tags className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                     <Select value={selectedCategoryId} onValueChange={handleCategoryChange}>
                       <SelectTrigger className="w-64">
-                        <SelectValue placeholder={locale === 'en-US' ? 'All Categories' : 'Todas as Categorias'} />
+                        <SelectValue placeholder={formatMessage('dashboard.all_categories')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">{locale === 'en-US' ? 'All Categories' : 'Todas as Categorias'}</SelectItem>
+                        <SelectItem value="all">{formatMessage('dashboard.all_categories')}</SelectItem>
                         {isCategoriesLoading ? (
                           <SelectItem value="loading" disabled>
-                            {locale === 'en-US' ? 'Loading categories...' : 'Carregando categorias...'}
+                            {formatMessage('dashboard.loading_categories')}
                           </SelectItem>
                         ) : categories.length > 0 ? (
                           [...categories]
@@ -570,7 +570,7 @@ export default function Dashboard() {
                             ))
                         ) : (
                           <SelectItem value="none" disabled>
-                            {locale === 'en-US' ? 'No categories available' : 'Nenhuma categoria disponível'}
+                            {formatMessage('dashboard.no_categories_available')}
                           </SelectItem>
                         )}
                       </SelectContent>
