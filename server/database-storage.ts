@@ -1620,10 +1620,10 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number): Promise<number> {
+  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<number> {
     try {
       // Buscar tickets filtrados via SQL (otimizado)
-      const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId);
+      const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId, categoryId);
       
       // Filtrar tickets que têm created_at e (first_response_at OU resolved_at)
       // Se não tem first_response_at mas tem resolved_at, usar resolved_at como primeira resposta
@@ -1687,10 +1687,10 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number): Promise<number> {
+  async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<number> {
     try {
       // Buscar tickets filtrados via SQL (otimizado)
-      const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId);
+      const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId, categoryId);
       
       // Filtrar apenas tickets realmente resolvidos
       const resolvedTickets = tickets.filter(ticket => ticket.status === 'resolved' && ticket.resolved_at && ticket.created_at);
@@ -2003,7 +2003,7 @@ export class DatabaseStorage implements IStorage {
    * aplica todos os filtros no SQL e não faz enrichments.
    * NÃO IMPACTA OUTRAS TELAS.
    */
-  async getTicketsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number): Promise<{
+  async getTicketsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<{
     id: number;
     title: string;
     created_at: Date;
@@ -2173,6 +2173,9 @@ export class DatabaseStorage implements IStorage {
     if (incidentTypeId) {
       whereClauses.push(eq(tickets.incident_type_id, incidentTypeId));
     }
+    if (categoryId) {
+      whereClauses.push(eq(tickets.category_id, categoryId));
+    }
     
     // Buscar apenas os campos essenciais
     const result = await db
@@ -2197,8 +2200,8 @@ export class DatabaseStorage implements IStorage {
    * Retorna estatísticas de tickets para o dashboard (total, byStatus, byPriority),
    * aplicando filtros no SQL e sem enrichments.
    */
-  async getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
-    const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId);
+  async getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+    const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId, categoryId);
     const byStatus: Record<string, number> = {};
     const byPriority: Record<string, number> = {};
     tickets.forEach(ticket => {
@@ -2217,9 +2220,9 @@ export class DatabaseStorage implements IStorage {
   /**
    * Retorna tickets recentes para o dashboard, apenas campos essenciais, sem enrichments.
    */
-  async getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number = 10, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>> {
+  async getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number = 10, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>> {
     // Reaproveita a query otimizada, mas só pega os campos necessários
-    const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId);
+    const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId, categoryId);
     return tickets
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, limit)

@@ -5,9 +5,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusDot } from '@/components/tickets/status-badge';
 import { TimeMetricCard } from '@/components/ui/time-metric-card';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
-import { Clock, CheckCircle2, Users, Calendar, MoreHorizontal, Building, ClipboardList } from 'lucide-react';
+import { Clock, CheckCircle2, Users, Calendar, MoreHorizontal, Building, ClipboardList, Tags, ChevronDown } from 'lucide-react';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { useBusinessHoursRefetchInterval } from '../hooks/use-business-hours';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, subMonths } from 'date-fns';
@@ -64,6 +66,12 @@ interface IncidentTypeOption {
   department_id: number | null;
 }
 
+interface CategoryOption {
+  id: number;
+  name: string;
+  incident_type_id: number | null;
+}
+
 // Opções de períodos pré-definidos
 const PERIOD_OPTIONS = [
   { value: 'current_month', label: 'Mês Atual' },
@@ -94,6 +102,7 @@ function normalizarPrioridade(prioridade: string) {
 export default function Dashboard() {
   const { user, isLoading: isLoadingAuth } = useAuth();
   const { formatMessage, locale } = useI18n();
+  const isChangingFromIncidentType = React.useRef(false);
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
   const shouldShowSatisfactionPrompt = user?.role === 'customer';
   
@@ -105,6 +114,8 @@ export default function Dashboard() {
   // Filtro de departamento
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>('all');
   const [selectedIncidentTypeId, setSelectedIncidentTypeId] = useState<string>('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Função para calcular datas igual ao index.tsx
   function getPeriodDates() {
@@ -192,11 +203,55 @@ export default function Dashboard() {
 
   React.useEffect(() => {
     if (selectedIncidentTypeId === 'all') return;
+    // Não resetar se a mudança veio de handleIncidentTypeChange
+    if (isChangingFromIncidentType.current) return;
     const exists = incidentTypes.some((type) => type.id?.toString() === selectedIncidentTypeId);
     if (!exists) {
       setSelectedIncidentTypeId('all');
     }
   }, [incidentTypes, selectedIncidentTypeId]);
+
+  // Buscar categorias - TODAS por padrão, filtrando por departamento/tipo se selecionados
+  const { data: categoriesResponse, isLoading: isCategoriesLoading, error: categoriesError } = useQuery({
+    queryKey: ['/api/categories', selectedDepartmentId, selectedIncidentTypeId, user?.role, user?.id],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('active_only', 'true');
+      params.append('limit', '1000');
+      
+      // Filtrar por departamento se selecionado
+      if (selectedDepartmentId && selectedDepartmentId !== 'all') {
+        params.append('department_id', selectedDepartmentId);
+      }
+      
+      // Filtrar por tipo de chamado se selecionado
+      if (selectedIncidentTypeId && selectedIncidentTypeId !== 'all') {
+        params.append('incident_type_id', selectedIncidentTypeId);
+      }
+      
+      const url = `/api/categories?${params.toString()}`;
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Erro ao carregar categorias: ${res.status}`);
+      }
+      const data = await res.json();
+      return data;
+    },
+    enabled: shouldShowIncidentTypeFilter, // Sempre habilitado se o usuário tem permissão
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
+
+  const rawCategories = categoriesResponse?.categories || categoriesResponse?.data || categoriesResponse || [];
+  const categories: CategoryOption[] = Array.isArray(rawCategories) ? rawCategories : [];
+
+  React.useEffect(() => {
+    if (selectedCategoryId === 'all') return;
+    const exists = categories.some((category) => category.id?.toString() === selectedCategoryId);
+    if (!exists) {
+      setSelectedCategoryId('all');
+    }
+  }, [categories, selectedCategoryId]);
 
   // Buscar atendentes apenas se necessário
   const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
@@ -237,25 +292,50 @@ export default function Dashboard() {
 
   const handleDepartmentChange = (value: string) => {
     setSelectedDepartmentId(value);
-    if (value !== selectedDepartmentId) {
+    // Se a mudança veio de handleIncidentTypeChange, não resetar o tipo
+    if (value !== selectedDepartmentId && !isChangingFromIncidentType.current) {
       setSelectedIncidentTypeId('all');
+      setSelectedCategoryId('all');
       setSelectedOfficialId('all');
+    }
+    // Resetar a flag após um pequeno delay para garantir que todos os useEffects foram processados
+    if (isChangingFromIncidentType.current) {
+      setTimeout(() => {
+        isChangingFromIncidentType.current = false;
+      }, 100);
     }
   };
 
   const handleIncidentTypeChange = (value: string) => {
-    setSelectedIncidentTypeId(value);
     if (value === 'all') {
+      setSelectedIncidentTypeId(value);
+      setSelectedCategoryId('all');
       return;
     }
+    
+    // Atualizar departamento automaticamente se o tipo pertence a um departamento específico
     const selectedType = incidentTypes.find((type) => type.id?.toString() === value);
     if (selectedType?.department_id) {
       const departmentIdString = selectedType.department_id.toString();
       if (selectedDepartmentId !== departmentIdString) {
+        // Marcar que a mudança de departamento vem daqui ANTES de fazer qualquer mudança
+        isChangingFromIncidentType.current = true;
+        // Setar tudo junto
+        setSelectedIncidentTypeId(value);
         setSelectedDepartmentId(departmentIdString);
+        setSelectedCategoryId('all');
         setSelectedOfficialId('all');
+        return;
       }
     }
+    
+    // Se não mudou o departamento, apenas setar o tipo e resetar categoria
+    setSelectedIncidentTypeId(value);
+    setSelectedCategoryId('all');
+  };
+
+  const handleCategoryChange = (value: string) => {
+    setSelectedCategoryId(value);
   };
 
   const handleOfficialChange = (value: string) => {
@@ -291,6 +371,9 @@ export default function Dashboard() {
     if (selectedIncidentTypeId !== 'all') {
       params.append('incident_type_id', selectedIncidentTypeId);
     }
+    if (selectedCategoryId !== 'all') {
+      params.append('category_id', selectedCategoryId);
+    }
     if (selectedDepartmentId !== 'all') {
       params.append('department_id', selectedDepartmentId);
     }
@@ -311,7 +394,7 @@ export default function Dashboard() {
 
   // Query única para todas as métricas do dashboard
   const { data: dashboardData, isLoading: isDashboardLoading } = useQuery({
-    queryKey: ['dashboard-metrics', startDate.toISOString(), endDate.toISOString(), selectedOfficialId, selectedDepartmentId, selectedIncidentTypeId],
+    queryKey: ['dashboard-metrics', startDate.toISOString(), endDate.toISOString(), selectedOfficialId, selectedDepartmentId, selectedIncidentTypeId, selectedCategoryId],
     queryFn: async () => {
       const params = getQueryParamsWithPeriod();
       const url = `/api/tickets/dashboard-metrics${params ? `?${params}` : ''}`;
@@ -374,96 +457,151 @@ export default function Dashboard() {
       {shouldShowSatisfactionPrompt && (
         <PendingSatisfactionSurveys enabled={shouldShowSatisfactionPrompt} />
       )}
-      <div className="dashboard-header flex justify-between items-center mb-6">
-      <h1 className="text-2xl font-semibold text-foreground">{formatMessage('dashboard.title')}</h1>
-        <div className="dashboard-filters flex items-center gap-4">
-          <div className="flex items-center gap-2">
+      <div className="dashboard-header mb-6">
+        <div className="flex justify-between items-start mb-4">
+          <h1 className="text-2xl font-semibold text-foreground">{formatMessage('dashboard.title')}</h1>
+          {/* Filtros fixos: Datas, Departamento e Mais Filtros - alinhados à direita */}
+          <div className="flex items-center gap-4 flex-nowrap">
+            <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
-            <DateRangeFilter
-              timeFilter={timeFilter}
-              setTimeFilter={setTimeFilter}
-              dateRange={dateRange}
-              setDateRange={setDateRange}
-              calendarOpen={calendarOpen}
-              setCalendarOpen={setCalendarOpen}
-            />
-            {/* Indicador discreto do período */}
-            <span className="text-xs text-muted-foreground">
-              {format(startDate, locale === 'en-US' ? 'MM/dd/yy' : 'dd/MM/yy', { locale: locale === 'en-US' ? enUS : ptBR })}{formatMessage('dashboard.date_range_separator')}{format(endDate, locale === 'en-US' ? 'MM/dd/yy' : 'dd/MM/yy', { locale: locale === 'en-US' ? enUS : ptBR })}
-            </span>
+              <DateRangeFilter
+                timeFilter={timeFilter}
+                setTimeFilter={setTimeFilter}
+                dateRange={dateRange}
+                setDateRange={setDateRange}
+                calendarOpen={calendarOpen}
+                setCalendarOpen={setCalendarOpen}
+              />
+              {/* Indicador discreto do período */}
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {format(startDate, locale === 'en-US' ? 'MM/dd/yy' : 'dd/MM/yy', { locale: locale === 'en-US' ? enUS : ptBR })}{formatMessage('dashboard.date_range_separator')}{format(endDate, locale === 'en-US' ? 'MM/dd/yy' : 'dd/MM/yy', { locale: locale === 'en-US' ? enUS : ptBR })}
+              </span>
+            </div>
+            {/* Filtro de Departamento */}
+            {shouldShowDepartmentFilter && (
+              <div className="flex items-center gap-2">
+                <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <Select value={selectedDepartmentId} onValueChange={handleDepartmentChange}>
+                  <SelectTrigger className="w-56">
+                    <SelectValue placeholder={formatMessage('dashboard.all_departments')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{formatMessage('dashboard.all_departments')}</SelectItem>
+                    {departments.map((department: any) => (
+                      <SelectItem key={department.id} value={department.id.toString()}>
+                        {department.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {/* Botão Mais Filtros */}
+            {(shouldShowIncidentTypeFilter || shouldShowOfficialFilter) && (
+              <Collapsible open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" className="w-fit whitespace-nowrap">
+                    {locale === 'en-US' ? 'More Filters' : 'Mais Filtros'}
+                    <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${isFiltersOpen ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+              </Collapsible>
+            )}
           </div>
-          {/* Filtro de Departamento */}
-          {shouldShowDepartmentFilter && (
-            <div className="flex items-center gap-2">
-              <Building className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <Select value={selectedDepartmentId} onValueChange={handleDepartmentChange}>
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder={formatMessage('dashboard.all_departments')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{formatMessage('dashboard.all_departments')}</SelectItem>
-                  {departments.map((department: any) => (
-                    <SelectItem key={department.id} value={department.id.toString()}>
-                      {department.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          {/* Filtro de Tipo de Chamado */}
-          {shouldShowIncidentTypeFilter && (
-            <div className="flex items-center gap-2">
-              <ClipboardList className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <Select value={selectedIncidentTypeId} onValueChange={handleIncidentTypeChange}>
-                <SelectTrigger className="w-64">
-                  <SelectValue placeholder={formatMessage('dashboard.all_incident_types')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{formatMessage('dashboard.all_incident_types')}</SelectItem>
-                  {isIncidentTypesLoading ? (
-                    <SelectItem value="loading" disabled>
-                      {formatMessage('dashboard.loading_incident_types')}
-                    </SelectItem>
-                  ) : incidentTypes.length > 0 ? (
-                    [...incidentTypes]
-                      .sort((a, b) => a.name.localeCompare(b.name, locale === 'en-US' ? 'en-US' : 'pt-BR', { sensitivity: 'base' }))
-                      .map((incidentType) => (
-                        <SelectItem key={incidentType.id} value={incidentType.id.toString()}>
-                          {incidentType.name}
-                        </SelectItem>
-                      ))
-                  ) : (
-                    <SelectItem value="none" disabled>
-                      {formatMessage('dashboard.no_incident_types')}
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          {/* Filtro de Atendente */}
-          {shouldShowOfficialFilter && (
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <Select value={selectedOfficialId} onValueChange={handleOfficialChange}>
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder={formatMessage('dashboard.all_officials')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{formatMessage('dashboard.all_officials')}</SelectItem>
-                  {[...filteredOfficials]
-                    .sort((a, b) => a.name.localeCompare(b.name, locale === 'en-US' ? 'en-US' : 'pt-BR', { sensitivity: 'base' }))
-                    .map((official: Official) => (
-                    <SelectItem key={official.id} value={official.id.toString()}>
-                      {official.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </div>
+        
+        {/* Filtros expandidos - alinhados à direita, abaixo da primeira linha */}
+        {(shouldShowIncidentTypeFilter || shouldShowOfficialFilter) && (
+          <Collapsible open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+            <CollapsibleContent>
+              <div className="flex items-center gap-4 flex-wrap justify-end">
+                {/* Filtro de Tipo de Chamado */}
+                {shouldShowIncidentTypeFilter && (
+                  <div className="flex items-center gap-2">
+                    <ClipboardList className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <Select value={selectedIncidentTypeId} onValueChange={handleIncidentTypeChange}>
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder={formatMessage('dashboard.all_incident_types')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{formatMessage('dashboard.all_incident_types')}</SelectItem>
+                        {isIncidentTypesLoading ? (
+                          <SelectItem value="loading" disabled>
+                            {formatMessage('dashboard.loading_incident_types')}
+                          </SelectItem>
+                        ) : incidentTypes.length > 0 ? (
+                          [...incidentTypes]
+                            .sort((a, b) => a.name.localeCompare(b.name, locale === 'en-US' ? 'en-US' : 'pt-BR', { sensitivity: 'base' }))
+                            .map((incidentType) => (
+                              <SelectItem key={incidentType.id} value={incidentType.id.toString()}>
+                                {incidentType.name}
+                              </SelectItem>
+                            ))
+                        ) : (
+                          <SelectItem value="none" disabled>
+                            {formatMessage('dashboard.no_incident_types')}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {/* Filtro de Categoria */}
+                {shouldShowIncidentTypeFilter && (
+                  <div className="flex items-center gap-2">
+                    <Tags className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <Select value={selectedCategoryId} onValueChange={handleCategoryChange}>
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder={locale === 'en-US' ? 'All Categories' : 'Todas as Categorias'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{locale === 'en-US' ? 'All Categories' : 'Todas as Categorias'}</SelectItem>
+                        {isCategoriesLoading ? (
+                          <SelectItem value="loading" disabled>
+                            {locale === 'en-US' ? 'Loading categories...' : 'Carregando categorias...'}
+                          </SelectItem>
+                        ) : categories.length > 0 ? (
+                          [...categories]
+                            .sort((a, b) => a.name.localeCompare(b.name, locale === 'en-US' ? 'en-US' : 'pt-BR', { sensitivity: 'base' }))
+                            .map((category) => (
+                              <SelectItem key={category.id} value={category.id.toString()}>
+                                {category.name}
+                              </SelectItem>
+                            ))
+                        ) : (
+                          <SelectItem value="none" disabled>
+                            {locale === 'en-US' ? 'No categories available' : 'Nenhuma categoria disponível'}
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {/* Filtro de Atendente */}
+                {shouldShowOfficialFilter && (
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <Select value={selectedOfficialId} onValueChange={handleOfficialChange}>
+                      <SelectTrigger className="w-56">
+                        <SelectValue placeholder={formatMessage('dashboard.all_officials')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{formatMessage('dashboard.all_officials')}</SelectItem>
+                        {[...filteredOfficials]
+                          .sort((a, b) => a.name.localeCompare(b.name, locale === 'en-US' ? 'en-US' : 'pt-BR', { sensitivity: 'base' }))
+                          .map((official: Official) => (
+                            <SelectItem key={official.id} value={official.id.toString()}>
+                              {official.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </div>
       
 
