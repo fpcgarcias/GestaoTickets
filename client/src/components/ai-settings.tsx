@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { config } from '@/lib/config';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { useI18n } from '@/i18n';
@@ -508,28 +509,52 @@ function CompanyAiConfiguration() {
         return { ai_permission_granted: false, ai_usage_enabled: false };
       }
       
+      // Usar fetch diretamente para evitar que apiRequest trate 403 como sessão expirada
+      // neste caso específico, pois 403 pode significar "empresa sem permissão de IA"
+      const url = `/api/settings/ai-usage`.startsWith('http') 
+        ? `/api/settings/ai-usage` 
+        : `${config.apiBaseUrl}/api/settings/ai-usage`;
+      
       try {
-        const response = await apiRequest("GET", "/api/settings/ai-usage");
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+        });
+
         if (!response.ok) {
-          // Não jogue erro para 401, apenas retorne null ou um objeto padrão
+          // Tratar 403 como "empresa sem permissão de IA" (não como sessão expirada)
+          if (response.status === 403) {
+            const data = await response.json();
+            // Verificar se é um erro de permissão de IA ou sessão expirada
+            if (data.message && data.message.includes('Empresa não tem permissão para usar IA')) {
+              // É um erro de permissão de IA, não de sessão expirada
+              return { 
+                ai_permission_granted: false, 
+                ai_usage_enabled: false,
+                message: data.message 
+              };
+            }
+            // Se for outro tipo de 403, pode ser sessão expirada
+            console.warn('403 Forbidden ao buscar configurações de IA:', data.message);
+            return { ai_permission_granted: false, ai_usage_enabled: false };
+          }
+          
+          // Para 401, retornar sem permissão mas não fazer logoff
           if (response.status === 401) {
             console.warn('Usuário não autenticado ao buscar configurações de IA');
             return { ai_permission_granted: false, ai_usage_enabled: false };
           }
-          if (response.status === 403) {
-            // Empresa não tem permissão
-            const data = await response.json();
-            return { 
-              ai_permission_granted: false, 
-              ai_usage_enabled: false,
-              message: data.message 
-            };
-          }
+          
           const errorData = await response.json();
           throw new Error(errorData.message || 'Falha ao buscar configurações de IA');
         }
+        
         return response.json();
-      } catch (error) {
+      } catch (error: any) {
+        // Se for um erro de rede ou outro tipo, não fazer logoff
         console.error('Erro ao buscar configurações de IA:', error);
         return { ai_permission_granted: false, ai_usage_enabled: false };
       }
