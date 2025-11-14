@@ -27,6 +27,7 @@ interface DepartmentFormData {
   sla_mode?: 'type' | 'category';
   satisfaction_survey_enabled?: boolean;
   use_service_providers?: boolean;
+  use_inventory_control?: boolean;
 }
 
 const DepartmentManagement: React.FC = () => {
@@ -52,6 +53,7 @@ const DepartmentManagement: React.FC = () => {
     sla_mode: 'type',
     satisfaction_survey_enabled: false,
     use_service_providers: false,
+    use_inventory_control: false,
   });
   const [isEditing, setIsEditing] = useState(false);
 
@@ -155,7 +157,9 @@ const DepartmentManagement: React.FC = () => {
         company_id: data.company_id,
         is_active: data.is_active,
         sla_mode: data.sla_mode || 'type',
-        satisfaction_survey_enabled: data.satisfaction_survey_enabled || false
+        satisfaction_survey_enabled: data.satisfaction_survey_enabled || false,
+        use_service_providers: data.use_service_providers || false,
+        use_inventory_control: data.use_inventory_control || false,
       });
       
       if (!response.ok) {
@@ -199,7 +203,8 @@ const DepartmentManagement: React.FC = () => {
         is_active: data.is_active,
         sla_mode: data.sla_mode || 'type',
         satisfaction_survey_enabled: data.satisfaction_survey_enabled || false,
-        use_service_providers: data.use_service_providers || false
+        use_service_providers: data.use_service_providers || false,
+        use_inventory_control: data.use_inventory_control || false,
       });
       
       if (!response.ok) {
@@ -288,6 +293,7 @@ const DepartmentManagement: React.FC = () => {
       sla_mode: 'type',
       satisfaction_survey_enabled: false,
       use_service_providers: false,
+      use_inventory_control: false,
     });
     setIsEditing(false);
   };
@@ -309,6 +315,7 @@ const DepartmentManagement: React.FC = () => {
       sla_mode: (department as any).sla_mode || 'type',
       satisfaction_survey_enabled: (department as any).satisfaction_survey_enabled || false,
       use_service_providers: (department as any).use_service_providers || false,
+      use_inventory_control: (department as any).use_inventory_control || false,
     });
     setIsEditing(true);
     setIsDialogOpen(true);
@@ -690,6 +697,27 @@ const DepartmentManagement: React.FC = () => {
                   setCurrentDepartment((prev) => ({
                     ...prev,
                     use_service_providers: checked,
+                  }))
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-1">
+                <Label htmlFor="use_inventory_control" className="font-medium">
+                  {formatMessage('departments.add_department_dialog.inventory_control')}
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {formatMessage('departments.add_department_dialog.inventory_control_desc')}
+                </p>
+              </div>
+              <Switch
+                id="use_inventory_control"
+                checked={currentDepartment.use_inventory_control || false}
+                onCheckedChange={(checked) =>
+                  setCurrentDepartment((prev) => ({
+                    ...prev,
+                    use_inventory_control: checked,
                   }))
                 }
               />

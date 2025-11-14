@@ -23,16 +23,17 @@ export const slaModeEnum = pgEnum('sla_mode', [
 // ticketPriorityEnum removido - agora usando TEXT para prioridades dinâmicas
 // export const ticketPriorityEnum = pgEnum('ticket_priority', ['low', 'medium', 'high', 'critical']);
 export const userRoleEnum = pgEnum('user_role', [
-  'admin',          // Acesso total ao sistema, multiempresa
-  'customer',       // Cliente da empresa
-  'support',        // Atendente
-  'manager',        // Gestor da equipe
-  'supervisor',     // Nível entre manager e support
-  'viewer',         // Apenas visualização de chamados
-  'company_admin',  // Admin local da empresa
-  'triage',         // Classificação e encaminhamento
-  'quality',        // Avaliação de qualidade
-  'integration_bot' // Bots e integrações
+  'admin',            // Acesso total ao sistema, multiempresa
+  'customer',         // Cliente da empresa
+  'support',          // Atendente
+  'manager',          // Gestor da equipe
+  'supervisor',       // Nível entre manager e support
+  'viewer',           // Apenas visualização de chamados
+  'company_admin',    // Admin local da empresa
+  'triage',           // Classificação e encaminhamento
+  'quality',          // Avaliação de qualidade
+  'integration_bot',  // Bots e integrações
+  'inventory_manager' // Gestor de estoque
 ]);
 
 // Enum para provedores de IA
@@ -100,6 +101,7 @@ export const departments = pgTable("departments", {
   sla_mode: slaModeEnum("sla_mode").notNull().default('type'),
   satisfaction_survey_enabled: boolean("satisfaction_survey_enabled").default(false).notNull(),
   use_service_providers: boolean("use_service_providers").default(false).notNull(),
+  use_inventory_control: boolean("use_inventory_control").default(false).notNull(),
 });
 
 // Support staff table (ajustado para usar department_id ao invés de enum)
@@ -1051,3 +1053,428 @@ export const ticketServiceProvidersRelations = relations(ticketServiceProviders,
     references: [users.id],
   }),
 }));
+
+// ========================================
+// SISTEMA DE CONTROLE DE ESTOQUE
+// ========================================
+
+// Tabela: product_types
+export const productTypes = pgTable("product_types", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  code: text("code").notNull(),
+  category: text("category").notNull(),
+  department_id: integer("department_id").references(() => departments.id, { onDelete: 'set null' }),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }),
+  custom_fields: text("custom_fields").notNull().default('{}'),
+  requires_serial: boolean("requires_serial").notNull().default(false),
+  requires_asset_tag: boolean("requires_asset_tag").notNull().default(false),
+  is_consumable: boolean("is_consumable").notNull().default(false),
+  depreciation_years: integer("depreciation_years"),
+  min_stock_alert: integer("min_stock_alert"),
+  is_active: boolean("is_active").notNull().default(true),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: inventory_suppliers
+export const inventorySuppliers = pgTable("inventory_suppliers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  cnpj: text("cnpj"),
+  contact_name: text("contact_name"),
+  phone: text("phone"),
+  email: text("email"),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  payment_terms: text("payment_terms"),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }),
+  is_active: boolean("is_active").notNull().default(true),
+  notes: text("notes"),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: inventory_locations
+export const inventoryLocations = pgTable("inventory_locations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  parent_location_id: integer("parent_location_id").references((): any => inventoryLocations.id, { onDelete: 'set null' }),
+  type: text("type").notNull(),
+  qr_code: text("qr_code"),
+  department_id: integer("department_id").references(() => departments.id, { onDelete: 'set null' }),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }),
+  is_active: boolean("is_active").notNull().default(true),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: inventory_products
+export const inventoryProducts = pgTable("inventory_products", {
+  id: serial("id").primaryKey(),
+  product_type_id: integer("product_type_id").references(() => productTypes.id, { onDelete: 'restrict' }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  brand: text("brand"),
+  model: text("model"),
+  serial_number: text("serial_number"),
+  service_tag: text("service_tag"),
+  asset_number: text("asset_number"),
+  purchase_date: timestamp("purchase_date", { withTimezone: false, mode: 'date' }),
+  warranty_expiry: timestamp("warranty_expiry", { withTimezone: false, mode: 'date' }),
+  supplier_id: integer("supplier_id").references(() => inventorySuppliers.id, { onDelete: 'set null' }),
+  purchase_value: text("purchase_value"),
+  depreciation_value: text("depreciation_value"),
+  status: text("status").notNull().default('available'),
+  location_id: integer("location_id").references(() => inventoryLocations.id, { onDelete: 'set null' }),
+  department_id: integer("department_id").references(() => departments.id, { onDelete: 'set null' }),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  invoice_number: text("invoice_number"),
+  invoice_date: timestamp("invoice_date", { withTimezone: false, mode: 'date' }),
+  invoice_file_id: integer("invoice_file_id"),
+  notes: text("notes"),
+  specifications: text("specifications").notNull().default('{}'),
+  photos: text("photos").notNull().default('[]'),
+  is_deleted: boolean("is_deleted").notNull().default(false),
+  deleted_at: timestamp("deleted_at", { withTimezone: false }),
+  deleted_by_id: integer("deleted_by_id").references(() => users.id),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
+  created_by_id: integer("created_by_id").references(() => users.id),
+  updated_by_id: integer("updated_by_id").references(() => users.id),
+});
+
+// Tabela: inventory_movements
+export const inventoryMovements = pgTable("inventory_movements", {
+  id: serial("id").primaryKey(),
+  product_id: integer("product_id").references(() => inventoryProducts.id, { onDelete: 'restrict' }).notNull(),
+  movement_type: text("movement_type").notNull(),
+  ticket_id: integer("ticket_id").references(() => tickets.id, { onDelete: 'set null' }),
+  user_id: integer("user_id").references(() => users.id, { onDelete: 'set null' }),
+  responsible_id: integer("responsible_id").references(() => users.id, { onDelete: 'set null' }),
+  quantity: integer("quantity").notNull().default(1),
+  from_location_id: integer("from_location_id").references(() => inventoryLocations.id, { onDelete: 'set null' }),
+  to_location_id: integer("to_location_id").references(() => inventoryLocations.id, { onDelete: 'set null' }),
+  reason: text("reason"),
+  notes: text("notes"),
+  movement_date: timestamp("movement_date", { withTimezone: false }).notNull().defaultNow(),
+  approval_status: text("approval_status").notNull().default('pending'),
+  approved_by_id: integer("approved_by_id").references(() => users.id),
+  approval_date: timestamp("approval_date", { withTimezone: false }),
+  approval_notes: text("approval_notes"),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+  created_by_id: integer("created_by_id").references(() => users.id),
+});
+
+// Tabela: user_inventory_assignments
+export const userInventoryAssignments = pgTable("user_inventory_assignments", {
+  id: serial("id").primaryKey(),
+  user_id: integer("user_id").references(() => users.id, { onDelete: 'restrict' }).notNull(),
+  product_id: integer("product_id").references(() => inventoryProducts.id, { onDelete: 'restrict' }).notNull(),
+  assigned_date: timestamp("assigned_date", { withTimezone: false }).notNull().defaultNow(),
+  expected_return_date: timestamp("expected_return_date", { withTimezone: false, mode: 'date' }),
+  actual_return_date: timestamp("actual_return_date", { withTimezone: false }),
+  condition_on_return: text("condition_on_return"),
+  responsibility_term_id: integer("responsibility_term_id"),
+  signature_status: text("signature_status").notNull().default('pending'),
+  notes: text("notes"),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  assigned_by_id: integer("assigned_by_id").references(() => users.id),
+  returned_by_id: integer("returned_by_id").references(() => users.id),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: ticket_inventory_items
+export const ticketInventoryItems = pgTable("ticket_inventory_items", {
+  id: serial("id").primaryKey(),
+  ticket_id: integer("ticket_id").references(() => tickets.id, { onDelete: 'cascade' }).notNull(),
+  product_id: integer("product_id").references(() => inventoryProducts.id, { onDelete: 'restrict' }).notNull(),
+  movement_id: integer("movement_id").references(() => inventoryMovements.id, { onDelete: 'set null' }),
+  action_type: text("action_type").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  condition: text("condition"),
+  notes: text("notes"),
+  created_by_id: integer("created_by_id").references(() => users.id),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: inventory_responsibility_terms
+export const inventoryResponsibilityTerms = pgTable("inventory_responsibility_terms", {
+  id: serial("id").primaryKey(),
+  assignment_id: integer("assignment_id").references(() => userInventoryAssignments.id, { onDelete: 'cascade' }).notNull(),
+  template_id: integer("template_id"),
+  template_version: integer("template_version"),
+  generated_pdf_url: text("generated_pdf_url"),
+  pdf_s3_key: text("pdf_s3_key"),
+  sent_date: timestamp("sent_date", { withTimezone: false }),
+  signed_date: timestamp("signed_date", { withTimezone: false }),
+  signature_method: text("signature_method"),
+  signature_data: text("signature_data"),
+  status: text("status").notNull().default('pending'),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: department_inventory_settings
+export const departmentInventorySettings = pgTable("department_inventory_settings", {
+  id: serial("id").primaryKey(),
+  department_id: integer("department_id").references(() => departments.id, { onDelete: 'cascade' }).notNull().unique(),
+  allowed_product_types: text("allowed_product_types").notNull().default('[]'),
+  approval_rules: text("approval_rules").notNull().default('{}'),
+  min_stock_alerts: boolean("min_stock_alerts").notNull().default(true),
+  require_return_workflow: boolean("require_return_workflow").notNull().default(false),
+  default_assignment_days: integer("default_assignment_days").default(30),
+  auto_create_maintenance_tickets: boolean("auto_create_maintenance_tickets").notNull().default(false),
+  maintenance_interval_days: integer("maintenance_interval_days"),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: inventory_product_history
+export const inventoryProductHistory = pgTable("inventory_product_history", {
+  id: serial("id").primaryKey(),
+  product_id: integer("product_id").references(() => inventoryProducts.id, { onDelete: 'cascade' }).notNull(),
+  changed_by_id: integer("changed_by_id").references(() => users.id),
+  change_type: text("change_type").notNull(),
+  old_values: text("old_values"),
+  new_values: text("new_values"),
+  change_description: text("change_description"),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: inventory_term_templates
+export const inventoryTermTemplates = pgTable("inventory_term_templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  content: text("content").notNull(),
+  version: integer("version").notNull().default(1),
+  is_active: boolean("is_active").notNull().default(true),
+  is_default: boolean("is_default").notNull().default(false),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }),
+  created_by_id: integer("created_by_id").references(() => users.id),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: inventory_alerts
+export const inventoryAlerts = pgTable("inventory_alerts", {
+  id: serial("id").primaryKey(),
+  alert_type: text("alert_type").notNull(),
+  product_id: integer("product_id").references(() => inventoryProducts.id, { onDelete: 'cascade' }),
+  assignment_id: integer("assignment_id").references(() => userInventoryAssignments.id, { onDelete: 'cascade' }),
+  severity: text("severity").notNull().default('medium'),
+  message: text("message").notNull(),
+  is_resolved: boolean("is_resolved").notNull().default(false),
+  resolved_at: timestamp("resolved_at", { withTimezone: false }),
+  resolved_by_id: integer("resolved_by_id").references(() => users.id),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: inventory_webhooks
+export const inventoryWebhooks = pgTable("inventory_webhooks", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  events: text("events").notNull().default('[]'),
+  is_active: boolean("is_active").notNull().default(true),
+  secret_key: text("secret_key"),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  created_by_id: integer("created_by_id").references(() => users.id),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: inventory_permissions
+export const inventoryPermissions = pgTable("inventory_permissions", {
+  id: serial("id").primaryKey(),
+  permission_code: text("permission_code").notNull().unique(),
+  permission_name: text("permission_name").notNull(),
+  description: text("description"),
+  category: text("category").notNull(),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: user_inventory_permissions
+export const userInventoryPermissions = pgTable("user_inventory_permissions", {
+  id: serial("id").primaryKey(),
+  user_id: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  permission_id: integer("permission_id").references(() => inventoryPermissions.id, { onDelete: 'cascade' }).notNull(),
+  granted_by_id: integer("granted_by_id").references(() => users.id),
+  granted_at: timestamp("granted_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// ========================================
+// SCHEMAS ZOD PARA VALIDAÇÃO - SISTEMA DE ESTOQUE
+// ========================================
+
+// Schema para inserção de tipo de produto
+export const insertProductTypeSchema = createInsertSchema(productTypes, {
+  name: z.string().min(1, "Nome é obrigatório"),
+  code: z.string().min(1, "Código é obrigatório"),
+  category: z.enum(['hardware', 'software', 'consumable', 'infrastructure']),
+  custom_fields: z.string().optional(),
+  depreciation_years: z.number().positive().optional(),
+  min_stock_alert: z.number().nonnegative().optional(),
+});
+
+export const selectProductTypeSchema = createInsertSchema(productTypes);
+
+// Schema para inserção de fornecedor
+export const insertInventorySupplierSchema = createInsertSchema(inventorySuppliers, {
+  name: z.string().min(1, "Nome é obrigatório"),
+  cnpj: z.string().optional(),
+  email: z.string().email().optional(),
+});
+
+export const selectInventorySupplierSchema = createInsertSchema(inventorySuppliers);
+
+// Schema para inserção de localização
+export const insertInventoryLocationSchema = createInsertSchema(inventoryLocations, {
+  name: z.string().min(1, "Nome é obrigatório"),
+  type: z.enum(['building', 'floor', 'room', 'storage']),
+});
+
+export const selectInventoryLocationSchema = createInsertSchema(inventoryLocations);
+
+// Schema para inserção de produto
+export const insertInventoryProductSchema = createInsertSchema(inventoryProducts, {
+  name: z.string().min(1, "Nome é obrigatório"),
+  product_type_id: z.number().positive("Tipo de produto é obrigatório"),
+  status: z.enum(['available', 'in_use', 'maintenance', 'written_off', 'reserved']).optional(),
+  specifications: z.string().optional(),
+  photos: z.string().optional(),
+});
+
+export const selectInventoryProductSchema = createInsertSchema(inventoryProducts);
+
+// Schema para inserção de movimentação
+export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements, {
+  product_id: z.number().positive("Produto é obrigatório"),
+  movement_type: z.enum(['entry', 'withdrawal', 'return', 'write_off', 'transfer', 'maintenance', 'reservation']),
+  quantity: z.number().positive().default(1),
+  approval_status: z.enum(['pending', 'approved', 'rejected', 'not_required']).optional(),
+});
+
+export const selectInventoryMovementSchema = createInsertSchema(inventoryMovements);
+
+// Schema para inserção de alocação de usuário
+export const insertUserInventoryAssignmentSchema = createInsertSchema(userInventoryAssignments, {
+  user_id: z.number().positive("Usuário é obrigatório"),
+  product_id: z.number().positive("Produto é obrigatório"),
+  signature_status: z.enum(['pending', 'sent', 'signed', 'expired']).optional(),
+});
+
+export const selectUserInventoryAssignmentSchema = createInsertSchema(userInventoryAssignments);
+
+// Schema para inserção de item de ticket
+export const insertTicketInventoryItemSchema = createInsertSchema(ticketInventoryItems, {
+  ticket_id: z.number().positive("Ticket é obrigatório"),
+  product_id: z.number().positive("Produto é obrigatório"),
+  action_type: z.enum(['delivery', 'return', 'replacement', 'consumption', 'reservation']),
+  quantity: z.number().positive().default(1),
+});
+
+export const selectTicketInventoryItemSchema = createInsertSchema(ticketInventoryItems);
+
+// Schema para inserção de termo de responsabilidade
+export const insertInventoryResponsibilityTermSchema = createInsertSchema(inventoryResponsibilityTerms, {
+  assignment_id: z.number().positive("Alocação é obrigatória"),
+  status: z.enum(['pending', 'sent', 'signed', 'expired', 'cancelled']).optional(),
+  signature_method: z.enum(['email', 'digital', 'physical']).optional(),
+});
+
+export const selectInventoryResponsibilityTermSchema = createInsertSchema(inventoryResponsibilityTerms);
+
+// Schema para inserção de configurações de departamento
+export const insertDepartmentInventorySettingsSchema = createInsertSchema(departmentInventorySettings, {
+  department_id: z.number().positive("Departamento é obrigatório"),
+  allowed_product_types: z.string().optional(),
+  approval_rules: z.string().optional(),
+  default_assignment_days: z.number().positive().optional(),
+  maintenance_interval_days: z.number().positive().optional(),
+});
+
+export const selectDepartmentInventorySettingsSchema = createInsertSchema(departmentInventorySettings);
+
+// Schema para inserção de template de termo
+export const insertInventoryTermTemplateSchema = createInsertSchema(inventoryTermTemplates, {
+  name: z.string().min(1, "Nome é obrigatório"),
+  content: z.string().min(1, "Conteúdo é obrigatório"),
+  version: z.number().positive().default(1),
+});
+
+export const selectInventoryTermTemplateSchema = createInsertSchema(inventoryTermTemplates);
+
+// Schema para inserção de alerta
+export const insertInventoryAlertSchema = createInsertSchema(inventoryAlerts, {
+  alert_type: z.enum(['low_stock', 'warranty_expiring', 'overdue_return', 'maintenance_due', 'obsolete_item']),
+  severity: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  message: z.string().min(1, "Mensagem é obrigatória"),
+});
+
+export const selectInventoryAlertSchema = createInsertSchema(inventoryAlerts);
+
+// Schema para inserção de webhook
+export const insertInventoryWebhookSchema = createInsertSchema(inventoryWebhooks, {
+  name: z.string().min(1, "Nome é obrigatório"),
+  url: z.string().url("URL inválida"),
+  events: z.string().optional(),
+});
+
+export const selectInventoryWebhookSchema = createInsertSchema(inventoryWebhooks);
+
+// ========================================
+// TYPES TYPESCRIPT - SISTEMA DE ESTOQUE
+// ========================================
+
+export type ProductType = typeof productTypes.$inferSelect;
+export type InsertProductType = typeof productTypes.$inferInsert;
+
+export type InventorySupplier = typeof inventorySuppliers.$inferSelect;
+export type InsertInventorySupplier = typeof inventorySuppliers.$inferInsert;
+
+export type InventoryLocation = typeof inventoryLocations.$inferSelect;
+export type InsertInventoryLocation = typeof inventoryLocations.$inferInsert;
+
+export type InventoryProduct = typeof inventoryProducts.$inferSelect;
+export type InsertInventoryProduct = typeof inventoryProducts.$inferInsert;
+
+export type InventoryMovement = typeof inventoryMovements.$inferSelect;
+export type InsertInventoryMovement = typeof inventoryMovements.$inferInsert;
+
+export type UserInventoryAssignment = typeof userInventoryAssignments.$inferSelect;
+export type InsertUserInventoryAssignment = typeof userInventoryAssignments.$inferInsert;
+
+export type TicketInventoryItem = typeof ticketInventoryItems.$inferSelect;
+export type InsertTicketInventoryItem = typeof ticketInventoryItems.$inferInsert;
+
+export type InventoryResponsibilityTerm = typeof inventoryResponsibilityTerms.$inferSelect;
+export type InsertInventoryResponsibilityTerm = typeof inventoryResponsibilityTerms.$inferInsert;
+
+export type DepartmentInventorySettings = typeof departmentInventorySettings.$inferSelect;
+export type InsertDepartmentInventorySettings = typeof departmentInventorySettings.$inferInsert;
+
+export type InventoryProductHistory = typeof inventoryProductHistory.$inferSelect;
+export type InsertInventoryProductHistory = typeof inventoryProductHistory.$inferInsert;
+
+export type InventoryTermTemplate = typeof inventoryTermTemplates.$inferSelect;
+export type InsertInventoryTermTemplate = typeof inventoryTermTemplates.$inferInsert;
+
+export type InventoryAlert = typeof inventoryAlerts.$inferSelect;
+export type InsertInventoryAlert = typeof inventoryAlerts.$inferInsert;
+
+export type InventoryWebhook = typeof inventoryWebhooks.$inferSelect;
+export type InsertInventoryWebhook = typeof inventoryWebhooks.$inferInsert;
+
+export type InventoryPermission = typeof inventoryPermissions.$inferSelect;
+export type InsertInventoryPermission = typeof inventoryPermissions.$inferInsert;
+
+export type UserInventoryPermission = typeof userInventoryPermissions.$inferSelect;
+export type InsertUserInventoryPermission = typeof userInventoryPermissions.$inferInsert;

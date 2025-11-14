@@ -37,6 +37,15 @@ export interface FileData {
   size: number;
 }
 
+interface InventoryUploadParams {
+  buffer: Buffer;
+  originalName: string;
+  companyId: number;
+  folder?: string;
+  mimeType?: string;
+  metadata?: Record<string, string | number | boolean | undefined | null>;
+}
+
 class S3Service {
   /**
    * Valida se o arquivo é permitido
@@ -139,6 +148,76 @@ class S3Service {
     } catch (error) {
       console.error(`[S3] ❌ Erro no upload:`, error);
       throw new Error('Falha ao fazer upload do arquivo. Tente novamente.');
+    }
+  }
+
+  private generateInventoryKey(originalFilename: string, companyId: number, folder: string) {
+    const timestamp = Date.now();
+    const randomId = crypto.randomBytes(8).toString('hex');
+    const extension = path.extname(originalFilename) || '.bin';
+    const baseName = path.basename(originalFilename, extension);
+
+    const sanitizedBaseName = this.sanitizeFileName(baseName);
+    const sanitizedExtension = this.sanitizeFileName(extension);
+
+    return `inventory/${companyId}/${folder}/${timestamp}_${randomId}_${sanitizedBaseName}${sanitizedExtension}`;
+  }
+
+  /**
+   * Upload genérico para arquivos de inventário (NF-e, termos, etc)
+   */
+  async uploadInventoryFile(params: InventoryUploadParams): Promise<UploadResult> {
+    const folder = params.folder || 'general';
+    const mimeType = params.mimeType || 'application/octet-stream';
+
+    const fileData: FileData = {
+      buffer: params.buffer,
+      originalName: params.originalName,
+      mimeType,
+      size: params.buffer.length,
+    };
+
+    const validation = this.validateFile({ ...fileData, originalName: `${params.originalName}` });
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
+
+    const sanitizedOriginalName = this.sanitizeFileName(params.originalName);
+    const s3Key = this.generateInventoryKey(sanitizedOriginalName, params.companyId, folder);
+    const filename = path.basename(s3Key);
+
+    const metadataEntries = Object.entries(params.metadata || {}).reduce<Record<string, string>>((acc, [key, value]) => {
+      if (value === undefined || value === null) return acc;
+      acc[key] = String(value);
+      return acc;
+    }, {});
+
+    try {
+      const uploadCommand = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: s3Key,
+        Body: params.buffer,
+        ContentType: mimeType,
+        Metadata: {
+          'original-filename': sanitizedOriginalName,
+          'company-id': params.companyId.toString(),
+          ...metadataEntries,
+        },
+      });
+
+      await s3Client.send(uploadCommand);
+
+      return {
+        s3Key,
+        bucket: BUCKET_NAME,
+        filename,
+        originalFilename: sanitizedOriginalName,
+        fileSize: params.buffer.length,
+        mimeType,
+      };
+    } catch (error) {
+      console.error('[S3] ❌ Erro no upload de inventário:', error);
+      throw new Error('Falha ao fazer upload do arquivo de inventário. Tente novamente.');
     }
   }
 

@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useVersion } from '@/hooks/use-version';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/contexts/theme-context';
 import { useI18n } from '@/i18n';
 import { Link } from 'wouter';
-import { 
-  LayoutDashboard, 
-  TicketIcon, 
-  Users, 
-  UserCog, 
+import {
+  LayoutDashboard,
+  TicketIcon,
+  Users,
+  UserCog,
   Settings,
   Building2,
   FolderIcon,
@@ -25,7 +25,18 @@ import {
   Brain,
   PieChart,
   Star,
-  Briefcase
+  Briefcase,
+  Boxes,
+  ChevronDown,
+  ChevronRight,
+  Package,
+  ArrowLeftRight,
+  ClipboardList,
+  Handshake,
+  MapPin,
+  FileSpreadsheet,
+  Layers,
+  Network,
 } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -67,6 +78,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   // Usar o tema do contexto (executa apenas uma vez)
   const { companyName, companyLogo } = useTheme();
   
+  const inventoryRoles = ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'inventory_manager'];
+  const canAccessInventory = !!user && inventoryRoles.includes(user.role);
+
+  const inventoryMenuItems = useMemo(() => [
+    { href: "/inventory", icon: <LayoutDashboard size={18} />, label: formatMessage('sidebar.inventory_overview') },
+    { href: "/inventory/catalog", icon: <Boxes size={18} />, label: formatMessage('sidebar.inventory_catalog') },
+    { href: "/inventory/movements", icon: <ArrowLeftRight size={18} />, label: formatMessage('sidebar.inventory_movements') },
+    { href: "/inventory/assignments", icon: <ClipboardList size={18} />, label: formatMessage('sidebar.inventory_assignments') },
+    { href: "/inventory/suppliers", icon: <Handshake size={18} />, label: formatMessage('sidebar.inventory_suppliers') },
+    { href: "/inventory/product-types", icon: <Layers size={18} />, label: formatMessage('sidebar.inventory_product_types') },
+    { href: "/inventory/locations", icon: <MapPin size={18} />, label: formatMessage('sidebar.inventory_locations') },
+    { href: "/inventory/reports", icon: <FileSpreadsheet size={18} />, label: formatMessage('sidebar.inventory_reports') },
+    { href: "/inventory/webhooks", icon: <Network size={18} />, label: formatMessage('sidebar.inventory_webhooks') },
+  ], [formatMessage]);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(currentPath.startsWith("/inventory"));
+
+  useEffect(() => {
+    if (currentPath.startsWith("/inventory")) {
+      setIsInventoryOpen(true);
+    }
+  }, [currentPath]);
+
   // Definir itens de navegação com base no papel do usuário
   const navItems = [
     { href: "/", icon: <LayoutDashboard size={20} />, label: formatMessage('sidebar.dashboard'), roles: ['admin', 'support', 'customer', 'company_admin', 'manager', 'supervisor', 'viewer'] },
@@ -96,6 +129,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     if (!user || !item.roles) return false;
     return item.roles.includes(user.role);
   });
+  const mobileNavItems = canAccessInventory
+    ? [
+        ...filteredNavItems,
+        { href: "/inventory", icon: <Boxes size={20} />, label: formatMessage('sidebar.inventory') },
+      ]
+    : filteredNavItems;
 
   return (
     <>
@@ -129,6 +168,55 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
               }
             />
           ))} 
+          {canAccessInventory && (
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => setIsInventoryOpen((prev) => !prev)}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-md px-4 py-3 text-sm font-medium transition-colors",
+                  currentPath.startsWith("/inventory")
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm"
+                    : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                )}
+              >
+                <span className="flex items-center gap-3">
+                  <Boxes size={20} />
+                  {formatMessage('sidebar.inventory')}
+                </span>
+                {isInventoryOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+              <div
+                className={cn(
+                  "mt-2 space-y-1 overflow-hidden rounded-md border border-sidebar-border/40 bg-sidebar/40 transition-all",
+                  isInventoryOpen ? "max-h-[600px] p-2" : "max-h-0 p-0"
+                )}
+              >
+                {isInventoryOpen &&
+                  inventoryMenuItems.map((item) => {
+                    const active =
+                      item.href === "/inventory"
+                        ? currentPath === "/inventory"
+                        : currentPath.startsWith(item.href);
+                    return (
+                      <Link key={item.href} href={item.href}>
+                        <div
+                          className={cn(
+                            "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                            active
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                          )}
+                        >
+                          {item.icon}
+                          {item.label}
+                        </div>
+                      </Link>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </nav>
         
         {/* Versão do Sistema - Fixo no final */}
@@ -144,7 +232,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       {/* Versão mobile da barra lateral (visível apenas em telas pequenas) */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-sidebar/95 backdrop-blur-sm border-t border-sidebar-border text-sidebar-foreground md:hidden transition-colors">
         <nav className="flex justify-around p-2 overflow-x-auto">
-          {filteredNavItems.slice(0, 5).map((item) => (
+          {mobileNavItems.slice(0, 5).map((item) => (
             <Link 
               key={item.href} 
               href={item.href}
@@ -210,6 +298,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                         {item.label}
                       </Link>
                     ))}
+                    {canAccessInventory && (
+                      <div className="mt-4 space-y-1">
+                        <p className="px-3 text-xs font-semibold uppercase text-muted-foreground tracking-wide">Inventário</p>
+                        {inventoryMenuItems.map((item) => {
+                          const active =
+                            item.href === "/inventory"
+                              ? currentPath === "/inventory"
+                              : currentPath.startsWith(item.href);
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              className={cn(
+                                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                                active
+                                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                  : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                              )}
+                              onClick={() => setIsMobileMenuOpen(false)}
+                            >
+                              {item.icon}
+                              {item.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
                   </nav>
                 </ScrollArea>
                 <div className="mt-auto p-4 border-t border-sidebar-border">

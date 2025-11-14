@@ -163,6 +163,163 @@ import {
 } from './api/ai-configurations';
 
 
+import {
+
+  listInventoryProducts,
+
+  getInventoryProduct,
+
+  createInventoryProduct,
+
+  updateInventoryProduct,
+
+  deleteInventoryProduct,
+
+  uploadInventoryProductPhoto,
+
+  importProductsFromNFe,
+
+  importProductsBatch,
+
+} from './api/inventory-products';
+
+
+
+import {
+
+  listProductTypes,
+
+  createProductType,
+
+  updateProductType,
+
+  deleteProductType,
+
+} from './api/product-types';
+
+
+
+import {
+
+  listSuppliers,
+
+  createSupplier,
+
+  updateSupplier,
+
+  deactivateSupplier,
+
+} from './api/inventory-suppliers';
+
+
+
+import {
+
+  listLocations,
+
+  createLocation,
+
+  updateLocation,
+
+  deleteLocation,
+
+  generateLocationQrCode,
+
+} from './api/inventory-locations';
+
+
+
+import {
+
+  listInventoryMovements,
+
+  createInventoryMovement,
+
+  approveInventoryMovement,
+
+  rejectInventoryMovement,
+
+} from './api/inventory-movements';
+
+
+
+import {
+
+  listAssignments,
+
+  createAssignment,
+
+  registerAssignmentReturn,
+
+} from './api/user-inventory-assignments';
+
+
+
+import {
+
+  listTicketInventoryItems,
+
+  addTicketInventoryItem,
+
+  removeTicketInventoryItem,
+
+} from './api/ticket-inventory';
+
+
+
+import {
+
+  listResponsibilityTerms,
+
+  generateResponsibilityTerm,
+
+  sendResponsibilityTerm,
+
+  downloadResponsibilityTerm,
+
+} from './api/responsibility-terms';
+
+
+
+import {
+
+  getDepartmentInventorySettings,
+
+  updateDepartmentInventorySettings,
+
+} from './api/department-inventory-settings';
+
+
+
+import { generateInventoryReport } from './api/inventory-reports';
+
+
+
+import {
+
+  getInventoryDashboardStats,
+
+  getInventoryDashboardAlerts,
+
+  getInventoryDashboardMovements,
+
+  getInventoryDashboardTopProducts,
+
+} from './api/inventory-dashboard';
+
+
+
+import {
+
+  listInventoryWebhooks,
+
+  createInventoryWebhook,
+
+  deleteInventoryWebhook,
+
+} from './api/inventory-webhooks';
+
+
 
 // Importar funções de permissões de empresa
 
@@ -938,7 +1095,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         // Mapear TODOS os roles válidos para a sessão
 
-        const validRoles = ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'triage', 'customer', 'viewer', 'quality', 'integration_bot'];
+        const validRoles = ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'triage', 'customer', 'viewer', 'quality', 'integration_bot', 'inventory_manager'];
 
         if (validRoles.includes(user.role)) {
 
@@ -7055,7 +7212,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       // Mapear TODOS os roles válidos para a sessão
 
-      const validRoles = ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'triage', 'customer', 'viewer', 'quality', 'integration_bot'];
+      const validRoles = ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'triage', 'customer', 'viewer', 'quality', 'integration_bot', 'inventory_manager'];
 
       if (validRoles.includes(user.role)) {
 
@@ -9646,7 +9803,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       try {
 
-        const { name, description, is_active, company_id: company_id_from_body, sla_mode, satisfaction_survey_enabled, use_service_providers } = req.body;
+        const { name, description, is_active, company_id: company_id_from_body, sla_mode, satisfaction_survey_enabled, use_service_providers, use_inventory_control } = req.body;
 
         const userRole = req.session.userRole as string;
 
@@ -9783,8 +9940,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             sla_mode: slaModeToUse,
 
             satisfaction_survey_enabled: satisfaction_survey_enabled !== undefined ? satisfaction_survey_enabled : false,
-            
             use_service_providers: use_service_providers !== undefined ? use_service_providers : false,
+            use_inventory_control: use_inventory_control !== undefined ? use_inventory_control : false,
 
             created_at: new Date(),
 
@@ -9846,7 +10003,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-        const { name, description, is_active, company_id: new_company_id, sla_mode, satisfaction_survey_enabled, use_service_providers } = req.body; // Captura company_id, sla_mode, satisfaction_survey_enabled e use_service_providers do corpo
+        const { name, description, is_active, company_id: new_company_id, sla_mode, satisfaction_survey_enabled, use_service_providers, use_inventory_control } = req.body; // Captura company_id, sla_mode, satisfaction_survey_enabled e use_service_providers do corpo
 
         const userRole = req.session.userRole as string;
 
@@ -9877,8 +10034,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         }
 
         if (satisfaction_survey_enabled !== undefined) updatePayload.satisfaction_survey_enabled = satisfaction_survey_enabled;
-        
         if (use_service_providers !== undefined) updatePayload.use_service_providers = use_service_providers;
+        if (use_inventory_control !== undefined) updatePayload.use_inventory_control = use_inventory_control;
 
 
 
@@ -19769,6 +19926,85 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   });
 
+
+
+  // --- ROTAS DO SISTEMA DE INVENTÁRIO ---
+
+  router.get("/inventory/products", authRequired, listInventoryProducts);
+  router.get("/inventory/products/:id", authRequired, getInventoryProduct);
+  router.post("/inventory/products", authRequired, companyAdminRequired, createInventoryProduct);
+  router.put("/inventory/products/:id", authRequired, companyAdminRequired, updateInventoryProduct);
+  router.delete("/inventory/products/:id", authRequired, companyAdminRequired, deleteInventoryProduct);
+  router.post(
+    "/inventory/products/:id/photos",
+    authRequired,
+    uploadLimiter,
+    upload.single('file'),
+    validateFileUpload,
+    uploadInventoryProductPhoto
+  );
+  router.post(
+    "/inventory/products/import-nfe",
+    authRequired,
+    uploadLimiter,
+    upload.single('file'),
+    validateFileUpload,
+    importProductsFromNFe
+  );
+  router.post("/inventory/products/import-batch", authRequired, companyAdminRequired, importProductsBatch);
+
+  router.get("/inventory/product-types", authRequired, listProductTypes);
+  router.post("/inventory/product-types", authRequired, companyAdminRequired, createProductType);
+  router.put("/inventory/product-types/:id", authRequired, companyAdminRequired, updateProductType);
+  router.delete("/inventory/product-types/:id", authRequired, companyAdminRequired, deleteProductType);
+
+  router.get("/inventory/suppliers", authRequired, listSuppliers);
+  router.post("/inventory/suppliers", authRequired, companyAdminRequired, createSupplier);
+  router.put("/inventory/suppliers/:id", authRequired, companyAdminRequired, updateSupplier);
+  router.delete("/inventory/suppliers/:id", authRequired, companyAdminRequired, deactivateSupplier);
+
+  router.get("/inventory/locations", authRequired, listLocations);
+  router.post("/inventory/locations", authRequired, companyAdminRequired, createLocation);
+  router.put("/inventory/locations/:id", authRequired, companyAdminRequired, updateLocation);
+  router.delete("/inventory/locations/:id", authRequired, companyAdminRequired, deleteLocation);
+  router.get("/inventory/locations/:id/qrcode", authRequired, generateLocationQrCode);
+
+  router.get("/inventory/movements", authRequired, listInventoryMovements);
+  router.post("/inventory/movements", authRequired, createInventoryMovement);
+  router.post("/inventory/movements/:id/approve", authRequired, companyAdminRequired, approveInventoryMovement);
+  router.post("/inventory/movements/:id/reject", authRequired, companyAdminRequired, rejectInventoryMovement);
+
+  router.get("/inventory/assignments", authRequired, listAssignments);
+  router.post("/inventory/assignments", authRequired, createAssignment);
+  router.post("/inventory/assignments/:id/return", authRequired, registerAssignmentReturn);
+
+  router.get("/tickets/:ticketId/inventory", authRequired, listTicketInventoryItems);
+  router.post("/tickets/:ticketId/inventory", authRequired, addTicketInventoryItem);
+  router.delete("/tickets/:ticketId/inventory/:itemId", authRequired, removeTicketInventoryItem);
+
+  router.get("/inventory/terms", authRequired, listResponsibilityTerms);
+  router.post("/inventory/assignments/:assignmentId/terms", authRequired, generateResponsibilityTerm);
+  router.post("/inventory/terms/:termId/send", authRequired, sendResponsibilityTerm);
+  router.get("/inventory/terms/:termId/download", authRequired, downloadResponsibilityTerm);
+
+  router.get("/departments/:departmentId/inventory-settings", authRequired, getDepartmentInventorySettings);
+  router.put(
+    "/departments/:departmentId/inventory-settings",
+    authRequired,
+    companyAdminRequired,
+    updateDepartmentInventorySettings
+  );
+
+  router.get("/inventory/reports", authRequired, generateInventoryReport);
+
+  router.get("/inventory/dashboard/stats", authRequired, getInventoryDashboardStats);
+  router.get("/inventory/dashboard/alerts", authRequired, getInventoryDashboardAlerts);
+  router.get("/inventory/dashboard/movements", authRequired, getInventoryDashboardMovements);
+  router.get("/inventory/dashboard/top-products", authRequired, getInventoryDashboardTopProducts);
+
+  router.get("/inventory/webhooks", authRequired, listInventoryWebhooks);
+  router.post("/inventory/webhooks", authRequired, companyAdminRequired, createInventoryWebhook);
+  router.delete("/inventory/webhooks/:id", authRequired, companyAdminRequired, deleteInventoryWebhook);
 
 
   // Registrar router do dashboard

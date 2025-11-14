@@ -48,6 +48,7 @@ const DepartmentReports = lazy(() => import("@/pages/reports/department"));
 const ClientReports = lazy(() => import("@/pages/reports/clients"));
 const SatisfactionSurvey = lazy(() => import("@/pages/satisfaction-survey"));
 const SatisfactionDashboard = lazy(() => import("@/pages/satisfaction-dashboard"));
+const InventoryModule = lazy(() => import("@/pages/inventory"));
 
 // Componente de loading para as páginas lazy
 function PageLoading() {
@@ -79,6 +80,12 @@ function MainLayout({ children }: { children: React.ReactNode }) {
 function AppContent() {
   const { user } = useAuth();
   const { settings } = useSystemSettings();
+
+  const InventorySection = () => (
+    <MainLayout>
+      <InventoryModule />
+    </MainLayout>
+  );
   
   return (
     <Switch>
@@ -240,6 +247,9 @@ function AppContent() {
           <AiAuditPage />
         </MainLayout>
       )} />
+
+      <ProtectedRoute path="/inventory" component={InventorySection} />
+      <ProtectedRoute path="/inventory/:rest*" component={InventorySection} />
       
       <ProtectedRoute path="/satisfaction-dashboard" component={() => (
         <MainLayout>

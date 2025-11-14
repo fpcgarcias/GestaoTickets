@@ -192,7 +192,8 @@
       "quality": "Qualidade",
       "viewer": "Visualizador",
       "customer": "Cliente",
-      "integration_bot": "Bot de Integração"
+      "integration_bot": "Bot de Integração",
+      "inventory_manager": "Gestor de Inventário"
     },
     "status_dialog": {
       "deactivate_title": "Desativar usuário",
@@ -456,11 +457,594 @@
     "satisfaction_dashboard": "Dashboard Satisfação",
     "performance_dashboard": "Dashboard Performance",
     "ai_audit": "Auditoria de IA",
+    "inventory": "Inventário",
+    "inventory_overview": "Visão geral",
+    "inventory_catalog": "Catálogo",
+    "inventory_movements": "Movimentações",
+    "inventory_assignments": "Alocações & Termos",
+    "inventory_suppliers": "Fornecedores",
+    "inventory_product_types": "Tipos de produto",
+    "inventory_locations": "Localizações",
+    "inventory_reports": "Relatórios",
+    "inventory_settings": "Configurações",
+    "inventory_webhooks": "Webhooks",
     "logs": "Logs do Sistema",
     "settings": "Configurações",
     "version": "Versão",
     "more": "Mais",
     "logout": "Sair"
+  },
+  "inventory": {
+    "overview_title": "Visão geral do inventário",
+    "overview_description": "Acompanhe KPIs, alertas e movimentações recentes.",
+    "overview_placeholder": "A nova experiência de visão geral será exibida aqui em breve.",
+    "catalog_title": "Catálogo de ativos",
+    "catalog_description": "Liste, filtre e gerencie todos os produtos controlados.",
+    "catalog_breadcrumb": "Catálogo",
+    "catalog_placeholder": "Estamos preparando a nova tabela com filtros avançados.",
+    "movements_title": "Movimentações",
+    "movements_description": "Registre, aprove e audite movimentações de estoque.",
+    "movements_breadcrumb": "Movimentações",
+    "movements_placeholder": "Fluxos de movimentação serão exibidos aqui.",
+    "assignments_title": "Alocações & Termos",
+    "assignments_description": "Controle entregas, devoluções e termos digitais.",
+    "assignments_breadcrumb": "Alocações & Termos",
+    "assignments_placeholder": "Em breve exibiremos a lista de alocações.",
+    "suppliers_title": "Fornecedores",
+    "suppliers_description": "Mantenha o cadastro fiscal e contatos de fornecedores.",
+    "suppliers_breadcrumb": "Fornecedores",
+    "suppliers_placeholder": "A lista de fornecedores ficará disponível aqui.",
+    "product_types_title": "Tipos de produto",
+    "product_types_description": "Configure categorias, campos obrigatórios e regras.",
+    "product_types_breadcrumb": "Tipos de produto",
+    "product_types_placeholder": "Os tipos existentes aparecerão aqui.",
+    "locations_title": "Localizações",
+    "locations_description": "Organize depósitos e hierarquias de localizações.",
+    "locations_breadcrumb": "Localizações",
+    "locations_placeholder": "O mapa/lista de localizações será renderizado aqui.",
+    "reports_title": "Relatórios",
+    "reports_description": "Gere relatórios e exportações especializadas.",
+    "reports_breadcrumb": "Relatórios",
+    "reports_placeholder": "Seção de relatórios em construção.",
+    "settings_title": "Configurações do inventário",
+    "settings_description": "Personalize parâmetros por departamento e regras globais.",
+    "settings_breadcrumb": "Configurações",
+    "settings_placeholder": "Configurações detalhadas serão adicionadas aqui.",
+    "webhooks_title": "Webhooks do inventário",
+    "webhooks_description": "Gerencie integrações e endpoints de eventos.",
+    "webhooks_breadcrumb": "Webhooks",
+    "webhooks_placeholder": "O gerenciador de webhooks ficará disponível nesta página.",
+    "filters": {
+      "search_placeholder": "Buscar",
+      "select_placeholder": "Selecione",
+      "multi_placeholder": "Filtrar",
+      "multi_selected": "{count} selecionados",
+      "empty": "Nenhuma opção encontrada",
+      "date_placeholder": "Período",
+      "reset": "Limpar filtros"
+    },
+    "status": {
+      "available": "Disponível",
+      "in_use": "Em uso",
+      "maintenance": "Manutenção",
+      "reserved": "Reservado",
+      "written_off": "Baixado",
+      "pending": "Pendente",
+      "approved": "Aprovado",
+      "rejected": "Rejeitado",
+      "draft": "Rascunho"
+    },
+    "table": {
+      "empty_title": "Nenhum registro encontrado",
+      "empty_description": "Tente ajustar os filtros ou crie um novo registro.",
+      "page_label": "Página {page} de {total}",
+      "prev": "Anterior",
+      "next": "Próxima"
+    },
+    "drawer": {
+      "saving": "Salvando..."
+    },
+    "nfe": {
+      "import": "Importar NF-e",
+      "importing": "Importando...",
+      "summary": "Fornecedor: {supplier} • Total: {total}",
+      "unknown_supplier": "Fornecedor não identificado"
+    },
+    "overview": {
+      "actions": {
+        "view_movements": "Ver movimentações",
+        "view_catalog": "Ver catálogo"
+      },
+      "cards": {
+        "total_label": "Itens cadastrados"
+      },
+      "alerts": {
+        "title": "Alertas ativos",
+        "subtitle": "Itens que exigem atenção imediata",
+        "empty": "Nenhum alerta",
+        "empty_description": "Sem alertas críticos registrados no momento."
+      },
+      "top": {
+        "title": "Produtos em destaque",
+        "subtitle": "Ativos com maior utilização",
+        "empty": "Sem dados ainda",
+        "empty_description": "Cadastre movimentações para acompanhar o ranking.",
+        "unknown": "Produto desconhecido",
+        "uses": "usos"
+      },
+      "movements": {
+        "title": "Movimentações recentes",
+        "subtitle": "Últimos registros realizados",
+        "view_all": "Ver todas",
+        "empty": "Nenhuma movimentação",
+        "empty_description": "Registre movimentações para acompanhar o histórico.",
+        "product": "Produto #{id}"
+      }
+    },
+    "catalog": {
+      "filters": {
+        "search": "Buscar produto",
+        "status": "Status",
+        "product_type": "Tipo de produto",
+        "supplier": "Fornecedor",
+        "department": "Departamento",
+        "location": "Localização",
+        "purchase_date": "Data de compra"
+      },
+      "actions": {
+        "import_nfe": "Importar NF-e",
+        "new_product": "Novo produto"
+      },
+      "table": {
+        "code": "Código",
+        "name": "Nome",
+        "status": "Status",
+        "product_type": "Tipo",
+        "supplier": "Fornecedor",
+        "department_location": "Departamento / Localização",
+        "warranty": "Garantia",
+        "actions": "Ações",
+        "edit": "Editar",
+        "empty_title": "Nenhum produto encontrado",
+        "empty_description": "Ajuste os filtros ou cadastre um novo produto."
+      },
+      "drawer": {
+        "create_title": "Cadastrar produto",
+        "edit_title": "Editar produto",
+        "subtitle": "Preencha as informações para controlar o ativo.",
+        "save": "Salvar",
+        "cancel": "Cancelar"
+      },
+      "form": {
+        "identification": "Identificação",
+        "fiscal": "Dados fiscais",
+        "location_section": "Localização",
+        "notes_section": "Observações",
+        "name": "Nome do produto",
+        "status": "Status",
+        "product_type": "Tipo de produto",
+        "product_type_placeholder": "Selecione o tipo",
+        "supplier": "Fornecedor",
+        "supplier_placeholder": "Selecione o fornecedor",
+        "serial_number": "Número de série",
+        "service_tag": "Service tag",
+        "asset_number": "Patrimônio",
+        "invoice_number": "Número da NF-e",
+        "purchase_date": "Data de compra",
+        "warranty_date": "Garantia até",
+        "department": "Departamento",
+        "department_placeholder": "Selecione o departamento",
+        "location": "Localização",
+        "location_placeholder": "Selecione a localização",
+        "notes": "Observações",
+        "validation": {
+          "name": "Informe o nome do produto",
+          "product_type": "Selecione o tipo de produto"
+        }
+      },
+      "nfe": {
+        "helper": "Importe uma NF-e para preencher automaticamente os campos fiscais."
+      }
+    },
+    "suppliers": {
+      "actions": {
+        "new_supplier": "Novo fornecedor"
+      },
+      "filters": {
+        "search": "Buscar por nome ou CNPJ",
+        "status": "Status",
+        "active": "Ativos",
+        "inactive": "Inativos",
+        "all": "Todos"
+      },
+      "table": {
+        "name": "Nome",
+        "cnpj": "CNPJ",
+        "phone": "Telefone",
+        "email": "E-mail",
+        "status": "Status",
+        "actions": "Ações",
+        "edit": "Editar",
+        "deactivate": "Desativar",
+        "active": "Ativo",
+        "inactive": "Inativo",
+        "contact_prefix": "Contato:",
+        "empty_title": "Nenhum fornecedor encontrado",
+        "empty_description": "Ajuste a busca ou cadastre um novo fornecedor.",
+        "confirm_deactivate": "Deseja desativar o fornecedor {name}?"
+      },
+      "drawer": {
+        "create_title": "Cadastrar fornecedor",
+        "edit_title": "Editar fornecedor",
+        "description": "Mantenha os dados fiscais e contatos atualizados.",
+        "save": "Salvar",
+        "cancel": "Cancelar"
+      },
+      "form": {
+        "name": "Nome do fornecedor",
+        "cnpj": "CNPJ",
+        "contact_name": "Contato principal",
+        "phone": "Telefone",
+        "email": "E-mail",
+        "notes": "Observações",
+        "validation": {
+          "name": "Informe o nome do fornecedor"
+        }
+      }
+    },
+    "product_types": {
+      "actions": {
+        "new_type": "Novo tipo"
+      },
+      "filters": {
+        "search": "Buscar por nome ou código",
+        "status": "Status",
+        "active": "Ativos",
+        "inactive": "Inativos",
+        "all": "Todos"
+      },
+      "table": {
+        "name": "Nome",
+        "category": "Categoria",
+        "flags": "Regras",
+        "status": "Status",
+        "actions": "Ações",
+        "edit": "Editar",
+        "deactivate": "Desativar",
+        "active": "Ativo",
+        "inactive": "Inativo",
+        "requires_serial": "Exige série",
+        "requires_asset": "Exige patrimônio",
+        "is_consumable": "Consumível",
+        "empty_title": "Nenhum tipo cadastrado",
+        "empty_description": "Cadastre o primeiro tipo para organizar o catálogo.",
+        "confirm_deactivate": "Deseja desativar o tipo {name}?"
+      },
+      "drawer": {
+        "create_title": "Cadastrar tipo de produto",
+        "edit_title": "Editar tipo de produto",
+        "description": "Defina regras e categoria dos ativos.",
+        "save": "Salvar",
+        "cancel": "Cancelar"
+      },
+      "form": {
+        "name": "Nome do tipo",
+        "code": "Código interno",
+        "category": "Categoria",
+        "requires_serial": "Obrigar número de série",
+        "requires_serial_hint": "Solicitar número de série ao cadastrar o produto.",
+        "requires_asset": "Obrigar patrimônio",
+        "requires_asset_hint": "Solicitar patrimônio/etiqueta no cadastro.",
+        "is_consumable": "Marcar como consumível",
+        "is_consumable_hint": "Itens consumíveis não retornam para estoque.",
+        "validation": {
+          "name": "Informe o nome do tipo",
+          "code": "Informe o código interno"
+        }
+      },
+      "categories": {
+        "hardware": "Hardware",
+        "software": "Software",
+        "accessory": "Acessório",
+        "service": "Serviço",
+        "other": "Outro"
+      }
+    },
+    "locations": {
+      "actions": {
+        "new_location": "Nova localização"
+      },
+      "filters": {
+        "search": "Buscar localização",
+        "type": "Tipo",
+        "all_types": "Todos os tipos",
+        "department": "Departamento",
+        "all_departments": "Todos os departamentos"
+      },
+      "types": {
+        "storage": "Depósito",
+        "office": "Escritório",
+        "shelf": "Prateleira",
+        "room": "Sala",
+        "other": "Outro"
+      },
+      "table": {
+        "name": "Nome",
+        "type": "Tipo",
+        "department": "Departamento",
+        "status": "Status",
+        "actions": "Ações",
+        "edit": "Editar",
+        "qrcode": "QR Code",
+        "deactivate": "Desativar",
+        "active": "Ativa",
+        "inactive": "Inativa",
+        "empty_title": "Nenhuma localização cadastrada",
+        "empty_description": "Cadastre uma localização para organizar o estoque.",
+        "confirm_deactivate": "Deseja desativar {name}?"
+      },
+      "drawer": {
+        "create_title": "Cadastrar localização",
+        "edit_title": "Editar localização",
+        "description": "Defina onde os ativos podem ser armazenados.",
+        "save": "Salvar",
+        "cancel": "Cancelar"
+      },
+      "form": {
+        "name": "Nome da localização",
+        "type": "Tipo",
+        "department": "Departamento",
+        "department_placeholder": "Selecione o departamento",
+        "parent_location": "Localização pai",
+        "parent_placeholder": "Selecione uma localização pai",
+        "parent_none": "Sem localização pai",
+        "validation": {
+          "name": "Informe o nome da localização"
+        }
+      }
+    },
+    "movements": {
+      "actions": {
+        "new_movement": "Registrar movimentação"
+      },
+      "filters": {
+        "search": "Buscar por motivo ou observação",
+        "type": "Tipo de movimentação",
+        "all_types": "Todos os tipos",
+        "status": "Status de aprovação",
+        "all_status": "Todos os status"
+      },
+      "types": {
+        "entry": "Entrada",
+        "withdrawal": "Retirada",
+        "return": "Devolução",
+        "transfer": "Transferência",
+        "maintenance": "Manutenção",
+        "reservation": "Reserva",
+        "write_off": "Baixa"
+      },
+      "status": {
+        "pending": "Pendente",
+        "approved": "Aprovada",
+        "rejected": "Rejeitada"
+      },
+      "table": {
+        "id": "ID",
+        "product": "Produto",
+        "type": "Tipo",
+        "quantity": "Quantidade",
+        "ticket": "Chamado",
+        "status": "Status",
+        "date": "Data",
+        "actions": "Ações",
+        "approve": "Aprovar",
+        "reject": "Rejeitar",
+        "empty_title": "Nenhuma movimentação",
+        "empty_description": "Nenhuma movimentação registrada com os filtros atuais."
+      },
+      "drawer": {
+        "title": "Registrar movimentação",
+        "subtitle": "Informe os dados da movimentação realizada.",
+        "save": "Registrar",
+        "cancel": "Cancelar"
+      },
+      "form": {
+        "product_id": "ID do produto",
+        "movement_type": "Tipo de movimentação",
+        "quantity": "Quantidade",
+        "ticket_id": "ID do chamado (opcional)",
+        "notes": "Observações",
+        "validation": {
+          "product": "Informe o ID do produto"
+        },
+        "success": "Movimentação registrada"
+      }
+    },
+    "assignments": {
+      "actions": {},
+      "filters": {
+        "search": "Buscar por produto ou usuário",
+        "status": "Status da alocação",
+        "all_status": "Todos os status"
+      },
+      "status": {
+        "pending": "Pendente",
+        "active": "Ativa",
+        "completed": "Concluída"
+      },
+      "term_status": {
+        "generated": "Gerado",
+        "sent": "Enviado",
+        "signed": "Assinado",
+        "none": "Sem termo"
+      },
+      "table": {
+        "id": "ID",
+        "product": "Produto",
+        "user": "Usuário",
+        "dates": "Datas",
+        "expected": "Prevista:",
+        "actual": "Real:",
+        "status": "Status",
+        "term_status": "Termo",
+        "actions": "Ações",
+        "return": "Registrar devolução",
+        "generate_term": "Gerar termo",
+        "term_created": "Termo gerado",
+        "return_registered": "Devolução registrada",
+        "empty_title": "Nenhuma alocação encontrada",
+        "empty_description": "Nenhuma alocação corresponde aos filtros selecionados."
+      }
+    },
+    "settings": {
+      "table": {
+        "department": "Departamento",
+        "inventory_enabled": "Inventário habilitado",
+        "actions": "Ações",
+        "configure": "Configurar",
+        "empty_title": "Nenhum departamento disponível",
+        "empty_description": "Cadastre departamentos para habilitar o inventário."
+      },
+      "toast": {
+        "updated": "Configuração atualizada",
+        "error": "Erro ao atualizar"
+      },
+      "drawer": {
+        "title": "Configurações de {department}",
+        "description": "Defina regras específicas para o inventário do departamento.",
+        "save": "Salvar",
+        "cancel": "Cancelar",
+        "saved": "Configurações salvas"
+      },
+      "form": {
+        "allowed_types": "Tipos de produto permitidos",
+        "allowed_types_placeholder": "IDs separados por vírgula",
+        "default_days": "Dias padrão de alocação",
+        "require_return": "Exigir fluxo de devolução",
+        "require_return_hint": "Ative para obrigar confirmação de devolução.",
+        "notes": "Observações"
+      }
+    },
+    "reports": {
+      "actions": {
+        "generate": "Gerar"
+      },
+      "toast": {
+        "generated_json": "Relatório gerado (JSON)",
+        "error": "Erro ao gerar relatório"
+      },
+      "list": {
+        "inventory_full": {
+          "title": "Inventário completo",
+          "description": "Lista todos os ativos e respectivos status."
+        },
+        "products_by_user": {
+          "title": "Produtos por usuário",
+          "description": "Mostra ativos alocados para cada usuário."
+        },
+        "products_by_department": {
+          "title": "Produtos por departamento",
+          "description": "Distribuição dos ativos por departamento."
+        },
+        "movements_history": {
+          "title": "Histórico de movimentações",
+          "description": "Registro completo de entradas e saídas."
+        },
+        "maintenance": {
+          "title": "Itens em manutenção",
+          "description": "Ativos em manutenção e prazos."
+        },
+        "write_off": {
+          "title": "Itens baixados",
+          "description": "Baixas registradas por período."
+        },
+        "cost_by_department": {
+          "title": "Custo por departamento",
+          "description": "Custos agregados por centro."
+        },
+        "depreciation": {
+          "title": "Depreciação",
+          "description": "Cálculo de depreciação por tipo."
+        },
+        "tco": {
+          "title": "Custo total de propriedade",
+          "description": "Consolida custos diretos e indiretos."
+        },
+        "supplier_analysis": {
+          "title": "Análise de fornecedores",
+          "description": "Volume e desempenho por fornecedor."
+        },
+        "compliance": {
+          "title": "Compliance",
+          "description": "Documentos de conformidade relacionados."
+        },
+        "compliance_docs": {
+          "title": "Compliance",
+          "description": "Documentos de conformidade relacionados."
+        },
+        "licenses": {
+          "title": "Licenças/garantias próximas",
+          "description": "Itens com garantia ou licença por expirar."
+        },
+        "licenses_expiring": {
+          "title": "Licenças/garantias próximas",
+          "description": "Itens com garantia ou licença por expirar."
+        },
+        "terms": {
+          "title": "Termos pendentes",
+          "description": "Alocações sem termo assinado."
+        },
+        "terms_pending": {
+          "title": "Termos pendentes",
+          "description": "Alocações sem termo assinado."
+        },
+        "audit": {
+          "title": "Auditoria de movimentações",
+          "description": "Resumo para auditoria operacional."
+        },
+        "audit_movements": {
+          "title": "Auditoria de movimentações",
+          "description": "Resumo para auditoria operacional."
+        }
+      }
+    },
+    "webhooks": {
+      "actions": {
+        "new_webhook": "Novo webhook"
+      },
+      "table": {
+        "name": "Nome",
+        "url": "URL",
+        "events": "Eventos",
+        "status": "Status",
+        "actions": "Ações",
+        "edit": "Editar",
+        "delete": "Excluir",
+        "active": "Ativo",
+        "inactive": "Inativo",
+        "confirm_delete": "Deseja remover o webhook {name}?",
+        "empty_title": "Nenhum webhook configurado",
+        "empty_description": "Cadastre um webhook para integrar com outros sistemas."
+      },
+      "drawer": {
+        "create_title": "Cadastrar webhook",
+        "edit_title": "Editar webhook",
+        "description": "Informe os dados do endpoint que receberá os eventos.",
+        "save": "Salvar",
+        "cancel": "Cancelar"
+      },
+      "form": {
+        "name": "Nome",
+        "url": "URL destino",
+        "events": "Eventos (separados por vírgula)",
+        "events_placeholder": "inventory.created, inventory.updated",
+        "secret": "Segredo (opcional)",
+        "validation": "Informe nome e URL do webhook"
+      },
+      "toast": {
+        "saved": "Webhook salvo"
+      }
+    }
   },
   "dashboard": {
     "title": "Painel de Controle",
@@ -542,6 +1126,8 @@
       "sla_by_category": "Usar SLA por categoria",
       "satisfaction_survey": "Pesquisa de Satisfação",
       "satisfaction_survey_desc": "Enviar automaticamente pesquisa de satisfação quando tickets deste departamento forem resolvidos",
+      "inventory_control": "Usar controle de inventário",
+      "inventory_control_desc": "Habilita o módulo de estoque integrado para este departamento",
       "cancel": "Cancelar",
       "creating": "Criando...",
       "create": "Criar Departamento",
@@ -563,6 +1149,8 @@
       "sla_by_category": "Usar SLA por categoria",
       "satisfaction_survey": "Pesquisa de Satisfação",
       "satisfaction_survey_desc": "Enviar automaticamente pesquisa de satisfação quando tickets deste departamento forem resolvidos",
+      "inventory_control": "Usar controle de inventário",
+      "inventory_control_desc": "Habilita o módulo de estoque integrado para este departamento",
       "cancel": "Cancelar",
       "saving": "Salvando...",
       "save": "Salvar Alterações",

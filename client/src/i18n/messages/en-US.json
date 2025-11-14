@@ -192,7 +192,8 @@
       "quality": "Quality",
       "viewer": "Viewer",
       "customer": "Customer",
-      "integration_bot": "Integration Bot"
+      "integration_bot": "Integration Bot",
+      "inventory_manager": "Inventory Manager"
     },
     "status_dialog": {
       "deactivate_title": "Deactivate user",
@@ -456,11 +457,594 @@
     "satisfaction_dashboard": "Satisfaction Dashboard",
     "performance_dashboard": "Performance Dashboard",
     "ai_audit": "AI Audit",
+    "inventory": "Inventory",
+    "inventory_overview": "Overview",
+    "inventory_catalog": "Catalog",
+    "inventory_movements": "Movements",
+    "inventory_assignments": "Assignments & Terms",
+    "inventory_suppliers": "Suppliers",
+    "inventory_product_types": "Product Types",
+    "inventory_locations": "Locations",
+    "inventory_reports": "Reports",
+    "inventory_settings": "Settings",
+    "inventory_webhooks": "Webhooks",
     "logs": "System Logs",
     "settings": "Settings",
     "version": "Version",
     "more": "More",
     "logout": "Logout"
+  },
+  "inventory": {
+    "overview_title": "Inventory overview",
+    "overview_description": "Monitor KPIs, alerts and recent movements.",
+    "overview_placeholder": "The redesigned overview experience will be available soon.",
+    "catalog_title": "Asset catalog",
+    "catalog_description": "List, filter and manage every tracked product.",
+    "catalog_breadcrumb": "Catalog",
+    "catalog_placeholder": "We are preparing the new catalog table here.",
+    "movements_title": "Movements",
+    "movements_description": "Register, approve and audit stock movements.",
+    "movements_breadcrumb": "Movements",
+    "movements_placeholder": "Movement workflows will be displayed here.",
+    "assignments_title": "Assignments & Terms",
+    "assignments_description": "Control deliveries, returns and digital terms.",
+    "assignments_breadcrumb": "Assignments & Terms",
+    "assignments_placeholder": "The assignments list will appear soon.",
+    "suppliers_title": "Suppliers",
+    "suppliers_description": "Maintain fiscal data and contact information for suppliers.",
+    "suppliers_breadcrumb": "Suppliers",
+    "suppliers_placeholder": "Supplier management will be rendered here.",
+    "product_types_title": "Product types",
+    "product_types_description": "Configure categories, required fields and rules.",
+    "product_types_breadcrumb": "Product Types",
+    "product_types_placeholder": "Existing product types will show up here.",
+    "locations_title": "Locations",
+    "locations_description": "Organize warehouses and nested locations.",
+    "locations_breadcrumb": "Locations",
+    "locations_placeholder": "The location map/list is coming soon.",
+    "reports_title": "Inventory reports",
+    "reports_description": "Generate specialized reports and exports.",
+    "reports_breadcrumb": "Reports",
+    "reports_placeholder": "Reports section under construction.",
+    "settings_title": "Inventory settings",
+    "settings_description": "Customize department parameters and global rules.",
+    "settings_breadcrumb": "Settings",
+    "settings_placeholder": "Detailed settings will be available shortly.",
+    "webhooks_title": "Inventory webhooks",
+    "webhooks_description": "Manage integrations and event hooks.",
+    "webhooks_breadcrumb": "Webhooks",
+    "webhooks_placeholder": "The webhook manager will live on this page.",
+    "filters": {
+      "search_placeholder": "Search",
+      "select_placeholder": "Select",
+      "multi_placeholder": "Filter",
+      "multi_selected": "{count} selected",
+      "empty": "No options found",
+      "date_placeholder": "Date range",
+      "reset": "Clear filters"
+    },
+    "status": {
+      "available": "Available",
+      "in_use": "In use",
+      "maintenance": "Maintenance",
+      "reserved": "Reserved",
+      "written_off": "Written off",
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "draft": "Draft"
+    },
+    "table": {
+      "empty_title": "No records found",
+      "empty_description": "Try adjusting the filters or create a new record.",
+      "page_label": "Page {page} of {total}",
+      "prev": "Previous",
+      "next": "Next"
+    },
+    "drawer": {
+      "saving": "Saving..."
+    },
+    "nfe": {
+      "import": "Import NF-e",
+      "importing": "Importing...",
+      "summary": "Supplier: {supplier} • Total: {total}",
+      "unknown_supplier": "Unknown supplier"
+    },
+    "overview": {
+      "actions": {
+        "view_movements": "View movements",
+        "view_catalog": "View catalog"
+      },
+      "cards": {
+        "total_label": "Tracked items"
+      },
+      "alerts": {
+        "title": "Active alerts",
+        "subtitle": "Items requiring immediate attention",
+        "empty": "No alerts",
+        "empty_description": "There are no critical alerts at this time."
+      },
+      "top": {
+        "title": "Top products",
+        "subtitle": "Most used assets",
+        "empty": "No data yet",
+        "empty_description": "Register movements to build the ranking.",
+        "unknown": "Unknown product",
+        "uses": "uses"
+      },
+      "movements": {
+        "title": "Recent movements",
+        "subtitle": "Latest registered entries",
+        "view_all": "View all",
+        "empty": "No movements",
+        "empty_description": "Register movements to follow the history.",
+        "product": "Product #{id}"
+      }
+    },
+    "catalog": {
+      "filters": {
+        "search": "Search product",
+        "status": "Status",
+        "product_type": "Product type",
+        "supplier": "Supplier",
+        "department": "Department",
+        "location": "Location",
+        "purchase_date": "Purchase date"
+      },
+      "actions": {
+        "import_nfe": "Import NF-e",
+        "new_product": "New product"
+      },
+      "table": {
+        "code": "Code",
+        "name": "Name",
+        "status": "Status",
+        "product_type": "Type",
+        "supplier": "Supplier",
+        "department_location": "Department / Location",
+        "warranty": "Warranty",
+        "actions": "Actions",
+        "edit": "Edit",
+        "empty_title": "No products found",
+        "empty_description": "Adjust the filters or create a new product."
+      },
+      "drawer": {
+        "create_title": "Create product",
+        "edit_title": "Edit product",
+        "subtitle": "Fill in the information to control the asset.",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "form": {
+        "identification": "Identification",
+        "fiscal": "Fiscal data",
+        "location_section": "Location",
+        "notes_section": "Notes",
+        "name": "Product name",
+        "status": "Status",
+        "product_type": "Product type",
+        "product_type_placeholder": "Select the type",
+        "supplier": "Supplier",
+        "supplier_placeholder": "Select the supplier",
+        "serial_number": "Serial number",
+        "service_tag": "Service tag",
+        "asset_number": "Asset number",
+        "invoice_number": "Invoice number",
+        "purchase_date": "Purchase date",
+        "warranty_date": "Warranty until",
+        "department": "Department",
+        "department_placeholder": "Select the department",
+        "location": "Location",
+        "location_placeholder": "Select the location",
+        "notes": "Notes",
+        "validation": {
+          "name": "Enter the product name",
+          "product_type": "Select a product type"
+        }
+      },
+      "nfe": {
+        "helper": "Import an NF-e to automatically fill in fiscal fields."
+      }
+    },
+    "suppliers": {
+      "actions": {
+        "new_supplier": "New supplier"
+      },
+      "filters": {
+        "search": "Search by name or tax ID",
+        "status": "Status",
+        "active": "Active",
+        "inactive": "Inactive",
+        "all": "All"
+      },
+      "table": {
+        "name": "Name",
+        "cnpj": "Tax ID",
+        "phone": "Phone",
+        "email": "Email",
+        "status": "Status",
+        "actions": "Actions",
+        "edit": "Edit",
+        "deactivate": "Deactivate",
+        "active": "Active",
+        "inactive": "Inactive",
+        "contact_prefix": "Contact:",
+        "empty_title": "No suppliers found",
+        "empty_description": "Adjust the search or create a new supplier.",
+        "confirm_deactivate": "Do you want to deactivate supplier {name}?"
+      },
+      "drawer": {
+        "create_title": "Create supplier",
+        "edit_title": "Edit supplier",
+        "description": "Keep fiscal and contact information up to date.",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "form": {
+        "name": "Supplier name",
+        "cnpj": "Tax ID",
+        "contact_name": "Primary contact",
+        "phone": "Phone",
+        "email": "Email",
+        "notes": "Notes",
+        "validation": {
+          "name": "Enter the supplier name"
+        }
+      }
+    },
+    "product_types": {
+      "actions": {
+        "new_type": "New type"
+      },
+      "filters": {
+        "search": "Search by name or code",
+        "status": "Status",
+        "active": "Active",
+        "inactive": "Inactive",
+        "all": "All"
+      },
+      "table": {
+        "name": "Name",
+        "category": "Category",
+        "flags": "Rules",
+        "status": "Status",
+        "actions": "Actions",
+        "edit": "Edit",
+        "deactivate": "Deactivate",
+        "active": "Active",
+        "inactive": "Inactive",
+        "requires_serial": "Requires serial",
+        "requires_asset": "Requires asset tag",
+        "is_consumable": "Consumable",
+        "empty_title": "No product types",
+        "empty_description": "Create the first type to organize the catalog.",
+        "confirm_deactivate": "Do you want to deactivate type {name}?"
+      },
+      "drawer": {
+        "create_title": "Create product type",
+        "edit_title": "Edit product type",
+        "description": "Define rules and categories for assets.",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "form": {
+        "name": "Type name",
+        "code": "Internal code",
+        "category": "Category",
+        "requires_serial": "Require serial number",
+        "requires_serial_hint": "Ask for a serial number when registering products.",
+        "requires_asset": "Require asset tag",
+        "requires_asset_hint": "Ask for an asset/inventory tag at registration.",
+        "is_consumable": "Mark as consumable",
+        "is_consumable_hint": "Consumable items do not return to stock.",
+        "validation": {
+          "name": "Enter the type name",
+          "code": "Enter the internal code"
+        }
+      },
+      "categories": {
+        "hardware": "Hardware",
+        "software": "Software",
+        "accessory": "Accessory",
+        "service": "Service",
+        "other": "Other"
+      }
+    },
+    "locations": {
+      "actions": {
+        "new_location": "New location"
+      },
+      "filters": {
+        "search": "Search location",
+        "type": "Type",
+        "all_types": "All types",
+        "department": "Department",
+        "all_departments": "All departments"
+      },
+      "types": {
+        "storage": "Storage",
+        "office": "Office",
+        "shelf": "Shelf",
+        "room": "Room",
+        "other": "Other"
+      },
+      "table": {
+        "name": "Name",
+        "type": "Type",
+        "department": "Department",
+        "status": "Status",
+        "actions": "Actions",
+        "edit": "Edit",
+        "qrcode": "QR Code",
+        "deactivate": "Deactivate",
+        "active": "Active",
+        "inactive": "Inactive",
+        "empty_title": "No locations",
+        "empty_description": "Create a location to organize your stock.",
+        "confirm_deactivate": "Do you want to deactivate {name}?"
+      },
+      "drawer": {
+        "create_title": "Create location",
+        "edit_title": "Edit location",
+        "description": "Define where assets can be stored.",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "form": {
+        "name": "Location name",
+        "type": "Type",
+        "department": "Department",
+        "department_placeholder": "Select a department",
+        "parent_location": "Parent location",
+        "parent_placeholder": "Select a parent location",
+        "parent_none": "No parent location",
+        "validation": {
+          "name": "Enter the location name"
+        }
+      }
+    },
+    "movements": {
+      "actions": {
+        "new_movement": "Register movement"
+      },
+      "filters": {
+        "search": "Search reason or notes",
+        "type": "Movement type",
+        "all_types": "All types",
+        "status": "Approval status",
+        "all_status": "All statuses"
+      },
+      "types": {
+        "entry": "Entry",
+        "withdrawal": "Withdrawal",
+        "return": "Return",
+        "transfer": "Transfer",
+        "maintenance": "Maintenance",
+        "reservation": "Reservation",
+        "write_off": "Write-off"
+      },
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "table": {
+        "id": "ID",
+        "product": "Product",
+        "type": "Type",
+        "quantity": "Quantity",
+        "ticket": "Ticket",
+        "status": "Status",
+        "date": "Date",
+        "actions": "Actions",
+        "approve": "Approve",
+        "reject": "Reject",
+        "empty_title": "No movements",
+        "empty_description": "No movement was found with the current filters."
+      },
+      "drawer": {
+        "title": "Register movement",
+        "subtitle": "Fill in the data for the new movement.",
+        "save": "Register",
+        "cancel": "Cancel"
+      },
+      "form": {
+        "product_id": "Product ID",
+        "movement_type": "Movement type",
+        "quantity": "Quantity",
+        "ticket_id": "Ticket ID (optional)",
+        "notes": "Notes",
+        "validation": {
+          "product": "Enter the product ID"
+        },
+        "success": "Movement registered"
+      }
+    },
+    "assignments": {
+      "actions": {},
+      "filters": {
+        "search": "Search by product or user",
+        "status": "Assignment status",
+        "all_status": "All statuses"
+      },
+      "status": {
+        "pending": "Pending",
+        "active": "Active",
+        "completed": "Completed"
+      },
+      "term_status": {
+        "generated": "Generated",
+        "sent": "Sent",
+        "signed": "Signed",
+        "none": "No term"
+      },
+      "table": {
+        "id": "ID",
+        "product": "Product",
+        "user": "User",
+        "dates": "Dates",
+        "expected": "Expected:",
+        "actual": "Actual:",
+        "status": "Status",
+        "term_status": "Term",
+        "actions": "Actions",
+        "return": "Register return",
+        "generate_term": "Generate term",
+        "term_created": "Term generated",
+        "return_registered": "Return registered",
+        "empty_title": "No assignments",
+        "empty_description": "No assignments match the current filters."
+      }
+    },
+    "settings": {
+      "table": {
+        "department": "Department",
+        "inventory_enabled": "Inventory enabled",
+        "actions": "Actions",
+        "configure": "Configure",
+        "empty_title": "No departments available",
+        "empty_description": "Create departments to enable inventory settings."
+      },
+      "toast": {
+        "updated": "Setting updated",
+        "error": "Update failed"
+      },
+      "drawer": {
+        "title": "{department} settings",
+        "description": "Define department-specific inventory rules.",
+        "save": "Save",
+        "cancel": "Cancel",
+        "saved": "Settings saved"
+      },
+      "form": {
+        "allowed_types": "Allowed product types",
+        "allowed_types_placeholder": "IDs separated by comma",
+        "default_days": "Default assignment days",
+        "require_return": "Require return workflow",
+        "require_return_hint": "Enable to force return confirmation.",
+        "notes": "Notes"
+      }
+    },
+    "reports": {
+      "actions": {
+        "generate": "Generate"
+      },
+      "toast": {
+        "generated_json": "Report generated (JSON)",
+        "error": "Failed to generate report"
+      },
+      "list": {
+        "inventory_full": {
+          "title": "Full inventory",
+          "description": "List every asset and its current status."
+        },
+        "products_by_user": {
+          "title": "Products by user",
+          "description": "Assets allocated to each user."
+        },
+        "products_by_department": {
+          "title": "Products by department",
+          "description": "Asset distribution across departments."
+        },
+        "movements_history": {
+          "title": "Movement history",
+          "description": "Complete register of entries and exits."
+        },
+        "maintenance": {
+          "title": "Items in maintenance",
+          "description": "Assets undergoing maintenance and deadlines."
+        },
+        "write_off": {
+          "title": "Written-off items",
+          "description": "Write-offs grouped by period."
+        },
+        "cost_by_department": {
+          "title": "Cost by department",
+          "description": "Aggregated costs per cost center."
+        },
+        "depreciation": {
+          "title": "Depreciation",
+          "description": "Depreciation calculation per type."
+        },
+        "tco": {
+          "title": "Total cost of ownership",
+          "description": "Consolidates direct and indirect costs."
+        },
+        "supplier_analysis": {
+          "title": "Supplier analysis",
+          "description": "Volume and performance per supplier."
+        },
+        "compliance": {
+          "title": "Compliance",
+          "description": "Related compliance documents."
+        },
+        "compliance_docs": {
+          "title": "Compliance",
+          "description": "Related compliance documents."
+        },
+        "licenses": {
+          "title": "Licenses/warranties expiring",
+          "description": "Items with upcoming warranty/license end."
+        },
+        "licenses_expiring": {
+          "title": "Licenses/warranties expiring",
+          "description": "Items with upcoming warranty/license end."
+        },
+        "terms": {
+          "title": "Pending terms",
+          "description": "Assignments without signed term."
+        },
+        "terms_pending": {
+          "title": "Pending terms",
+          "description": "Assignments without signed term."
+        },
+        "audit": {
+          "title": "Movement audit",
+          "description": "Summary for operational audit."
+        },
+        "audit_movements": {
+          "title": "Movement audit",
+          "description": "Summary for operational audit."
+        }
+      }
+    },
+    "webhooks": {
+      "actions": {
+        "new_webhook": "New webhook"
+      },
+      "table": {
+        "name": "Name",
+        "url": "URL",
+        "events": "Events",
+        "status": "Status",
+        "actions": "Actions",
+        "edit": "Edit",
+        "delete": "Delete",
+        "active": "Active",
+        "inactive": "Inactive",
+        "confirm_delete": "Do you want to remove webhook {name}?",
+        "empty_title": "No webhooks configured",
+        "empty_description": "Create a webhook to integrate with external systems."
+      },
+      "drawer": {
+        "create_title": "Create webhook",
+        "edit_title": "Edit webhook",
+        "description": "Provide the endpoint that will receive events.",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "form": {
+        "name": "Name",
+        "url": "Destination URL",
+        "events": "Events (comma separated)",
+        "events_placeholder": "inventory.created, inventory.updated",
+        "secret": "Secret (optional)",
+        "validation": "Enter the webhook name and URL"
+      },
+      "toast": {
+        "saved": "Webhook saved"
+      }
+    }
   },
   "dashboard": {
     "title": "Dashboard",
@@ -542,6 +1126,8 @@
       "sla_by_category": "Use SLA by category",
       "satisfaction_survey": "Satisfaction Survey",
       "satisfaction_survey_desc": "Automatically send satisfaction survey when tickets from this department are resolved",
+      "inventory_control": "Use inventory control",
+      "inventory_control_desc": "Enable the integrated inventory module for this department",
       "cancel": "Cancel",
       "creating": "Creating...",
       "create": "Create Department",
@@ -563,6 +1149,8 @@
       "sla_by_category": "Use SLA by category",
       "satisfaction_survey": "Satisfaction Survey",
       "satisfaction_survey_desc": "Automatically send satisfaction survey when tickets from this department are resolved",
+      "inventory_control": "Use inventory control",
+      "inventory_control_desc": "Enable the integrated inventory module for this department",
       "cancel": "Cancel",
       "saving": "Saving...",
       "save": "Save Changes",
