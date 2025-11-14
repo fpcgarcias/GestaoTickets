@@ -834,7 +834,7 @@
   },
   "sla_dashboard": {
     "title": "SLA Dashboard",
-    "subtitle": "Overview of SLA configurations and compliance",
+    "subtitle": "Overview of SLA configurations and compliance - Last 30 days",
     "filter_department": "Filter by department",
     "all_departments": "All departments",
     "total_configurations": "Total Configurations",
