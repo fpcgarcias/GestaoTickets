@@ -18,6 +18,16 @@ function resolveCompanyId(req: Request): number {
 export async function listInventoryWebhooks(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
+
     const hooks = await db
       .select()
       .from(inventoryWebhooks)
@@ -32,6 +42,16 @@ export async function listInventoryWebhooks(req: Request, res: Response) {
 export async function createInventoryWebhook(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
+
     const payload = {
       ...req.body,
       company_id: companyId,
@@ -47,7 +67,16 @@ export async function createInventoryWebhook(req: Request, res: Response) {
 export async function deleteInventoryWebhook(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
     const webhookId = parseInt(req.params.id, 10);
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
 
     const deleted = await db
       .delete(inventoryWebhooks)

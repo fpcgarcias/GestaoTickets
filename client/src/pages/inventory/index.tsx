@@ -8,6 +8,7 @@ const InventoryMovementsPage = lazy(() => import("./movements"));
 const InventoryAssignmentsPage = lazy(() => import("./assignments"));
 const InventorySuppliersPage = lazy(() => import("./suppliers"));
 const InventoryProductTypesPage = lazy(() => import("./product-types"));
+const InventoryProductCategoriesPage = lazy(() => import("./product-categories"));
 const InventoryLocationsPage = lazy(() => import("./locations"));
 const InventoryReportsPage = lazy(() => import("./reports"));
 const InventoryWebhooksPage = lazy(() => import("./webhooks"));
@@ -30,6 +31,7 @@ const inventoryRoutes = [
   { path: "/inventory/assignments", component: InventoryAssignmentsPage },
   { path: "/inventory/suppliers", component: InventorySuppliersPage },
   { path: "/inventory/product-types", component: InventoryProductTypesPage },
+  { path: "/inventory/product-categories", component: InventoryProductCategoriesPage },
   { path: "/inventory/locations", component: InventoryLocationsPage },
   { path: "/inventory/reports", component: InventoryReportsPage },
   { path: "/inventory/webhooks", component: InventoryWebhooksPage },

@@ -1,13 +1,16 @@
 import { randomUUID } from 'crypto';
-import { and, desc, eq, ilike, ne, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, ne, or, sql, inArray } from 'drizzle-orm';
 import { db } from '../db';
 import {
   inventoryProducts,
   inventoryProductHistory,
+  productTypes,
+  productCategories,
   type InventoryProduct,
   type InsertInventoryProduct,
 } from '@shared/schema';
 import s3Service from './s3-service';
+import { getDepartmentFilter } from '../utils/department-filter';
 
 export interface ProductPhoto {
   id: string;
@@ -29,6 +32,8 @@ export interface UpdateProductInput extends Partial<CreateProductInput> {}
 
 export interface ProductFilters {
   companyId: number;
+  userId?: number;
+  userRole?: string;
   status?: string;
   departmentId?: number;
   locationId?: number;
@@ -65,17 +70,66 @@ export interface ProductPhotoUpload {
 }
 
 const normalizeDateValue = (value: unknown): Date | undefined => {
-  if (!value) return undefined;
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? undefined : value;
+  console.log('[normalizeDateValue] Input:', value, 'Type:', typeof value);
+  
+  if (!value || value === '') {
+    console.log('[normalizeDateValue] Valor vazio ou nulo, retornando undefined');
+    return undefined;
   }
+  
+  if (value instanceof Date) {
+    const result = Number.isNaN(value.getTime()) ? undefined : value;
+    console.log('[normalizeDateValue] É Date:', result);
+    return result;
+  }
+  
   if (typeof value === 'string' || typeof value === 'number') {
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.getTime())) {
+      console.log('[normalizeDateValue] String/Number convertido para Date:', parsed);
       return parsed;
+    } else {
+      console.log('[normalizeDateValue] Conversão falhou, retornando undefined');
     }
   }
+  
+  console.log('[normalizeDateValue] Tipo não suportado, retornando undefined');
   return undefined;
+};
+
+const normalizeMoneyValue = (value: unknown): string | null => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  if (typeof value === 'number') {
+    return value.toString();
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  // Se vem no padrão brasileiro "1.234,56"
+  if (trimmed.includes(',') && !trimmed.includes('.')) {
+    const numeric = trimmed.replace(/\./g, '').replace(',', '.');
+    return numeric;
+  }
+
+  // Se vem com ponto e vírgula misturados, tentar tratar vírgula como decimal
+  if (trimmed.includes(',') && trimmed.includes('.')) {
+    const onlyDigitsAndComma = trimmed.replace(/[^\d,]/g, '');
+    if (onlyDigitsAndComma.includes(',')) {
+      return onlyDigitsAndComma.replace(',', '.');
+    }
+  }
+
+  // Caso já pareça estar em formato "internacional", remover separador de milhar
+  const normalized = trimmed.replace(/,/g, '');
+  return normalized;
 };
 
 class InventoryProductService {
@@ -111,6 +165,27 @@ class InventoryProductService {
           ilike(inventoryProducts.service_tag, term)
         )
       );
+    }
+
+    // Filtro por departamento
+    if (filters.userId && filters.userRole) {
+      const deptFilter = await getDepartmentFilter(filters.userId, filters.userRole);
+
+      if (deptFilter.type === 'NONE') {
+        return {
+          data: [],
+          pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+        };
+      }
+
+      if (deptFilter.type === 'DEPARTMENTS') {
+        conditions.push(
+          or(
+            inArray(inventoryProducts.department_id, deptFilter.departmentIds!),
+            sql`${inventoryProducts.department_id} IS NULL`
+          )
+        );
+      }
     }
 
     const whereClause = and(...conditions);
@@ -164,10 +239,17 @@ class InventoryProductService {
 
     const payload = this.preparePayload(input, userId);
 
+    console.log('====== SALVANDO NO BANCO (INSERT) ======');
+    console.log('Payload completo para insert:', JSON.stringify(payload, null, 2));
+
     const [product] = await db
       .insert(inventoryProducts)
       .values(payload)
       .returning();
+
+    console.log('====== PRODUTO RETORNADO DO BANCO ======');
+    console.log('purchase_date do banco:', product.purchase_date, typeof product.purchase_date);
+    console.log('warranty_expiry do banco:', product.warranty_expiry, typeof product.warranty_expiry);
 
     await this.logHistory(product.id, userId, 'created', null, product, 'Produto criado');
 
@@ -198,11 +280,19 @@ class InventoryProductService {
     const payload = this.preparePayload(merged, userId, true);
     payload.updated_at = new Date();
 
+    console.log('====== SALVANDO NO BANCO (UPDATE) ======');
+    console.log('Product ID:', id);
+    console.log('Payload completo para update:', JSON.stringify(payload, null, 2));
+
     const [updated] = await db
       .update(inventoryProducts)
       .set(payload)
       .where(and(eq(inventoryProducts.id, id), eq(inventoryProducts.company_id, companyId)))
       .returning();
+
+    console.log('====== PRODUTO RETORNADO DO BANCO (UPDATE) ======');
+    console.log('purchase_date do banco:', updated.purchase_date, typeof updated.purchase_date);
+    console.log('warranty_expiry do banco:', updated.warranty_expiry, typeof updated.warranty_expiry);
 
     const changes = this.extractChanges(existing, updated);
     if (changes) {
@@ -332,8 +422,7 @@ class InventoryProductService {
   }
 
   private async ensureUniqueIdentifiers(input: CreateProductInput, excludeId?: number): Promise<void> {
-    const conditions = [eq(inventoryProducts.company_id, input.company_id)];
-
+    // Se não possui nenhum identificador único, permitir (pode ser consumível)
     const identifierClauses = [];
     if (input.serial_number) {
       identifierClauses.push(eq(inventoryProducts.serial_number, input.serial_number));
@@ -345,9 +434,33 @@ class InventoryProductService {
       identifierClauses.push(eq(inventoryProducts.asset_number, input.asset_number));
     }
 
+    // Se não há identificadores únicos, não precisa validar
     if (identifierClauses.length === 0) {
       return;
     }
+
+    // Verificar se o produto é consumível via CATEGORIA do tipo
+    const [typeAndCategory] = await db
+      .select({
+        category_id: productTypes.category_id,
+        is_consumable: productCategories.is_consumable,
+      })
+      .from(productTypes)
+      .leftJoin(productCategories, eq(productCategories.id, productTypes.category_id))
+      .where(eq(productTypes.id, input.product_type_id))
+      .limit(1);
+
+    // Se é consumível, permitir múltiplos produtos mesmo com identificadores
+    // (útil para lâmpadas, peças, etc que podem ter lotes)
+    if (typeAndCategory?.is_consumable) {
+      return;
+    }
+
+    // Para produtos não-consumíveis, garantir unicidade dos identificadores
+    const conditions = [
+      eq(inventoryProducts.company_id, input.company_id),
+      eq(inventoryProducts.is_deleted, false), // Ignorar produtos deletados
+    ];
 
     if (excludeId) {
       conditions.push(ne(inventoryProducts.id, excludeId));
@@ -357,7 +470,17 @@ class InventoryProductService {
 
     const existing = await db.select().from(inventoryProducts).where(whereClause).limit(1);
     if (existing.length > 0) {
-      throw new Error('Já existe um produto com o mesmo número de série/service tag/patrimônio.');
+      const existingProduct = existing[0];
+      const duplicateField = 
+        input.serial_number && existingProduct.serial_number === input.serial_number ? 'Número de Série' :
+        input.service_tag && existingProduct.service_tag === input.service_tag ? 'Service Tag' :
+        input.asset_number && existingProduct.asset_number === input.asset_number ? 'Número de Patrimônio' :
+        'identificador';
+      
+      throw new Error(
+        `Já existe um equipamento cadastrado com o mesmo ${duplicateField}. ` +
+        `Equipamentos não-consumíveis devem ter identificadores únicos.`
+      );
     }
   }
 
@@ -379,21 +502,29 @@ class InventoryProductService {
       updated_by_id: userId,
     };
 
-    // Converter datas para Date objects (drizzle mode: 'date' espera Date)
+    // Normalizar campos monetários (texto no banco, mas usado como numeric em relatórios)
+    if (input.purchase_value !== undefined) {
+      payload.purchase_value = normalizeMoneyValue(input.purchase_value) ?? null;
+    }
+    if (input.depreciation_value !== undefined) {
+      payload.depreciation_value = normalizeMoneyValue(input.depreciation_value) ?? null;
+    }
+
+    // Converter datas para string ISO (drizzle mode: 'string' espera string ISO)
     if (input.purchase_date !== undefined) {
       const converted = normalizeDateValue(input.purchase_date);
       console.log('purchase_date CONVERTIDO:', converted, converted instanceof Date);
-      payload.purchase_date = converted;
+      payload.purchase_date = converted ? converted.toISOString() : null;
     }
     if (input.invoice_date !== undefined) {
       const converted = normalizeDateValue(input.invoice_date);
       console.log('invoice_date CONVERTIDO:', converted, converted instanceof Date);
-      payload.invoice_date = converted;
+      payload.invoice_date = converted ? converted.toISOString() : null;
     }
     if (input.warranty_expiry !== undefined) {
       const converted = normalizeDateValue(input.warranty_expiry);
       console.log('warranty_expiry CONVERTIDO:', converted, converted instanceof Date);
-      payload.warranty_expiry = converted;
+      payload.warranty_expiry = converted ? converted.toISOString() : null;
     }
 
     console.log('====== PAYLOAD FINAL ======');

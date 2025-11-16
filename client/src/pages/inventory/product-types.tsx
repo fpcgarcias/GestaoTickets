@@ -25,25 +25,35 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Pencil, UserX } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Pencil, Trash } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+
+interface DepartmentOption {
+  id: number;
+  name: string;
+}
 
 type ProductTypeStatus = "active" | "inactive" | "all";
 
 interface ProductTypeFormState {
   name: string;
-  category: string;
-  requiresSerial: boolean;
-  requiresAsset: boolean;
-  isConsumable: boolean;
+  categoryId: string; // ID da categoria (numérico)
+  departmentId: string;
 }
 
 const DEFAULT_PRODUCT_TYPE_FORM: ProductTypeFormState = {
   name: "",
-  category: "hardware",
-  requiresSerial: false,
-  requiresAsset: false,
-  isConsumable: false,
+  categoryId: "",
+  departmentId: "",
 };
 
 const generateCode = (name: string) => {
@@ -55,7 +65,6 @@ const generateCode = (name: string) => {
   const fallback = `type_${Date.now()}`;
   return normalized || fallback;
 };
-const CATEGORY_OPTIONS = ["hardware", "software", "accessory", "service", "other"];
 
 export default function InventoryProductTypesPage() {
   const { formatMessage } = useI18n();
@@ -75,7 +84,31 @@ export default function InventoryProductTypesPage() {
   const updateType = useUpdateInventoryProductType();
   const deleteType = useDeleteInventoryProductType();
 
-  const productTypes = productTypesQuery.data?.data ?? [];
+  // Buscar departamentos disponíveis
+  const departmentsQuery = useQuery<DepartmentOption[]>({
+    queryKey: ["inventory-departments"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/departments?active_only=true&limit=200");
+      const data = await response.json();
+      return (data?.departments ?? data?.data ?? []) as DepartmentOption[];
+    },
+    select: (data) => Array.isArray(data) ? data : [],
+  });
+
+  // Buscar categorias disponíveis
+  const categoriesQuery = useQuery<any[]>({
+    queryKey: ["inventory", "product-categories", { includeInactive: false }],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/inventory/product-categories");
+      const data = await response.json();
+      return data?.data ?? [];
+    },
+    select: (data) => Array.isArray(data) ? data : [],
+  });
+
+  const productTypes = Array.isArray(productTypesQuery.data?.data) ? productTypesQuery.data!.data : [];
+  const departments = departmentsQuery.data ?? [];
+  const categories = categoriesQuery.data ?? [];
 
   const filteredTypes = useMemo(() => {
     return productTypes.filter((type) => {
@@ -142,10 +175,8 @@ export default function InventoryProductTypesPage() {
     setEditingType(type);
     setFormState({
       name: type.name ?? "",
-      category: type.category ?? "hardware",
-      requiresSerial: Boolean(type.requires_serial),
-      requiresAsset: Boolean(type.requires_asset_tag),
-      isConsumable: Boolean(type.is_consumable),
+      categoryId: (type as any).category_id ? String((type as any).category_id) : "",
+      departmentId: (type as any).department_id ? String((type as any).department_id) : "",
     });
     setDrawerOpen(true);
   };
@@ -168,13 +199,20 @@ export default function InventoryProductTypesPage() {
       });
       return;
     }
+
+    if (!formState.categoryId) {
+      toast({
+        title: "Selecione uma categoria",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const payload = {
       name: formState.name,
       code: editingType?.code ?? generateCode(formState.name),
-      category: formState.category,
-      requires_serial: formState.requiresSerial,
-      requires_asset_tag: formState.requiresAsset,
-      is_consumable: formState.isConsumable,
+      category_id: parseInt(formState.categoryId, 10),
+      department_id: formState.departmentId ? parseInt(formState.departmentId, 10) : undefined,
     };
 
     if (editingType) {
@@ -213,33 +251,24 @@ export default function InventoryProductTypesPage() {
     {
       key: "category",
       header: formatMessage("inventory.product_types.table.category"),
-      render: (type) => formatMessage(`inventory.product_types.categories.${type.category}` as any),
-    },
-    {
-      key: "flags",
-      header: formatMessage("inventory.product_types.table.flags"),
-      render: (type) => (
-        <div className="flex flex-wrap gap-2 text-xs">
-          {type.requires_serial && (
-            <Badge variant="secondary">
-              {formatMessage("inventory.product_types.table.requires_serial")}
-            </Badge>
-          )}
-          {type.requires_asset_tag && (
-            <Badge variant="secondary">
-              {formatMessage("inventory.product_types.table.requires_asset")}
-            </Badge>
-          )}
-          {type.is_consumable && (
-            <Badge variant="secondary">
-              {formatMessage("inventory.product_types.table.is_consumable")}
-            </Badge>
-          )}
-          {!type.requires_serial && !type.requires_asset_tag && !type.is_consumable && (
-            <span className="text-muted-foreground">--</span>
-          )}
-        </div>
-      ),
+      render: (type) => {
+        const categoryId = (type as any).category_id;
+        const category = categories.find((cat: any) => cat.id === categoryId);
+        if (category) {
+          return (
+            <div className="flex items-center gap-2">
+              {category.color && (
+                <div
+                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: category.color }}
+                />
+              )}
+              <span>{category.name}</span>
+            </div>
+          );
+        }
+        return <span className="text-muted-foreground">—</span>;
+      },
     },
     {
       key: "status",
@@ -275,11 +304,11 @@ export default function InventoryProductTypesPage() {
             <Button
               variant="destructive"
               size="sm"
-              className="h-8 w-8 p-0 bg-amber-500 hover:bg-amber-500/90"
+              className="h-8 w-8 p-0"
               onClick={() => handleDeactivate(type)}
               title={formatMessage("inventory.product_types.table.deactivate")}
             >
-              <UserX className="h-3.5 w-3.5" />
+              <Trash className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
@@ -339,63 +368,32 @@ export default function InventoryProductTypesPage() {
               <Input value={formState.name} onChange={(event) => handleFormChange("name", event.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>{formatMessage("inventory.product_types.form.category")}</Label>
-              <select
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none"
-                value={formState.category}
-                onChange={(event) => handleFormChange("category", event.target.value)}
+              <Label>Categoria *</Label>
+              <Select
+                value={formState.categoryId}
+                onValueChange={(value) => handleFormChange("categoryId", value)}
               >
-                {CATEGORY_OPTIONS.map((category) => (
-                  <option key={category} value={category}>
-                    {formatMessage(`inventory.product_types.categories.${category}` as any)}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat: any) => (
+                    <SelectItem key={cat.id} value={String(cat.id)}>
+                      <div className="flex items-center gap-2">
+                        {cat.color && (
+                          <div
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: cat.color }}
+                          />
+                        )}
+                        {cat.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium">
-                    {formatMessage("inventory.product_types.form.requires_serial")}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatMessage("inventory.product_types.form.requires_serial_hint")}
-                  </p>
-                </div>
-                <Switch
-                  checked={formState.requiresSerial}
-                  onCheckedChange={(value) => handleFormChange("requiresSerial", value)}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium">
-                    {formatMessage("inventory.product_types.form.requires_asset")}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatMessage("inventory.product_types.form.requires_asset_hint")}
-                  </p>
-                </div>
-                <Switch
-                  checked={formState.requiresAsset}
-                  onCheckedChange={(value) => handleFormChange("requiresAsset", value)}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border px-3 py-2 md:col-span-2">
-                <div>
-                  <p className="text-sm font-medium">
-                    {formatMessage("inventory.product_types.form.is_consumable")}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatMessage("inventory.product_types.form.is_consumable_hint")}
-                  </p>
-                </div>
-                <Switch
-                  checked={formState.isConsumable}
-                  onCheckedChange={(value) => handleFormChange("isConsumable", value)}
-                />
-              </div>
-            </div>
+            {/* Departamento REMOVIDO dos tipos; regras ficam na categoria */}
           </div>
           <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={closeDrawer}>

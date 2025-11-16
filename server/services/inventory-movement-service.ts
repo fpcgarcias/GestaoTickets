@@ -1,16 +1,20 @@
-import { and, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, isNull, or, sql, inArray } from 'drizzle-orm';
 import { db } from '../db';
 import {
   inventoryMovements,
   inventoryProducts,
   userInventoryAssignments,
   ticketInventoryItems,
+  productTypes,
+  productCategories,
+  tickets,
   type InventoryMovement,
   type InventoryProduct,
   type InsertInventoryMovement,
   type InsertUserInventoryAssignment,
 } from '@shared/schema';
 import { inventoryProductService, type HydratedInventoryProduct } from './inventory-product-service';
+import { getDepartmentFilter } from '../utils/department-filter';
 
 export type MovementType =
   | 'entry'
@@ -36,6 +40,8 @@ export interface RegisterMovementInput extends Omit<InsertInventoryMovement, 'no
 
 export interface MovementFilters {
   companyId: number;
+  userId?: number;
+  userRole?: string;
   productId?: number;
   movementType?: MovementType;
   approvalStatus?: string;
@@ -49,6 +55,7 @@ export interface HydratedMovement extends InventoryMovement {
   product?: HydratedInventoryProduct | null;
   userNotes?: string | null;
   assignment?: MovementAssignmentOptions;
+  ticket_code?: string | null;
 }
 
 interface MovementMetadata {
@@ -64,6 +71,7 @@ class InventoryMovementService {
     const offset = (page - 1) * limit;
 
     const conditions = [eq(inventoryMovements.company_id, filters.companyId)];
+    
     if (filters.productId) {
       conditions.push(eq(inventoryMovements.product_id, filters.productId));
     }
@@ -86,11 +94,54 @@ class InventoryMovementService {
       );
     }
 
+    // Filtro por departamento (via produtos)
+    if (filters.userId && filters.userRole) {
+      const deptFilter = await getDepartmentFilter(filters.userId, filters.userRole);
+
+      if (deptFilter.type === 'NONE') {
+        return {
+          data: [],
+          pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+        };
+      }
+
+      if (deptFilter.type === 'DEPARTMENTS') {
+        // Buscar apenas produtos dos departamentos do usuário
+        const allowedProducts = await db
+          .select({ id: inventoryProducts.id })
+          .from(inventoryProducts)
+          .where(
+            and(
+              eq(inventoryProducts.company_id, filters.companyId),
+              or(
+                inArray(inventoryProducts.department_id, deptFilter.departmentIds!),
+                sql`${inventoryProducts.department_id} IS NULL`
+              )
+            )
+          );
+
+        const productIds = allowedProducts.map(p => p.id);
+        
+        if (productIds.length === 0) {
+          return {
+            data: [],
+            pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+          };
+        }
+
+        conditions.push(inArray(inventoryMovements.product_id, productIds));
+      }
+    }
+
     const whereClause = and(...conditions);
 
-    const data = await db
-      .select()
+    const rows = await db
+      .select({
+        movement: inventoryMovements,
+        ticket_code: tickets.ticket_id,
+      })
       .from(inventoryMovements)
+      .leftJoin(tickets, eq(tickets.id, inventoryMovements.ticket_id))
       .where(whereClause)
       .orderBy(desc(inventoryMovements.movement_date))
       .limit(limit)
@@ -102,7 +153,12 @@ class InventoryMovementService {
       .where(whereClause);
 
     const hydrated = await Promise.all(
-      data.map(async (movement) => this.hydrateMovement(movement))
+      rows.map(async (row) =>
+        this.hydrateMovement({
+          ...(row.movement as InventoryMovement),
+          ticket_code: row.ticket_code ?? null,
+        })
+      )
     );
 
     const total = Number(count);
@@ -123,6 +179,11 @@ class InventoryMovementService {
 
   async registerMovement(input: RegisterMovementInput): Promise<HydratedMovement> {
     const product = await this.ensureProduct(input.product_id, input.company_id);
+
+    // Validar se produto único já está alocado (apenas para withdrawal/entrega)
+    if (input.movement_type === 'withdrawal') {
+      await this.validateProductAvailability(product, input.responsible_id);
+    }
 
     const approvalStatus = this.shouldRequireApproval(input)
       ? 'pending'
@@ -166,6 +227,11 @@ class InventoryMovementService {
     const metadata = this.parseMetadata(movement.notes);
     const product = await this.ensureProduct(movement.product_id, companyId);
 
+    // Validar se produto único já está alocado (apenas para withdrawal/entrega)
+    if (movement.movement_type === 'withdrawal') {
+      await this.validateProductAvailability(product, movement.responsible_id);
+    }
+
     const [updated] = await db
       .update(inventoryMovements)
       .set({
@@ -207,6 +273,18 @@ class InventoryMovementService {
       .returning();
 
     return this.hydrateMovement(updated);
+  }
+
+  async deleteMovement(id: number, companyId: number): Promise<void> {
+    const movement = await this.getMovement(id, companyId);
+    if (!movement) {
+      throw new Error('Movimentação não encontrada.');
+    }
+
+    // Remoção direta; ticket_inventory_items.movement_id está com ON DELETE SET NULL
+    await db
+      .delete(inventoryMovements)
+      .where(and(eq(inventoryMovements.id, id), eq(inventoryMovements.company_id, companyId)));
   }
 
   private async applyMovementEffects(
@@ -329,6 +407,92 @@ class InventoryMovementService {
     return product;
   }
 
+  /**
+   * Valida se um produto pode ser entregue/alocado para um usuário.
+   * Para produtos com identificadores únicos (serial, service tag, patrimônio),
+   * verifica se já está alocado para outro usuário.
+   */
+  private async validateProductAvailability(
+    product: HydratedInventoryProduct,
+    responsibleId?: number | null
+  ): Promise<void> {
+    // Buscar informação de consumível via CATEGORIA do tipo
+    const [typeAndCategory] = await db
+      .select({
+        category_id: productTypes.category_id,
+        is_consumable: productCategories.is_consumable,
+      })
+      .from(productTypes)
+      .leftJoin(productCategories, eq(productCategories.id, productTypes.category_id))
+      .where(eq(productTypes.id, product.product_type_id))
+      .limit(1);
+
+    // Se é consumível na categoria, pode ser usado por múltiplos usuários/chamados
+    if (typeAndCategory?.is_consumable) {
+      return;
+    }
+
+    // Se NÃO tem identificadores únicos, tratar como consumível
+    const hasUniqueIdentifiers = !!(
+      product.serial_number ||
+      product.service_tag ||
+      product.asset_number
+    );
+
+    if (!hasUniqueIdentifiers) {
+      return;
+    }
+
+    // Para produtos únicos, verificar se já está alocado para outro usuário
+    const existingAssignment = await db
+      .select({
+        id: userInventoryAssignments.id,
+        user_id: userInventoryAssignments.user_id,
+        assigned_date: userInventoryAssignments.assigned_date,
+      })
+      .from(userInventoryAssignments)
+      .where(
+        and(
+          eq(userInventoryAssignments.product_id, product.id),
+          isNull(userInventoryAssignments.actual_return_date) // Ainda não foi devolvido
+        )
+      )
+      .limit(1);
+
+    if (existingAssignment.length > 0) {
+      const assignment = existingAssignment[0];
+      
+      // Se está tentando alocar para o mesmo usuário que já tem, permitir
+      if (responsibleId && assignment.user_id === responsibleId) {
+        return;
+      }
+
+      // Buscar informações do usuário que possui o equipamento
+      const [assignedUser] = await db
+        .select({
+          id: inventoryProducts.id,
+          name: inventoryProducts.name,
+          serial_number: inventoryProducts.serial_number,
+          service_tag: inventoryProducts.service_tag,
+          asset_number: inventoryProducts.asset_number,
+        })
+        .from(inventoryProducts)
+        .where(eq(inventoryProducts.id, product.id))
+        .limit(1);
+
+      const identifier = 
+        product.service_tag ? `Service Tag ${product.service_tag}` :
+        product.serial_number ? `Número de Série ${product.serial_number}` :
+        product.asset_number ? `Patrimônio ${product.asset_number}` :
+        'identificador único';
+
+      throw new Error(
+        `Este equipamento (${identifier}) já está alocado para outro usuário e não pode ser entregue novamente. ` +
+        `Para entregar este equipamento, primeiro registre a devolução do usuário atual.`
+      );
+    }
+  }
+
   private shouldRequireApproval(input: RegisterMovementInput): boolean {
     if (typeof input.requireApproval === 'boolean') {
       return input.requireApproval;
@@ -346,7 +510,9 @@ class InventoryMovementService {
     return movement ?? null;
   }
 
-  private async hydrateMovement(movement: InventoryMovement): Promise<HydratedMovement> {
+  private async hydrateMovement(
+    movement: InventoryMovement & { ticket_code?: string | null }
+  ): Promise<HydratedMovement> {
     const metadata = this.parseMetadata(movement.notes);
     const product = await inventoryProductService.getProductById(movement.product_id, movement.company_id);
 

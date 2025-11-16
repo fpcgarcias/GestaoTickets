@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Pencil, Trash, ScanLine } from "lucide-react";
 import { InventoryLayout } from "@/components/inventory/inventory-layout";
 import { useI18n } from "@/i18n";
 import { InventoryFilterBar, InventoryFilterConfig, InventoryFilterValue } from "@/components/inventory/inventory-filter-bar";
 import { EntityTable, EntityColumn } from "@/components/inventory/entity-table";
-import { EntityDrawer } from "@/components/inventory/entity-drawer";
 import {
   InventoryLocation,
   useCreateInventoryLocation,
@@ -18,8 +18,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { apiRequest } from "@/lib/queryClient";
-import { config } from "@/lib/config";
 
 interface DepartmentOption {
   id: number;
@@ -37,7 +44,7 @@ const DEFAULT_LOCATION_FORM: LocationFormState = {
   name: "",
   type: "storage",
   departmentId: "",
-  parentLocationId: "",
+  parentLocationId: "__none__",
 };
 
 const LOCATION_TYPES = ["storage", "office", "shelf", "room", "other"];
@@ -53,6 +60,10 @@ export default function InventoryLocationsPage() {
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [formState, setFormState] = useState<LocationFormState>(DEFAULT_LOCATION_FORM);
   const [editingLocation, setEditingLocation] = useState<InventoryLocation | null>(null);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const [isQrCodeOpen, setIsQrCodeOpen] = useState(false);
+  const [isLoadingQrCode, setIsLoadingQrCode] = useState(false);
+  const [currentQrCodeLocation, setCurrentQrCodeLocation] = useState<InventoryLocation | null>(null);
 
   const locationsQuery = useInventoryLocations();
   const createLocation = useCreateInventoryLocation();
@@ -142,7 +153,7 @@ export default function InventoryLocationsPage() {
       name: location.name ?? "",
       type: location.type ?? "storage",
       departmentId: location.department_id ? String(location.department_id) : "",
-      parentLocationId: location.parent_location_id ? String(location.parent_location_id) : "",
+      parentLocationId: location.parent_location_id ? String(location.parent_location_id) : "__none__",
     });
     setDrawerOpen(true);
   };
@@ -170,7 +181,7 @@ export default function InventoryLocationsPage() {
       name: formState.name,
       type: formState.type,
       department_id: formState.departmentId ? Number(formState.departmentId) : undefined,
-      parent_location_id: formState.parentLocationId ? Number(formState.parentLocationId) : undefined,
+      parent_location_id: formState.parentLocationId && formState.parentLocationId !== "__none__" ? Number(formState.parentLocationId) : undefined,
     };
 
     if (editingLocation) {
@@ -191,9 +202,49 @@ export default function InventoryLocationsPage() {
     deleteLocation.mutate({ id: location.id });
   };
 
-  const openQrCode = (location: InventoryLocation) => {
-    const url = `${config.apiBaseUrl}/api/inventory/locations/${location.id}/qrcode`;
-    window.open(url, "_blank");
+  const openQrCode = async (location: InventoryLocation) => {
+    setIsLoadingQrCode(true);
+    setIsQrCodeOpen(true);
+    setCurrentQrCodeLocation(location);
+    try {
+      const response = await apiRequest("GET", `/api/inventory/locations/${location.id}/qrcode`);
+      const data = await response.json();
+      if (data.success && data.dataUrl) {
+        setQrCodeDataUrl(data.dataUrl);
+      } else {
+        toast({
+          title: formatMessage("inventory.locations.qrcode.error"),
+          variant: "destructive",
+        });
+        setIsQrCodeOpen(false);
+        setCurrentQrCodeLocation(null);
+      }
+    } catch (error) {
+      toast({
+        title: formatMessage("inventory.locations.qrcode.error"),
+        variant: "destructive",
+      });
+      setIsQrCodeOpen(false);
+      setCurrentQrCodeLocation(null);
+    } finally {
+      setIsLoadingQrCode(false);
+    }
+  };
+
+  const closeQrCode = () => {
+    setIsQrCodeOpen(false);
+    setQrCodeDataUrl(null);
+    setCurrentQrCodeLocation(null);
+  };
+
+  const downloadQrCode = () => {
+    if (!qrCodeDataUrl || !currentQrCodeLocation) return;
+    const link = document.createElement("a");
+    link.href = qrCodeDataUrl;
+    link.download = `qrcode-location-${currentQrCodeLocation.id}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const columns: EntityColumn<InventoryLocation>[] = [
@@ -227,16 +278,35 @@ export default function InventoryLocationsPage() {
       key: "actions",
       header: formatMessage("inventory.locations.table.actions"),
       render: (location) => (
-        <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" size="sm" onClick={() => openEditDrawer(location)}>
-            {formatMessage("inventory.locations.table.edit")}
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => openEditDrawer(location)}
+            title={formatMessage("inventory.locations.table.edit")}
+          >
+            <Pencil className="h-3.5 w-3.5" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => openQrCode(location)}>
-            {formatMessage("inventory.locations.table.qrcode")}
-          </Button>
+          {/* QR Code button - oculto por enquanto, será útil quando converter para mobile */}
+          {/* <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => openQrCode(location)}
+            title={formatMessage("inventory.locations.table.qrcode")}
+          >
+            <ScanLine className="h-3.5 w-3.5" />
+          </Button> */}
           {location.is_active !== false && (
-            <Button variant="ghost" size="sm" onClick={() => handleDeactivate(location)}>
-              {formatMessage("inventory.locations.table.deactivate")}
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => handleDeactivate(location)}
+              title={formatMessage("inventory.locations.table.deactivate")}
+            >
+              <Trash className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
@@ -271,13 +341,7 @@ export default function InventoryLocationsPage() {
         />
       </div>
 
-      <EntityDrawer
-        title={
-          editingLocation
-            ? formatMessage("inventory.locations.drawer.edit_title")
-            : formatMessage("inventory.locations.drawer.create_title")
-        }
-        description={formatMessage("inventory.locations.drawer.description")}
+      <Dialog
         open={isDrawerOpen}
         onOpenChange={(open) => {
           if (!open) {
@@ -286,75 +350,122 @@ export default function InventoryLocationsPage() {
             setDrawerOpen(true);
           }
         }}
-        primaryAction={{
-          label: formatMessage("inventory.locations.drawer.save"),
-          onClick: handleSubmit,
-          loading: createLocation.isPending || updateLocation.isPending,
-        }}
-        secondaryAction={{
-          label: formatMessage("inventory.locations.drawer.cancel"),
-          onClick: closeDrawer,
-        }}
       >
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.locations.form.name")}</Label>
-            <Input value={formState.name} onChange={(event) => handleFormChange("name", event.target.value)} />
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingLocation
+                ? formatMessage("inventory.locations.drawer.edit_title")
+                : formatMessage("inventory.locations.drawer.create_title")}
+            </DialogTitle>
+            <DialogDescription>{formatMessage("inventory.locations.drawer.description")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>{formatMessage("inventory.locations.form.name")}</Label>
+              <Input value={formState.name} onChange={(event) => handleFormChange("name", event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>{formatMessage("inventory.locations.form.type")}</Label>
+              <Select value={formState.type} onValueChange={(value) => handleFormChange("type", value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LOCATION_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {formatMessage(`inventory.locations.types.${type}` as any)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{formatMessage("inventory.locations.form.department")}</Label>
+              <Select
+                value={formState.departmentId}
+                onValueChange={(value) => handleFormChange("departmentId", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={formatMessage("inventory.locations.form.department_placeholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={String(dept.id)}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{formatMessage("inventory.locations.form.parent_location")}</Label>
+              <Select
+                value={formState.parentLocationId}
+                onValueChange={(value) => handleFormChange("parentLocationId", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={formatMessage("inventory.locations.form.parent_placeholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">{formatMessage("inventory.locations.form.parent_none")}</SelectItem>
+                  {locations.map((location) => (
+                    <SelectItem key={location.id} value={String(location.id)}>
+                      {location.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.locations.form.type")}</Label>
-            <Select value={formState.type} onValueChange={(value) => handleFormChange("type", value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LOCATION_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {formatMessage(`inventory.locations.types.${type}` as any)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.locations.form.department")}</Label>
-            <Select
-              value={formState.departmentId}
-              onValueChange={(value) => handleFormChange("departmentId", value)}
+          <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={closeDrawer}>
+              {formatMessage("inventory.locations.drawer.cancel")}
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={createLocation.isPending || updateLocation.isPending}
             >
-              <SelectTrigger>
-                <SelectValue placeholder={formatMessage("inventory.locations.form.department_placeholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {departments.map((dept) => (
-                  <SelectItem key={dept.id} value={String(dept.id)}>
-                    {dept.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              {formatMessage("inventory.locations.drawer.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isQrCodeOpen} onOpenChange={(open) => !open && closeQrCode()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{formatMessage("inventory.locations.qrcode.title")}</DialogTitle>
+            <DialogDescription>
+              {formatMessage("inventory.locations.qrcode.description")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center space-y-4 py-4">
+            {isLoadingQrCode ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              </div>
+            ) : qrCodeDataUrl ? (
+              <div className="flex flex-col items-center space-y-4">
+                <img
+                  src={qrCodeDataUrl}
+                  alt="QR Code"
+                  className="max-w-full rounded-lg border"
+                  style={{ maxHeight: "400px" }}
+                />
+                <Button onClick={downloadQrCode} variant="outline" className="w-full">
+                  {formatMessage("inventory.locations.qrcode.download")}
+                </Button>
+              </div>
+            ) : null}
           </div>
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.locations.form.parent_location")}</Label>
-            <Select
-              value={formState.parentLocationId}
-              onValueChange={(value) => handleFormChange("parentLocationId", value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={formatMessage("inventory.locations.form.parent_placeholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">{formatMessage("inventory.locations.form.parent_none")}</SelectItem>
-                {locations.map((location) => (
-                  <SelectItem key={location.id} value={String(location.id)}>
-                    {location.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </EntityDrawer>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeQrCode}>
+              {formatMessage("inventory.locations.qrcode.close")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </InventoryLayout>
   );
 }

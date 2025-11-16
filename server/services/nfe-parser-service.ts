@@ -77,6 +77,7 @@ export interface ParsedNFeData {
   totals: ParsedInvoiceTotals;
   additionalInfo?: string;
   rawXml: string;
+  serviceTags?: string[]; // Service tags extraídas (especialmente para Dell)
 }
 
 export interface StoreNFeXmlParams {
@@ -187,6 +188,11 @@ class NFeParserService {
       totalCofins: toNumber(total.vCOFINS),
     };
 
+    // Extrair service tags da Dell (se for nota da Dell)
+    const dellCnpj = '72381189001001';
+    const isDell = supplier.cnpj?.replace(/\D/g, '') === dellCnpj;
+    const serviceTags = isDell ? this.extractDellServiceTags(infNFe.infAdic?.infCpl) : undefined;
+
     return {
       invoiceKey: normalizeString(this.extractInvoiceKey(parsed)),
       invoiceNumber: normalizeString(ide.nNF),
@@ -200,6 +206,7 @@ class NFeParserService {
       products,
       totals,
       additionalInfo: normalizeString(infNFe.infAdic?.infCpl),
+      serviceTags,
       rawXml: xmlString,
     };
   }
@@ -268,6 +275,61 @@ class NFeParserService {
       zipCode: normalizeString(addressNode.CEP),
       country: normalizeString(addressNode.xPais),
     };
+  }
+
+  private extractDellServiceTags(infCpl?: string): string[] | undefined {
+    if (!infCpl) {
+      console.log('[NFe Parser] infCpl está vazio');
+      return undefined;
+    }
+
+    console.log('[NFe Parser] Procurando service tags no infCpl. Tamanho:', infCpl.length);
+    
+    // Procurar por padrão de service tags da Dell (ex: 8WHJSF4/HWHJSF4/4XHJSF4...)
+    // Service tags da Dell geralmente têm 7 caracteres alfanuméricos separados por "/"
+    // Estão no final do texto, antes de uma data (ex: ...8WHJSF4/HWHJSF4...  11/17/2025)
+    
+    // Buscar sequência de service tags (permite espaços múltiplos antes da data)
+    // Padrão: sequência de 6-8 caracteres alfanuméricos separados por "/", seguida de espaços (1 ou mais) e data
+    const endPattern = /([A-Z0-9]{6,8}(?:\/[A-Z0-9]{6,8})+)\s+\d{1,2}\/\d{1,2}\/\d{4}/i;
+    let match = infCpl.match(endPattern);
+    
+    if (match && match[1]) {
+      console.log('[NFe Parser] Match encontrado com padrão de data:', match[1]);
+    } else {
+      console.log('[NFe Parser] Não encontrou com padrão de data, tentando sem data...');
+      // Se não encontrou com data, buscar sequência de service tags em qualquer lugar
+      const generalPattern = /([A-Z0-9]{6,8}(?:\/[A-Z0-9]{6,8}){2,})/i;
+      match = infCpl.match(generalPattern);
+      
+      if (match && match[1]) {
+        console.log('[NFe Parser] Match encontrado sem data:', match[1]);
+      } else {
+        console.log('[NFe Parser] Nenhum match encontrado');
+        // Debug: mostrar final do texto para análise
+        const lastChars = infCpl.slice(-200);
+        console.log('[NFe Parser] Últimos 200 caracteres do infCpl:', lastChars);
+      }
+    }
+    
+    if (match && match[1]) {
+      // Dividir por "/" e limpar cada service tag
+      const tags = match[1]
+        .split('/')
+        .map(tag => tag.trim().toUpperCase())
+        .filter(tag => tag.length >= 6 && tag.length <= 8 && /^[A-Z0-9]+$/.test(tag));
+      
+      console.log('[NFe Parser] Tags após split e filter:', tags);
+      
+      // Retornar apenas se houver pelo menos 2 service tags válidas
+      if (tags.length >= 2) {
+        console.log('[NFe Parser] Service tags extraídas com sucesso:', tags);
+        return tags;
+      }
+    }
+
+    console.log('[NFe Parser] Nenhuma service tag encontrada no infCpl');
+    return undefined;
   }
 }
 

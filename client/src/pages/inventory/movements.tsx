@@ -9,6 +9,7 @@ import {
   useCreateInventoryMovement,
   useInventoryMovements,
   useRejectInventoryMovement,
+  useDeleteInventoryMovement,
 } from "@/hooks/useInventoryApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ import { InventoryStatusBadge } from "@/components/inventory/inventory-status-ba
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { Trash } from "lucide-react";
 
 const MOVEMENT_TYPES = ["entry", "withdrawal", "return", "transfer", "maintenance", "reservation", "write_off"];
 const APPROVAL_STATUSES = ["pending", "approved", "rejected"];
@@ -65,6 +67,7 @@ export default function InventoryMovementsPage() {
   const createMovement = useCreateInventoryMovement();
   const approveMovement = useApproveInventoryMovement();
   const rejectMovement = useRejectInventoryMovement();
+  const deleteMovement = useDeleteInventoryMovement();
 
   const movements = movementsQuery.data?.data ?? [];
   const paginationInfo = movementsQuery.data?.pagination;
@@ -168,6 +171,15 @@ export default function InventoryMovementsPage() {
 
   const formatDateValue = (value?: string | null) => {
     if (!value) return "--";
+    // Para timestamps completos (com hora), new Date funciona corretamente
+    // Mas para datas simples (YYYY-MM-DD), precisamos evitar timezone
+    if (value.length === 10) {
+      // Data sem hora: fazer parsing manual
+      const [year, month, day] = value.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      return format(date, locale === "en-US" ? "MM/dd/yyyy" : "dd/MM/yyyy");
+    }
+    // Timestamp completo: usar new Date normalmente
     const date = new Date(value);
     return format(date, locale === "en-US" ? "MM/dd/yyyy HH:mm" : "dd/MM/yyyy HH:mm");
   };
@@ -208,7 +220,7 @@ export default function InventoryMovementsPage() {
       {
         key: "ticket",
         header: formatMessage("inventory.movements.table.ticket"),
-        render: (movement) => (movement.ticket_id ? `#${movement.ticket_id}` : "--"),
+        render: (movement) => movement.ticket_code ?? "--",
       },
       {
         key: "status",
@@ -224,7 +236,7 @@ export default function InventoryMovementsPage() {
         key: "actions",
         header: formatMessage("inventory.movements.table.actions"),
         render: (movement) => (
-          <div className="flex gap-2">
+          <div className="flex justify-end gap-2">
             {movement.approval_status === "pending" && (
               <>
                 <Button variant="outline" size="sm" onClick={() => handleApprove(movement.id)}>
@@ -235,11 +247,24 @@ export default function InventoryMovementsPage() {
                 </Button>
               </>
             )}
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => {
+                const confirmed = window.confirm(formatMessage("inventory.movements.table.confirm_delete"));
+                if (!confirmed) return;
+                deleteMovement.mutate({ id: movement.id });
+              }}
+              title={formatMessage("inventory.movements.table.delete")}
+            >
+              <Trash className="h-3.5 w-3.5" />
+            </Button>
           </div>
         ),
       },
     ],
-    [formatDateValue, formatMessage]
+    [formatDateValue, formatMessage, deleteMovement, handleApprove, handleReject]
   );
 
   return (

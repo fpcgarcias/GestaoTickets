@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
 import { db } from '../db';
 import { inventoryLocations } from '@shared/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, or, inArray, sql } from 'drizzle-orm';
 import qrcodeService from '../services/qrcode-service';
+import { getDepartmentFilter } from '../utils/department-filter';
 
 function resolveCompanyId(req: Request): number {
   const userRole = req.session?.userRole;
@@ -19,10 +20,45 @@ function resolveCompanyId(req: Request): number {
 export async function listLocations(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userId = req.session?.userId;
+    const userRole = req.session?.userRole;
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
+
+    const conditions = [
+      eq(inventoryLocations.company_id, companyId),
+      eq(inventoryLocations.is_active, true)
+    ];
+
+    // Filtro por departamento
+    if (userId && userRole) {
+      const deptFilter = await getDepartmentFilter(userId, userRole);
+
+      if (deptFilter.type === 'NONE') {
+        return res.json({ success: true, data: [] });
+      }
+
+      if (deptFilter.type === 'DEPARTMENTS') {
+        conditions.push(
+          or(
+            inArray(inventoryLocations.department_id, deptFilter.departmentIds!),
+            sql`${inventoryLocations.department_id} IS NULL`
+          )
+        );
+      }
+    }
+
     const locations = await db
       .select()
       .from(inventoryLocations)
-      .where(and(eq(inventoryLocations.company_id, companyId), eq(inventoryLocations.is_active, true)));
+      .where(and(...conditions));
+
     res.json({ success: true, data: locations });
   } catch (error) {
     console.error('Erro ao listar localizações:', error);
@@ -33,6 +69,16 @@ export async function listLocations(req: Request, res: Response) {
 export async function createLocation(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
+
     const payload = {
       ...req.body,
       company_id: companyId,
@@ -48,7 +94,16 @@ export async function createLocation(req: Request, res: Response) {
 export async function updateLocation(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
     const locationId = parseInt(req.params.id, 10);
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
 
     const [updated] = await db
       .update(inventoryLocations)
@@ -70,7 +125,16 @@ export async function updateLocation(req: Request, res: Response) {
 export async function deleteLocation(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
     const locationId = parseInt(req.params.id, 10);
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
 
     const [updated] = await db
       .update(inventoryLocations)
@@ -92,8 +156,17 @@ export async function deleteLocation(req: Request, res: Response) {
 export async function generateLocationQrCode(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
     const locationId = parseInt(req.params.id, 10);
     const format = (req.query.format as 'png' | 'svg') || 'png';
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
 
     const qr = await qrcodeService.generateLocationCode(locationId, companyId, {
       format,

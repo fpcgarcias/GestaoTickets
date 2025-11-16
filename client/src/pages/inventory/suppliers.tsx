@@ -25,7 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Pencil, UserX } from "lucide-react";
+import { Pencil, Trash } from "lucide-react";
 
 interface SupplierFormState {
   name: string;
@@ -267,11 +267,11 @@ export default function InventorySuppliersPage() {
             <Button
               variant="destructive"
               size="sm"
-              className="h-8 w-8 p-0 bg-amber-500 hover:bg-amber-500/90"
+              className="h-8 w-8 p-0"
               onClick={() => handleDeactivate(supplier)}
               title={formatMessage("inventory.suppliers.table.deactivate")}
             >
-              <UserX className="h-3.5 w-3.5" />
+              <Trash className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>

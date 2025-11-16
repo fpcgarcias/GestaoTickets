@@ -18,7 +18,16 @@ function resolveCompanyId(req: Request): number {
 export async function listSuppliers(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
     const includeInactive = req.query.include_inactive === 'true';
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
 
     const suppliers = await db
       .select()
@@ -39,6 +48,16 @@ export async function listSuppliers(req: Request, res: Response) {
 export async function createSupplier(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
+
     const payload = {
       ...req.body,
       company_id: companyId,
@@ -55,7 +74,16 @@ export async function createSupplier(req: Request, res: Response) {
 export async function updateSupplier(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
     const supplierId = parseInt(req.params.id, 10);
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
 
     const [updated] = await db
       .update(inventorySuppliers)
@@ -77,7 +105,16 @@ export async function updateSupplier(req: Request, res: Response) {
 export async function deactivateSupplier(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
     const supplierId = parseInt(req.params.id, 10);
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
 
     const [updated] = await db
       .update(inventorySuppliers)

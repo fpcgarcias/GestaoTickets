@@ -32,6 +32,7 @@ export interface InventoryProduct {
   asset_number?: string;
   serial_number?: string;
   service_tag?: string;
+   purchase_value?: string;
   invoice_number?: string;
   purchase_date?: string;
   invoice_date?: string;
@@ -42,12 +43,28 @@ export interface InventoryProduct {
 export interface InventoryProductType {
   id: number;
   name: string;
-  category?: string;
+  category_id?: number;
   code?: string;
-  requires_serial?: boolean;
-  requires_asset?: boolean;
-  requires_asset_tag?: boolean;
+  department_id?: number;
+}
+
+export interface InventoryProductCategory {
+  id: number;
+  name: string;
+  code: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  department_id?: number;
   is_consumable?: boolean;
+  requires_serial?: boolean;
+  requires_asset_tag?: boolean;
+  min_stock_alert?: number;
+  custom_fields?: string;
+  company_id?: number;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface InventorySupplier {
@@ -75,6 +92,7 @@ export interface InventoryMovement {
   approval_status: string;
   movement_date?: string;
   ticket_id?: number;
+  ticket_code?: string | null;
   responsible_id?: number;
 }
 
@@ -97,12 +115,82 @@ export interface InventoryWebhook {
 }
 
 export interface InventoryNfeParseResult {
-  supplier?: { name?: string; cnpj?: string };
-  products?: Array<{ description?: string; quantity?: number; unitPrice?: number }>;
+  invoiceKey?: string;
   invoiceNumber?: string;
-  issueDate?: string;
   series?: string;
-  totals?: { totalInvoice?: number };
+  issueDate?: string;
+  entryDate?: string;
+  operationNature?: string;
+  model?: string;
+  supplier?: {
+    name?: string;
+    tradeName?: string;
+    cnpj?: string;
+    stateRegistration?: string;
+    municipalRegistration?: string;
+    state?: string;
+    phone?: string;
+    email?: string;
+    address?: {
+      street?: string;
+      number?: string;
+      complement?: string;
+      neighborhood?: string;
+      city?: string;
+      cityCode?: string;
+      state?: string;
+      zipCode?: string;
+      country?: string;
+    };
+  };
+  buyer?: {
+    name?: string;
+    cnpj?: string;
+    cpf?: string;
+    stateRegistration?: string;
+    state?: string;
+    address?: {
+      street?: string;
+      number?: string;
+      complement?: string;
+      neighborhood?: string;
+      city?: string;
+      cityCode?: string;
+      state?: string;
+      zipCode?: string;
+      country?: string;
+    };
+  };
+  products?: Array<{
+    order: number;
+    code?: string;
+    description?: string;
+    ncm?: string;
+    cfop?: string;
+    cest?: string;
+    unit?: string;
+    quantity?: number;
+    unitPrice?: number;
+    totalPrice?: number;
+    barCode?: string;
+    additionalInfo?: string;
+    productCode?: string;
+  }>;
+  totals?: {
+    totalProducts?: number;
+    totalInvoice?: number;
+    totalDiscounts?: number;
+    totalFreight?: number;
+    totalInsurance?: number;
+    totalII?: number;
+    totalIPI?: number;
+    totalICMS?: number;
+    totalPis?: number;
+    totalCofins?: number;
+  };
+  additionalInfo?: string;
+  supplierId?: number;
+  serviceTags?: string[]; // Service tags extraídas (especialmente para Dell)
 }
 
 export interface InventoryProductsFilters {
@@ -235,6 +323,16 @@ export function useInventoryProductTypes(options?: { includeInactive?: boolean }
     queryKey: inventoryKeys.productTypes.list({ includeInactive: Boolean(options?.includeInactive) }),
     queryFn: () =>
       fetchJson<InventoryPaginatedResponse<InventoryProductType[]>>("/api/inventory/product-types", {
+        include_inactive: options?.includeInactive ? "true" : undefined,
+      }),
+  });
+}
+
+export function useInventoryProductCategories(options?: { includeInactive?: boolean }) {
+  return useQuery({
+    queryKey: ["inventory", "product-categories", { includeInactive: Boolean(options?.includeInactive) }],
+    queryFn: () =>
+      fetchJson<InventoryPaginatedResponse<InventoryProductCategory[]>>("/api/inventory/product-categories", {
         include_inactive: options?.includeInactive ? "true" : undefined,
       }),
   });
@@ -378,6 +476,35 @@ export const useDeleteInventoryProductType = () =>
     getBody: () => undefined,
   });
 
+export const useCreateInventoryProductCategory = () =>
+  useInventoryMutation({
+    method: "POST",
+    path: "/api/inventory/product-categories",
+    successMessage: "Categoria criada com sucesso",
+    errorMessage: "Erro ao criar categoria",
+    invalidateKeys: [["inventory", "product-categories"]],
+  });
+
+export const useUpdateInventoryProductCategory = () =>
+  useInventoryMutation<{ id: number; payload: Record<string, any> }>({
+    method: "PUT",
+    path: (vars) => `/api/inventory/product-categories/${vars.id}`,
+    successMessage: "Categoria atualizada com sucesso",
+    errorMessage: "Erro ao atualizar categoria",
+    invalidateKeys: [["inventory", "product-categories"]],
+    getBody: (vars) => vars.payload,
+  });
+
+export const useDeleteInventoryProductCategory = () =>
+  useInventoryMutation<{ id: number }>({
+    method: "DELETE",
+    path: (vars) => `/api/inventory/product-categories/${vars.id}`,
+    successMessage: "Categoria inativada com sucesso",
+    errorMessage: "Erro ao inativar categoria",
+    invalidateKeys: [["inventory", "product-categories"]],
+    getBody: () => undefined,
+  });
+
 export const useCreateInventorySupplier = () =>
   useInventoryMutation({
     method: "POST",
@@ -465,6 +592,16 @@ export const useRejectInventoryMovement = () =>
     getBody: () => undefined,
   });
 
+export const useDeleteInventoryMovement = () =>
+  useInventoryMutation<{ id: number }>({
+    method: "DELETE",
+    path: (vars) => `/api/inventory/movements/${vars.id}`,
+    successMessage: "Movimentação excluída",
+    errorMessage: "Erro ao excluir movimentação",
+    invalidateKeys: [inventoryKeys.movements.root, inventoryKeys.dashboard.movements],
+    getBody: () => undefined,
+  });
+
 export const useCreateInventoryWebhook = () =>
   useInventoryMutation({
     method: "POST",
@@ -547,6 +684,61 @@ export function useImportInventoryNfe() {
       toast({
         title: "Erro ao importar NF-e",
         description: error?.message ?? "Falha ao processar arquivo.",
+        variant: "destructive",
+      });
+    },
+  });
+}
+
+export interface BatchImportProduct {
+  name: string;
+  product_type_id: number;
+  supplier_id: number;
+  serial_number?: string;
+  service_tag?: string;
+  asset_number?: string;
+  purchase_value?: string;
+  department_id?: number;
+  location_id?: number;
+  invoice_number?: string;
+  purchase_date?: string;
+  warranty_expiry?: string;
+  notes?: string;
+}
+
+export interface BatchImportRequest {
+  products: BatchImportProduct[];
+}
+
+export interface BatchImportResult {
+  success: Array<{ index: number; id: number; name: string }>;
+  errors: Array<{ index: number; product: BatchImportProduct; error: string }>;
+}
+
+export function useImportInventoryProductsBatch() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation<{ success: boolean; message: string; results: BatchImportResult }, any, BatchImportRequest>({
+    mutationFn: async (request: BatchImportRequest) => {
+      const response = await apiRequest("POST", "/api/inventory/products/import-batch", request);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || "Erro ao importar produtos em lote");
+      }
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.products.root });
+      toast({
+        title: "Importação concluída",
+        description: data.message,
+        variant: data.results.errors.length > 0 ? "default" : "default",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao importar produtos",
+        description: error?.message ?? "Falha ao importar produtos em lote.",
         variant: "destructive",
       });
     },

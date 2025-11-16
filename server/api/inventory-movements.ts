@@ -16,8 +16,21 @@ function resolveCompanyId(req: Request): number {
 export async function listInventoryMovements(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userId = req.session?.userId;
+    const userRole = req.session?.userRole;
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
+
     const result = await inventoryMovementService.listMovements({
       companyId,
+      userId,
+      userRole,
       productId: req.query.product_id ? parseInt(req.query.product_id as string, 10) : undefined,
       movementType: req.query.movement_type as any,
       approvalStatus: req.query.approval_status as string,
@@ -33,12 +46,45 @@ export async function listInventoryMovements(req: Request, res: Response) {
   }
 }
 
+export async function deleteInventoryMovement(req: Request, res: Response) {
+  try {
+    const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
+    const id = parseInt(req.params.id, 10);
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado ao inventário',
+      });
+    }
+
+    await inventoryMovementService.deleteMovement(id, companyId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erro ao excluir movimentação:', error);
+    const status = String(error).includes('não encontrada') ? 404 : 400;
+    res.status(status).json({ success: false, message: String(error) });
+  }
+}
+
 export async function createInventoryMovement(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
     const userId = req.session?.userId;
+    const userRole = req.session?.userRole;
+
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
+    }
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
     }
 
     const movement = await inventoryMovementService.registerMovement({
@@ -58,8 +104,18 @@ export async function approveInventoryMovement(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
     const userId = req.session?.userId;
+    const userRole = req.session?.userRole;
+
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
+    }
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
     }
 
     const movementId = parseInt(req.params.id, 10);
@@ -75,8 +131,18 @@ export async function rejectInventoryMovement(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
     const userId = req.session?.userId;
+    const userRole = req.session?.userRole;
+
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
+    }
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
     }
 
     const movementId = parseInt(req.params.id, 10);

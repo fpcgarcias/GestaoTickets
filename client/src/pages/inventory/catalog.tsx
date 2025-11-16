@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
-import { Pencil, Plus, UserX } from "lucide-react";
+import { Pencil, Plus, Trash } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { InventoryLayout } from "@/components/inventory/inventory-layout";
@@ -10,6 +10,7 @@ import { InventoryFilterBar, InventoryFilterConfig } from "@/components/inventor
 import { EntityTable, EntityColumn } from "@/components/inventory/entity-table";
 import { InventoryStatusBadge } from "@/components/inventory/inventory-status-badge";
 import { ImportNfeButton } from "@/components/inventory/import-nfe-button";
+import { NfeBatchImportDialog } from "@/components/inventory/nfe-batch-import-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -37,6 +38,7 @@ import {
   useCreateInventoryProduct,
   useDeleteInventoryProduct,
   useInventoryLocations,
+  useInventoryProductCategories,
   useInventoryProductTypes,
   useInventoryProducts,
   useInventorySuppliers,
@@ -53,6 +55,7 @@ interface ProductFormState {
   serialNumber: string;
   serviceTag: string;
   assetNumber: string;
+  purchaseValue: string;
   departmentId: string;
   locationId: string;
   invoiceNumber: string;
@@ -74,6 +77,7 @@ const DEFAULT_FORM: ProductFormState = {
   serialNumber: "",
   serviceTag: "",
   assetNumber: "",
+  purchaseValue: "",
   departmentId: "",
   locationId: "",
   invoiceNumber: "",
@@ -111,6 +115,8 @@ export default function InventoryCatalogPage() {
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<InventoryProduct | null>(null);
   const [productForm, setProductForm] = useState<ProductFormState>(DEFAULT_FORM);
+  const [batchImportDialogOpen, setBatchImportDialogOpen] = useState(false);
+  const [nfeDataForBatch, setNfeDataForBatch] = useState<InventoryNfeParseResult | null>(null);
 
   const productFilters = useMemo(
     () => ({
@@ -307,10 +313,15 @@ export default function InventoryCatalogPage() {
     return productTypes.find((type) => type.id === typeId) ?? null;
   }, [productForm.productTypeId, productTypes]);
 
-  const requiresSerial = Boolean(selectedProductType?.requires_serial);
-  const requiresAssetTag = Boolean(
-    selectedProductType?.requires_asset_tag ?? selectedProductType?.requires_asset
-  );
+  // Carregar categorias para resolver flags via categoria do tipo
+  const categoriesQuery = useInventoryProductCategories();
+  const categoryMap = useMemo(() => {
+    const list = categoriesQuery.data?.data ?? [];
+    return new Map(list.map((c: any) => [c.id, c]));
+  }, [categoriesQuery.data]);
+  const selectedCategory = selectedProductType ? categoryMap.get((selectedProductType as any).category_id) : undefined;
+  const requiresSerial = Boolean(selectedCategory?.requires_serial);
+  const requiresAssetTag = Boolean(selectedCategory?.requires_asset_tag);
 
   const paginationInfo = productsQuery.data?.pagination;
   const totalItems = paginationInfo?.total ?? filteredProducts.length;
@@ -318,8 +329,27 @@ export default function InventoryCatalogPage() {
   const formatDateValue = useCallback(
     (value?: string | null) => {
       if (!value) return "--";
-      const date = new Date(value);
+      // Pegar apenas a parte da data (YYYY-MM-DD) para evitar problemas de timezone
+      const dateOnly = value.slice(0, 10);
+      const [year, month, day] = dateOnly.split('-').map(Number);
+      const date = new Date(year, month - 1, day); // month é 0-indexed
       return format(date, locale === "en-US" ? "MM/dd/yyyy" : "dd/MM/yyyy");
+    },
+    [locale]
+  );
+
+  const formatMoneyForInput = useCallback(
+    (raw?: string | null): string => {
+      if (!raw) return "";
+      const normalized = raw.replace(",", ".").replace(/\s/g, "");
+      const numeric = Number(normalized);
+      if (Number.isNaN(numeric)) {
+        return raw;
+      }
+      return new Intl.NumberFormat(locale === "en-US" ? "en-US" : "pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(numeric);
     },
     [locale]
   );
@@ -338,6 +368,7 @@ export default function InventoryCatalogPage() {
     serialNumber: product.serial_number ?? "",
     serviceTag: product.service_tag ?? "",
     assetNumber: product.asset_number ?? "",
+    purchaseValue: formatMoneyForInput(product.purchase_value as any),
     departmentId: product.department_id ? String(product.department_id) : "",
     locationId: product.location_id ? String(product.location_id) : "",
     invoiceNumber: product.invoice_number ?? "",
@@ -404,6 +435,7 @@ export default function InventoryCatalogPage() {
       serial_number: productForm.serialNumber || undefined,
       service_tag: productForm.serviceTag || undefined,
       asset_number: productForm.assetNumber || undefined,
+      purchase_value: productForm.purchaseValue || undefined,
       department_id: productForm.departmentId ? Number(productForm.departmentId) : undefined,
       location_id: productForm.locationId ? Number(productForm.locationId) : undefined,
       invoice_number: productForm.invoiceNumber || undefined,
@@ -412,6 +444,13 @@ export default function InventoryCatalogPage() {
       warranty_expiry: productForm.warrantyDate || undefined,
       notes: productForm.notes || undefined,
     };
+
+    console.log('====== FRONTEND - PAYLOAD SENDO ENVIADO ======');
+    console.log('productForm.purchaseDate:', productForm.purchaseDate);
+    console.log('productForm.warrantyDate:', productForm.warrantyDate);
+    console.log('payload.purchase_date:', payload.purchase_date);
+    console.log('payload.warranty_expiry:', payload.warranty_expiry);
+    console.log('Payload completo:', payload);
 
     if (editingProduct) {
       updateProductMutation.mutate(
@@ -438,20 +477,57 @@ export default function InventoryCatalogPage() {
   };
 
   const handleNfeParsed = (parsed: InventoryNfeParseResult) => {
-    const supplierDocument = parsed.supplier?.cnpj?.replace(/\D/g, "");
-    const matchedSupplier = suppliers.find(
-      (supplier) => supplier.cnpj && supplier.cnpj.replace(/\D/g, "") === supplierDocument
-    );
+    // Verificar quantidade de produtos
+    const productCount = parsed.products?.length ?? 0;
+    const firstProduct = parsed.products?.[0];
+    const totalQuantity = firstProduct?.quantity ?? 1;
 
-    setProductForm((prev) => ({
-      ...prev,
-      name: parsed.products?.[0]?.description ?? prev.name,
-      supplierId: matchedSupplier ? String(matchedSupplier.id) : prev.supplierId,
-      invoiceNumber: parsed.invoiceNumber ?? prev.invoiceNumber,
-      purchaseDate: parsed.issueDate ? parsed.issueDate.slice(0, 10) : prev.purchaseDate,
-    }));
-    setEditingProduct(null);
-    setDrawerOpen(true);
+    // Se houver apenas 1 produto ou quantidade = 1, usar fluxo de cadastro único
+    if (productCount === 1 && totalQuantity === 1) {
+      const supplierDocument = parsed.supplier?.cnpj?.replace(/\D/g, "");
+      const matchedSupplier = suppliers.find(
+        (supplier) => supplier.cnpj && supplier.cnpj.replace(/\D/g, "") === supplierDocument
+      );
+
+      setProductForm((prev) => ({
+        ...prev,
+        name: firstProduct?.description ?? prev.name,
+        supplierId: parsed.supplierId ? String(parsed.supplierId) : (matchedSupplier ? String(matchedSupplier.id) : prev.supplierId),
+        invoiceNumber: parsed.invoiceNumber ?? prev.invoiceNumber,
+        purchaseDate: parsed.issueDate ? parsed.issueDate.slice(0, 10) : prev.purchaseDate,
+        purchaseValue: firstProduct?.unitPrice 
+          ? firstProduct.unitPrice.toLocaleString(locale === "en-US" ? "en-US" : "pt-BR", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
+          : prev.purchaseValue,
+      }));
+      setEditingProduct(null);
+      setDrawerOpen(true);
+    } else {
+      // Se houver múltiplos produtos ou quantidade > 1, usar fluxo de importação em lote
+      // Expandir produtos baseado na quantidade
+      // IMPORTANTE: Quando expandimos, cada linha = 1 unidade, então não devemos multiplicar unitPrice
+      const expandedProducts: typeof parsed.products = [];
+      parsed.products?.forEach((product) => {
+        const quantity = product.quantity ?? 1;
+        const originalUnitPrice = product.unitPrice ?? 0;
+        for (let i = 0; i < quantity; i++) {
+          expandedProducts.push({
+            ...product,
+            order: expandedProducts.length + 1,
+            quantity: 1, // Cada produto expandido representa 1 unidade
+            unitPrice: originalUnitPrice, // Manter o unitPrice original (não multiplicar)
+          });
+        }
+      });
+
+      setNfeDataForBatch({
+        ...parsed,
+        products: expandedProducts,
+      });
+      setBatchImportDialogOpen(true);
+    }
   };
 
   const columns: EntityColumn<InventoryProduct>[] = [
@@ -523,11 +599,11 @@ export default function InventoryCatalogPage() {
           <Button
             variant="destructive"
             size="sm"
-            className="h-8 w-8 p-0 bg-amber-500 hover:bg-amber-500/90"
+            className="h-8 w-8 p-0"
             onClick={() => handleDeactivateProduct(product)}
             title={formatMessage("inventory.catalog.table.deactivate")}
           >
-            <UserX className="h-3.5 w-3.5" />
+            <Trash className="h-3.5 w-3.5" />
           </Button>
         </div>
       ),
@@ -715,6 +791,20 @@ export default function InventoryCatalogPage() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label>{formatMessage("inventory.catalog.form.purchase_value")}</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {locale === "pt-BR" ? "R$" : "U$"}
+                    </span>
+                    <Input
+                      value={productForm.purchaseValue}
+                      onChange={(event) => handleFormChange("purchaseValue", event.target.value)}
+                      placeholder={locale === "pt-BR" ? "Ex.: 1.234,56" : "e.g. 1,234.56"}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
                   <Label>{formatMessage("inventory.catalog.form.purchase_date")}</Label>
                   <Input
                     type="date"
@@ -814,6 +904,12 @@ export default function InventoryCatalogPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NfeBatchImportDialog
+        open={batchImportDialogOpen}
+        onOpenChange={setBatchImportDialogOpen}
+        nfeData={nfeDataForBatch}
+      />
     </InventoryLayout>
   );
 }

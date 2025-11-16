@@ -86,7 +86,10 @@ export default function InventoryAssignmentsPage() {
 
   const formatDateValue = (value?: string | null) => {
     if (!value) return "--";
-    const date = new Date(value);
+    // Pegar apenas a parte da data (YYYY-MM-DD) para evitar problemas de timezone
+    const dateOnly = value.slice(0, 10);
+    const [year, month, day] = dateOnly.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month é 0-indexed
     return format(date, locale === "en-US" ? "MM/dd/yyyy" : "dd/MM/yyyy");
   };
 

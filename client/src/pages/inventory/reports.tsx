@@ -1,13 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { InventoryLayout } from "@/components/inventory/inventory-layout";
 import { useI18n } from "@/i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
 import { config } from "@/lib/config";
-
-type ReportFormat = "json" | "xlsx";
 
 const REPORTS = [
   { type: "inventory_full", title: "inventory.reports.list.inventory_full" },
@@ -27,52 +23,34 @@ const REPORTS = [
 ];
 
 export default function InventoryReportsPage() {
-  const { formatMessage } = useI18n();
-  const { toast } = useToast();
-  const [formats, setFormats] = useState<Record<string, ReportFormat>>({});
+  const { formatMessage, locale } = useI18n();
 
   const reportCards = useMemo(
     () =>
       REPORTS.map((report) => ({
         ...report,
-        format: formats[report.type] ?? "json",
       })),
-    [formats]
+    []
   );
 
-  const handleChangeFormat = (type: string, format: ReportFormat) => {
-    setFormats((prev) => ({ ...prev, [type]: format }));
-  };
-
-  const handleGenerate = async (type: string, format: ReportFormat) => {
-    const params = new URLSearchParams({ type, format });
+  const handleGenerate = async (type: string) => {
+    const params = new URLSearchParams({ type, format: "xlsx", locale });
     const url = `${config.apiBaseUrl}/api/inventory/reports?${params.toString()}`;
     try {
       const response = await fetch(url, { credentials: "include" });
       if (!response.ok) {
         throw new Error(await response.text());
       }
-      if (format === "xlsx") {
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = blobUrl;
-        link.download = `${type}.xlsx`;
-        link.click();
-        window.URL.revokeObjectURL(blobUrl);
-      } else {
-        const data = await response.json();
-        toast({
-          title: formatMessage("inventory.reports.toast.generated_json"),
-          description: JSON.stringify(data).slice(0, 120) + "...",
-        });
-      }
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `${type}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(blobUrl);
     } catch (error: any) {
-      toast({
-        title: formatMessage("inventory.reports.toast.error"),
-        description: error?.message,
-        variant: "destructive",
-      });
+      // Em caso de erro, apenas registra no console para não quebrar a UI
+      console.error("Erro ao gerar relatório de inventário:", error?.message || error);
     }
   };
 
@@ -92,23 +70,9 @@ export default function InventoryReportsPage() {
               <p className="text-sm text-muted-foreground">
                 {formatMessage(`${report.title}.description` as any)}
               </p>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={report.format}
-                  onValueChange={(value: ReportFormat) => handleChangeFormat(report.type, value)}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="json">JSON</SelectItem>
-                    <SelectItem value="xlsx">Excel</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button onClick={() => handleGenerate(report.type, report.format)}>
-                  {formatMessage("inventory.reports.actions.generate")}
-                </Button>
-              </div>
+              <Button onClick={() => handleGenerate(report.type)}>
+                {formatMessage("inventory.reports.actions.generate")}
+              </Button>
             </CardContent>
           </Card>
         ))}

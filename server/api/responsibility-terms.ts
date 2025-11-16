@@ -19,6 +19,16 @@ function resolveCompanyId(req: Request): number {
 export async function listResponsibilityTerms(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
+
     const terms = await db
       .select({
         term: inventoryResponsibilityTerms,
@@ -40,9 +50,18 @@ export async function listResponsibilityTerms(req: Request, res: Response) {
 export async function generateResponsibilityTerm(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
     const assignmentId = parseInt(req.params.assignmentId, 10);
     const templateId = req.body?.template_id ? parseInt(req.body.template_id, 10) : undefined;
     const userId = req.session?.userId ?? null;
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
 
     const term = await responsibilityTermService.generateTerm({
       assignmentId,
@@ -61,8 +80,18 @@ export async function generateResponsibilityTerm(req: Request, res: Response) {
 export async function sendResponsibilityTerm(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
     const termId = parseInt(req.params.termId, 10);
     const { recipient_email, recipient_name, message } = req.body;
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
+
     if (!recipient_email) {
       return res.status(400).json({ success: false, message: 'E-mail do destinatário é obrigatório' });
     }
@@ -86,7 +115,17 @@ export async function sendResponsibilityTerm(req: Request, res: Response) {
 export async function downloadResponsibilityTerm(req: Request, res: Response) {
   try {
     const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
     const termId = parseInt(req.params.termId, 10);
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
+
     const url = await responsibilityTermService.getTermPdfUrl(termId, companyId);
     res.json({ success: true, url });
   } catch (error) {

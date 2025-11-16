@@ -4,6 +4,7 @@ import {
   inventoryAlerts,
   inventoryProducts,
   productTypes,
+  productCategories,
   userInventoryAssignments,
   departmentInventorySettings,
   type InventoryAlert,
@@ -65,13 +66,18 @@ class InventoryAlertService {
   private async checkLowStock(product: InventoryProduct) {
     if (!product.product_type_id) return;
 
-    const [type] = await db
-      .select()
+    const [typeAndCategory] = await db
+      .select({
+        type_id: productTypes.id,
+        name: productTypes.name,
+        category_min_stock_alert: productCategories.min_stock_alert,
+      })
       .from(productTypes)
+      .leftJoin(productCategories, eq(productCategories.id, productTypes.category_id))
       .where(eq(productTypes.id, product.product_type_id))
       .limit(1);
 
-    if (!type || !type.min_stock_alert) return;
+    if (!typeAndCategory || !typeAndCategory.category_min_stock_alert) return;
 
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)` })
@@ -83,10 +89,10 @@ class InventoryAlertService {
         eq(inventoryProducts.is_deleted, false)
       ));
 
-    if (Number(count) <= type.min_stock_alert) {
+    if (Number(count) <= (typeAndCategory.category_min_stock_alert as number)) {
       await this.createAlert(product.company_id, 'low_stock', {
         productId: product.id,
-        message: `Estoque crítico para o tipo ${type.name}. Disponíveis: ${count}`,
+        message: `Estoque crítico para o tipo ${typeAndCategory.name}. Disponíveis: ${count}`,
         severity: Number(count) === 0 ? 'critical' : 'high',
       });
     }

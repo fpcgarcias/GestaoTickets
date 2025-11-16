@@ -464,6 +464,7 @@
     "inventory_assignments": "Alocações & Termos",
     "inventory_suppliers": "Fornecedores",
     "inventory_product_types": "Tipos de produto",
+    "inventory_product_categories": "Categorias",
     "inventory_locations": "Localizações",
     "inventory_reports": "Relatórios",
     "inventory_settings": "Configurações",
@@ -474,6 +475,8 @@
     "more": "Mais",
     "logout": "Sair"
   },
+  "inventory.movements.table.delete": "Excluir",
+  "inventory.movements.table.confirm_delete": "Tem certeza que deseja excluir esta movimentação?",
   "inventory": {
     "overview_title": "Visão geral do inventário",
     "overview_description": "Acompanhe KPIs, alertas e movimentações recentes.",
@@ -486,6 +489,67 @@
     "movements_description": "Registre, aprove e audite movimentações de estoque.",
     "movements_breadcrumb": "Movimentações",
     "movements_placeholder": "Fluxos de movimentação serão exibidos aqui.",
+    "movements": {
+      "filters": {
+        "search": "Buscar por motivo ou observação",
+        "type": "Tipo de movimentação",
+        "all_types": "Todos os tipos",
+        "status": "Status",
+        "all_status": "Todos os status"
+      },
+      "types": {
+        "entry": "Entrada",
+        "withdrawal": "Retirada",
+        "return": "Devolução",
+        "transfer": "Transferência",
+        "maintenance": "Manutenção",
+        "reservation": "Reserva",
+        "write_off": "Baixa"
+      },
+      "status": {
+        "pending": "Pendente",
+        "approved": "Aprovada",
+        "rejected": "Rejeitada"
+      },
+      "form": {
+        "product_id": "Produto",
+        "movement_type": "Tipo de movimentação",
+        "quantity": "Quantidade",
+        "ticket_id": "Chamado",
+        "notes": "Observações",
+        "validation": {
+          "product": "Selecione um produto",
+          "movement_type": "Selecione o tipo de movimentação",
+          "quantity": "Informe a quantidade"
+        },
+        "success": "Movimentação registrada com sucesso."
+      },
+      "table": {
+        "id": "ID",
+        "product": "Produto",
+        "type": "Tipo",
+        "quantity": "Qtd.",
+        "ticket": "Chamado",
+        "status": "Status",
+        "date": "Data",
+        "actions": "Ações",
+        "approve": "Aprovar",
+        "reject": "Rejeitar",
+        "delete": "Excluir",
+        "confirm_delete": "Tem certeza que deseja excluir esta movimentação?",
+        "empty_title": "Nenhuma movimentação encontrada",
+        "empty_description": "Ainda não há movimentações registradas."
+      },
+      "drawer": {
+        "title": "Registrar movimentação",
+        "subtitle": "Preencha os dados para registrar a movimentação.",
+        "save": "Salvar",
+        "cancel": "Cancelar"
+      },
+      "actions": {
+        "new_movement": "Registrar movimentação"
+      }
+    },
     "assignments_title": "Alocações & Termos",
     "assignments_description": "Controle entregas, devoluções e termos digitais.",
     "assignments_breadcrumb": "Alocações & Termos",
@@ -495,7 +559,7 @@
     "suppliers_breadcrumb": "Fornecedores",
     "suppliers_placeholder": "A lista de fornecedores ficará disponível aqui.",
     "product_types_title": "Tipos de produto",
-    "product_types_description": "Configure categorias, campos obrigatórios e regras.",
+    "product_types_description": "Configure categorias e tipos.",
     "product_types_breadcrumb": "Tipos de produto",
     "product_types_placeholder": "Os tipos existentes aparecerão aqui.",
     "locations_title": "Localizações",
@@ -632,6 +696,7 @@
         "service_tag": "Service tag",
         "asset_number": "Patrimônio",
         "invoice_number": "Número da NF-e",
+        "purchase_value": "Valor de compra",
         "purchase_date": "Data de compra",
         "warranty_date": "Garantia até",
         "department": "Departamento",
@@ -807,6 +872,13 @@
         "validation": {
           "name": "Informe o nome da localização"
         }
+      },
+      "qrcode": {
+        "title": "QR Code da Localização",
+        "description": "Escaneie este código para acessar informações da localização",
+        "download": "Baixar QR Code",
+        "close": "Fechar",
+        "error": "Erro ao gerar QR Code"
       }
     },
     "movements": {

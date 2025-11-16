@@ -201,6 +201,22 @@ import {
 
 import {
 
+  listProductCategories,
+
+  getProductCategory,
+
+  createProductCategory,
+
+  updateProductCategory,
+
+  deleteProductCategory,
+
+} from './api/product-categories';
+
+
+
+import {
+
   listSuppliers,
 
   createSupplier,
@@ -238,6 +254,8 @@ import {
   approveInventoryMovement,
 
   rejectInventoryMovement,
+
+  deleteInventoryMovement,
 
 } from './api/inventory-movements';
 
@@ -19958,6 +19976,12 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   router.put("/inventory/product-types/:id", authRequired, companyAdminRequired, updateProductType);
   router.delete("/inventory/product-types/:id", authRequired, companyAdminRequired, deleteProductType);
 
+  router.get("/inventory/product-categories", authRequired, listProductCategories);
+  router.get("/inventory/product-categories/:id", authRequired, getProductCategory);
+  router.post("/inventory/product-categories", authRequired, companyAdminRequired, createProductCategory);
+  router.put("/inventory/product-categories/:id", authRequired, companyAdminRequired, updateProductCategory);
+  router.delete("/inventory/product-categories/:id", authRequired, companyAdminRequired, deleteProductCategory);
+
   router.get("/inventory/suppliers", authRequired, listSuppliers);
   router.post("/inventory/suppliers", authRequired, companyAdminRequired, createSupplier);
   router.put("/inventory/suppliers/:id", authRequired, companyAdminRequired, updateSupplier);
@@ -19973,6 +19997,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   router.post("/inventory/movements", authRequired, createInventoryMovement);
   router.post("/inventory/movements/:id/approve", authRequired, companyAdminRequired, approveInventoryMovement);
   router.post("/inventory/movements/:id/reject", authRequired, companyAdminRequired, rejectInventoryMovement);
+  router.delete("/inventory/movements/:id", authRequired, companyAdminRequired, deleteInventoryMovement);
 
   router.get("/inventory/assignments", authRequired, listAssignments);
   router.post("/inventory/assignments", authRequired, createAssignment);

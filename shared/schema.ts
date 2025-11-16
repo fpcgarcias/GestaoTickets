@@ -1058,20 +1058,35 @@ export const ticketServiceProvidersRelations = relations(ticketServiceProviders,
 // SISTEMA DE CONTROLE DE ESTOQUE
 // ========================================
 
+// Tabela: product_categories
+export const productCategories = pgTable("product_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  code: text("code").notNull(),
+  description: text("description"),
+  icon: text("icon"),
+  color: text("color").default('#6B7280'),
+  // Regras centralizadas na categoria
+  is_consumable: boolean("is_consumable").notNull().default(false),
+  requires_serial: boolean("requires_serial").notNull().default(false),
+  requires_asset_tag: boolean("requires_asset_tag").notNull().default(false),
+  min_stock_alert: integer("min_stock_alert"),
+  custom_fields: text("custom_fields").notNull().default('{}'),
+  company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }),
+  department_id: integer("department_id").references(() => departments.id, { onDelete: 'cascade' }),
+  is_active: boolean("is_active").notNull().default(true),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+  updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
 // Tabela: product_types
 export const productTypes = pgTable("product_types", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code").notNull(),
-  category: text("category").notNull(),
-  department_id: integer("department_id").references(() => departments.id, { onDelete: 'set null' }),
+  category_id: integer("category_id").notNull().references(() => productCategories.id, { onDelete: 'restrict' }),
   company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }),
-  custom_fields: text("custom_fields").notNull().default('{}'),
-  requires_serial: boolean("requires_serial").notNull().default(false),
-  requires_asset_tag: boolean("requires_asset_tag").notNull().default(false),
-  is_consumable: boolean("is_consumable").notNull().default(false),
   depreciation_years: integer("depreciation_years"),
-  min_stock_alert: integer("min_stock_alert"),
   is_active: boolean("is_active").notNull().default(true),
   created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
@@ -1121,8 +1136,8 @@ export const inventoryProducts = pgTable("inventory_products", {
   serial_number: text("serial_number"),
   service_tag: text("service_tag"),
   asset_number: text("asset_number"),
-  purchase_date: timestamp("purchase_date", { withTimezone: false, mode: 'date' }),
-  warranty_expiry: timestamp("warranty_expiry", { withTimezone: false, mode: 'date' }),
+  purchase_date: timestamp("purchase_date", { withTimezone: false, mode: 'string' }),
+  warranty_expiry: timestamp("warranty_expiry", { withTimezone: false, mode: 'string' }),
   supplier_id: integer("supplier_id").references(() => inventorySuppliers.id, { onDelete: 'set null' }),
   purchase_value: text("purchase_value"),
   depreciation_value: text("depreciation_value"),
@@ -1131,7 +1146,7 @@ export const inventoryProducts = pgTable("inventory_products", {
   department_id: integer("department_id").references(() => departments.id, { onDelete: 'set null' }),
   company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
   invoice_number: text("invoice_number"),
-  invoice_date: timestamp("invoice_date", { withTimezone: false, mode: 'date' }),
+  invoice_date: timestamp("invoice_date", { withTimezone: false, mode: 'string' }),
   invoice_file_id: integer("invoice_file_id"),
   notes: text("notes"),
   specifications: text("specifications").notNull().default('{}'),
@@ -1174,7 +1189,7 @@ export const userInventoryAssignments = pgTable("user_inventory_assignments", {
   user_id: integer("user_id").references(() => users.id, { onDelete: 'restrict' }).notNull(),
   product_id: integer("product_id").references(() => inventoryProducts.id, { onDelete: 'restrict' }).notNull(),
   assigned_date: timestamp("assigned_date", { withTimezone: false }).notNull().defaultNow(),
-  expected_return_date: timestamp("expected_return_date", { withTimezone: false, mode: 'date' }),
+  expected_return_date: timestamp("expected_return_date", { withTimezone: false, mode: 'string' }),
   actual_return_date: timestamp("actual_return_date", { withTimezone: false }),
   condition_on_return: text("condition_on_return"),
   responsibility_term_id: integer("responsibility_term_id"),
@@ -1314,14 +1329,33 @@ export const userInventoryPermissions = pgTable("user_inventory_permissions", {
 // SCHEMAS ZOD PARA VALIDAÇÃO - SISTEMA DE ESTOQUE
 // ========================================
 
+// Schema para inserção de categoria de produto
+export const insertProductCategorySchema = createInsertSchema(productCategories, {
+  name: z.string().min(1, "Nome é obrigatório"),
+  code: z.string().min(1, "Código é obrigatório"),
+  description: z.string().optional(),
+  icon: z.string().optional(),
+  color: z.string().regex(/^#[0-9A-F]{6}$/i, "Cor deve ser um hexadecimal válido").optional(),
+  department_id: z.number().positive().optional(),
+  is_consumable: z.boolean().optional(),
+  requires_serial: z.boolean().optional(),
+  requires_asset_tag: z.boolean().optional(),
+  min_stock_alert: z.number().nonnegative().optional(),
+  custom_fields: z.string().optional(),
+}).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const selectProductCategorySchema = createInsertSchema(productCategories);
+
 // Schema para inserção de tipo de produto
 export const insertProductTypeSchema = createInsertSchema(productTypes, {
   name: z.string().min(1, "Nome é obrigatório"),
   code: z.string().min(1, "Código é obrigatório"),
-  category: z.enum(['hardware', 'software', 'consumable', 'infrastructure']),
-  custom_fields: z.string().optional(),
+  category_id: z.number().positive("Categoria é obrigatória"),
   depreciation_years: z.number().positive().optional(),
-  min_stock_alert: z.number().nonnegative().optional(),
 });
 
 export const selectProductTypeSchema = createInsertSchema(productTypes);
@@ -1433,6 +1467,9 @@ export const selectInventoryWebhookSchema = createInsertSchema(inventoryWebhooks
 // ========================================
 // TYPES TYPESCRIPT - SISTEMA DE ESTOQUE
 // ========================================
+
+export type ProductCategory = typeof productCategories.$inferSelect;
+export type InsertProductCategory = typeof productCategories.$inferInsert;
 
 export type ProductType = typeof productTypes.$inferSelect;
 export type InsertProductType = typeof productTypes.$inferInsert;

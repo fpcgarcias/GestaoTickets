@@ -18,7 +18,11 @@ function resolveCompanyId(req: Request): number {
 
 export async function listTicketInventoryItems(req: Request, res: Response) {
   try {
+    const userRole = req.session?.userRole;
     const ticketId = parseInt(req.params.ticketId, 10);
+
+    // Customers podem ver itens do próprio ticket (não bloqueia aqui)
+    // A validação de acesso ao ticket já é feita em outro middleware
 
     const items = await db
       .select({
@@ -42,11 +46,21 @@ export async function addTicketInventoryItem(req: Request, res: Response) {
     const companyId = resolveCompanyId(req);
     const ticketId = parseInt(req.params.ticketId, 10);
     const userId = req.session?.userId;
+    const userRole = req.session?.userRole;
+
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
     }
 
-    const { product_id, action_type, quantity, notes, movement_type } = req.body;
+    // Bloquear customers de adicionar itens manualmente (podem visualizar via ticket)
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Apenas atendentes podem gerenciar itens de inventário' 
+      });
+    }
+
+    const { product_id, action_type, quantity, notes, movement_type, to_location_id } = req.body;
 
     let linkedMovementId: number | null = null;
     if (movement_type) {
@@ -58,6 +72,7 @@ export async function addTicketInventoryItem(req: Request, res: Response) {
         ticket_id: ticketId,
         created_by_id: userId,
         requireApproval: false,
+        to_location_id: to_location_id || undefined,
       });
       linkedMovementId = movement.id;
     }
@@ -81,8 +96,17 @@ export async function addTicketInventoryItem(req: Request, res: Response) {
 
 export async function removeTicketInventoryItem(req: Request, res: Response) {
   try {
+    const userRole = req.session?.userRole;
     const ticketId = parseInt(req.params.ticketId, 10);
     const itemId = parseInt(req.params.itemId, 10);
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Apenas atendentes podem gerenciar itens de inventário' 
+      });
+    }
 
     const deleted = await db
       .delete(ticketInventoryItems)

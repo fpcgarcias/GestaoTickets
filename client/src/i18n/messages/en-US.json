@@ -464,6 +464,7 @@
     "inventory_assignments": "Assignments & Terms",
     "inventory_suppliers": "Suppliers",
     "inventory_product_types": "Product Types",
+    "inventory_product_categories": "Categories",
     "inventory_locations": "Locations",
     "inventory_reports": "Reports",
     "inventory_settings": "Settings",
@@ -474,6 +475,8 @@
     "more": "More",
     "logout": "Logout"
   },
+  "inventory.movements.table.delete": "Delete",
+  "inventory.movements.table.confirm_delete": "Are you sure you want to delete this movement?",
   "inventory": {
     "overview_title": "Inventory overview",
     "overview_description": "Monitor KPIs, alerts and recent movements.",
@@ -486,6 +489,67 @@
     "movements_description": "Register, approve and audit stock movements.",
     "movements_breadcrumb": "Movements",
     "movements_placeholder": "Movement workflows will be displayed here.",
+    "movements": {
+      "filters": {
+        "search": "Search by reason or notes",
+        "type": "Movement type",
+        "all_types": "All types",
+        "status": "Status",
+        "all_status": "All statuses"
+      },
+      "types": {
+        "entry": "Entry",
+        "withdrawal": "Withdrawal",
+        "return": "Return",
+        "transfer": "Transfer",
+        "maintenance": "Maintenance",
+        "reservation": "Reservation",
+        "write_off": "Write-off"
+      },
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      },
+      "form": {
+        "product_id": "Product",
+        "movement_type": "Movement type",
+        "quantity": "Quantity",
+        "ticket_id": "Ticket",
+        "notes": "Notes",
+        "validation": {
+          "product": "Select a product",
+          "movement_type": "Select the movement type",
+          "quantity": "Enter the quantity"
+        },
+        "success": "Movement registered successfully."
+      },
+      "table": {
+        "id": "ID",
+        "product": "Product",
+        "type": "Type",
+        "quantity": "Qty",
+        "ticket": "Ticket",
+        "status": "Status",
+        "date": "Date",
+        "actions": "Actions",
+        "approve": "Approve",
+        "reject": "Reject",
+        "delete": "Delete",
+        "confirm_delete": "Are you sure you want to delete this movement?",
+        "empty_title": "No movements found",
+        "empty_description": "There are no movements registered yet."
+      },
+      "drawer": {
+        "title": "Register movement",
+        "subtitle": "Fill in the details to register the movement.",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "actions": {
+        "new_movement": "Register movement"
+      }
+    },
     "assignments_title": "Assignments & Terms",
     "assignments_description": "Control deliveries, returns and digital terms.",
     "assignments_breadcrumb": "Assignments & Terms",
@@ -495,7 +559,7 @@
     "suppliers_breadcrumb": "Suppliers",
     "suppliers_placeholder": "Supplier management will be rendered here.",
     "product_types_title": "Product types",
-    "product_types_description": "Configure categories, required fields and rules.",
+    "product_types_description": "Configure categories and types.",
     "product_types_breadcrumb": "Product Types",
     "product_types_placeholder": "Existing product types will show up here.",
     "locations_title": "Locations",
@@ -632,6 +696,7 @@
         "service_tag": "Service tag",
         "asset_number": "Asset number",
         "invoice_number": "Invoice number",
+        "purchase_value": "Purchase value",
         "purchase_date": "Purchase date",
         "warranty_date": "Warranty until",
         "department": "Department",
@@ -807,6 +872,13 @@
         "validation": {
           "name": "Enter the location name"
         }
+      },
+      "qrcode": {
+        "title": "Location QR Code",
+        "description": "Scan this code to access location information",
+        "download": "Download QR Code",
+        "close": "Close",
+        "error": "Error generating QR Code"
       }
     },
     "movements": {
