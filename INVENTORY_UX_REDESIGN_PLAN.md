@@ -208,3 +208,4 @@ Cada etapa deve atualizar o `TODO` correspondente no board atual (não criar nov
 
 > Este plano substitui a abordagem anterior e serve como referência única para o redesenho completo do módulo de inventário.
 
+

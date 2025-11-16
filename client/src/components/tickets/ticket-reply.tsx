@@ -11,6 +11,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -33,6 +34,20 @@ import { useAuth } from '@/hooks/use-auth';
 import { getStatusConfig, type TicketStatus } from '@shared/ticket-utils';
 import { TicketTransferDialog } from './TicketTransferDialog';
 import { useI18n } from '@/i18n';
+import { useInventoryProducts } from '@/hooks/useInventoryApi';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { X } from 'lucide-react';
 
 interface TicketReplyFormProps {
   ticket: Ticket;
@@ -45,6 +60,16 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const { user } = useAuth();
   const { formatMessage } = useI18n();
   const [transferOpen, setTransferOpen] = React.useState(false);
+  const [inventoryDialogOpen, setInventoryDialogOpen] = React.useState(false);
+  const [movementType, setMovementType] = React.useState<'ENTREGA_USUARIO' | 'DEVOLUCAO_USUARIO' | 'EMPRESTIMO_TEMPORARIO' | 'TROCA_EQUIPAMENTO' | 'ENVIO_MANUTENCAO'>('ENTREGA_USUARIO');
+  const [productOutId, setProductOutId] = React.useState<string>("");
+  const [productOutIds, setProductOutIds] = React.useState<string[]>([]);
+  const [productInId, setProductInId] = React.useState<string>("");
+  const [movementNotes, setMovementNotes] = React.useState<string>("");
+  const [searchOut, setSearchOut] = React.useState<string>("");
+  const [searchIn, setSearchIn] = React.useState<string>("");
+  const [popoverOpenOut, setPopoverOpenOut] = React.useState(false);
+  const [popoverOpenIn, setPopoverOpenIn] = React.useState(false);
   
   // 🔥 CORREÇÃO: Determinar se o usuário é cliente NESTE TICKET específico
   // Só é cliente se o role for 'customer' E for o criador do ticket
@@ -87,6 +112,33 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
       is_internal: false,
     },
   });
+
+  // Produtos de inventário para vincular ao ticket - busca com filtro de pesquisa
+  const inventoryProductsQueryOut = useInventoryProducts({ 
+    page: 1, 
+    limit: 100,
+    search: searchOut || undefined,
+  });
+  const inventoryProductsQueryIn = useInventoryProducts({ 
+    page: 1, 
+    limit: 100,
+    search: searchIn || undefined,
+  });
+  
+  const productsOut = inventoryProductsQueryOut.data?.data ?? [];
+  const productsIn = inventoryProductsQueryIn.data?.data ?? [];
+  
+  const selectedProductOut = productsOut.find((p: any) => String(p.id) === productOutId);
+  const selectedProductIn = productsIn.find((p: any) => String(p.id) === productInId);
+  
+  const getProductDisplayText = (product: any) => {
+    if (!product) return "";
+    const parts = [product.name];
+    if (product.serial_number) parts.push(`S/N: ${product.serial_number}`);
+    if (product.service_tag) parts.push(`Service Tag: ${product.service_tag}`);
+    if (product.asset_number) parts.push(`Patrimônio: ${product.asset_number}`);
+    return parts.join(" • ");
+  };
 
   const replyMutation = useMutation({
     mutationFn: async (data: InsertTicketReply) => {
@@ -168,9 +220,14 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
           <h3 className="text-lg font-medium">{formatMessage('ticket_reply.reply_to_ticket')}</h3>
           {/* Botão Transferir: oculto apenas para customer */}
           {user?.role !== 'customer' && (
-            <Button variant="secondary" onClick={() => setTransferOpen(true)}>
-              {formatMessage('ticket_reply.transfer_ticket')}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setInventoryDialogOpen(true)}>
+                {formatMessage('ticket_reply.inventory_move_button')}
+              </Button>
+              <Button variant="secondary" onClick={() => setTransferOpen(true)}>
+                {formatMessage('ticket_reply.transfer_ticket')}
+              </Button>
+            </div>
           )}
         </div>
         {/* Contexto do Chamado: Departamento / Tipo / Categoria (sem dependência do FormContext) */}
@@ -388,6 +445,343 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
           ticketId={ticket.id}
           currentDepartmentId={ticket.department_id || undefined}
         />
+        {/* Modal simples para movimentar equipamento vinculado ao ticket */}
+        {user?.role !== 'customer' && inventoryDialogOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-background rounded-md shadow-lg max-w-xl w-full p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium">
+                  {formatMessage('ticket_reply.inventory_section_title')}
+                </h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setInventoryDialogOpen(false)}
+                >
+                  ✕
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {formatMessage('ticket_reply.inventory_section_description')}
+              </p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>{formatMessage('ticket_reply.inventory_action')}</Label>
+                  <Select
+                    value={movementType}
+                    onValueChange={(val) =>
+                      setMovementType(val as typeof movementType)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ENTREGA_USUARIO">
+                        {formatMessage('ticket_reply.inventory_action_loan')}
+                      </SelectItem>
+                      <SelectItem value="DEVOLUCAO_USUARIO">
+                        {formatMessage('ticket_reply.inventory_action_return')}
+                      </SelectItem>
+                      <SelectItem value="EMPRESTIMO_TEMPORARIO">
+                        {formatMessage('ticket_reply.inventory_action_temp_loan')}
+                      </SelectItem>
+                      <SelectItem value="TROCA_EQUIPAMENTO">
+                        {formatMessage('ticket_reply.inventory_action_swap')}
+                      </SelectItem>
+                      <SelectItem value="ENVIO_MANUTENCAO">
+                        {formatMessage('ticket_reply.inventory_action_maintenance')}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>
+                      {movementType === 'TROCA_EQUIPAMENTO'
+                        ? formatMessage('ticket_reply.inventory_product_out')
+                        : formatMessage('ticket_reply.inventory_product')}
+                    </Label>
+                    <Popover open={popoverOpenOut} onOpenChange={setPopoverOpenOut}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={popoverOpenOut}
+                          className="w-full justify-between items-center h-auto min-h-11 whitespace-normal text-left"
+                        >
+                          {movementType !== 'TROCA_EQUIPAMENTO' ? (
+                            <div className="flex flex-wrap gap-2 py-1">
+                              {productsOut
+                                .filter((p: any) => productOutIds.includes(String(p.id)))
+                                .map((p: any) => (
+                                  <Badge key={p.id} variant="secondary" className="gap-1">
+                                    <span className="font-medium">{p.name}</span>
+                                    {p.serial_number && <span className="text-xs text-muted-foreground"> · S/N: {p.serial_number}</span>}
+                                    {p.service_tag && <span className="text-xs text-muted-foreground"> · ST: {p.service_tag}</span>}
+                                    {p.asset_number && <span className="text-xs text-muted-foreground"> · PAT: {p.asset_number}</span>}
+                                    <X
+                                      className="ml-1 h-3 w-3 cursor-pointer opacity-70"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setProductOutIds((ids) => ids.filter((id) => id !== String(p.id)));
+                                      }}
+                                    />
+                                  </Badge>
+                                ))}
+                              {productOutIds.length === 0 && (
+                                <span className="text-muted-foreground">{formatMessage('ticket_reply.inventory_product_placeholder')}</span>
+                              )}
+                            </div>
+                          ) : selectedProductOut ? (
+                            <div className="flex flex-col items-start">
+                              <span className="font-medium">{selectedProductOut.name}</span>
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                {selectedProductOut.serial_number && <span>S/N: {selectedProductOut.serial_number}</span>}
+                                {selectedProductOut.service_tag && <span>Service Tag: {selectedProductOut.service_tag}</span>}
+                                {selectedProductOut.asset_number && <span>Patrimônio: {selectedProductOut.asset_number}</span>}
+                              </div>
+                            </div>
+                          ) : (
+                            formatMessage('ticket_reply.inventory_product_placeholder')
+                          )}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] max-w-md p-0" align="start">
+                        <Command>
+                          <CommandInput 
+                            placeholder={formatMessage('ticket_reply.inventory_product_search_placeholder')}
+                            value={searchOut}
+                            onValueChange={setSearchOut}
+                          />
+                          <CommandList>
+                            <CommandEmpty>
+                              {formatMessage('ticket_reply.inventory_product_not_found')}
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {productsOut.map((p: any) => (
+                                <CommandItem
+                                  key={p.id}
+                                  value={`${p.name} ${p.serial_number || ''} ${p.service_tag || ''} ${p.asset_number || ''}`}
+                                  onSelect={() => {
+                                    if (movementType === 'TROCA_EQUIPAMENTO') {
+                                      setProductOutId(String(p.id));
+                                      setPopoverOpenOut(false);
+                                      setSearchOut("");
+                                      return;
+                                    }
+                                    setProductOutIds((ids) => {
+                                      const strId = String(p.id);
+                                      return ids.includes(strId) ? ids.filter((id) => id !== strId) : [...ids, strId];
+                                    });
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      movementType === 'TROCA_EQUIPAMENTO'
+                                        ? (productOutId === String(p.id) ? "opacity-100" : "opacity-0")
+                                        : (productOutIds.includes(String(p.id)) ? "opacity-100" : "opacity-0")
+                                    )}
+                                  />
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{p.name}</span>
+                                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                      {p.serial_number && <span>S/N: {p.serial_number}</span>}
+                                      {p.service_tag && <span>Service Tag: {p.service_tag}</span>}
+                                      {p.asset_number && <span>Patrimônio: {p.asset_number}</span>}
+                                    </div>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  {movementType === 'TROCA_EQUIPAMENTO' && (
+                    <div className="space-y-2">
+                      <Label>
+                        {formatMessage('ticket_reply.inventory_product_in')}
+                      </Label>
+                      <Popover open={popoverOpenIn} onOpenChange={setPopoverOpenIn}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={popoverOpenIn}
+                          className="w-full justify-between items-center h-auto min-h-11 whitespace-normal text-left"
+                          >
+                            {selectedProductIn ? (
+                              <div className="flex flex-col items-start">
+                                <span className="font-medium">{selectedProductIn.name}</span>
+                                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                  {selectedProductIn.serial_number && <span>S/N: {selectedProductIn.serial_number}</span>}
+                                  {selectedProductIn.service_tag && <span>Service Tag: {selectedProductIn.service_tag}</span>}
+                                  {selectedProductIn.asset_number && <span>Patrimônio: {selectedProductIn.asset_number}</span>}
+                                </div>
+                              </div>
+                            ) : (
+                              formatMessage('ticket_reply.inventory_product_placeholder')
+                            )}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] max-w-md p-0" align="start">
+                          <Command>
+                            <CommandInput 
+                              placeholder={formatMessage('ticket_reply.inventory_product_search_placeholder')}
+                              value={searchIn}
+                              onValueChange={setSearchIn}
+                            />
+                            <CommandList>
+                              <CommandEmpty>
+                                {formatMessage('ticket_reply.inventory_product_not_found')}
+                              </CommandEmpty>
+                              <CommandGroup>
+                                {productsIn.map((p: any) => (
+                                  <CommandItem
+                                    key={p.id}
+                                    value={`${p.name} ${p.serial_number || ''} ${p.service_tag || ''} ${p.asset_number || ''}`}
+                                    onSelect={() => {
+                                      setProductInId(String(p.id));
+                                      setPopoverOpenIn(false);
+                                      setSearchIn("");
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        productInId === String(p.id) ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">{p.name}</span>
+                                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                        {p.serial_number && <span>S/N: {p.serial_number}</span>}
+                                        {p.service_tag && <span>Service Tag: {p.service_tag}</span>}
+                                        {p.asset_number && <span>Patrimônio: {p.asset_number}</span>}
+                                      </div>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>{formatMessage('ticket_reply.inventory_notes')}</Label>
+                  <Textarea
+                    rows={3}
+                    value={movementNotes}
+                    onChange={(e) => setMovementNotes(e.target.value)}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setInventoryDialogOpen(false)}
+                  >
+                    {formatMessage('common.cancel')}
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      const hasOut =
+                        movementType === 'TROCA_EQUIPAMENTO'
+                          ? Boolean(productOutId)
+                          : productOutIds.length > 0;
+                      if (!hasOut || (movementType === 'TROCA_EQUIPAMENTO' && !productInId)) {
+                        toast({
+                          title: formatMessage('ticket_reply.inventory_validation_product'),
+                          variant: 'destructive',
+                        });
+                        return;
+                      }
+
+                      const baseBody = {
+                        quantity: 1,
+                        notes: movementNotes || undefined,
+                      };
+
+                      const mapAction = (uiType: typeof movementType): 'delivery' | 'return' | 'replacement' | 'consumption' | 'reservation' => {
+                        switch (uiType) {
+                          case 'ENTREGA_USUARIO':
+                            return 'delivery';
+                          case 'DEVOLUCAO_USUARIO':
+                            return 'return';
+                          case 'TROCA_EQUIPAMENTO':
+                            return 'replacement';
+                          case 'EMPRESTIMO_TEMPORARIO':
+                            return 'reservation';
+                          case 'ENVIO_MANUTENCAO':
+                            // Não existe 'maintenance' em action_type. Usamos 'reservation' para vincular ao ticket.
+                            return 'reservation';
+                          default:
+                            return 'reservation';
+                        }
+                      };
+
+                      const call = async (productId: number, actionUi: typeof movementType, movement: string) => {
+                        await apiRequest('POST', `/api/tickets/${ticket.id}/inventory`, {
+                          ...baseBody,
+                          product_id: productId,
+                          action_type: mapAction(actionUi),
+                          movement_type: movement,
+                        });
+                      };
+
+                      try {
+                        if (movementType === 'TROCA_EQUIPAMENTO') {
+                          await call(Number(productOutId), 'TROCA_EQUIPAMENTO', 'withdrawal');
+                          await call(Number(productInId), 'TROCA_EQUIPAMENTO', 'entry');
+                        } else if (movementType === 'ENTREGA_USUARIO') {
+                          for (const id of productOutIds) {
+                            await call(Number(id), 'ENTREGA_USUARIO', 'withdrawal');
+                          }
+                        } else if (movementType === 'DEVOLUCAO_USUARIO') {
+                          for (const id of productOutIds) {
+                            await call(Number(id), 'DEVOLUCAO_USUARIO', 'entry');
+                          }
+                        } else if (movementType === 'EMPRESTIMO_TEMPORARIO') {
+                          for (const id of productOutIds) {
+                            await call(Number(id), 'EMPRESTIMO_TEMPORARIO', 'withdrawal');
+                          }
+                        } else if (movementType === 'ENVIO_MANUTENCAO') {
+                          for (const id of productOutIds) {
+                            await call(Number(id), 'ENVIO_MANUTENCAO', 'maintenance');
+                          }
+                        }
+
+                        setInventoryDialogOpen(false);
+                        setProductOutId('');
+                        setProductOutIds([]);
+                        setProductInId('');
+                        setMovementNotes('');
+                        toast({
+                          title: formatMessage('ticket_reply.inventory_link_success'),
+                        });
+                      } catch (error: any) {
+                        toast({
+                          title: formatMessage('ticket_reply.inventory_link_error'),
+                          description: error?.message,
+                          variant: 'destructive',
+                        });
+                      }
+                    }}
+                  >
+                    {formatMessage('ticket_reply.inventory_link_button')}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

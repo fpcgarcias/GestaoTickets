@@ -605,6 +605,8 @@
         "warranty": "Warranty",
         "actions": "Actions",
         "edit": "Edit",
+      "deactivate": "Deactivate",
+      "confirm_deactivate": "Do you want to deactivate product {name}?",
         "empty_title": "No products found",
         "empty_description": "Adjust the filters or create a new product."
       },
@@ -639,8 +641,12 @@
         "notes": "Notes",
         "validation": {
           "name": "Enter the product name",
-          "product_type": "Select a product type"
-        }
+        "product_type": "Select a product type",
+        "serial_required": "Enter the serial number for this type",
+        "asset_required": "Enter the asset tag for this type"
+      },
+      "serial_required_hint": "Required for this product type.",
+      "asset_required_hint": "Required for this product type."
       },
       "nfe": {
         "helper": "Import an NF-e to automatically fill in fiscal fields."
@@ -1670,7 +1676,27 @@
     "reply_sent_successfully": "Reply sent successfully.",
     "error": "Error",
     "failed_to_send_reply": "Failed to send reply",
-    "status_updated_automatically": "Status updated automatically"
+    "status_updated_automatically": "Status updated automatically",
+    "inventory_move_button": "Move equipment",
+    "inventory_section_title": "Move inventory equipment",
+    "inventory_section_description": "Select the equipment and movement type to register in inventory linked to this ticket.",
+    "inventory_action": "Movement type",
+    "inventory_action_loan": "Delivery to user",
+    "inventory_action_return": "Return from user",
+    "inventory_action_temp_loan": "Temporary loan",
+    "inventory_action_swap": "Equipment swap",
+    "inventory_action_maintenance": "Send to maintenance",
+    "inventory_product": "Equipment",
+    "inventory_product_out": "Equipment leaving",
+    "inventory_product_in": "Equipment entering",
+    "inventory_product_placeholder": "Select equipment",
+    "inventory_product_search_placeholder": "Search by name, serial, service tag or asset number...",
+    "inventory_product_not_found": "No equipment found",
+    "inventory_notes": "Movement notes",
+    "inventory_validation_product": "Select the equipment for this movement",
+    "inventory_link_button": "Register movement",
+    "inventory_link_success": "Movement registered in inventory",
+    "inventory_link_error": "Failed to register movement"
   },
   "sla_status": {
     "title": "SLA Status",

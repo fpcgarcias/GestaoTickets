@@ -61,6 +61,12 @@ export async function createInventoryProduct(req: Request, res: Response) {
       return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
     }
 
+    console.log('====== CREATE PRODUCT - PAYLOAD RECEBIDO ======');
+    console.log('purchase_date:', req.body.purchase_date);
+    console.log('warranty_expiry:', req.body.warranty_expiry);
+    console.log('invoice_date:', req.body.invoice_date);
+    console.log('Body completo:', JSON.stringify(req.body, null, 2));
+
     const product = await inventoryProductService.createProduct(
       {
         ...req.body,
@@ -68,6 +74,10 @@ export async function createInventoryProduct(req: Request, res: Response) {
       },
       userId
     );
+
+    console.log('====== PRODUTO CRIADO ======');
+    console.log('purchase_date salvo:', product.purchase_date);
+    console.log('warranty_expiry salvo:', product.warranty_expiry);
 
     res.status(201).json({ success: true, data: product });
   } catch (error) {
@@ -85,7 +95,19 @@ export async function updateInventoryProduct(req: Request, res: Response) {
       return res.status(401).json({ success: false, message: 'Usuário não autenticado' });
     }
 
+    console.log('====== UPDATE PRODUCT - PAYLOAD RECEBIDO ======');
+    console.log('Product ID:', productId);
+    console.log('purchase_date:', req.body.purchase_date);
+    console.log('warranty_expiry:', req.body.warranty_expiry);
+    console.log('invoice_date:', req.body.invoice_date);
+    console.log('Body completo:', JSON.stringify(req.body, null, 2));
+
     const product = await inventoryProductService.updateProduct(productId, companyId, req.body, userId);
+    
+    console.log('====== PRODUTO ATUALIZADO ======');
+    console.log('purchase_date salvo:', product.purchase_date);
+    console.log('warranty_expiry salvo:', product.warranty_expiry);
+
     res.json({ success: true, data: product });
   } catch (error) {
     console.error('Erro ao atualizar produto:', error);

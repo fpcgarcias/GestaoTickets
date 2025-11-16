@@ -31,7 +31,9 @@ export interface InventoryProduct {
   location_id?: number;
   asset_number?: string;
   serial_number?: string;
+  service_tag?: string;
   invoice_number?: string;
+  purchase_date?: string;
   invoice_date?: string;
   warranty_expiry?: string;
   created_at?: string;
@@ -44,6 +46,8 @@ export interface InventoryProductType {
   code?: string;
   requires_serial?: boolean;
   requires_asset?: boolean;
+  requires_asset_tag?: boolean;
+  is_consumable?: boolean;
 }
 
 export interface InventorySupplier {

@@ -4,7 +4,6 @@ import { useI18n } from "@/i18n";
 import { InventoryFilterBar, InventoryFilterConfig } from "@/components/inventory/inventory-filter-bar";
 import { InventoryFilterValue } from "@/components/inventory/inventory-filter-bar";
 import { EntityTable, EntityColumn } from "@/components/inventory/entity-table";
-import { EntityDrawer } from "@/components/inventory/entity-drawer";
 import {
   InventorySupplier,
   useCreateInventorySupplier,
@@ -16,8 +15,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import { Pencil, UserX } from "lucide-react";
 
 interface SupplierFormState {
   name: string;
@@ -35,6 +43,16 @@ const DEFAULT_SUPPLIER_FORM: SupplierFormState = {
   email: "",
   phone: "",
   notes: "",
+};
+
+const formatCnpj = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 14);
+  if (!digits) return "";
+  return digits
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2}\.\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{2}\.\d{3}\.\d{3})(\d)/, "$1/$2")
+    .replace(/^(\d{2}\.\d{3}\.\d{3}\/\d{4})(\d)/, "$1-$2");
 };
 
 type SupplierStatusFilter = "active" | "inactive" | "all";
@@ -124,7 +142,7 @@ export default function InventorySuppliersPage() {
     setEditingSupplier(supplier);
     setFormState({
       name: supplier.name ?? "",
-      cnpj: supplier.cnpj ?? "",
+      cnpj: supplier.cnpj?.replace(/\D/g, "") ?? "",
       contactName: supplier.contact_name ?? "",
       email: supplier.email ?? "",
       phone: supplier.phone ?? "",
@@ -201,7 +219,7 @@ export default function InventorySuppliersPage() {
     {
       key: "cnpj",
       header: formatMessage("inventory.suppliers.table.cnpj"),
-      render: (supplier) => supplier.cnpj ?? "--",
+      render: (supplier) => (supplier.cnpj ? formatCnpj(supplier.cnpj) : "--"),
     },
     {
       key: "phone",
@@ -217,24 +235,43 @@ export default function InventorySuppliersPage() {
       key: "status",
       header: formatMessage("inventory.suppliers.table.status"),
       render: (supplier) => (
-        <Badge variant={supplier.is_active === false ? "outline" : "secondary"}>
+        <span
+          className={cn(
+            "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold",
+            supplier.is_active === false
+              ? "bg-gray-100 text-gray-800"
+              : "bg-green-100 text-green-800"
+          )}
+        >
           {supplier.is_active === false
             ? formatMessage("inventory.suppliers.table.inactive")
             : formatMessage("inventory.suppliers.table.active")}
-        </Badge>
+        </span>
       ),
     },
     {
       key: "actions",
       header: formatMessage("inventory.suppliers.table.actions"),
       render: (supplier) => (
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={() => openEditDrawer(supplier)}>
-            {formatMessage("inventory.suppliers.table.edit")}
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => openEditDrawer(supplier)}
+            title={formatMessage("inventory.suppliers.table.edit")}
+          >
+            <Pencil className="h-3.5 w-3.5" />
           </Button>
           {supplier.is_active !== false && (
-            <Button variant="ghost" size="sm" onClick={() => handleDeactivate(supplier)}>
-              {formatMessage("inventory.suppliers.table.deactivate")}
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 w-8 p-0 bg-amber-500 hover:bg-amber-500/90"
+              onClick={() => handleDeactivate(supplier)}
+              title={formatMessage("inventory.suppliers.table.deactivate")}
+            >
+              <UserX className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
@@ -269,13 +306,7 @@ export default function InventorySuppliersPage() {
         />
       </div>
 
-      <EntityDrawer
-        title={
-          editingSupplier
-            ? formatMessage("inventory.suppliers.drawer.edit_title")
-            : formatMessage("inventory.suppliers.drawer.create_title")
-        }
-        description={formatMessage("inventory.suppliers.drawer.description")}
+      <Dialog
         open={isDrawerOpen}
         onOpenChange={(open) => {
           if (!open) {
@@ -284,52 +315,67 @@ export default function InventorySuppliersPage() {
             setDrawerOpen(true);
           }
         }}
-        primaryAction={{
-          label: formatMessage("inventory.suppliers.drawer.save"),
-          onClick: handleSubmit,
-          loading: createSupplier.isPending || updateSupplier.isPending,
-        }}
-        secondaryAction={{
-          label: formatMessage("inventory.suppliers.drawer.cancel"),
-          onClick: closeDrawer,
-        }}
       >
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.suppliers.form.name")}</Label>
-            <Input value={formState.name} onChange={(event) => handleFormChange("name", event.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.suppliers.form.cnpj")}</Label>
-            <Input value={formState.cnpj} onChange={(event) => handleFormChange("cnpj", event.target.value)} />
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingSupplier
+                ? formatMessage("inventory.suppliers.drawer.edit_title")
+                : formatMessage("inventory.suppliers.drawer.create_title")}
+            </DialogTitle>
+            <DialogDescription>{formatMessage("inventory.suppliers.drawer.description")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label>{formatMessage("inventory.suppliers.form.contact_name")}</Label>
-              <Input
-                value={formState.contactName}
-                onChange={(event) => handleFormChange("contactName", event.target.value)}
+              <Label>{formatMessage("inventory.suppliers.form.name")}</Label>
+              <Input value={formState.name} onChange={(event) => handleFormChange("name", event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>{formatMessage("inventory.suppliers.form.cnpj")}</Label>
+            <Input
+              value={formatCnpj(formState.cnpj)}
+                placeholder="00.000.000/0000-00"
+              onChange={(event) =>
+                handleFormChange("cnpj", event.target.value.replace(/\D/g, "").slice(0, 14))
+              }
+            />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>{formatMessage("inventory.suppliers.form.contact_name")}</Label>
+                <Input
+                  value={formState.contactName}
+                  onChange={(event) => handleFormChange("contactName", event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>{formatMessage("inventory.suppliers.form.phone")}</Label>
+                <Input value={formState.phone} onChange={(event) => handleFormChange("phone", event.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>{formatMessage("inventory.suppliers.form.email")}</Label>
+              <Input value={formState.email} onChange={(event) => handleFormChange("email", event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>{formatMessage("inventory.suppliers.form.notes")}</Label>
+              <Textarea
+                rows={3}
+                value={formState.notes}
+                onChange={(event) => handleFormChange("notes", event.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <Label>{formatMessage("inventory.suppliers.form.phone")}</Label>
-              <Input value={formState.phone} onChange={(event) => handleFormChange("phone", event.target.value)} />
-            </div>
           </div>
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.suppliers.form.email")}</Label>
-            <Input value={formState.email} onChange={(event) => handleFormChange("email", event.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.suppliers.form.notes")}</Label>
-            <Textarea
-              rows={3}
-              value={formState.notes}
-              onChange={(event) => handleFormChange("notes", event.target.value)}
-            />
-          </div>
-        </div>
-      </EntityDrawer>
+          <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={closeDrawer}>
+              {formatMessage("inventory.suppliers.drawer.cancel")}
+            </Button>
+            <Button onClick={handleSubmit} disabled={createSupplier.isPending || updateSupplier.isPending}>
+              {formatMessage("inventory.suppliers.drawer.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </InventoryLayout>
   );
 }

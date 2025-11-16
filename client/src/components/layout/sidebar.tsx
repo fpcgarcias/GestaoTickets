@@ -5,11 +5,11 @@ import { cn } from '@/lib/utils';
 import { useTheme } from '@/contexts/theme-context';
 import { useI18n } from '@/i18n';
 import { Link } from 'wouter';
-import {
-  LayoutDashboard,
-  TicketIcon,
-  Users,
-  UserCog,
+import { 
+  LayoutDashboard, 
+  TicketIcon, 
+  Users, 
+  UserCog, 
   Settings,
   Building2,
   FolderIcon,
@@ -99,7 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
       setIsInventoryOpen(true);
     }
   }, [currentPath]);
-
+  
   // Definir itens de navegação com base no papel do usuário
   const navItems = [
     { href: "/", icon: <LayoutDashboard size={20} />, label: formatMessage('sidebar.dashboard'), roles: ['admin', 'support', 'customer', 'company_admin', 'manager', 'supervisor', 'viewer'] },
@@ -129,12 +129,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     if (!user || !item.roles) return false;
     return item.roles.includes(user.role);
   });
-  const mobileNavItems = canAccessInventory
-    ? [
-        ...filteredNavItems,
-        { href: "/inventory", icon: <Boxes size={20} />, label: formatMessage('sidebar.inventory') },
-      ]
-    : filteredNavItems;
+
+  const mobileNavItems = filteredNavItems.flatMap((item) => {
+    if (canAccessInventory && item.href === "/tickets") {
+      return [
+        item,
+        { href: "/inventory", icon: <Boxes size={20} />, label: formatMessage('sidebar.inventory'), roles: inventoryRoles },
+      ];
+    }
+    return [item];
+  });
 
   return (
     <>
@@ -155,7 +159,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           )}
         </div>
         <nav className="p-4 flex-1 overflow-y-auto">
-          {filteredNavItems.map((item) => (
+          {filteredNavItems.map((item, index) => {
+            const sidebarEntry = (
             <SidebarItem 
               key={item.href}
               href={item.href}
@@ -167,56 +172,69 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
                   : currentPath.startsWith(item.href)
               }
             />
-          ))} 
-          {canAccessInventory && (
-            <div className="mt-6">
-              <button
-                type="button"
-                onClick={() => setIsInventoryOpen((prev) => !prev)}
-                className={cn(
-                  "flex w-full items-center justify-between rounded-md px-4 py-3 text-sm font-medium transition-colors",
-                  currentPath.startsWith("/inventory")
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm"
-                    : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
-                )}
-              >
-                <span className="flex items-center gap-3">
-                  <Boxes size={20} />
-                  {formatMessage('sidebar.inventory')}
-                </span>
-                {isInventoryOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              </button>
-              <div
-                className={cn(
-                  "mt-2 space-y-1 overflow-hidden rounded-md border border-sidebar-border/40 bg-sidebar/40 transition-all",
-                  isInventoryOpen ? "max-h-[600px] p-2" : "max-h-0 p-0"
-                )}
-              >
-                {isInventoryOpen &&
-                  inventoryMenuItems.map((item) => {
-                    const active =
-                      item.href === "/inventory"
-                        ? currentPath === "/inventory"
-                        : currentPath.startsWith(item.href);
-                    return (
-                      <Link key={item.href} href={item.href}>
-                        <div
-                          className={cn(
-                            "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                            active
-                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                              : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
-                          )}
-                        >
-                          {item.icon}
-                          {item.label}
-                        </div>
-                      </Link>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
+            );
+
+            if (canAccessInventory && item.href === "/tickets") {
+              return (
+                <React.Fragment key={item.href}>
+                  {sidebarEntry}
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsInventoryOpen((prev) => !prev)}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-md px-4 py-3 text-sm font-medium transition-colors",
+                        currentPath.startsWith("/inventory")
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm"
+                          : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                      )}
+                    >
+                      <span className="flex items-center gap-3">
+                        <Boxes size={20} />
+                        {formatMessage('sidebar.inventory')}
+                      </span>
+                      {isInventoryOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </button>
+                    <div
+                      className={cn(
+                        "mt-2 space-y-1 overflow-hidden rounded-md border border-sidebar-border/40 bg-sidebar/40 transition-all",
+                        isInventoryOpen ? "max-h-[600px] p-2" : "max-h-0 p-0"
+                      )}
+                    >
+                      {isInventoryOpen &&
+                        inventoryMenuItems.map((item) => {
+                          const active =
+                            item.href === "/inventory"
+                              ? currentPath === "/inventory"
+                              : currentPath.startsWith(item.href);
+                          return (
+                            <Link key={item.href} href={item.href}>
+                              <div
+                                className={cn(
+                                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                                  active
+                                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                    : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                                )}
+                              >
+                                {item.icon}
+                                {item.label}
+                              </div>
+                            </Link>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </React.Fragment>
+              );
+            }
+
+            return (
+              <React.Fragment key={item.href}>
+                {sidebarEntry}
+              </React.Fragment>
+            );
+          })}
         </nav>
         
         {/* Versão do Sistema - Fixo no final */}

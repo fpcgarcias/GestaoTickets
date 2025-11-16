@@ -605,6 +605,8 @@
         "warranty": "Garantia",
         "actions": "Ações",
         "edit": "Editar",
+      "deactivate": "Desativar",
+      "confirm_deactivate": "Deseja desativar o produto {name}?",
         "empty_title": "Nenhum produto encontrado",
         "empty_description": "Ajuste os filtros ou cadastre um novo produto."
       },
@@ -639,8 +641,12 @@
         "notes": "Observações",
         "validation": {
           "name": "Informe o nome do produto",
-          "product_type": "Selecione o tipo de produto"
-        }
+        "product_type": "Selecione o tipo de produto",
+        "serial_required": "Informe o número de série para este tipo",
+        "asset_required": "Informe o patrimônio para este tipo"
+      },
+      "serial_required_hint": "Obrigatório para este tipo de produto.",
+      "asset_required_hint": "Obrigatório para este tipo de produto."
       },
       "nfe": {
         "helper": "Importe uma NF-e para preencher automaticamente os campos fiscais."
@@ -1670,7 +1676,27 @@
     "reply_sent_successfully": "Resposta enviada com sucesso.",
     "error": "Erro",
     "failed_to_send_reply": "Falha ao enviar resposta",
-    "status_updated_automatically": "Status atualizado automaticamente"
+    "status_updated_automatically": "Status atualizado automaticamente",
+    "inventory_move_button": "Movimentar equipamento",
+    "inventory_section_title": "Movimentar equipamento de inventário",
+    "inventory_section_description": "Selecione o equipamento e o tipo de movimentação para registrar no inventário com vínculo a este chamado.",
+    "inventory_action": "Tipo de movimentação",
+    "inventory_action_loan": "Entrega ao usuário",
+    "inventory_action_return": "Devolução do equipamento",
+    "inventory_action_temp_loan": "Empréstimo temporário",
+    "inventory_action_swap": "Troca de equipamento",
+    "inventory_action_maintenance": "Envio para manutenção",
+    "inventory_product": "Equipamento",
+    "inventory_product_out": "Equipamento que está saindo",
+    "inventory_product_in": "Equipamento que está entrando",
+    "inventory_product_placeholder": "Selecione o equipamento",
+    "inventory_product_search_placeholder": "Buscar por nome, serial, service tag ou patrimônio...",
+    "inventory_product_not_found": "Nenhum equipamento encontrado",
+    "inventory_notes": "Observações da movimentação",
+    "inventory_validation_product": "Selecione o(s) equipamento(s) da movimentação",
+    "inventory_link_button": "Registrar movimentação",
+    "inventory_link_success": "Movimentação registrada no inventário",
+    "inventory_link_error": "Erro ao registrar movimentação"
   },
   "sla_status": {
     "title": "Status de SLA",

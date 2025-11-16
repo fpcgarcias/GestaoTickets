@@ -1,14 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import { DateRange } from "react-day-picker";
 import { format } from "date-fns";
-import { Plus } from "lucide-react";
+import { Pencil, Plus, UserX } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { InventoryLayout } from "@/components/inventory/inventory-layout";
 import { useI18n } from "@/i18n";
 import { InventoryFilterBar, InventoryFilterConfig } from "@/components/inventory/inventory-filter-bar";
 import { EntityTable, EntityColumn } from "@/components/inventory/entity-table";
-import { EntityDrawer } from "@/components/inventory/entity-drawer";
 import { InventoryStatusBadge } from "@/components/inventory/inventory-status-badge";
 import { ImportNfeButton } from "@/components/inventory/import-nfe-button";
 import { Input } from "@/components/ui/input";
@@ -24,10 +23,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   InventoryNfeParseResult,
   InventoryProduct,
   InventorySupplier,
   useCreateInventoryProduct,
+  useDeleteInventoryProduct,
   useInventoryLocations,
   useInventoryProductTypes,
   useInventoryProducts,
@@ -73,6 +81,8 @@ const DEFAULT_FORM: ProductFormState = {
   warrantyDate: "",
   notes: "",
 };
+
+const NOTES_FIELD_ID = "inventory-catalog-notes";
 
 export default function InventoryCatalogPage() {
   const { formatMessage, locale } = useI18n();
@@ -122,6 +132,7 @@ export default function InventoryCatalogPage() {
   const locationsQuery = useInventoryLocations();
   const createProductMutation = useCreateInventoryProduct();
   const updateProductMutation = useUpdateInventoryProduct();
+  const deleteProductMutation = useDeleteInventoryProduct();
 
   const departmentsQuery = useQuery({
     queryKey: ["inventory-departments"],
@@ -290,6 +301,17 @@ export default function InventoryCatalogPage() {
     });
   }, [rawProducts, filters.purchaseDateRange]);
 
+  const selectedProductType = useMemo(() => {
+    if (!productForm.productTypeId) return null;
+    const typeId = Number(productForm.productTypeId);
+    return productTypes.find((type) => type.id === typeId) ?? null;
+  }, [productForm.productTypeId, productTypes]);
+
+  const requiresSerial = Boolean(selectedProductType?.requires_serial);
+  const requiresAssetTag = Boolean(
+    selectedProductType?.requires_asset_tag ?? selectedProductType?.requires_asset
+  );
+
   const paginationInfo = productsQuery.data?.pagination;
   const totalItems = paginationInfo?.total ?? filteredProducts.length;
 
@@ -319,7 +341,7 @@ export default function InventoryCatalogPage() {
     departmentId: product.department_id ? String(product.department_id) : "",
     locationId: product.location_id ? String(product.location_id) : "",
     invoiceNumber: product.invoice_number ?? "",
-    purchaseDate: product.invoice_date ? product.invoice_date.slice(0, 10) : "",
+    purchaseDate: product.purchase_date ? product.purchase_date.slice(0, 10) : "",
     warrantyDate: product.warranty_expiry ? product.warranty_expiry.slice(0, 10) : "",
     notes: product.notes ?? "",
   });
@@ -359,6 +381,20 @@ export default function InventoryCatalogPage() {
       });
       return;
     }
+    if (requiresSerial && !productForm.serialNumber.trim()) {
+      toast({
+        title: formatMessage("inventory.catalog.form.validation.serial_required"),
+        variant: "destructive",
+      });
+      return;
+    }
+    if (requiresAssetTag && !productForm.assetNumber.trim()) {
+      toast({
+        title: formatMessage("inventory.catalog.form.validation.asset_required"),
+        variant: "destructive",
+      });
+      return;
+    }
 
     const payload = {
       name: productForm.name,
@@ -371,7 +407,8 @@ export default function InventoryCatalogPage() {
       department_id: productForm.departmentId ? Number(productForm.departmentId) : undefined,
       location_id: productForm.locationId ? Number(productForm.locationId) : undefined,
       invoice_number: productForm.invoiceNumber || undefined,
-      invoice_date: productForm.purchaseDate || undefined,
+      // campos de data exatamente como existem no banco
+      purchase_date: productForm.purchaseDate || undefined,
       warranty_expiry: productForm.warrantyDate || undefined,
       notes: productForm.notes || undefined,
     };
@@ -388,6 +425,16 @@ export default function InventoryCatalogPage() {
         onSuccess: closeDrawer,
       });
     }
+  };
+
+  const handleDeactivateProduct = (product: InventoryProduct) => {
+    const confirmed = window.confirm(
+      formatMessage("inventory.catalog.table.confirm_deactivate", {
+        name: product.name ?? `#${product.id}`,
+      })
+    );
+    if (!confirmed) return;
+    deleteProductMutation.mutate({ id: product.id });
   };
 
   const handleNfeParsed = (parsed: InventoryNfeParseResult) => {
@@ -463,9 +510,26 @@ export default function InventoryCatalogPage() {
       key: "actions",
       header: formatMessage("inventory.catalog.table.actions"),
       render: (product) => (
-        <Button variant="ghost" size="sm" onClick={() => openEditDrawer(product)}>
-          {formatMessage("inventory.catalog.table.edit")}
-        </Button>
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => openEditDrawer(product)}
+            title={formatMessage("inventory.catalog.table.edit")}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-8 w-8 p-0 bg-amber-500 hover:bg-amber-500/90"
+            onClick={() => handleDeactivateProduct(product)}
+            title={formatMessage("inventory.catalog.table.deactivate")}
+          >
+            <UserX className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       ),
     },
   ];
@@ -511,220 +575,245 @@ export default function InventoryCatalogPage() {
         />
       </div>
 
-      <EntityDrawer
-        title={
-          editingProduct
-            ? formatMessage("inventory.catalog.drawer.edit_title")
-            : formatMessage("inventory.catalog.drawer.create_title")
-        }
-        description={formatMessage("inventory.catalog.drawer.subtitle")}
+      <Dialog
         open={isDrawerOpen}
         onOpenChange={(open) => {
           if (!open) {
-            setDrawerOpen(false);
-            resetDrawerState();
+            closeDrawer();
           } else {
             setDrawerOpen(true);
           }
         }}
-        primaryAction={{
-          label: formatMessage("inventory.catalog.drawer.save"),
-          onClick: handleFormSubmit,
-          loading: createProductMutation.isPending || updateProductMutation.isPending,
-        }}
-        secondaryAction={{
-          label: formatMessage("inventory.catalog.drawer.cancel"),
-          onClick: closeDrawer,
-        }}
       >
-        <div className="space-y-6">
-          <section>
-            <h4 className="text-sm font-semibold">
-              {formatMessage("inventory.catalog.form.identification")}
-            </h4>
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.name")}</Label>
-                <Input
-                  value={productForm.name}
-                  onChange={(event) => handleFormChange("name", event.target.value)}
-                />
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingProduct
+                ? formatMessage("inventory.catalog.drawer.edit_title")
+                : formatMessage("inventory.catalog.drawer.create_title")}
+            </DialogTitle>
+            <DialogDescription>{formatMessage("inventory.catalog.drawer.subtitle")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <section>
+              <h4 className="text-sm font-semibold">
+                {formatMessage("inventory.catalog.form.identification")}
+              </h4>
+              <div className="mt-3 grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.catalog.form.name")}</Label>
+                  <Input
+                    value={productForm.name}
+                    onChange={(event) => handleFormChange("name", event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.catalog.form.status")}</Label>
+                  <Select value={productForm.status} onValueChange={(value) => handleFormChange("status", value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.catalog.form.product_type")}</Label>
+                  <Select
+                    value={productForm.productTypeId}
+                    onValueChange={(value) => handleFormChange("productTypeId", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={formatMessage("inventory.catalog.form.product_type_placeholder")}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {productTypes.map((type) => (
+                        <SelectItem key={type.id} value={String(type.id)}>
+                          {type.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.catalog.form.supplier")}</Label>
+                  <Select
+                    value={productForm.supplierId}
+                    onValueChange={(value) => handleFormChange("supplierId", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={formatMessage("inventory.catalog.form.supplier_placeholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliers.map((supplier) => (
+                        <SelectItem key={supplier.id} value={String(supplier.id)}>
+                          {supplier.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.status")}</Label>
-                <Select
-                  value={productForm.status}
-                  onValueChange={(value) => handleFormChange("status", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {statusOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.product_type")}</Label>
-                <Select
-                  value={productForm.productTypeId}
-                  onValueChange={(value) => handleFormChange("productTypeId", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={formatMessage("inventory.catalog.form.product_type_placeholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {productTypes.map((type) => (
-                      <SelectItem key={type.id} value={String(type.id)}>
-                        {type.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.supplier")}</Label>
-                <Select
-                  value={productForm.supplierId}
-                  onValueChange={(value) => handleFormChange("supplierId", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={formatMessage("inventory.catalog.form.supplier_placeholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {suppliers.map((supplier) => (
-                      <SelectItem key={supplier.id} value={String(supplier.id)}>
-                        {supplier.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </section>
+            </section>
 
-          <section>
-            <h4 className="text-sm font-semibold">
-              {formatMessage("inventory.catalog.form.fiscal")}
-            </h4>
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.serial_number")}</Label>
-                <Input
-                  value={productForm.serialNumber}
-                  onChange={(event) => handleFormChange("serialNumber", event.target.value)}
-                />
+            <section>
+              <h4 className="text-sm font-semibold">
+                {formatMessage("inventory.catalog.form.fiscal")}
+              </h4>
+              <div className="mt-3 grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1">
+                    {formatMessage("inventory.catalog.form.serial_number")}
+                    {requiresSerial && <span className="text-destructive">*</span>}
+                  </Label>
+                  <Input
+                    value={productForm.serialNumber}
+                    onChange={(event) => handleFormChange("serialNumber", event.target.value)}
+                    required={requiresSerial}
+                  />
+                  {requiresSerial && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatMessage("inventory.catalog.form.serial_required_hint")}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.catalog.form.service_tag")}</Label>
+                  <Input
+                    value={productForm.serviceTag}
+                    onChange={(event) => handleFormChange("serviceTag", event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1">
+                    {formatMessage("inventory.catalog.form.asset_number")}
+                    {requiresAssetTag && <span className="text-destructive">*</span>}
+                  </Label>
+                  <Input
+                    value={productForm.assetNumber}
+                    onChange={(event) => handleFormChange("assetNumber", event.target.value)}
+                    required={requiresAssetTag}
+                  />
+                  {requiresAssetTag && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatMessage("inventory.catalog.form.asset_required_hint")}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.catalog.form.invoice_number")}</Label>
+                  <Input
+                    value={productForm.invoiceNumber}
+                    onChange={(event) => handleFormChange("invoiceNumber", event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.catalog.form.purchase_date")}</Label>
+                  <Input
+                    type="date"
+                    value={productForm.purchaseDate}
+                    onChange={(event) => handleFormChange("purchaseDate", event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.catalog.form.warranty_date")}</Label>
+                  <Input
+                    type="date"
+                    value={productForm.warrantyDate}
+                    onChange={(event) => handleFormChange("warrantyDate", event.target.value)}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.service_tag")}</Label>
-                <Input
-                  value={productForm.serviceTag}
-                  onChange={(event) => handleFormChange("serviceTag", event.target.value)}
-                />
+              <div className="mt-3">
+                <p className="text-xs text-muted-foreground">
+                  {formatMessage("inventory.catalog.nfe.helper")}
+                </p>
               </div>
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.asset_number")}</Label>
-                <Input
-                  value={productForm.assetNumber}
-                  onChange={(event) => handleFormChange("assetNumber", event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.invoice_number")}</Label>
-                <Input
-                  value={productForm.invoiceNumber}
-                  onChange={(event) => handleFormChange("invoiceNumber", event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.purchase_date")}</Label>
-                <Input
-                  type="date"
-                  value={productForm.purchaseDate}
-                  onChange={(event) => handleFormChange("purchaseDate", event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.warranty_date")}</Label>
-                <Input
-                  type="date"
-                  value={productForm.warrantyDate}
-                  onChange={(event) => handleFormChange("warrantyDate", event.target.value)}
-                />
-              </div>
-            </div>
-            <div className="mt-3">
-              <p className="text-xs text-muted-foreground">
-                {formatMessage("inventory.catalog.nfe.helper")}
-              </p>
-            </div>
-          </section>
+            </section>
 
-          <section>
-            <h4 className="text-sm font-semibold">
-              {formatMessage("inventory.catalog.form.location_section")}
-            </h4>
-            <div className="mt-3 grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.department")}</Label>
-                <Select
-                  value={productForm.departmentId}
-                  onValueChange={(value) => handleFormChange("departmentId", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={formatMessage("inventory.catalog.form.department_placeholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={String(dept.id)}>
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <section>
+              <h4 className="text-sm font-semibold">
+                {formatMessage("inventory.catalog.form.location_section")}
+              </h4>
+              <div className="mt-3 grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.catalog.form.department")}</Label>
+                  <Select
+                    value={productForm.departmentId}
+                    onValueChange={(value) => handleFormChange("departmentId", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={formatMessage("inventory.catalog.form.department_placeholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={String(dept.id)}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.catalog.form.location")}</Label>
+                  <Select
+                    value={productForm.locationId}
+                    onValueChange={(value) => handleFormChange("locationId", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={formatMessage("inventory.catalog.form.location_placeholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.map((location) => (
+                        <SelectItem key={location.id} value={String(location.id)}>
+                          {location.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.location")}</Label>
-                <Select
-                  value={productForm.locationId}
-                  onValueChange={(value) => handleFormChange("locationId", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={formatMessage("inventory.catalog.form.location_placeholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locations.map((location) => (
-                      <SelectItem key={location.id} value={String(location.id)}>
-                        {location.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </section>
+            </section>
 
-          <section>
-            <h4 className="text-sm font-semibold">
-              {formatMessage("inventory.catalog.form.notes_section")}
-            </h4>
-            <div className="mt-3 grid gap-4">
-              <div className="space-y-2">
-                <Label>{formatMessage("inventory.catalog.form.notes")}</Label>
-                <Textarea
-                  rows={4}
-                  value={productForm.notes}
-                  onChange={(event) => handleFormChange("notes", event.target.value)}
-                />
+            <section>
+              <h4 className="text-sm font-semibold">
+                {formatMessage("inventory.catalog.form.notes_section")}
+              </h4>
+              <div className="mt-3 grid gap-4">
+                <div className="space-y-2">
+                  <Label className="sr-only" htmlFor={NOTES_FIELD_ID}>
+                    {formatMessage("inventory.catalog.form.notes")}
+                  </Label>
+                  <Textarea
+                    id={NOTES_FIELD_ID}
+                    rows={4}
+                    value={productForm.notes}
+                    onChange={(event) => handleFormChange("notes", event.target.value)}
+                  />
+                </div>
               </div>
-            </div>
-          </section>
-        </div>
-      </EntityDrawer>
+            </section>
+          </div>
+          <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={closeDrawer}>
+              {formatMessage("inventory.catalog.drawer.cancel")}
+            </Button>
+            <Button
+              onClick={handleFormSubmit}
+              disabled={createProductMutation.isPending || updateProductMutation.isPending}
+            >
+              {formatMessage("inventory.catalog.drawer.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </InventoryLayout>
   );
 }

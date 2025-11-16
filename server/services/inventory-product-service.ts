@@ -64,6 +64,20 @@ export interface ProductPhotoUpload {
   productId: number;
 }
 
+const normalizeDateValue = (value: unknown): Date | undefined => {
+  if (!value) return undefined;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? undefined : value;
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return undefined;
+};
+
 class InventoryProductService {
   async listProducts(filters: ProductFilters): Promise<PaginatedProducts> {
     const page = Math.max(filters.page ?? 1, 1);
@@ -352,13 +366,41 @@ class InventoryProductService {
     userId: number,
     isUpdate = false
   ): InsertInventoryProduct {
-    return {
+    console.log('====== PREPARE PAYLOAD - INPUT ======');
+    console.log('purchase_date (input):', input.purchase_date, typeof input.purchase_date);
+    console.log('warranty_expiry (input):', input.warranty_expiry, typeof input.warranty_expiry);
+    console.log('invoice_date (input):', input.invoice_date, typeof input.invoice_date);
+
+    const payload: any = {
       ...input,
       specifications: JSON.stringify(input.specifications || {}),
       photos: JSON.stringify(input.photos || []),
       created_by_id: isUpdate ? input.created_by_id || undefined : userId,
       updated_by_id: userId,
     };
+
+    // Converter datas para Date objects (drizzle mode: 'date' espera Date)
+    if (input.purchase_date !== undefined) {
+      const converted = normalizeDateValue(input.purchase_date);
+      console.log('purchase_date CONVERTIDO:', converted, converted instanceof Date);
+      payload.purchase_date = converted;
+    }
+    if (input.invoice_date !== undefined) {
+      const converted = normalizeDateValue(input.invoice_date);
+      console.log('invoice_date CONVERTIDO:', converted, converted instanceof Date);
+      payload.invoice_date = converted;
+    }
+    if (input.warranty_expiry !== undefined) {
+      const converted = normalizeDateValue(input.warranty_expiry);
+      console.log('warranty_expiry CONVERTIDO:', converted, converted instanceof Date);
+      payload.warranty_expiry = converted;
+    }
+
+    console.log('====== PAYLOAD FINAL ======');
+    console.log('purchase_date:', payload.purchase_date);
+    console.log('warranty_expiry:', payload.warranty_expiry);
+
+    return payload;
   }
 
   private extractChanges(oldRecord: HydratedInventoryProduct, newRecord: InventoryProduct) {

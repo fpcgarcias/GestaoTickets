@@ -4,7 +4,6 @@ import { useI18n } from "@/i18n";
 import { InventoryFilterBar, InventoryFilterConfig } from "@/components/inventory/inventory-filter-bar";
 import { InventoryFilterValue } from "@/components/inventory/inventory-filter-bar";
 import { EntityTable, EntityColumn } from "@/components/inventory/entity-table";
-import { EntityDrawer } from "@/components/inventory/entity-drawer";
 import {
   InventoryProductType,
   useCreateInventoryProductType,
@@ -18,12 +17,21 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Pencil, UserX } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type ProductTypeStatus = "active" | "inactive" | "all";
 
 interface ProductTypeFormState {
   name: string;
-  code: string;
   category: string;
   requiresSerial: boolean;
   requiresAsset: boolean;
@@ -32,13 +40,21 @@ interface ProductTypeFormState {
 
 const DEFAULT_PRODUCT_TYPE_FORM: ProductTypeFormState = {
   name: "",
-  code: "",
   category: "hardware",
   requiresSerial: false,
   requiresAsset: false,
   isConsumable: false,
 };
 
+const generateCode = (name: string) => {
+  const normalized = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const fallback = `type_${Date.now()}`;
+  return normalized || fallback;
+};
 const CATEGORY_OPTIONS = ["hardware", "software", "accessory", "service", "other"];
 
 export default function InventoryProductTypesPage() {
@@ -126,7 +142,6 @@ export default function InventoryProductTypesPage() {
     setEditingType(type);
     setFormState({
       name: type.name ?? "",
-      code: type.code ?? "",
       category: type.category ?? "hardware",
       requiresSerial: Boolean(type.requires_serial),
       requiresAsset: Boolean(type.requires_asset_tag),
@@ -153,17 +168,9 @@ export default function InventoryProductTypesPage() {
       });
       return;
     }
-    if (!formState.code.trim()) {
-      toast({
-        title: formatMessage("inventory.product_types.form.validation.code"),
-        variant: "destructive",
-      });
-      return;
-    }
-
     const payload = {
       name: formState.name,
-      code: formState.code,
+      code: editingType?.code ?? generateCode(formState.name),
       category: formState.category,
       requires_serial: formState.requiresSerial,
       requires_asset_tag: formState.requiresAsset,
@@ -238,24 +245,41 @@ export default function InventoryProductTypesPage() {
       key: "status",
       header: formatMessage("inventory.product_types.table.status"),
       render: (type) => (
-        <Badge variant={type.is_active === false ? "outline" : "secondary"}>
+        <span
+          className={cn(
+            "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold",
+            type.is_active === false ? "bg-gray-100 text-gray-800" : "bg-green-100 text-green-800"
+          )}
+        >
           {type.is_active === false
             ? formatMessage("inventory.product_types.table.inactive")
             : formatMessage("inventory.product_types.table.active")}
-        </Badge>
+        </span>
       ),
     },
     {
       key: "actions",
       header: formatMessage("inventory.product_types.table.actions"),
       render: (type) => (
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={() => openEditDrawer(type)}>
-            {formatMessage("inventory.product_types.table.edit")}
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => openEditDrawer(type)}
+            title={formatMessage("inventory.product_types.table.edit")}
+          >
+            <Pencil className="h-3.5 w-3.5" />
           </Button>
           {type.is_active !== false && (
-            <Button variant="ghost" size="sm" onClick={() => handleDeactivate(type)}>
-              {formatMessage("inventory.product_types.table.deactivate")}
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 w-8 p-0 bg-amber-500 hover:bg-amber-500/90"
+              onClick={() => handleDeactivate(type)}
+              title={formatMessage("inventory.product_types.table.deactivate")}
+            >
+              <UserX className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
@@ -290,13 +314,7 @@ export default function InventoryProductTypesPage() {
         />
       </div>
 
-      <EntityDrawer
-        title={
-          editingType
-            ? formatMessage("inventory.product_types.drawer.edit_title")
-            : formatMessage("inventory.product_types.drawer.create_title")
-        }
-        description={formatMessage("inventory.product_types.drawer.description")}
+      <Dialog
         open={isDrawerOpen}
         onOpenChange={(open) => {
           if (!open) {
@@ -305,85 +323,90 @@ export default function InventoryProductTypesPage() {
             setDrawerOpen(true);
           }
         }}
-        primaryAction={{
-          label: formatMessage("inventory.product_types.drawer.save"),
-          onClick: handleSubmit,
-          loading: createType.isPending || updateType.isPending,
-        }}
-        secondaryAction={{
-          label: formatMessage("inventory.product_types.drawer.cancel"),
-          onClick: closeDrawer,
-        }}
       >
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.product_types.form.name")}</Label>
-            <Input value={formState.name} onChange={(event) => handleFormChange("name", event.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.product_types.form.code")}</Label>
-            <Input value={formState.code} onChange={(event) => handleFormChange("code", event.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.product_types.form.category")}</Label>
-            <select
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none"
-              value={formState.category}
-              onChange={(event) => handleFormChange("category", event.target.value)}
-            >
-              {CATEGORY_OPTIONS.map((category) => (
-                <option key={category} value={category}>
-                  {formatMessage(`inventory.product_types.categories.${category}` as any)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-              <div>
-                <p className="text-sm font-medium">
-                  {formatMessage("inventory.product_types.form.requires_serial")}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatMessage("inventory.product_types.form.requires_serial_hint")}
-                </p>
-              </div>
-              <Switch
-                checked={formState.requiresSerial}
-                onCheckedChange={(value) => handleFormChange("requiresSerial", value)}
-              />
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editingType
+                ? formatMessage("inventory.product_types.drawer.edit_title")
+                : formatMessage("inventory.product_types.drawer.create_title")}
+            </DialogTitle>
+            <DialogDescription>{formatMessage("inventory.product_types.drawer.description")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>{formatMessage("inventory.product_types.form.name")}</Label>
+              <Input value={formState.name} onChange={(event) => handleFormChange("name", event.target.value)} />
             </div>
-            <div className="flex items-center justify-between rounded-lg border px-3 py-2">
-              <div>
-                <p className="text-sm font-medium">
-                  {formatMessage("inventory.product_types.form.requires_asset")}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatMessage("inventory.product_types.form.requires_asset_hint")}
-                </p>
-              </div>
-              <Switch
-                checked={formState.requiresAsset}
-                onCheckedChange={(value) => handleFormChange("requiresAsset", value)}
-              />
+            <div className="space-y-2">
+              <Label>{formatMessage("inventory.product_types.form.category")}</Label>
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none"
+                value={formState.category}
+                onChange={(event) => handleFormChange("category", event.target.value)}
+              >
+                {CATEGORY_OPTIONS.map((category) => (
+                  <option key={category} value={category}>
+                    {formatMessage(`inventory.product_types.categories.${category}` as any)}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="flex items-center justify-between rounded-lg border px-3 py-2 md:col-span-2">
-              <div>
-                <p className="text-sm font-medium">
-                  {formatMessage("inventory.product_types.form.is_consumable")}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatMessage("inventory.product_types.form.is_consumable_hint")}
-                </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium">
+                    {formatMessage("inventory.product_types.form.requires_serial")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatMessage("inventory.product_types.form.requires_serial_hint")}
+                  </p>
+                </div>
+                <Switch
+                  checked={formState.requiresSerial}
+                  onCheckedChange={(value) => handleFormChange("requiresSerial", value)}
+                />
               </div>
-              <Switch
-                checked={formState.isConsumable}
-                onCheckedChange={(value) => handleFormChange("isConsumable", value)}
-              />
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium">
+                    {formatMessage("inventory.product_types.form.requires_asset")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatMessage("inventory.product_types.form.requires_asset_hint")}
+                  </p>
+                </div>
+                <Switch
+                  checked={formState.requiresAsset}
+                  onCheckedChange={(value) => handleFormChange("requiresAsset", value)}
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2 md:col-span-2">
+                <div>
+                  <p className="text-sm font-medium">
+                    {formatMessage("inventory.product_types.form.is_consumable")}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatMessage("inventory.product_types.form.is_consumable_hint")}
+                  </p>
+                </div>
+                <Switch
+                  checked={formState.isConsumable}
+                  onCheckedChange={(value) => handleFormChange("isConsumable", value)}
+                />
+              </div>
             </div>
           </div>
-        </div>
-      </EntityDrawer>
+          <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={closeDrawer}>
+              {formatMessage("inventory.product_types.drawer.cancel")}
+            </Button>
+            <Button onClick={handleSubmit} disabled={createType.isPending || updateType.isPending}>
+              {formatMessage("inventory.product_types.drawer.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </InventoryLayout>
   );
 }
