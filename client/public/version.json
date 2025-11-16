@@ -9,7 +9,7 @@
       "type": "feature",
       "changes": {
         "new": [
-          "Implementação de nova tela de inventário de equipamentos, com funcionalidades de movimentação de equipamentos entre estoques e prestadores de serviços."
+          "Implementação de nova tela de inventário de equipamentos, com funcionalidades de movimentação de equipamentos entre estoques."
         ]
       }
     },
