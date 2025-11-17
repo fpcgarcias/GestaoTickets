@@ -599,7 +599,7 @@ class InventoryReportService {
 }
 
 function addDaysSql(days: number) {
-  return sql`NOW() + interval '${days} days'`;
+  return sql`NOW() + make_interval(days => ${days})`;
 }
 
 export const inventoryReportService = new InventoryReportService();
