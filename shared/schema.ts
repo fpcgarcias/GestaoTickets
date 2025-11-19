@@ -54,6 +54,7 @@ export const companies = pgTable("companies", {
   updated_at: timestamp("updated_at").defaultNow().notNull(),
   cnpj: text("cnpj"),
   phone: text("phone"),
+  city: text("city"),
   ai_permission: boolean("ai_permission").notNull().default(true), // Permite que a empresa use IA
   uses_flexible_sla: boolean("uses_flexible_sla").notNull().default(false), // Flag para sistema de SLA flexível
 });
@@ -71,6 +72,7 @@ export const users = pgTable("users", {
   ad_user: boolean("ad_user").default(false),
   must_change_password: boolean("must_change_password").notNull().default(false),
   company_id: integer("company_id").references(() => companies.id),
+  cpf: text("cpf"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -1163,7 +1165,7 @@ export const inventoryProducts = pgTable("inventory_products", {
 // Tabela: inventory_movements
 export const inventoryMovements = pgTable("inventory_movements", {
   id: serial("id").primaryKey(),
-  product_id: integer("product_id").references(() => inventoryProducts.id, { onDelete: 'restrict' }).notNull(),
+  product_id: integer("product_id").references(() => inventoryProducts.id, { onDelete: 'restrict' }),
   movement_type: text("movement_type").notNull(),
   ticket_id: integer("ticket_id").references(() => tickets.id, { onDelete: 'set null' }),
   user_id: integer("user_id").references(() => users.id, { onDelete: 'set null' }),
@@ -1181,6 +1183,9 @@ export const inventoryMovements = pgTable("inventory_movements", {
   company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
   created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
   created_by_id: integer("created_by_id").references(() => users.id),
+  is_stock_transfer: boolean("is_stock_transfer").notNull().default(false),
+  movement_group_id: text("movement_group_id"),
+  is_batch_movement: boolean("is_batch_movement").notNull().default(false),
 });
 
 // Tabela: user_inventory_assignments
@@ -1200,6 +1205,7 @@ export const userInventoryAssignments = pgTable("user_inventory_assignments", {
   returned_by_id: integer("returned_by_id").references(() => users.id),
   created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
+  assignment_group_id: text("assignment_group_id"),
 });
 
 // Tabela: ticket_inventory_items
@@ -1216,10 +1222,27 @@ export const ticketInventoryItems = pgTable("ticket_inventory_items", {
   created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
 });
 
+// Tabela: inventory_movement_items
+export const inventoryMovementItems = pgTable("inventory_movement_items", {
+  id: serial("id").primaryKey(),
+  movement_id: integer("movement_id").references(() => inventoryMovements.id, { onDelete: 'cascade' }).notNull(),
+  product_id: integer("product_id").references(() => inventoryProducts.id, { onDelete: 'restrict' }).notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
+// Tabela: responsibility_term_assignments
+export const responsibilityTermAssignments = pgTable("responsibility_term_assignments", {
+  id: serial("id").primaryKey(),
+  term_id: integer("term_id").references(() => inventoryResponsibilityTerms.id, { onDelete: 'cascade' }).notNull(),
+  assignment_id: integer("assignment_id").references(() => userInventoryAssignments.id, { onDelete: 'cascade' }).notNull(),
+  created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
+});
+
 // Tabela: inventory_responsibility_terms
 export const inventoryResponsibilityTerms = pgTable("inventory_responsibility_terms", {
   id: serial("id").primaryKey(),
-  assignment_id: integer("assignment_id").references(() => userInventoryAssignments.id, { onDelete: 'cascade' }).notNull(),
+  assignment_id: integer("assignment_id").references(() => userInventoryAssignments.id, { onDelete: 'cascade' }),
   template_id: integer("template_id"),
   template_version: integer("template_version"),
   generated_pdf_url: text("generated_pdf_url"),
@@ -1232,6 +1255,7 @@ export const inventoryResponsibilityTerms = pgTable("inventory_responsibility_te
   company_id: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
   created_at: timestamp("created_at", { withTimezone: false }).notNull().defaultNow(),
   updated_at: timestamp("updated_at", { withTimezone: false }).notNull().defaultNow(),
+  is_batch_term: boolean("is_batch_term").notNull().default(false),
 });
 
 // Tabela: department_inventory_settings
@@ -1390,10 +1414,11 @@ export const selectInventoryProductSchema = createInsertSchema(inventoryProducts
 
 // Schema para inserção de movimentação
 export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements, {
-  product_id: z.number().positive("Produto é obrigatório"),
+  product_id: z.number().positive("Produto é obrigatório").optional(),
   movement_type: z.enum(['entry', 'withdrawal', 'return', 'write_off', 'transfer', 'maintenance', 'reservation']),
   quantity: z.number().positive().default(1),
   approval_status: z.enum(['pending', 'approved', 'rejected', 'not_required']).optional(),
+  is_batch_movement: z.boolean().optional(),
 });
 
 export const selectInventoryMovementSchema = createInsertSchema(inventoryMovements);
@@ -1419,9 +1444,10 @@ export const selectTicketInventoryItemSchema = createInsertSchema(ticketInventor
 
 // Schema para inserção de termo de responsabilidade
 export const insertInventoryResponsibilityTermSchema = createInsertSchema(inventoryResponsibilityTerms, {
-  assignment_id: z.number().positive("Alocação é obrigatória"),
+  assignment_id: z.number().positive("Alocação é obrigatória").optional(),
   status: z.enum(['pending', 'sent', 'signed', 'expired', 'cancelled']).optional(),
   signature_method: z.enum(['email', 'digital', 'physical']).optional(),
+  is_batch_term: z.boolean().optional(),
 });
 
 export const selectInventoryResponsibilityTermSchema = createInsertSchema(inventoryResponsibilityTerms);
@@ -1491,6 +1517,12 @@ export type InsertUserInventoryAssignment = typeof userInventoryAssignments.$inf
 
 export type TicketInventoryItem = typeof ticketInventoryItems.$inferSelect;
 export type InsertTicketInventoryItem = typeof ticketInventoryItems.$inferInsert;
+
+export type InventoryMovementItem = typeof inventoryMovementItems.$inferSelect;
+export type InsertInventoryMovementItem = typeof inventoryMovementItems.$inferInsert;
+
+export type ResponsibilityTermAssignment = typeof responsibilityTermAssignments.$inferSelect;
+export type InsertResponsibilityTermAssignment = typeof responsibilityTermAssignments.$inferInsert;
 
 export type InventoryResponsibilityTerm = typeof inventoryResponsibilityTerms.$inferSelect;
 export type InsertInventoryResponsibilityTerm = typeof inventoryResponsibilityTerms.$inferInsert;

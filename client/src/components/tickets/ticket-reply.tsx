@@ -36,6 +36,10 @@ import { TicketTransferDialog } from './TicketTransferDialog';
 import { useI18n } from '@/i18n';
 import { useInventoryProducts, useInventoryLocations } from '@/hooks/useInventoryApi';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { ptBR, enUS } from 'date-fns/locale';
+import { Calendar as CalendarIcon } from 'lucide-react';
 import {
   Command,
   CommandEmpty,
@@ -48,6 +52,8 @@ import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { X } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { UserSearch } from '@/components/inventory/user-search';
 
 interface TicketReplyFormProps {
   ticket: Ticket;
@@ -58,7 +64,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const { user } = useAuth();
-  const { formatMessage } = useI18n();
+  const { formatMessage, locale } = useI18n();
   const [transferOpen, setTransferOpen] = React.useState(false);
   const [inventoryDialogOpen, setInventoryDialogOpen] = React.useState(false);
   const [movementType, setMovementType] = React.useState<'ENTREGA_USUARIO' | 'DEVOLUCAO_USUARIO' | 'EMPRESTIMO_TEMPORARIO' | 'TROCA_EQUIPAMENTO' | 'ENVIO_MANUTENCAO'>('ENTREGA_USUARIO');
@@ -67,10 +73,14 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const [productInId, setProductInId] = React.useState<string>("");
   const [movementNotes, setMovementNotes] = React.useState<string>("");
   const [movementLocationId, setMovementLocationId] = React.useState<string>("");
+  const [expectedReturnDate, setExpectedReturnDate] = React.useState<string>("");
   const [searchOut, setSearchOut] = React.useState<string>("");
   const [searchIn, setSearchIn] = React.useState<string>("");
   const [popoverOpenOut, setPopoverOpenOut] = React.useState(false);
   const [popoverOpenIn, setPopoverOpenIn] = React.useState(false);
+  const [deliverToOtherUser, setDeliverToOtherUser] = React.useState<boolean>(false);
+  const [responsibleUserId, setResponsibleUserId] = React.useState<string>("");
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
   
   // 🔥 CORREÇÃO: Determinar se o usuário é cliente NESTE TICKET específico
   // Só é cliente se o role for 'customer' E for o criador do ticket
@@ -100,6 +110,18 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const officials = (officialsResponse?.data || [])
     .filter((official: Official) => official.is_active)
     .sort((a: Official, b: Official) => a.name.localeCompare(b.name, 'pt-BR'));
+
+  // Buscar usuários para seleção de responsável
+  const { data: usersData = [] } = useQuery<any[]>({
+    queryKey: ["/api/company/users"],
+    queryFn: async () => {
+      const response = await fetch('/api/company/users?includeInactive=false');
+      if (!response.ok) return [];
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    },
+    enabled: deliverToOtherUser,
+  });
 
   // Tipo de chamado não é editável após a abertura
 
@@ -777,16 +799,36 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                   </div>
                 )}
 
-                {/* Observações */}
-                <div className="space-y-2">
-                  <Label>{formatMessage('ticket_reply.inventory_notes')}</Label>
-                  <Textarea
-                    rows={3}
-                    value={movementNotes}
-                    onChange={(e) => setMovementNotes(e.target.value)}
-                    placeholder="Adicione observações sobre a movimentação (opcional)"
-                  />
-                </div>
+                {/* Checkbox para entregar para outro usuário */}
+                {(movementType === 'ENTREGA_USUARIO' || movementType === 'EMPRESTIMO_TEMPORARIO') && (
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="deliverToOtherUser"
+                      checked={deliverToOtherUser}
+                      onCheckedChange={(checked) => {
+                        setDeliverToOtherUser(checked === true);
+                        if (!checked) {
+                          setResponsibleUserId("");
+                        }
+                      }}
+                    />
+                    <Label htmlFor="deliverToOtherUser" className="font-normal cursor-pointer">
+                      Entregar para outro usuário
+                    </Label>
+                  </div>
+                )}
+
+                {/* Seleção de usuário responsável */}
+                {deliverToOtherUser && (movementType === 'ENTREGA_USUARIO' || movementType === 'EMPRESTIMO_TEMPORARIO') && (
+                  <div className="space-y-2">
+                    <Label>Usuário responsável *</Label>
+                    <UserSearch
+                      value={responsibleUserId}
+                      onValueChange={setResponsibleUserId}
+                      placeholder="Selecione o usuário responsável"
+                    />
+                  </div>
+                )}
 
                 {/* Localização */}
                 <div className="space-y-2">
@@ -808,6 +850,55 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                   </Select>
                 </div>
 
+                {/* Data prevista de devolução - apenas para empréstimo temporário e manutenção */}
+                {(movementType === 'EMPRESTIMO_TEMPORARIO' || movementType === 'ENVIO_MANUTENCAO') && (
+                  <div className="space-y-2">
+                    <Label>Data prevista de devolução *</Label>
+                    <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {expectedReturnDate ? (
+                            format(new Date(expectedReturnDate), locale === "en-US" ? "MM/dd/yyyy" : "dd/MM/yyyy", {
+                              locale: locale === "en-US" ? enUS : ptBR,
+                            })
+                          ) : (
+                            <span className="text-muted-foreground">Selecione a data</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={expectedReturnDate ? new Date(expectedReturnDate) : undefined}
+                          onSelect={(date: Date | undefined) => {
+                            if (date) {
+                              setExpectedReturnDate(format(date, "yyyy-MM-dd"));
+                              setCalendarOpen(false);
+                            }
+                          }}
+                          locale={locale === "en-US" ? enUS : ptBR}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                )}
+
+                {/* Observações */}
+                <div className="space-y-2">
+                  <Label>{formatMessage('ticket_reply.inventory_notes')}</Label>
+                  <Textarea
+                    rows={3}
+                    value={movementNotes}
+                    onChange={(e) => setMovementNotes(e.target.value)}
+                    placeholder="Adicione observações sobre a movimentação (opcional)"
+                  />
+                </div>
+
                 {/* Botões de Ação */}
                 <div className="flex justify-end gap-2 pt-2">
                   <Button
@@ -825,6 +916,24 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                       if (!hasOut || (movementType === 'TROCA_EQUIPAMENTO' && !productInId)) {
                         toast({
                           title: formatMessage('ticket_reply.inventory_validation_product'),
+                          variant: 'destructive',
+                        });
+                        return;
+                      }
+
+                      // Validação: se checkbox estiver marcado, usuário deve ser selecionado
+                      if (deliverToOtherUser && !responsibleUserId) {
+                        toast({
+                          title: 'Selecione o usuário responsável',
+                          variant: 'destructive',
+                        });
+                        return;
+                      }
+
+                      // Validação: data prevista é obrigatória para empréstimo temporário e manutenção
+                      if ((movementType === 'EMPRESTIMO_TEMPORARIO' || movementType === 'ENVIO_MANUTENCAO') && !expectedReturnDate) {
+                        toast({
+                          title: 'Data prevista de devolução é obrigatória',
                           variant: 'destructive',
                         });
                         return;
@@ -855,33 +964,83 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                       };
 
                       const call = async (productId: number, actionUi: typeof movementType, movement: string) => {
-                        await apiRequest('POST', `/api/tickets/${ticket.id}/inventory`, {
+                        const body: any = {
                           ...baseBody,
                           product_id: productId,
                           action_type: mapAction(actionUi),
                           movement_type: movement,
-                        });
+                        };
+                        
+                        // Se checkbox estiver marcado, enviar responsible_id
+                        if (deliverToOtherUser && responsibleUserId) {
+                          body.responsible_id = Number(responsibleUserId);
+                        }
+                        
+                        // Adicionar data prevista de devolução para empréstimo temporário e manutenção
+                        if ((actionUi === 'EMPRESTIMO_TEMPORARIO' || actionUi === 'ENVIO_MANUTENCAO') && expectedReturnDate) {
+                          body.assignment = {
+                            expectedReturnDate: expectedReturnDate,
+                          };
+                        }
+                        
+                        await apiRequest('POST', `/api/tickets/${ticket.id}/inventory`, body);
+                      };
+
+                      const callBatch = async (productIds: number[], actionUi: typeof movementType, movement: string) => {
+                        const body: any = {
+                          ...baseBody,
+                          product_ids: productIds,
+                          action_type: mapAction(actionUi),
+                          movement_type: movement,
+                        };
+                        
+                        // Se checkbox estiver marcado, enviar responsible_id
+                        if (deliverToOtherUser && responsibleUserId) {
+                          body.responsible_id = Number(responsibleUserId);
+                        }
+                        
+                        // Adicionar data prevista de devolução para empréstimo temporário e manutenção
+                        if ((actionUi === 'EMPRESTIMO_TEMPORARIO' || actionUi === 'ENVIO_MANUTENCAO') && expectedReturnDate) {
+                          body.assignment = {
+                            expectedReturnDate: expectedReturnDate,
+                          };
+                        }
+                        
+                        await apiRequest('POST', `/api/tickets/${ticket.id}/inventory`, body);
                       };
 
                       try {
                         if (movementType === 'TROCA_EQUIPAMENTO') {
+                          // Troca sempre é única (1 produto sai, 1 produto entra)
                           await call(Number(productOutId), 'TROCA_EQUIPAMENTO', 'withdrawal');
                           await call(Number(productInId), 'TROCA_EQUIPAMENTO', 'entry');
                         } else if (movementType === 'ENTREGA_USUARIO') {
-                          for (const id of productOutIds) {
-                            await call(Number(id), 'ENTREGA_USUARIO', 'withdrawal');
+                          // Se múltiplos produtos, usar batch
+                          if (productOutIds.length > 1) {
+                            await callBatch(productOutIds.map(id => Number(id)), 'ENTREGA_USUARIO', 'withdrawal');
+                          } else {
+                            await call(Number(productOutIds[0]), 'ENTREGA_USUARIO', 'withdrawal');
                           }
                         } else if (movementType === 'DEVOLUCAO_USUARIO') {
-                          for (const id of productOutIds) {
-                            await call(Number(id), 'DEVOLUCAO_USUARIO', 'entry');
+                          // Se múltiplos produtos, usar batch
+                          if (productOutIds.length > 1) {
+                            await callBatch(productOutIds.map(id => Number(id)), 'DEVOLUCAO_USUARIO', 'entry');
+                          } else {
+                            await call(Number(productOutIds[0]), 'DEVOLUCAO_USUARIO', 'entry');
                           }
                         } else if (movementType === 'EMPRESTIMO_TEMPORARIO') {
-                          for (const id of productOutIds) {
-                            await call(Number(id), 'EMPRESTIMO_TEMPORARIO', 'withdrawal');
+                          // Se múltiplos produtos, usar batch
+                          if (productOutIds.length > 1) {
+                            await callBatch(productOutIds.map(id => Number(id)), 'EMPRESTIMO_TEMPORARIO', 'withdrawal');
+                          } else {
+                            await call(Number(productOutIds[0]), 'EMPRESTIMO_TEMPORARIO', 'withdrawal');
                           }
                         } else if (movementType === 'ENVIO_MANUTENCAO') {
-                          for (const id of productOutIds) {
-                            await call(Number(id), 'ENVIO_MANUTENCAO', 'maintenance');
+                          // Se múltiplos produtos, usar batch
+                          if (productOutIds.length > 1) {
+                            await callBatch(productOutIds.map(id => Number(id)), 'ENVIO_MANUTENCAO', 'maintenance');
+                          } else {
+                            await call(Number(productOutIds[0]), 'ENVIO_MANUTENCAO', 'maintenance');
                           }
                         }
 
@@ -891,6 +1050,8 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                         setProductInId('');
                         setMovementNotes('');
                         setMovementLocationId('');
+                        setDeliverToOtherUser(false);
+                        setResponsibleUserId('');
                         toast({
                           title: formatMessage('ticket_reply.inventory_link_success'),
                         });

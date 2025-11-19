@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { InventoryStatusBadge } from "@/components/inventory/inventory-status-badge";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const STATUS_OPTIONS = ["pending", "active", "completed"];
 const ALL_VALUE = "__all__";
@@ -26,6 +27,7 @@ export default function InventoryAssignmentsPage() {
   });
   const [page, setPage] = useState(1);
   const pageSize = 20;
+  const [selectedAssignments, setSelectedAssignments] = useState<number[]>([]);
 
   const assignmentsQuery = useInventoryAssignments({
     search: filters.search || undefined,
@@ -80,6 +82,60 @@ export default function InventoryAssignmentsPage() {
     generateTerm.mutate({ assignmentId }, { onSuccess: () => toast({ title: formatMessage("inventory.assignments.table.term_created") }) });
   };
 
+  const handleGenerateBatchTerm = () => {
+    if (selectedAssignments.length === 0) {
+      toast({ title: "Selecione pelo menos uma alocação", variant: "destructive" });
+      return;
+    }
+    
+    // Agrupar por assignment_group_id
+    const grouped = assignments
+      .filter(a => selectedAssignments.includes(a.id))
+      .reduce((acc, assignment) => {
+        const groupId = assignment.assignment_group_id || `single-${assignment.id}`;
+        if (!acc[groupId]) {
+          acc[groupId] = [];
+        }
+        acc[groupId].push(assignment);
+        return acc;
+      }, {} as Record<string, typeof assignments>);
+
+    // Se todos estão no mesmo grupo, gerar termo em lote
+    const groupKeys = Object.keys(grouped);
+    if (groupKeys.length === 1 && grouped[groupKeys[0]].length > 1) {
+      const groupId = groupKeys[0].startsWith('single-') ? undefined : groupKeys[0];
+      const assignmentIds = grouped[groupKeys[0]].map(a => a.id);
+      
+      generateTerm.mutate(
+        { assignmentGroupId: groupId, assignmentIds: groupId ? undefined : assignmentIds },
+        { 
+          onSuccess: () => {
+            toast({ title: "Termo em lote gerado com sucesso!" });
+            setSelectedAssignments([]);
+          },
+          onError: (error: any) => {
+            toast({ title: "Erro ao gerar termo", description: error?.message, variant: "destructive" });
+          }
+        }
+      );
+    } else {
+      // Múltiplos grupos ou seleção mista - gerar termo para todos selecionados
+      const allIds = selectedAssignments;
+      generateTerm.mutate(
+        { assignmentIds: allIds },
+        { 
+          onSuccess: () => {
+            toast({ title: "Termo em lote gerado com sucesso!" });
+            setSelectedAssignments([]);
+          },
+          onError: (error: any) => {
+            toast({ title: "Erro ao gerar termo", description: error?.message, variant: "destructive" });
+          }
+        }
+      );
+    }
+  };
+
   const handleReturn = (assignmentId: number) => {
     returnAssignment.mutate({ assignmentId }, { onSuccess: () => toast({ title: formatMessage("inventory.assignments.table.return_registered") }) });
   };
@@ -95,6 +151,22 @@ export default function InventoryAssignmentsPage() {
 
   const columns: EntityColumn<any>[] = useMemo(
     () => [
+      {
+        key: "select",
+        header: "",
+        render: (assignment) => (
+          <Checkbox
+            checked={selectedAssignments.includes(assignment.id)}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                setSelectedAssignments([...selectedAssignments, assignment.id]);
+              } else {
+                setSelectedAssignments(selectedAssignments.filter(id => id !== assignment.id));
+              }
+            }}
+          />
+        ),
+      },
       {
         key: "id",
         header: formatMessage("inventory.assignments.table.id"),
@@ -174,12 +246,19 @@ export default function InventoryAssignmentsPage() {
       breadcrumb={[{ label: formatMessage("inventory.assignments_breadcrumb") }]}
     >
       <div className="space-y-4">
-        <InventoryFilterBar
-          filters={filterConfigs}
-          onChange={handleFilterChange}
-          onReset={resetFilters}
-          isDirty={Boolean(filters.search || filters.status)}
-        />
+        <div className="flex items-center justify-between">
+          <InventoryFilterBar
+            filters={filterConfigs}
+            onChange={handleFilterChange}
+            onReset={resetFilters}
+            isDirty={Boolean(filters.search || filters.status)}
+          />
+          {selectedAssignments.length > 0 && (
+            <Button onClick={handleGenerateBatchTerm} variant="default">
+              Gerar termo em lote ({selectedAssignments.length})
+            </Button>
+          )}
+        </div>
         <EntityTable
           data={assignments}
           columns={columns}

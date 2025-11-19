@@ -94,15 +94,21 @@ export interface InventoryMovement {
   ticket_id?: number;
   ticket_code?: string | null;
   responsible_id?: number;
+  responsible_name?: string | null;
 }
 
 export interface InventoryAssignment {
   id: number;
   product_id: number;
   user_id?: number;
+  user_name?: string | null;
   status?: string;
   expected_return_date?: string;
   actual_return_date?: string;
+  product?: {
+    id: number;
+    name: string;
+  } | null;
 }
 
 export interface InventoryWebhook {
@@ -632,13 +638,34 @@ export const useReturnInventoryAssignment = () =>
   });
 
 export const useCreateInventoryTerm = () =>
-  useInventoryMutation<{ assignmentId: number; payload?: Record<string, any> }>({
+  useInventoryMutation<{ 
+    assignmentId?: number; 
+    assignmentGroupId?: string;
+    assignmentIds?: number[];
+    payload?: Record<string, any> 
+  }>({
     method: "POST",
-    path: (vars) => `/api/inventory/assignments/${vars.assignmentId}/terms`,
+    path: (vars) => {
+      if (vars.assignmentId) {
+        return `/api/inventory/assignments/${vars.assignmentId}/terms`;
+      }
+      // Para termos em lote, usar endpoint de termos diretamente
+      return `/api/inventory/terms/batch`;
+    },
     successMessage: "Termo gerado",
     errorMessage: "Erro ao gerar termo",
     invalidateKeys: [inventoryKeys.assignments.root],
-    getBody: (vars) => vars.payload,
+    getBody: (vars) => {
+      if (vars.assignmentId) {
+        return vars.payload;
+      }
+      // Para termos em lote
+      return {
+        assignment_group_id: vars.assignmentGroupId,
+        assignment_ids: vars.assignmentIds,
+        ...vars.payload,
+      };
+    },
   });
 
 export const useSendInventoryTerm = () =>

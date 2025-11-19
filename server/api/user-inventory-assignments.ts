@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from '../db';
 import { userInventoryAssignments, inventoryProducts, users } from '@shared/schema';
-import { and, eq, isNull, or, inArray, sql } from 'drizzle-orm';
+import { and, eq, isNull, or, inArray, sql, getTableColumns, desc } from 'drizzle-orm';
 import { getDepartmentFilter } from '../utils/department-filter';
 
 function resolveCompanyId(req: Request): number {
@@ -69,16 +69,46 @@ export async function listAssignments(req: Request, res: Response) {
       }
     }
 
-    const assignments = await db
+    const rows = await db
       .select({
-        assignment: userInventoryAssignments,
-        product: inventoryProducts,
-        user: users,
+        ...getTableColumns(userInventoryAssignments),
+        product_id: inventoryProducts.id,
+        product_name: inventoryProducts.name,
+        user_name: users.name,
       })
       .from(userInventoryAssignments)
       .leftJoin(inventoryProducts, eq(userInventoryAssignments.product_id, inventoryProducts.id))
       .leftJoin(users, eq(userInventoryAssignments.user_id, users.id))
-      .where(and(...conditions));
+      .where(and(...conditions))
+      .orderBy(desc(userInventoryAssignments.assigned_date));
+
+    // Formatar resposta para o frontend
+    const assignments = rows.map(row => {
+      // Calcular status baseado em actual_return_date e signature_status
+      let status = 'active';
+      if (row.actual_return_date) {
+        status = 'returned';
+      } else if (row.signature_status === 'signed') {
+        status = 'signed';
+      } else if (row.signature_status === 'sent') {
+        status = 'pending_signature';
+      } else if (row.signature_status === 'expired') {
+        status = 'expired';
+      } else {
+        status = 'pending';
+      }
+
+      return {
+        ...row,
+        product: row.product_id ? {
+          id: row.product_id,
+          name: row.product_name,
+        } : null,
+        user_name: row.user_name ?? null,
+        status,
+        assignment_group_id: row.assignment_group_id ?? null,
+      };
+    });
 
     res.json({ success: true, data: assignments });
   } catch (error) {

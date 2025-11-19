@@ -477,6 +477,7 @@
   },
   "inventory.movements.table.delete": "Excluir",
   "inventory.movements.table.confirm_delete": "Tem certeza que deseja excluir esta movimentação?",
+  "inventory.movements.table.responsible": "Responsável",
   "inventory": {
     "overview_title": "Visão geral do inventário",
     "overview_description": "Acompanhe KPIs, alertas e movimentações recentes.",
@@ -530,6 +531,7 @@
         "type": "Tipo",
         "quantity": "Qtd.",
         "ticket": "Chamado",
+        "responsible": "Responsável",
         "status": "Status",
         "date": "Data",
         "actions": "Ações",

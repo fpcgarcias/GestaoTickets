@@ -477,6 +477,7 @@
   },
   "inventory.movements.table.delete": "Delete",
   "inventory.movements.table.confirm_delete": "Are you sure you want to delete this movement?",
+  "inventory.movements.table.responsible": "Responsible",
   "inventory": {
     "overview_title": "Inventory overview",
     "overview_description": "Monitor KPIs, alerts and recent movements.",
@@ -912,6 +913,7 @@
         "type": "Type",
         "quantity": "Quantity",
         "ticket": "Ticket",
+        "responsible": "Responsible",
         "status": "Status",
         "date": "Date",
         "actions": "Actions",

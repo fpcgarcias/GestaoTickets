@@ -1,26 +1,41 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { InventoryLayout } from "@/components/inventory/inventory-layout";
 import { useI18n } from "@/i18n";
 import { InventoryFilterBar, InventoryFilterConfig, InventoryFilterValue } from "@/components/inventory/inventory-filter-bar";
 import { EntityTable, EntityColumn } from "@/components/inventory/entity-table";
-import { EntityDrawer } from "@/components/inventory/entity-drawer";
 import {
   useApproveInventoryMovement,
   useCreateInventoryMovement,
   useInventoryMovements,
   useRejectInventoryMovement,
   useDeleteInventoryMovement,
+  useInventoryLocations,
+  useInventoryProducts,
 } from "@/hooks/useInventoryApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { InventoryStatusBadge } from "@/components/inventory/inventory-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { Trash } from "lucide-react";
+import { Trash, Calendar as CalendarIcon, ChevronsUpDown, Check } from "lucide-react";
+import { UserSearch } from "@/components/inventory/user-search";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ptBR, enUS } from "date-fns/locale";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 const MOVEMENT_TYPES = ["entry", "withdrawal", "return", "transfer", "maintenance", "reservation", "write_off"];
 const APPROVAL_STATUSES = ["pending", "approved", "rejected"];
@@ -32,6 +47,11 @@ interface MovementFormState {
   quantity: string;
   ticketId: string;
   notes: string;
+  isStockTransfer: boolean;
+  responsibleId: string;
+  fromLocationId: string;
+  toLocationId: string;
+  expectedReturnDate: string;
 }
 
 const DEFAULT_FORM: MovementFormState = {
@@ -40,6 +60,11 @@ const DEFAULT_FORM: MovementFormState = {
   quantity: "1",
   ticketId: "",
   notes: "",
+  isStockTransfer: false,
+  responsibleId: "",
+  fromLocationId: "",
+  toLocationId: "",
+  expectedReturnDate: "",
 };
 
 export default function InventoryMovementsPage() {
@@ -55,6 +80,9 @@ export default function InventoryMovementsPage() {
   const pageSize = 20;
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [formState, setFormState] = useState<MovementFormState>(DEFAULT_FORM);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [searchProduct, setSearchProduct] = useState("");
+  const [popoverProductOpen, setPopoverProductOpen] = useState(false);
 
   const movementsQuery = useInventoryMovements({
     search: filters.search || undefined,
@@ -72,6 +100,63 @@ export default function InventoryMovementsPage() {
   const movements = movementsQuery.data?.data ?? [];
   const paginationInfo = movementsQuery.data?.pagination;
   const totalItems = paginationInfo?.total ?? movements.length;
+
+  // Buscar localizações
+  const { data: locationsData } = useInventoryLocations();
+  const locations = locationsData?.data ?? [];
+
+  // Função para determinar o filtro de status baseado no tipo de movimentação
+  const getStatusFilter = (): string | undefined => {
+    switch (formState.movementType) {
+      case 'withdrawal': // Entrega
+        return 'available'; // Só equipamentos disponíveis
+      case 'return': // Devolução - precisa buscar múltiplos status
+        // Vamos buscar sem filtro e filtrar no frontend
+        return undefined;
+      case 'transfer': // Transferência
+        return 'available'; // Só equipamentos disponíveis
+      case 'maintenance': // Manutenção
+        return 'in_use'; // Só equipamentos em uso
+      case 'reservation': // Empréstimo temporário
+        return 'available'; // Só equipamentos disponíveis
+      case 'entry': // Entrada
+        return undefined; // Sem filtro
+      case 'write_off': // Baixa
+        return undefined; // Sem filtro
+      default:
+        return undefined;
+    }
+  };
+
+  // Buscar produtos com filtro baseado no tipo de movimentação
+  const inventoryProductsQuery = useInventoryProducts({
+    page: 1,
+    limit: 100,
+    search: searchProduct || undefined,
+    status: getStatusFilter(),
+  });
+
+  // Para devolução, filtrar produtos que estão in_use, maintenance ou reserved
+  const allProducts = inventoryProductsQuery.data?.data ?? [];
+  const products = useMemo(() => {
+    if (formState.movementType === 'return') {
+      // Devolução: apenas equipamentos que estão com usuário, em manutenção ou emprestados
+      return allProducts.filter((p: any) => 
+        p.status === 'in_use' || p.status === 'maintenance' || p.status === 'reserved'
+      );
+    }
+    return allProducts;
+  }, [allProducts, formState.movementType]);
+
+  const selectedProduct = products.find((p: any) => String(p.id) === formState.productId);
+
+  // Limpar seleção de produto quando o tipo de movimentação mudar
+  useEffect(() => {
+    if (formState.movementType) {
+      setFormState(prev => ({ ...prev, productId: "" }));
+      setSearchProduct("");
+    }
+  }, [formState.movementType]);
 
   const filterConfigs: InventoryFilterConfig[] = [
     {
@@ -132,8 +217,16 @@ export default function InventoryMovementsPage() {
     setFormState(DEFAULT_FORM);
   };
 
-  const handleFormChange = (field: keyof MovementFormState, value: string) => {
+  const handleFormChange = (field: keyof MovementFormState, value: string | boolean) => {
     setFormState((prev) => ({ ...prev, [field]: value }));
+    // Se desmarcar movimentação entre estoques, limpar campos de localização
+    if (field === 'isStockTransfer' && value === false) {
+      setFormState((prev) => ({ ...prev, fromLocationId: "", toLocationId: "" }));
+    }
+    // Se marcar movimentação entre estoques, limpar usuário responsável
+    if (field === 'isStockTransfer' && value === true) {
+      setFormState((prev) => ({ ...prev, responsibleId: "" }));
+    }
   };
 
   const handleSubmit = () => {
@@ -145,13 +238,55 @@ export default function InventoryMovementsPage() {
       return;
     }
 
-    const payload = {
+    // Validação: se movimentação entre estoques, localizações são obrigatórias
+    if (formState.isStockTransfer) {
+      if (!formState.fromLocationId || !formState.toLocationId) {
+        toast({
+          title: "Localização de origem e destino são obrigatórias para movimentação entre estoques",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // Validação: data prevista é obrigatória para empréstimo temporário e manutenção
+    if ((formState.movementType === 'reservation' || formState.movementType === 'maintenance') && !formState.expectedReturnDate) {
+      toast({
+        title: "Data prevista de devolução é obrigatória para empréstimo temporário e manutenção",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const payload: any = {
       product_id: Number(formState.productId),
       movement_type: formState.movementType,
       quantity: Number(formState.quantity) || 1,
       ticket_id: formState.ticketId ? Number(formState.ticketId) : undefined,
       notes: formState.notes || undefined,
+      is_stock_transfer: formState.isStockTransfer,
     };
+
+    // Adicionar campos condicionais
+    if (formState.isStockTransfer) {
+      payload.from_location_id = Number(formState.fromLocationId);
+      payload.to_location_id = Number(formState.toLocationId);
+      payload.responsible_id = undefined;
+    } else {
+      if (formState.responsibleId) {
+        payload.responsible_id = Number(formState.responsibleId);
+      }
+      if (formState.toLocationId) {
+        payload.to_location_id = Number(formState.toLocationId);
+      }
+    }
+
+    // Adicionar data prevista de devolução para empréstimo temporário e manutenção
+    if ((formState.movementType === 'reservation' || formState.movementType === 'maintenance') && formState.expectedReturnDate) {
+      payload.assignment = {
+        expectedReturnDate: formState.expectedReturnDate,
+      };
+    }
 
     createMovement.mutate(payload, {
       onSuccess: () => {
@@ -194,14 +329,33 @@ export default function InventoryMovementsPage() {
       {
         key: "product",
         header: formatMessage("inventory.movements.table.product"),
-        render: (movement) => (
-          <div className="flex flex-col">
-            <span className="font-medium">#{movement.product_id}</span>
-            {movement.product?.name && (
-              <span className="text-xs text-muted-foreground">{movement.product.name}</span>
-            )}
-          </div>
-        ),
+        render: (movement) => {
+          if (movement.is_batch_movement && movement.batchProducts && movement.batchProducts.length > 0) {
+            return (
+              <div className="flex flex-col">
+                <span className="font-medium">{movement.batchProducts.length} produto(s)</span>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  {movement.batchProducts.slice(0, 2).map((p, idx) => (
+                    <div key={p.id}>
+                      #{p.id} - {p.name}
+                    </div>
+                  ))}
+                  {movement.batchProducts.length > 2 && (
+                    <div className="text-muted-foreground">+{movement.batchProducts.length - 2} mais</div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div className="flex flex-col">
+              <span className="font-medium">#{movement.product_id}</span>
+              {movement.product?.name && (
+                <span className="text-xs text-muted-foreground">{movement.product.name}</span>
+              )}
+            </div>
+          );
+        },
       },
       {
         key: "type",
@@ -215,12 +369,22 @@ export default function InventoryMovementsPage() {
       {
         key: "quantity",
         header: formatMessage("inventory.movements.table.quantity"),
-        render: (movement) => movement.quantity ?? 1,
+        render: (movement) => {
+          if (movement.is_batch_movement && movement.batchProducts) {
+            return movement.batchProducts.length;
+          }
+          return movement.quantity ?? 1;
+        },
       },
       {
         key: "ticket",
         header: formatMessage("inventory.movements.table.ticket"),
         render: (movement) => movement.ticket_code ?? "--",
+      },
+      {
+        key: "responsible",
+        header: formatMessage("inventory.movements.table.responsible"),
+        render: (movement) => movement.responsible_name ?? "--",
       },
       {
         key: "status",
@@ -298,81 +462,323 @@ export default function InventoryMovementsPage() {
         />
       </div>
 
-      <EntityDrawer
-        title={formatMessage("inventory.movements.drawer.title")}
-        description={formatMessage("inventory.movements.drawer.subtitle")}
-        open={isDrawerOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            closeDrawer();
-          } else {
-            setDrawerOpen(true);
-          }
-        }}
-        primaryAction={{
-          label: formatMessage("inventory.movements.drawer.save"),
-          onClick: handleSubmit,
-          loading: createMovement.isPending,
-        }}
-        secondaryAction={{
-          label: formatMessage("inventory.movements.drawer.cancel"),
-          onClick: closeDrawer,
-        }}
-      >
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.movements.form.product_id")}</Label>
-            <Input
-              value={formState.productId}
-              onChange={(event) => handleFormChange("productId", event.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.movements.form.movement_type")}</Label>
-            <Select
-              value={formState.movementType}
-              onValueChange={(value) => handleFormChange("movementType", value)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MOVEMENT_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {formatMessage(`inventory.movements.types.${type}` as any)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>{formatMessage("inventory.movements.form.quantity")}</Label>
-              <Input
-                type="number"
-                min={1}
-                value={formState.quantity}
-                onChange={(event) => handleFormChange("quantity", event.target.value)}
-              />
+      {/* Modal para registrar movimentação */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-background rounded-md shadow-lg max-w-xl w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium">
+                {formatMessage("inventory.movements.drawer.title")}
+              </h4>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={closeDrawer}
+              >
+                ✕
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label>{formatMessage("inventory.movements.form.ticket_id")}</Label>
-              <Input
-                value={formState.ticketId}
-                onChange={(event) => handleFormChange("ticketId", event.target.value)}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>{formatMessage("inventory.movements.form.notes")}</Label>
-            <Textarea
-              rows={3}
-              value={formState.notes}
-              onChange={(event) => handleFormChange("notes", event.target.value)}
-            />
+            <p className="text-xs text-muted-foreground">
+              {formatMessage("inventory.movements.drawer.subtitle")}
+            </p>
+            <form className="space-y-4">
+              {/* Tipo de movimentação PRIMEIRO */}
+              <div className="space-y-2">
+                <Label>{formatMessage("inventory.movements.form.movement_type")}</Label>
+                <Select
+                  value={formState.movementType}
+                  onValueChange={(value) => handleFormChange("movementType", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MOVEMENT_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {formatMessage(`inventory.movements.types.${type}` as any)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Equipamento - busca igual à tela de tickets */}
+              {formState.movementType && (
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.movements.form.product_id")}</Label>
+                  <Popover open={popoverProductOpen} onOpenChange={setPopoverProductOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={popoverProductOpen}
+                        className="w-full justify-between items-center h-auto min-h-11 whitespace-normal text-left"
+                      >
+                        {selectedProduct ? (
+                          <div className="flex flex-col items-start">
+                            <span className="font-medium">{selectedProduct.name}</span>
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              {selectedProduct.serial_number && <span>S/N: {selectedProduct.serial_number}</span>}
+                              {selectedProduct.service_tag && <span>Service Tag: {selectedProduct.service_tag}</span>}
+                              {selectedProduct.asset_number && <span>Patrimônio: {selectedProduct.asset_number}</span>}
+                            </div>
+                          </div>
+                        ) : (
+                          "Selecione o equipamento"
+                        )}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full min-w-[400px] max-w-md p-0" align="start">
+                      <Command className="max-h-[300px]">
+                        <CommandInput
+                          placeholder="Buscar por nome, serial, service tag ou patrimônio..."
+                          value={searchProduct}
+                          onValueChange={setSearchProduct}
+                        />
+                        <CommandList className="max-h-[200px] overflow-y-auto">
+                          <CommandEmpty>
+                            <div className="py-6 text-center text-sm">
+                              Nenhum equipamento encontrado
+                            </div>
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {products.map((p: any) => (
+                              <CommandItem
+                                key={p.id}
+                                value={`${p.name} ${p.serial_number || ''} ${p.service_tag || ''} ${p.asset_number || ''}`}
+                                onSelect={() => {
+                                  handleFormChange("productId", String(p.id));
+                                  setPopoverProductOpen(false);
+                                  setSearchProduct("");
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    formState.productId === String(p.id) ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{p.name}</span>
+                                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                    {p.serial_number && <span>S/N: {p.serial_number}</span>}
+                                    {p.service_tag && <span>Service Tag: {p.service_tag}</span>}
+                                    {p.asset_number && <span>Patrimônio: {p.asset_number}</span>}
+                                  </div>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="isStockTransfer"
+                  checked={formState.isStockTransfer}
+                  onCheckedChange={(checked) => handleFormChange("isStockTransfer", checked === true)}
+                />
+                <Label htmlFor="isStockTransfer" className="font-normal cursor-pointer">
+                  Movimentação entre estoques
+                </Label>
+              </div>
+
+              {/* Data prevista logo abaixo do checkbox */}
+              {(formState.movementType === 'maintenance' || formState.movementType === 'reservation') && (
+                <div className="space-y-2">
+                  <Label>Data prevista de devolução *</Label>
+                  <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formState.expectedReturnDate ? (
+                          format(new Date(formState.expectedReturnDate), locale === "en-US" ? "MM/dd/yyyy" : "dd/MM/yyyy", {
+                            locale: locale === "en-US" ? enUS : ptBR,
+                          })
+                        ) : (
+                          <span className="text-muted-foreground">Selecione a data</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formState.expectedReturnDate ? new Date(formState.expectedReturnDate) : undefined}
+                        onSelect={(date: Date | undefined) => {
+                          if (date) {
+                            handleFormChange("expectedReturnDate", format(date, "yyyy-MM-dd"));
+                            setCalendarOpen(false);
+                          }
+                        }}
+                        locale={locale === "en-US" ? enUS : ptBR}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+              {formState.isStockTransfer ? (
+                <>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Localização de origem *</Label>
+                      <Select
+                        value={formState.fromLocationId}
+                        onValueChange={(value) => handleFormChange("fromLocationId", value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a localização de origem" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {locations.map((location: any) => (
+                            <SelectItem key={location.id} value={String(location.id)}>
+                              {location.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Localização de destino *</Label>
+                      <Select
+                        value={formState.toLocationId}
+                        onValueChange={(value) => handleFormChange("toLocationId", value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a localização de destino" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {locations.map((location: any) => (
+                            <SelectItem key={location.id} value={String(location.id)}>
+                              {location.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label>Usuário responsável (opcional)</Label>
+                    <UserSearch
+                      value={formState.responsibleId}
+                      onValueChange={(value) => handleFormChange("responsibleId", value)}
+                      placeholder="Selecione o usuário responsável"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Localização de destino (opcional)</Label>
+                    <Select
+                      value={formState.toLocationId || undefined}
+                      onValueChange={(value) => handleFormChange("toLocationId", value === "__none__" ? "" : value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a localização de destino" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Nenhuma</SelectItem>
+                        {locations.map((location: any) => (
+                          <SelectItem key={location.id} value={String(location.id)}>
+                            {location.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.movements.form.quantity")}</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={formState.quantity}
+                    onChange={(event) => handleFormChange("quantity", event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{formatMessage("inventory.movements.form.ticket_id")}</Label>
+                  <Input
+                    value={formState.ticketId}
+                    onChange={(event) => handleFormChange("ticketId", event.target.value)}
+                  />
+                </div>
+              </div>
+              {(formState.movementType === 'maintenance' || formState.movementType === 'reservation') && (
+                <div className="space-y-2">
+                  <Label>Data prevista de devolução *</Label>
+                  <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formState.expectedReturnDate ? (
+                          format(new Date(formState.expectedReturnDate), locale === "en-US" ? "MM/dd/yyyy" : "dd/MM/yyyy", {
+                            locale: locale === "en-US" ? enUS : ptBR,
+                          })
+                        ) : (
+                          <span className="text-muted-foreground">Selecione a data</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formState.expectedReturnDate ? new Date(formState.expectedReturnDate) : undefined}
+                        onSelect={(date: Date | undefined) => {
+                          if (date) {
+                            handleFormChange("expectedReturnDate", format(date, "yyyy-MM-dd"));
+                            setCalendarOpen(false);
+                          }
+                        }}
+                        locale={locale === "en-US" ? enUS : ptBR}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>{formatMessage("inventory.movements.form.notes")}</Label>
+                <Textarea
+                  rows={3}
+                  value={formState.notes}
+                  onChange={(event) => handleFormChange("notes", event.target.value)}
+                />
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={closeDrawer}
+                >
+                  {formatMessage("inventory.movements.drawer.cancel")}
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={createMovement.isPending}
+                >
+                  {createMovement.isPending ? "Registrando..." : formatMessage("inventory.movements.drawer.save")}
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
-      </EntityDrawer>
+      )}
     </InventoryLayout>
   );
 }

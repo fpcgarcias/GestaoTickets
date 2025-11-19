@@ -3,14 +3,17 @@ import {
   inventoryTermTemplates,
   inventoryResponsibilityTerms,
   userInventoryAssignments,
+  responsibilityTermAssignments,
   users,
+  customers,
   inventoryProducts,
   companies,
   type InventoryTermTemplate,
   type InsertInventoryTermTemplate,
   type InventoryResponsibilityTerm,
+  type InsertResponsibilityTermAssignment,
 } from '@shared/schema';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import nodemailer from 'nodemailer';
 import puppeteer from 'puppeteer';
 import s3Service from './s3-service';
@@ -22,7 +25,9 @@ export interface TemplateInput extends Omit<InsertInventoryTermTemplate, 'compan
 }
 
 export interface GenerateTermParams {
-  assignmentId: number;
+  assignmentId?: number;
+  assignmentIds?: number[];
+  assignmentGroupId?: string;
   companyId: number;
   templateId?: number;
   createdById?: number | null;
@@ -40,8 +45,20 @@ export interface SendTermParams {
 interface AssignmentContext {
   assignment: typeof userInventoryAssignments.$inferSelect;
   user?: typeof users.$inferSelect | null;
+  customer?: typeof customers.$inferSelect | null;
   product?: typeof inventoryProducts.$inferSelect | null;
   company?: typeof companies.$inferSelect | null;
+  deliveryResponsible?: typeof users.$inferSelect | null;
+}
+
+interface BatchAssignmentContext {
+  assignments: Array<{
+    assignment: typeof userInventoryAssignments.$inferSelect;
+    user?: typeof users.$inferSelect | null;
+    product?: typeof inventoryProducts.$inferSelect | null;
+  }>;
+  company?: typeof companies.$inferSelect | null;
+  deliveryResponsible?: typeof users.$inferSelect | null;
 }
 
 class ResponsibilityTermService {
@@ -125,6 +142,16 @@ class ResponsibilityTermService {
   }
 
   async generateTerm(params: GenerateTermParams): Promise<InventoryResponsibilityTerm> {
+    // Se tem assignmentGroupId ou assignmentIds, é termo em lote
+    if (params.assignmentGroupId || (params.assignmentIds && params.assignmentIds.length > 0)) {
+      return this.generateBatchTerm(params);
+    }
+
+    // Termo único (compatibilidade com código existente)
+    if (!params.assignmentId) {
+      throw new Error('assignmentId é obrigatório para termo único.');
+    }
+
     const assignmentContext = await this.getAssignmentContext(params.assignmentId, params.companyId);
     if (!assignmentContext) {
       throw new Error('Alocação não encontrada.');
@@ -160,7 +187,84 @@ class ResponsibilityTermService {
       company_id: params.companyId,
       created_at: new Date(),
       updated_at: new Date(),
+      is_batch_term: false,
     }).returning();
+
+    return term;
+  }
+
+  async generateBatchTerm(params: GenerateTermParams): Promise<InventoryResponsibilityTerm> {
+    let assignmentIds: number[] = [];
+
+    if (params.assignmentGroupId) {
+      // Buscar assignments pelo group_id
+      const assignments = await db
+        .select({ id: userInventoryAssignments.id })
+        .from(userInventoryAssignments)
+        .where(and(
+          eq(userInventoryAssignments.assignment_group_id, params.assignmentGroupId),
+          eq(userInventoryAssignments.company_id, params.companyId),
+          isNull(userInventoryAssignments.actual_return_date) // Apenas assignments ativos
+        ));
+
+      assignmentIds = assignments.map(a => a.id);
+    } else if (params.assignmentIds && params.assignmentIds.length > 0) {
+      assignmentIds = params.assignmentIds;
+    } else {
+      throw new Error('É necessário informar assignmentGroupId ou assignmentIds para termo em lote.');
+    }
+
+    if (assignmentIds.length === 0) {
+      throw new Error('Nenhum assignment encontrado para gerar o termo.');
+    }
+
+    const batchContext = await this.getBatchAssignmentContext(assignmentIds, params.companyId);
+    if (!batchContext || batchContext.assignments.length === 0) {
+      throw new Error('Alocações não encontradas.');
+    }
+
+    const template = await this.resolveTemplate(params.templateId, params.companyId);
+    if (!template) {
+      throw new Error('Template não encontrado para esta empresa.');
+    }
+
+    const context = await this.buildBatchTemplateContext(batchContext);
+    const html = this.renderTemplate(template.content, context);
+    const pdfBuffer = await this.generatePdf(html);
+    const termId = `batch-${Date.now()}`;
+    const uploadResult = await s3Service.uploadInventoryFile({
+      buffer: pdfBuffer,
+      originalName: `termo-responsabilidade-lote-${termId}.pdf`,
+      companyId: params.companyId,
+      folder: `terms/batch/${termId}`,
+      mimeType: 'application/pdf',
+      metadata: {
+        assignmentIds: assignmentIds,
+        templateId: template.id,
+        isBatch: true,
+      },
+    });
+
+    const [term] = await db.insert(inventoryResponsibilityTerms).values({
+      assignment_id: null, // NULL para termos em lote
+      template_id: template.id,
+      template_version: template.version,
+      pdf_s3_key: uploadResult.s3Key,
+      generated_pdf_url: uploadResult.s3Key,
+      status: 'pending',
+      company_id: params.companyId,
+      created_at: new Date(),
+      updated_at: new Date(),
+      is_batch_term: true,
+    }).returning();
+
+    // Criar relacionamentos entre termo e assignments
+    const termAssignments: InsertResponsibilityTermAssignment[] = assignmentIds.map(assignmentId => ({
+      term_id: term.id,
+      assignment_id: assignmentId,
+    }));
+
+    await db.insert(responsibilityTermAssignments).values(termAssignments);
 
     return term;
   }
@@ -171,9 +275,26 @@ class ResponsibilityTermService {
       throw new Error('Termo não encontrado.');
     }
 
-    const assignment = await this.getAssignmentContext(term.assignment_id, params.companyId);
-    if (!assignment) {
-      throw new Error('Alocação não encontrada para o termo.');
+    let userName = params.recipientName;
+
+    // Se for termo em lote, buscar primeiro assignment para pegar o nome do usuário
+    if (term.is_batch_term) {
+      const termAssignments = await db
+        .select({ assignment_id: responsibilityTermAssignments.assignment_id })
+        .from(responsibilityTermAssignments)
+        .where(eq(responsibilityTermAssignments.term_id, params.termId))
+        .limit(1);
+
+      if (termAssignments.length > 0) {
+        const assignment = await this.getAssignmentContext(termAssignments[0].assignment_id, params.companyId);
+        userName = userName ?? assignment?.user?.name ?? 'Responsável';
+      }
+    } else if (term.assignment_id) {
+      const assignment = await this.getAssignmentContext(term.assignment_id, params.companyId);
+      if (!assignment) {
+        throw new Error('Alocação não encontrada para o termo.');
+      }
+      userName = userName ?? assignment.user?.name ?? 'Responsável';
     }
 
     if (!term.pdf_s3_key) {
@@ -183,7 +304,7 @@ class ResponsibilityTermService {
     const downloadUrl = await s3Service.getDownloadUrl(term.pdf_s3_key);
     await this.sendEmailWithLink({
       to: params.recipientEmail,
-      name: params.recipientName ?? assignment.user?.name ?? 'Responsável',
+      name: userName ?? 'Responsável',
       downloadUrl,
       message: params.message,
       companyId: params.companyId,
@@ -265,14 +386,115 @@ class ResponsibilityTermService {
       ))
       .limit(1);
 
-    return result ?? null;
+    if (!result) return null;
+
+    // Buscar customer relacionado ao user (para telefone)
+    const [customer] = await db
+      .select()
+      .from(customers)
+      .where(eq(customers.user_id, result.user?.id ?? 0))
+      .limit(1);
+
+    // Buscar responsável da entrega (assigned_by_id)
+    let deliveryResponsible = null;
+    if (result.assignment.assigned_by_id) {
+      const [responsible] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, result.assignment.assigned_by_id))
+        .limit(1);
+      deliveryResponsible = responsible ?? null;
+    }
+
+    return {
+      ...result,
+      customer: customer ?? null,
+      deliveryResponsible,
+    };
+  }
+
+  private async getBatchAssignmentContext(assignmentIds: number[], companyId: number): Promise<BatchAssignmentContext | null> {
+    const results = await db
+      .select({
+        assignment: userInventoryAssignments,
+        user: users,
+        product: inventoryProducts,
+        company: companies,
+      })
+      .from(userInventoryAssignments)
+      .leftJoin(users, eq(userInventoryAssignments.user_id, users.id))
+      .leftJoin(inventoryProducts, eq(userInventoryAssignments.product_id, inventoryProducts.id))
+      .leftJoin(companies, eq(userInventoryAssignments.company_id, companies.id))
+      .where(and(
+        inArray(userInventoryAssignments.id, assignmentIds),
+        eq(userInventoryAssignments.company_id, companyId)
+      ));
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    const company = results[0]?.company;
+    const assignments = results.map(r => ({
+      assignment: r.assignment,
+      user: r.user,
+      product: r.product,
+    }));
+
+    // Buscar responsável da entrega (usar o assigned_by_id do primeiro assignment)
+    let deliveryResponsible = null;
+    if (results[0]?.assignment.assigned_by_id) {
+      const [responsible] = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, results[0].assignment.assigned_by_id))
+        .limit(1);
+      deliveryResponsible = responsible ?? null;
+    }
+
+    return {
+      assignments,
+      company: company ?? undefined,
+      deliveryResponsible: deliveryResponsible ?? undefined,
+    };
   }
 
   private buildTemplateContext(context: AssignmentContext) {
     const assignment = context.assignment;
     const user = context.user;
+    const customer = context.customer;
     const product = context.product;
     const company = context.company;
+    const deliveryResponsible = context.deliveryResponsible;
+
+    // Buscar telefone: primeiro de customer, depois de user (se tiver campo phone)
+    const userPhone = customer?.phone ?? user?.phone ?? '';
+
+    // Formatar CPF se existir
+    const formatCpf = (cpf: string | null | undefined): string => {
+      if (!cpf) return '--';
+      // Remove formatação e adiciona de volta
+      const cleanCpf = cpf.replace(/\D/g, '');
+      if (cleanCpf.length === 11) {
+        return `${cleanCpf.slice(0, 3)}.${cleanCpf.slice(3, 6)}.${cleanCpf.slice(6, 9)}-${cleanCpf.slice(9)}`;
+      }
+      return cpf;
+    };
+
+    // Formatar CNPJ se existir
+    const formatCnpj = (cnpj: string | null | undefined): string => {
+      if (!cnpj) return '';
+      const cleanCnpj = cnpj.replace(/\D/g, '');
+      if (cleanCnpj.length === 14) {
+        return `${cleanCnpj.slice(0, 2)}.${cleanCnpj.slice(2, 5)}.${cleanCnpj.slice(5, 8)}/${cleanCnpj.slice(8, 12)}-${cleanCnpj.slice(12)}`;
+      }
+      return cnpj;
+    };
+
+    const today = new Date();
+    const day = today.getDate().toString().padStart(2, '0');
+    const month = today.toLocaleDateString('pt-BR', { month: 'long' });
+    const year = today.getFullYear();
 
     return {
       assignmentId: assignment.id,
@@ -282,15 +504,148 @@ class ResponsibilityTermService {
         : 'Não informado',
       userName: user?.name ?? 'Responsável',
       userEmail: user?.email ?? '',
+      userCpf: formatCpf(user?.cpf),
+      userPhone: userPhone || '--',
       productName: product?.name ?? '',
       productBrand: product?.brand ?? '',
       productModel: product?.model ?? '',
       productSerial: product?.serial_number ?? '',
       productAsset: product?.asset_number ?? '',
       companyName: company?.name ?? 'Empresa',
-      companyDocument: company?.cnpj ?? '',
-      today: new Date().toLocaleDateString('pt-BR'),
+      companyDocument: formatCnpj(company?.cnpj),
+      companyCity: company?.city ?? 'Rio de Janeiro',
+      today: today.toLocaleDateString('pt-BR'),
+      todayDay: day,
+      todayMonth: month,
+      todayYear: year.toString(),
+      deliveryResponsibleName: deliveryResponsible?.name ?? 'Responsável da Entrega',
+      productsCount: '1',
+      productsList: this.formatProductList([{ product, assignment }]),
+      productsTable: this.formatProductTable([{ product, assignment }]),
     };
+  }
+
+  private async buildBatchTemplateContext(context: BatchAssignmentContext) {
+    const firstAssignment = context.assignments[0];
+    const user = firstAssignment?.user;
+    const company = context.company;
+    const deliveryResponsible = context.deliveryResponsible;
+
+    // Buscar customer para telefone
+    let userPhone = '';
+    if (user?.id) {
+      const [customer] = await db
+        .select()
+        .from(customers)
+        .where(eq(customers.user_id, user.id))
+        .limit(1);
+      userPhone = customer?.phone ?? '';
+    }
+
+    // Formatar CPF se existir
+    const formatCpf = (cpf: string | null | undefined): string => {
+      if (!cpf) return '--';
+      const cleanCpf = cpf.replace(/\D/g, '');
+      if (cleanCpf.length === 11) {
+        return `${cleanCpf.slice(0, 3)}.${cleanCpf.slice(3, 6)}.${cleanCpf.slice(6, 9)}-${cleanCpf.slice(9)}`;
+      }
+      return cpf;
+    };
+
+    // Formatar CNPJ se existir
+    const formatCnpj = (cnpj: string | null | undefined): string => {
+      if (!cnpj) return '';
+      const cleanCnpj = cnpj.replace(/\D/g, '');
+      if (cleanCnpj.length === 14) {
+        return `${cleanCnpj.slice(0, 2)}.${cleanCnpj.slice(2, 5)}.${cleanCnpj.slice(5, 8)}/${cleanCnpj.slice(8, 12)}-${cleanCnpj.slice(12)}`;
+      }
+      return cnpj;
+    };
+
+    const today = new Date();
+    const day = today.getDate().toString().padStart(2, '0');
+    const month = today.toLocaleDateString('pt-BR', { month: 'long' });
+    const year = today.getFullYear();
+
+    return {
+      assignmentId: firstAssignment?.assignment.id ?? 0,
+      assignedDate: firstAssignment?.assignment.assigned_date?.toLocaleDateString('pt-BR') ?? '',
+      expectedReturnDate: firstAssignment?.assignment.expected_return_date
+        ? new Date(firstAssignment.assignment.expected_return_date).toLocaleDateString('pt-BR')
+        : 'Não informado',
+      userName: user?.name ?? 'Responsável',
+      userEmail: user?.email ?? '',
+      userCpf: formatCpf(user?.cpf),
+      userPhone: userPhone || '--',
+      productName: 'Múltiplos Equipamentos',
+      productBrand: '',
+      productModel: '',
+      productSerial: '',
+      productAsset: '',
+      companyName: company?.name ?? 'Empresa',
+      companyDocument: formatCnpj(company?.cnpj),
+      companyCity: company?.city ?? 'Rio de Janeiro',
+      today: today.toLocaleDateString('pt-BR'),
+      todayDay: day,
+      todayMonth: month,
+      todayYear: year.toString(),
+      deliveryResponsibleName: deliveryResponsible?.name ?? 'Responsável da Entrega',
+      productsCount: context.assignments.length.toString(),
+      productsList: this.formatProductList(context.assignments),
+      productsTable: this.formatProductTable(context.assignments),
+    };
+  }
+
+  private formatProductList(assignments: Array<{ product?: typeof inventoryProducts.$inferSelect | null; assignment: typeof userInventoryAssignments.$inferSelect }>): string {
+    if (assignments.length === 0) return '';
+    
+    const items = assignments.map((item, index) => {
+      const product = item.product;
+      const name = product?.name ?? 'Produto não identificado';
+      const brand = product?.brand ? ` - ${product.brand}` : '';
+      const model = product?.model ? ` ${product.model}` : '';
+      return `<li>${index + 1}. ${name}${brand}${model}</li>`;
+    }).join('\n');
+    
+    return `<ul>${items}</ul>`;
+  }
+
+  private formatProductTable(assignments: Array<{ product?: typeof inventoryProducts.$inferSelect | null; assignment: typeof userInventoryAssignments.$inferSelect }>): string {
+    if (assignments.length === 0) return '';
+    
+    const rows = assignments.map((item) => {
+      const product = item.product;
+      // Formato do modelo: apenas nome do equipamento (pode incluir marca/modelo se necessário)
+      let equipmentName = product?.name ?? 'Produto não identificado';
+      if (product?.brand || product?.model) {
+        const parts = [equipmentName];
+        if (product.brand) parts.push(product.brand);
+        if (product.model) parts.push(product.model);
+        equipmentName = parts.join(' - ');
+      }
+      const serial = product?.serial_number ?? '-';
+      
+      return `
+        <tr>
+          <td style="border: 1px solid #000; padding: 8px; text-align: left;">${equipmentName}</td>
+          <td style="border: 1px solid #000; padding: 8px; text-align: left;">${serial}</td>
+        </tr>
+      `;
+    }).join('\n');
+    
+    return `
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #000;">
+        <thead>
+          <tr>
+            <th style="border: 1px solid #000; padding: 8px; text-align: left; background-color: #f5f5f5; font-weight: bold;">EQUIPAMENTO</th>
+            <th style="border: 1px solid #000; padding: 8px; text-align: left; background-color: #f5f5f5; font-weight: bold;">SERIAL NUMBER</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    `;
   }
 
   private renderTemplate(template: string, data: Record<string, string>) {
@@ -378,4 +733,5 @@ class ResponsibilityTermService {
 
 export const responsibilityTermService = new ResponsibilityTermService();
 export default responsibilityTermService;
+
 
