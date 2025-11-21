@@ -39,7 +39,8 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
     username: '',
     password: '',
     role: '',
-    company_id: user?.company?.id || 0
+    company_id: user?.company?.id || 0,
+    cpf: ''
   });
   
   // Buscar lista de empresas (apenas para admin)
@@ -54,11 +55,21 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
     password: ''
   });
 
+  // Função para formatar CPF
+  const formatCPF = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    if (!digits) return '';
+    return digits
+      .replace(/^(\d{3})(\d)/, '$1.$2')
+      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d)/, '.$1-$2');
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: name === 'cpf' ? formatCPF(value) : value
     }));
   };
 
@@ -182,7 +193,8 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
       username: '',
       password: '',
       role: '',
-      company_id: user?.company?.id || 0
+      company_id: user?.company?.id || 0,
+      cpf: ''
     });
     setUserCreated(false);
     setCredentials({ username: '', password: '' });
@@ -261,6 +273,17 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
                   value={formData.username}
                   onChange={handleChange}
                   required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cpf">{formatMessage('users.add_user_dialog.cpf')}</Label>
+                <Input
+                  id="cpf"
+                  name="cpf"
+                  placeholder={formatMessage('users.add_user_dialog.cpf_placeholder')}
+                  value={formData.cpf}
+                  onChange={handleChange}
+                  maxLength={14}
                 />
               </div>
               <div className="space-y-2">

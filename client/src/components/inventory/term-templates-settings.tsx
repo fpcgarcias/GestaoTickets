@@ -115,6 +115,7 @@ export default function TermTemplatesSettings() {
   const [selectedTemplate, setSelectedTemplate] = useState<TermTemplate | null>(null);
   const [isEditingTemplate, setIsEditingTemplate] = useState(false);
   const [isViewingTemplate, setIsViewingTemplate] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'code' | 'visual'>('visual');
   const [templateForm, setTemplateForm] = useState({
     name: '',
     description: '',
@@ -312,6 +313,64 @@ export default function TermTemplatesSettings() {
 
   const hasDefaultTemplate = templates?.some(t => t.is_default);
 
+  // Função para gerar dados de exemplo para preview
+  const generateSampleData = () => {
+    return {
+      companyName: 'Empresa Exemplo LTDA',
+      companyDocument: '12.345.678/0001-90',
+      companyCity: 'Rio de Janeiro',
+      userName: 'João Silva',
+      userEmail: 'joao.silva@empresa.com',
+      userCpf: '123.456.789-00',
+      userPhone: '(21) 99999-9999',
+      assignmentId: '123',
+      assignedDate: '18/11/2025',
+      expectedReturnDate: '18/11/2026',
+      today: '18/11/2025',
+      todayDay: '18',
+      todayMonth: 'novembro',
+      todayYear: '2025',
+      productName: 'Notebook Dell Latitude',
+      productBrand: 'Dell',
+      productModel: 'Latitude 15 3550',
+      productSerial: 'SN123456789',
+      productAsset: 'PAT-001',
+      productsCount: '1',
+      productsList: '<ul><li>Notebook Dell Latitude - SN123456789</li></ul>',
+      productsTable: `
+        <table class="equipment-table">
+          <thead>
+            <tr>
+              <th>EQUIPAMENTO</th>
+              <th>SERIAL NUMBER</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Notebook Dell Latitude</td>
+              <td>SN123456789</td>
+            </tr>
+          </tbody>
+        </table>
+      `,
+      deliveryResponsibleName: 'Maria Santos',
+    };
+  };
+
+  // Função para substituir variáveis no template
+  const renderTemplateWithSampleData = (template: string) => {
+    const sampleData = generateSampleData();
+    let rendered = template;
+    
+    // Substituir todas as variáveis
+    Object.entries(sampleData).forEach(([key, value]) => {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      rendered = rendered.replace(regex, String(value));
+    });
+    
+    return rendered;
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -447,20 +506,64 @@ export default function TermTemplatesSettings() {
       {/* Dialog para visualizar template */}
       {isViewingTemplate && selectedTemplate && (
         <Dialog open={isViewingTemplate} onOpenChange={setIsViewingTemplate}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{selectedTemplate.name}</DialogTitle>
-              <DialogDescription>
-                {selectedTemplate.description || 'Visualização do template'}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Conteúdo do Template</Label>
-                <div className="mt-2 p-4 bg-muted rounded border font-mono text-xs overflow-x-auto">
-                  <pre className="whitespace-pre-wrap">{selectedTemplate.content}</pre>
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogTitle>{selectedTemplate.name}</DialogTitle>
+                  <DialogDescription>
+                    {selectedTemplate.description || 'Visualização do template'}
+                  </DialogDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={previewMode === 'visual' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setPreviewMode('visual')}
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    Visualização
+                  </Button>
+                  <Button
+                    variant={previewMode === 'code' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setPreviewMode('code')}
+                  >
+                    <Code className="h-4 w-4 mr-1" />
+                    Código
+                  </Button>
                 </div>
               </div>
+            </DialogHeader>
+            <div className="space-y-4">
+              {previewMode === 'visual' ? (
+                <div>
+                  <Label className="font-medium mb-2 block">Pré-visualização do Template</Label>
+                  <div className="mt-2 border border-border rounded-lg bg-card overflow-hidden">
+                    <div className="p-2 bg-muted border-b text-xs text-muted-foreground">
+                      💡 Esta é uma pré-visualização com dados de exemplo. As variáveis serão substituídas pelos dados reais quando o termo for gerado.
+                    </div>
+                    <div 
+                      className="p-4 bg-white"
+                      style={{ 
+                        minHeight: '600px',
+                        maxHeight: '70vh',
+                        overflow: 'auto'
+                      }}
+                      dangerouslySetInnerHTML={{ 
+                        __html: renderTemplateWithSampleData(selectedTemplate.content) 
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <Label className="font-medium mb-2 block">Código HTML do Template</Label>
+                  <div className="mt-2 p-4 bg-muted rounded border font-mono text-xs overflow-x-auto">
+                    <pre className="whitespace-pre-wrap">{selectedTemplate.content}</pre>
+                  </div>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsViewingTemplate(false)}>
@@ -525,14 +628,35 @@ export default function TermTemplatesSettings() {
                   </Button>
                 </div>
               </div>
-              <Textarea
-                id="content"
-                value={templateForm.content}
-                onChange={(e) => setTemplateForm({ ...templateForm, content: e.target.value })}
-                placeholder="Cole ou digite o HTML do template aqui..."
-                className="font-mono text-xs"
-                rows={20}
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Textarea
+                    id="content"
+                    value={templateForm.content}
+                    onChange={(e) => setTemplateForm({ ...templateForm, content: e.target.value })}
+                    placeholder="Cole ou digite o HTML do template aqui..."
+                    className="font-mono text-xs"
+                    rows={20}
+                  />
+                </div>
+                <div>
+                  <Label className="mb-2 block">Pré-visualização</Label>
+                  <div className="border border-border rounded-lg bg-card overflow-hidden" style={{ height: '500px' }}>
+                    <div className="p-2 bg-muted border-b text-xs text-muted-foreground">
+                      💡 Pré-visualização com dados de exemplo
+                    </div>
+                    <div 
+                      className="p-4 bg-white overflow-auto"
+                      style={{ 
+                        height: 'calc(100% - 40px)'
+                      }}
+                      dangerouslySetInnerHTML={{ 
+                        __html: templateForm.content ? renderTemplateWithSampleData(templateForm.content) : '<p class="text-muted-foreground text-sm">Digite o HTML do template para ver a pré-visualização</p>'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -614,4 +738,5 @@ export default function TermTemplatesSettings() {
     </div>
   );
 }
+
 

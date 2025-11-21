@@ -70,6 +70,7 @@ export default function UsersIndex() {
   const [editEmail, setEditEmail] = useState('');
   const [editUsername, setEditUsername] = useState('');
   const [editRole, setEditRole] = useState('');
+  const [editCpf, setEditCpf] = useState('');
 
   // Usar hook dinâmico para horário comercial
   const refetchInterval = useBusinessHoursRefetchInterval(30000);
@@ -90,6 +91,16 @@ export default function UsersIndex() {
     setResetPasswordDialogOpen(true);
   };
   
+  // Função para formatar CPF
+  const formatCPF = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    if (!digits) return '';
+    return digits
+      .replace(/^(\d{3})(\d)/, '$1.$2')
+      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d)/, '.$1-$2');
+  };
+
   // Abrir gerenciador de edição
   const handleEditUser = (user: any) => {
     setSelectedUser(user);
@@ -97,6 +108,7 @@ export default function UsersIndex() {
     setEditEmail(user.email);
     setEditUsername(user.username);
     setEditRole(user.role);
+    setEditCpf(user.cpf || '');
     setEditDialogOpen(true);
   };
 
@@ -262,7 +274,8 @@ export default function UsersIndex() {
         name: editName,
         email: editEmail,
         username: editUsername,
-        role: editRole
+        role: editRole,
+        cpf: editCpf || undefined
       }
     });
   };
@@ -774,6 +787,17 @@ export default function UsersIndex() {
                     value={editUsername}
                     onChange={(e) => setEditUsername(e.target.value)}
                     placeholder={formatMessage('users.edit_dialog.username_placeholder')}
+                  />
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="editCpf">{formatMessage('users.edit_dialog.cpf')}</Label>
+                  <Input 
+                    id="editCpf" 
+                    value={editCpf}
+                    onChange={(e) => setEditCpf(formatCPF(e.target.value))}
+                    placeholder={formatMessage('users.edit_dialog.cpf_placeholder')}
+                    maxLength={14}
                   />
                 </div>
                 

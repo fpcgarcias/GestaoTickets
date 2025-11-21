@@ -119,3 +119,4 @@ As variáveis devem ser usadas no formato `{{nomeDaVariavel}}` no template HTML.
 
 4. **Compatibilidade**: Todas as variáveis funcionam tanto para termos únicos quanto para termos em lote. Para termos únicos, `{{productsTable}}` mostrará apenas um produto.
 
+

@@ -6454,7 +6454,10 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+        // Se o CPF for fornecido, atualizá-lo
+        if (user.cpf !== undefined) {
+          userUpdateData.cpf = user.cpf || null;
+        }
 
         // Incluir company_id no usuário também
 
@@ -7734,7 +7737,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
     try {
 
-      const { username, email, password, name, role, avatarUrl, company_id } = req.body;
+      const { username, email, password, name, role, avatarUrl, company_id, cpf } = req.body;
 
       const userRole = req.session?.userRole as string;
 
@@ -7828,7 +7831,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         company_id: finalCompanyId,
 
-        active: true 
+        active: true,
+
+        cpf: cpf || undefined 
 
       });
 
@@ -7900,7 +7905,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       
 
-      const { name, email, username, password, role, must_change_password } = req.body;
+      const { name, email, username, password, role, must_change_password, cpf } = req.body;
 
       const userRole = req.session?.userRole as string;
 
@@ -8006,6 +8011,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
       // Se must_change_password foi fornecido, incluir na atualização
       if (must_change_password !== undefined) updateData.must_change_password = must_change_password;
+
+      // CPF pode ser atualizado ou removido (se vier vazio)
+      if (cpf !== undefined) updateData.cpf = cpf || null;
 
       updateData.updated_at = new Date();
 
@@ -18642,271 +18650,13 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       }
 
-
-
-      // Criar template padrão de termo de responsabilidade também
-      let termTemplateCreated = 0;
-      let termTemplateSkipped = 0;
-      const [existingTermTemplate] = await db
-        .select()
-        .from(schema.inventoryTermTemplates)
-        .where(and(
-          eq(schema.inventoryTermTemplates.company_id, targetCompanyId),
-          eq(schema.inventoryTermTemplates.is_default, true)
-        ))
-        .limit(1);
-
-      if (!existingTermTemplate) {
-        await responsibilityTermService.createTemplate({
-          name: 'Termo de Responsabilidade - Padrão',
-          description: 'Template padrão para termos de responsabilidade de equipamentos',
-          content: `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Termo de Responsabilidade</title>
-  <style>
-    @page {
-      size: A4;
-      margin: 2cm;
-    }
-    
-    body {
-      font-family: 'Times New Roman', serif;
-      font-size: 12pt;
-      line-height: 1.6;
-      color: #000;
-      margin: 0;
-      padding: 0;
-    }
-    
-    .header {
-      text-align: center;
-      margin-bottom: 30px;
-    }
-    
-    .logo {
-      font-size: 24pt;
-      font-weight: bold;
-      margin-bottom: 10px;
-    }
-    
-    .company-name {
-      font-size: 14pt;
-      font-weight: bold;
-      margin-bottom: 20px;
-    }
-    
-    .title {
-      text-align: center;
-      font-size: 14pt;
-      font-weight: bold;
-      text-transform: uppercase;
-      margin: 30px 0;
-      padding: 10px 0;
-      border-top: 2px solid #000;
-      border-bottom: 2px solid #000;
-    }
-    
-    .section {
-      margin: 20px 0;
-    }
-    
-    .section-title {
-      font-size: 12pt;
-      font-weight: bold;
-      margin-bottom: 10px;
-      text-decoration: underline;
-    }
-    
-    .field {
-      margin: 8px 0;
-    }
-    
-    .field-label {
-      display: inline-block;
-      min-width: 120px;
-      font-weight: bold;
-    }
-    
-    .field-value {
-      display: inline-block;
-      border-bottom: 1px solid #000;
-      min-width: 300px;
-      padding: 0 5px;
-    }
-    
-    .text-content {
-      text-align: justify;
-      margin: 20px 0;
-      line-height: 1.8;
-    }
-    
-    .clause {
-      margin: 15px 0;
-      text-align: justify;
-    }
-    
-    .clause-number {
-      font-weight: bold;
-    }
-    
-    .equipment-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 20px 0;
-      border: 1px solid #000;
-    }
-    
-    .equipment-table th,
-    .equipment-table td {
-      border: 1px solid #000;
-      padding: 10px;
-      text-align: left;
-    }
-    
-    .equipment-table th {
-      background-color: #f5f5f5;
-      font-weight: bold;
-    }
-    
-    .signature-section {
-      margin-top: 50px;
-      display: flex;
-      justify-content: space-between;
-    }
-    
-    .signature-box {
-      width: 45%;
-      text-align: center;
-    }
-    
-    .signature-line {
-      border-top: 1px solid #000;
-      margin: 60px auto 10px;
-      width: 80%;
-    }
-    
-    .signature-label {
-      font-size: 10pt;
-      margin-top: 5px;
-    }
-    
-    .date-location {
-      margin: 30px 0;
-      text-align: left;
-    }
-    
-    .date-location .field-value {
-      min-width: 50px;
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="logo">X</div>
-    <div class="company-name">{{companyName}}</div>
-  </div>
-  
-  <div class="title">
-    TERMO DE RESPONSABILIDADE PELA GUARDA E USO DO EQUIPAMENTO DE TRABALHO
-  </div>
-  
-  <div class="section">
-    <div class="section-title">IDENTIFICAÇÃO DO EMPREGADO</div>
-    
-    <div class="field">
-      <span class="field-label">Nome:</span>
-      <span class="field-value">{{userName}}</span>
-    </div>
-    
-    <div class="field">
-      <span class="field-label">CPF:</span>
-      <span class="field-value">{{userCpf}}</span>
-    </div>
-    
-    <div class="field">
-      <span class="field-label">Fone para contato:</span>
-      <span class="field-value">{{userPhone}}</span>
-    </div>
-    
-    <div class="field">
-      <span class="field-label">e-mail:</span>
-      <span class="field-value">{{userEmail}}</span>
-    </div>
-  </div>
-  
-  <div class="text-content">
-    <p>
-      Recebi da empresa <strong>{{companyName}}</strong>, CNPJ nº <strong>{{companyDocument}}</strong>, a título de empréstimo, para meu uso exclusivo, conforme determinado na lei, os equipamentos especificados neste termo de responsabilidade, comprometendo-me a mantê-los em perfeito estado de conservação, ficando ciente de que:
-    </p>
-  </div>
-  
-  <div class="clause">
-    <span class="clause-number">1-</span>
-    Em caso de dano, mau uso, negligência ou perda dos equipamentos, a empresa fornecerá equipamento novo e cobrará o valor de um equipamento equivalente.
-  </div>
-  
-  <div class="clause">
-    <span class="clause-number">2-</span>
-    Devo comunicar imediatamente ao setor competente em caso de dano, inutilização ou perda dos equipamentos.
-  </div>
-  
-  <div class="clause">
-    <span class="clause-number">3-</span>
-    Devo devolver os equipamentos completos e em perfeito estado de conservação quando encerrar meus serviços ou quando o contrato de trabalho for rescindido.
-  </div>
-  
-  <div class="clause">
-    <span class="clause-number">4-</span>
-    Estou sujeito a inspeções sem aviso prévio enquanto os equipamentos estiverem em minha posse.
-  </div>
-  
-  <div class="section">
-    {{productsTable}}
-  </div>
-  
-  <div class="date-location">
-    <span>{{companyCity}}, <span class="field-value">{{todayDay}}</span> de <span class="field-value">{{todayMonth}}</span> de <span class="field-value">{{todayYear}}</span>.</span>
-  </div>
-  
-  <div class="signature-section">
-    <div class="signature-box">
-      <div class="signature-line"></div>
-      <div class="signature-label">Funcionário(a)</div>
-    </div>
-    
-    <div class="signature-box">
-      <div class="signature-line"></div>
-      <div class="signature-label">Responsável da entrega.</div>
-    </div>
-  </div>
-</body>
-</html>`,
-            is_default: true,
-            is_active: true,
-            company_id: targetCompanyId,
-            created_by_id: userId ?? null,
-          });
-          termTemplateCreated = 1;
-        } else {
-          termTemplateSkipped = 1;
-        }
-      } catch (termError: any) {
-        // Se houver erro ao criar template de termo, não quebrar o fluxo de email
-        // mas registrar que houve problema
-        termTemplateCreated = 0;
-        termTemplateSkipped = 0;
-      }
-
       if (created === 0 && skipped > 0) {
 
         res.json({ 
 
           success: true, 
 
-          message: `Todos os templates padrão já existem para esta empresa (${skipped} templates de email, ${termTemplateSkipped} template de termo)`,
+          message: `Todos os templates padrão já existem para esta empresa (${skipped} templates de email)`,
 
           created,
 
@@ -18920,7 +18670,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
           success: true, 
 
-          message: `Templates padrão processados com sucesso (${created} templates de email criados, ${skipped} já existiam, ${termTemplateCreated} template de termo criado)`,
+          message: `Templates padrão processados com sucesso (${created} templates de email criados, ${skipped} já existiam)`,
 
           created,
 

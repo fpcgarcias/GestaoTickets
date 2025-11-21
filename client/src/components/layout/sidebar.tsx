@@ -93,6 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     { href: "/inventory/locations", icon: <MapPin size={18} />, label: formatMessage('sidebar.inventory_locations') },
     { href: "/inventory/reports", icon: <FileSpreadsheet size={18} />, label: formatMessage('sidebar.inventory_reports') },
     { href: "/inventory/webhooks", icon: <Network size={18} />, label: formatMessage('sidebar.inventory_webhooks') },
+    { href: "/inventory/term-templates", icon: <FileText size={18} />, label: formatMessage('sidebar.inventory_term_templates') },
   ], [formatMessage]);
   const [isInventoryOpen, setIsInventoryOpen] = useState(currentPath.startsWith("/inventory"));
 

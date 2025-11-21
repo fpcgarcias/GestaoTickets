@@ -12,6 +12,7 @@ const InventoryProductCategoriesPage = lazy(() => import("./product-categories")
 const InventoryLocationsPage = lazy(() => import("./locations"));
 const InventoryReportsPage = lazy(() => import("./reports"));
 const InventoryWebhooksPage = lazy(() => import("./webhooks"));
+const InventoryTermTemplatesPage = lazy(() => import("./term-templates"));
 
 function InventoryFallback() {
   return (
@@ -35,6 +36,7 @@ const inventoryRoutes = [
   { path: "/inventory/locations", component: InventoryLocationsPage },
   { path: "/inventory/reports", component: InventoryReportsPage },
   { path: "/inventory/webhooks", component: InventoryWebhooksPage },
+  { path: "/inventory/term-templates", component: InventoryTermTemplatesPage },
 ];
 
 export default function InventoryRouter() {

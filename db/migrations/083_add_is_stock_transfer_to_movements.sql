@@ -9,3 +9,4 @@ ADD COLUMN IF NOT EXISTS is_stock_transfer BOOLEAN NOT NULL DEFAULT false;
 COMMENT ON COLUMN inventory_movements.is_stock_transfer IS 'Indica se a movimentação é apenas entre estoques (sem vinculação a usuário)';
 
 
+
