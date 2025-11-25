@@ -143,14 +143,6 @@ export async function deleteTermTemplate(req: Request, res: Response) {
       });
     }
 
-    // Não permitir deletar template padrão
-    if (template.is_default) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Não é possível deletar o template padrão. Defina outro como padrão primeiro.' 
-      });
-    }
-
     await db
       .delete(inventoryTermTemplates)
       .where(eq(inventoryTermTemplates.id, templateId));
@@ -221,13 +213,13 @@ export async function seedDefaultTermTemplate(req: Request, res: Response) {
   <style>
     @page {
       size: A4;
-      margin: 2cm;
+      margin: 1.2cm 1.5cm;
     }
     
     body {
       font-family: 'Times New Roman', serif;
-      font-size: 12pt;
-      line-height: 1.6;
+      font-size: 10pt;
+      line-height: 1.3;
       color: #000;
       margin: 0;
       padding: 0;
@@ -235,45 +227,45 @@ export async function seedDefaultTermTemplate(req: Request, res: Response) {
     
     .header {
       text-align: center;
-      margin-bottom: 30px;
+      margin-bottom: 15px;
     }
     
     .logo {
-      font-size: 24pt;
+      font-size: 18pt;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    
+    .company-name {
+      font-size: 12pt;
       font-weight: bold;
       margin-bottom: 10px;
     }
     
-    .company-name {
-      font-size: 14pt;
-      font-weight: bold;
-      margin-bottom: 20px;
-    }
-    
     .title {
       text-align: center;
-      font-size: 14pt;
+      font-size: 12pt;
       font-weight: bold;
       text-transform: uppercase;
-      margin: 30px 0;
-      padding: 10px 0;
+      margin: 15px 0;
+      padding: 8px 0;
       border-top: 2px solid #000;
       border-bottom: 2px solid #000;
     }
     
     .section {
-      margin: 20px 0;
+      margin: 12px 0;
     }
     
     .section-title {
-      font-size: 12pt;
+      font-size: 10pt;
       font-weight: bold;
-      margin-bottom: 10px;
+      margin-bottom: 6px;
       text-decoration: underline;
     }
     
     .field {
-      margin: 8px 0;
+      margin: 5px 0;
     }
     
     .field-label {
@@ -291,12 +283,12 @@ export async function seedDefaultTermTemplate(req: Request, res: Response) {
     
     .text-content {
       text-align: justify;
-      margin: 20px 0;
-      line-height: 1.8;
+      margin: 12px 0;
+      line-height: 1.4;
     }
     
     .clause {
-      margin: 15px 0;
+      margin: 8px 0;
       text-align: justify;
     }
     
@@ -307,26 +299,33 @@ export async function seedDefaultTermTemplate(req: Request, res: Response) {
     .equipment-table {
       width: 100%;
       border-collapse: collapse;
-      margin: 20px 0;
+      margin: 12px 0;
       border: 1px solid #000;
+      page-break-inside: avoid;
     }
     
     .equipment-table th,
     .equipment-table td {
       border: 1px solid #000;
-      padding: 10px;
+      padding: 6px 8px;
       text-align: left;
     }
     
     .equipment-table th {
       background-color: #f5f5f5;
       font-weight: bold;
+      font-size: 9pt;
+    }
+    
+    .equipment-table td {
+      font-size: 9pt;
     }
     
     .signature-section {
-      margin-top: 50px;
+      margin-top: 25px;
       display: flex;
       justify-content: space-between;
+      page-break-inside: avoid;
     }
     
     .signature-box {
@@ -336,17 +335,17 @@ export async function seedDefaultTermTemplate(req: Request, res: Response) {
     
     .signature-line {
       border-top: 1px solid #000;
-      margin: 60px auto 10px;
+      margin: 40px auto 8px;
       width: 80%;
     }
     
     .signature-label {
-      font-size: 10pt;
-      margin-top: 5px;
+      font-size: 9pt;
+      margin-top: 3px;
     }
     
     .date-location {
-      margin: 30px 0;
+      margin: 18px 0;
       text-align: left;
     }
     

@@ -68,7 +68,7 @@ export async function generateResponsibilityTerm(req: Request, res: Response) {
     const assignmentGroupId = req.body?.assignment_group_id as string | undefined;
     const assignmentIds = req.body?.assignment_ids as number[] | undefined;
 
-    const term = await responsibilityTermService.generateTerm({
+    const result = await responsibilityTermService.generateTerm({
       assignmentId,
       assignmentIds,
       assignmentGroupId,
@@ -77,7 +77,10 @@ export async function generateResponsibilityTerm(req: Request, res: Response) {
       createdById: userId,
     });
 
-    res.status(201).json({ success: true, data: term });
+    res.status(201).json({ 
+      success: true, 
+      data: result
+    });
   } catch (error) {
     console.error('Erro ao gerar termo de responsabilidade:', error);
     res.status(400).json({ success: false, message: String(error) });

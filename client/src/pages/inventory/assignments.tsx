@@ -17,6 +17,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 const STATUS_OPTIONS = ["pending", "active", "completed"];
 const ALL_VALUE = "__all__";
 
+// Função auxiliar para converter base64 em Blob
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+}
+
 export default function InventoryAssignmentsPage() {
   const { formatMessage, locale } = useI18n();
   const { toast } = useToast();
@@ -79,7 +90,20 @@ export default function InventoryAssignmentsPage() {
   };
 
   const handleGenerateTerm = (assignmentId: number) => {
-    generateTerm.mutate({ assignmentId }, { onSuccess: () => toast({ title: formatMessage("inventory.assignments.table.term_created") }) });
+    generateTerm.mutate({ assignmentId }, { 
+      onSuccess: (data: any) => {
+        toast({ title: formatMessage("inventory.assignments.table.term_created") });
+        
+        // Abrir PDF em nova aba
+        if (data?.data?.pdfBase64) {
+          const blob = base64ToBlob(data.data.pdfBase64, 'application/pdf');
+          const url = URL.createObjectURL(blob);
+          window.open(url, '_blank');
+        } else if (data?.data?.downloadUrl) {
+          window.open(data.data.downloadUrl, '_blank');
+        }
+      }
+    });
   };
 
   const handleGenerateBatchTerm = () => {
@@ -109,9 +133,18 @@ export default function InventoryAssignmentsPage() {
       generateTerm.mutate(
         { assignmentGroupId: groupId, assignmentIds: groupId ? undefined : assignmentIds },
         { 
-          onSuccess: () => {
+          onSuccess: (data: any) => {
             toast({ title: "Termo em lote gerado com sucesso!" });
             setSelectedAssignments([]);
+            
+            // Abrir PDF em nova aba
+            if (data?.data?.pdfBase64) {
+              const blob = base64ToBlob(data.data.pdfBase64, 'application/pdf');
+              const url = URL.createObjectURL(blob);
+              window.open(url, '_blank');
+            } else if (data?.data?.downloadUrl) {
+              window.open(data.data.downloadUrl, '_blank');
+            }
           },
           onError: (error: any) => {
             toast({ title: "Erro ao gerar termo", description: error?.message, variant: "destructive" });
@@ -124,9 +157,18 @@ export default function InventoryAssignmentsPage() {
       generateTerm.mutate(
         { assignmentIds: allIds },
         { 
-          onSuccess: () => {
+          onSuccess: (data: any) => {
             toast({ title: "Termo em lote gerado com sucesso!" });
             setSelectedAssignments([]);
+            
+            // Abrir PDF em nova aba
+            if (data?.data?.pdfBase64) {
+              const blob = base64ToBlob(data.data.pdfBase64, 'application/pdf');
+              const url = URL.createObjectURL(blob);
+              window.open(url, '_blank');
+            } else if (data?.data?.downloadUrl) {
+              window.open(data.data.downloadUrl, '_blank');
+            }
           },
           onError: (error: any) => {
             toast({ title: "Erro ao gerar termo", description: error?.message, variant: "destructive" });

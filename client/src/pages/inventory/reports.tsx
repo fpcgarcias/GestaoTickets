@@ -60,7 +60,7 @@ export default function InventoryReportsPage() {
       description={formatMessage("inventory.reports_description")}
       breadcrumb={[{ label: formatMessage("inventory.reports_breadcrumb") }]}
     >
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {reportCards.map((report) => (
           <Card key={report.type}>
             <CardHeader>

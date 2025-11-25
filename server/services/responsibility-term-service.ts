@@ -141,7 +141,7 @@ class ResponsibilityTermService {
       .where(eq(inventoryTermTemplates.id, templateId));
   }
 
-  async generateTerm(params: GenerateTermParams): Promise<InventoryResponsibilityTerm> {
+  async generateTerm(params: GenerateTermParams): Promise<InventoryResponsibilityTerm & { pdfBase64?: string }> {
     // Se tem assignmentGroupId ou assignmentIds, é termo em lote
     if (params.assignmentGroupId || (params.assignmentIds && params.assignmentIds.length > 0)) {
       return this.generateBatchTerm(params);
@@ -165,24 +165,38 @@ class ResponsibilityTermService {
     const context = this.buildTemplateContext(assignmentContext);
     const html = this.renderTemplate(template.content, context);
     const pdfBuffer = await this.generatePdf(html);
-    const uploadResult = await s3Service.uploadInventoryFile({
-      buffer: pdfBuffer,
-      originalName: `termo-responsabilidade-${params.assignmentId}.pdf`,
-      companyId: params.companyId,
-      folder: `terms/${params.assignmentId}`,
-      mimeType: 'application/pdf',
-      metadata: {
-        assignmentId: params.assignmentId,
-        templateId: template.id,
-      },
-    });
+    
+    // Em desenvolvimento, retornar PDF como base64 para visualização direta
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    let pdfBase64: string | undefined = undefined;
+    if (isDevelopment) {
+      pdfBase64 = Buffer.from(pdfBuffer).toString('base64');
+    }
+    
+    let s3Key = `terms/${params.assignmentId}/termo-responsabilidade-${params.assignmentId}.pdf`;
+    
+    // Apenas fazer upload para S3 em produção
+    if (!isDevelopment) {
+      const uploadResult = await s3Service.uploadInventoryFile({
+        buffer: pdfBuffer,
+        originalName: `termo-responsabilidade-${params.assignmentId}.pdf`,
+        companyId: params.companyId,
+        folder: `terms/${params.assignmentId}`,
+        mimeType: 'application/pdf',
+        metadata: {
+          assignmentId: params.assignmentId,
+          templateId: template.id,
+        },
+      });
+      s3Key = uploadResult.s3Key;
+    }
 
     const [term] = await db.insert(inventoryResponsibilityTerms).values({
       assignment_id: params.assignmentId,
       template_id: template.id,
       template_version: template.version,
-      pdf_s3_key: uploadResult.s3Key,
-      generated_pdf_url: uploadResult.s3Key,
+      pdf_s3_key: s3Key,
+      generated_pdf_url: s3Key,
       status: 'pending',
       company_id: params.companyId,
       created_at: new Date(),
@@ -190,10 +204,10 @@ class ResponsibilityTermService {
       is_batch_term: false,
     }).returning();
 
-    return term;
+    return { ...term, pdfBase64: pdfBase64 as string | undefined };
   }
 
-  async generateBatchTerm(params: GenerateTermParams): Promise<InventoryResponsibilityTerm> {
+  async generateBatchTerm(params: GenerateTermParams): Promise<InventoryResponsibilityTerm & { pdfBase64?: string }> {
     let assignmentIds: number[] = [];
 
     if (params.assignmentGroupId) {
@@ -231,26 +245,40 @@ class ResponsibilityTermService {
     const context = await this.buildBatchTemplateContext(batchContext);
     const html = this.renderTemplate(template.content, context);
     const pdfBuffer = await this.generatePdf(html);
+    
+    // Em desenvolvimento, retornar PDF como base64 para visualização direta
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    let pdfBase64: string | undefined = undefined;
+    if (isDevelopment) {
+      pdfBase64 = Buffer.from(pdfBuffer).toString('base64');
+    }
+    
     const termId = `batch-${Date.now()}`;
-    const uploadResult = await s3Service.uploadInventoryFile({
-      buffer: pdfBuffer,
-      originalName: `termo-responsabilidade-lote-${termId}.pdf`,
-      companyId: params.companyId,
-      folder: `terms/batch/${termId}`,
-      mimeType: 'application/pdf',
-      metadata: {
-        assignmentIds: assignmentIds,
-        templateId: template.id,
-        isBatch: true,
-      },
-    });
+    let s3Key = `terms/batch/${termId}/termo-responsabilidade-lote-${termId}.pdf`;
+    
+    // Apenas fazer upload para S3 em produção
+    if (!isDevelopment) {
+      const uploadResult = await s3Service.uploadInventoryFile({
+        buffer: pdfBuffer,
+        originalName: `termo-responsabilidade-lote-${termId}.pdf`,
+        companyId: params.companyId,
+        folder: `terms/batch/${termId}`,
+        mimeType: 'application/pdf',
+        metadata: {
+          assignmentIds: assignmentIds,
+          templateId: template.id,
+          isBatch: true,
+        },
+      });
+      s3Key = uploadResult.s3Key;
+    }
 
     const [term] = await db.insert(inventoryResponsibilityTerms).values({
       assignment_id: null, // NULL para termos em lote
       template_id: template.id,
       template_version: template.version,
-      pdf_s3_key: uploadResult.s3Key,
-      generated_pdf_url: uploadResult.s3Key,
+      pdf_s3_key: s3Key,
+      generated_pdf_url: s3Key,
       status: 'pending',
       company_id: params.companyId,
       created_at: new Date(),
@@ -266,7 +294,7 @@ class ResponsibilityTermService {
 
     await db.insert(responsibilityTermAssignments).values(termAssignments);
 
-    return term;
+    return { ...term, pdfBase64: pdfBase64 as string | undefined };
   }
 
   async sendTerm(params: SendTermParams): Promise<{ success: boolean }> {
@@ -627,18 +655,18 @@ class ResponsibilityTermService {
       
       return `
         <tr>
-          <td style="border: 1px solid #000; padding: 8px; text-align: left;">${equipmentName}</td>
-          <td style="border: 1px solid #000; padding: 8px; text-align: left;">${serial}</td>
+          <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 9pt;">${equipmentName}</td>
+          <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 9pt;">${serial}</td>
         </tr>
       `;
     }).join('\n');
     
     return `
-      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #000;">
+      <table class="equipment-table" style="width: 100%; border-collapse: collapse; margin: 12px 0; border: 1px solid #000; page-break-inside: avoid;">
         <thead>
           <tr>
-            <th style="border: 1px solid #000; padding: 8px; text-align: left; background-color: #f5f5f5; font-weight: bold;">EQUIPAMENTO</th>
-            <th style="border: 1px solid #000; padding: 8px; text-align: left; background-color: #f5f5f5; font-weight: bold;">SERIAL NUMBER</th>
+            <th style="border: 1px solid #000; padding: 6px 8px; text-align: left; background-color: #f5f5f5; font-weight: bold; font-size: 9pt;">EQUIPAMENTO</th>
+            <th style="border: 1px solid #000; padding: 6px 8px; text-align: left; background-color: #f5f5f5; font-weight: bold; font-size: 9pt;">SERIAL NUMBER</th>
           </tr>
         </thead>
         <tbody>
@@ -658,10 +686,49 @@ class ResponsibilityTermService {
   }
 
   private async generatePdf(html: string): Promise<Buffer> {
+    // Detectar caminho do executável baseado na plataforma
+    let executablePath: string | undefined;
+    
+    if (process.platform === 'linux') {
+      // Linux: usar caminho do chromium-browser do sistema
+      executablePath = '/usr/bin/chromium-browser';
+    } else if (process.platform === 'win32') {
+      // Windows: tentar encontrar Chrome instalado em caminhos comuns
+      const fs = await import('fs');
+      
+      const possiblePaths = [
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+        process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe',
+      ];
+      
+      // Procurar Chrome instalado
+      for (const path of possiblePaths) {
+        try {
+          if (path && fs.existsSync(path)) {
+            executablePath = path;
+            break;
+          }
+        } catch (e) {
+          // Ignorar erros e tentar próximo caminho
+        }
+      }
+      
+      // Se não encontrou nenhum, deixar undefined (Puppeteer vai tentar usar o bundled)
+      if (!executablePath) {
+        executablePath = undefined;
+      }
+    } else {
+      // macOS ou outros: deixar undefined
+      executablePath = undefined;
+    }
+
     const browser = await puppeteer.launch({
       headless: 'new',
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      executablePath,
     });
+    
     try {
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'networkidle0' });

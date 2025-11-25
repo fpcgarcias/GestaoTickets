@@ -33,8 +33,7 @@ import {
   Eye,
   FileText,
   Code,
-  Check,
-  Copy,
+  Monitor,
 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -55,56 +54,63 @@ interface TermTemplate {
 }
 
 // Variáveis disponíveis para templates de termos
-const AVAILABLE_VARIABLES = {
-  'Empresa': {
+const AVAILABLE_VARIABLES: Record<string, { label: string; variables: Array<{ key: string; description: string }> }> = {
+  empresa: {
+    label: 'Dados da Empresa',
     variables: [
-      { name: 'companyName', description: 'Nome da empresa' },
-      { name: 'companyDocument', description: 'CNPJ formatado' },
-      { name: 'companyCity', description: 'Cidade da empresa' },
+      { key: 'companyName', description: 'Nome da empresa' },
+      { key: 'companyDocument', description: 'CNPJ formatado' },
+      { key: 'companyCity', description: 'Cidade da empresa' },
     ]
   },
-  'Usuário': {
+  usuario: {
+    label: 'Dados do Usuário/Funcionário',
     variables: [
-      { name: 'userName', description: 'Nome completo do funcionário' },
-      { name: 'userEmail', description: 'E-mail do funcionário' },
-      { name: 'userCpf', description: 'CPF formatado (ou "--" se não informado)' },
-      { name: 'userPhone', description: 'Telefone (ou "--" se não informado)' },
+      { key: 'userName', description: 'Nome completo do funcionário' },
+      { key: 'userEmail', description: 'E-mail do funcionário' },
+      { key: 'userCpf', description: 'CPF formatado (ou "--" se não informado)' },
+      { key: 'userPhone', description: 'Telefone (ou "--" se não informado)' },
     ]
   },
-  'Alocação': {
+  alocacao: {
+    label: 'Dados da Alocação',
     variables: [
-      { name: 'assignmentId', description: 'ID da alocação' },
-      { name: 'assignedDate', description: 'Data de alocação (dd/mm/yyyy)' },
-      { name: 'expectedReturnDate', description: 'Data prevista de devolução' },
+      { key: 'assignmentId', description: 'ID da alocação' },
+      { key: 'assignedDate', description: 'Data de alocação (dd/mm/yyyy)' },
+      { key: 'expectedReturnDate', description: 'Data prevista de devolução' },
     ]
   },
-  'Data': {
+  data: {
+    label: 'Dados de Data',
     variables: [
-      { name: 'today', description: 'Data atual completa (dd/mm/yyyy)' },
-      { name: 'todayDay', description: 'Dia do mês (2 dígitos)' },
-      { name: 'todayMonth', description: 'Nome do mês por extenso' },
-      { name: 'todayYear', description: 'Ano (4 dígitos)' },
+      { key: 'today', description: 'Data atual completa (dd/mm/yyyy)' },
+      { key: 'todayDay', description: 'Dia do mês (2 dígitos)' },
+      { key: 'todayMonth', description: 'Nome do mês por extenso' },
+      { key: 'todayYear', description: 'Ano (4 dígitos)' },
     ]
   },
-  'Produtos (Termo Único)': {
+  produto_unico: {
+    label: 'Dados do Produto (Termo Único)',
     variables: [
-      { name: 'productName', description: 'Nome do produto' },
-      { name: 'productBrand', description: 'Marca do produto' },
-      { name: 'productModel', description: 'Modelo do produto' },
-      { name: 'productSerial', description: 'Número de série' },
-      { name: 'productAsset', description: 'Número de patrimônio' },
+      { key: 'productName', description: 'Nome do produto' },
+      { key: 'productBrand', description: 'Marca do produto' },
+      { key: 'productModel', description: 'Modelo do produto' },
+      { key: 'productSerial', description: 'Número de série' },
+      { key: 'productAsset', description: 'Número de patrimônio' },
     ]
   },
-  'Produtos (Termo em Lote)': {
+  produto_lote: {
+    label: 'Dados dos Produtos (Termo em Lote)',
     variables: [
-      { name: 'productsCount', description: 'Quantidade de produtos' },
-      { name: 'productsList', description: 'Lista HTML de produtos (ul/li)' },
-      { name: 'productsTable', description: 'Tabela HTML completa (EQUIPAMENTO / SERIAL NUMBER)' },
+      { key: 'productsCount', description: 'Quantidade de produtos' },
+      { key: 'productsList', description: 'Lista HTML de produtos (ul/li)' },
+      { key: 'productsTable', description: 'Tabela HTML completa (EQUIPAMENTO / SERIAL NUMBER)' },
     ]
   },
-  'Responsável': {
+  responsavel: {
+    label: 'Dados do Responsável',
     variables: [
-      { name: 'deliveryResponsibleName', description: 'Nome do responsável pela entrega' },
+      { key: 'deliveryResponsibleName', description: 'Nome do responsável pela entrega' },
     ]
   },
 };
@@ -114,8 +120,8 @@ export default function TermTemplatesSettings() {
   const { user } = useAuth();
   const [selectedTemplate, setSelectedTemplate] = useState<TermTemplate | null>(null);
   const [isEditingTemplate, setIsEditingTemplate] = useState(false);
-  const [isViewingTemplate, setIsViewingTemplate] = useState(false);
   const [previewMode, setPreviewMode] = useState<'code' | 'visual'>('visual');
+  const [showVariablesDoc, setShowVariablesDoc] = useState(false);
   const [templateForm, setTemplateForm] = useState({
     name: '',
     description: '',
@@ -270,7 +276,7 @@ export default function TermTemplatesSettings() {
     setIsEditingTemplate(true);
   };
 
-  const handleCreateTemplate = () => {
+  const handleNewTemplate = () => {
     setSelectedTemplate(null);
     setTemplateForm({
       name: '',
@@ -299,19 +305,9 @@ export default function TermTemplatesSettings() {
     }
   };
 
-  const handleDeleteTemplate = (id: number) => {
-    deleteTemplateMutation.mutate(id);
+  const handleDeleteTemplate = (templateId: number) => {
+    deleteTemplateMutation.mutate(templateId);
   };
-
-  const copyVariable = (variableName: string) => {
-    navigator.clipboard.writeText(`{{${variableName}}}`);
-    toast({
-      title: "Copiado!",
-      description: `Variável {{${variableName}}} copiada para a área de transferência`,
-    });
-  };
-
-  const hasDefaultTemplate = templates?.some(t => t.is_default);
 
   // Função para gerar dados de exemplo para preview
   const generateSampleData = () => {
@@ -358,7 +354,11 @@ export default function TermTemplatesSettings() {
   };
 
   // Função para substituir variáveis no template
-  const renderTemplateWithSampleData = (template: string) => {
+  const renderTemplateWithSampleData = (template: string): string => {
+    if (!template || typeof template !== 'string') {
+      return '';
+    }
+    
     const sampleData = generateSampleData();
     let rendered = template;
     
@@ -371,142 +371,163 @@ export default function TermTemplatesSettings() {
     return rendered;
   };
 
+  const hasDefaultTemplate = templates?.some(t => t.is_default);
+
+  const renderTemplatesList = () => (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-medium">Templates de Termos de Responsabilidade</h3>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowVariablesDoc(true)}
+          >
+            Documentação de Variáveis
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => createDefaultTemplateMutation.mutate()}
+            disabled={createDefaultTemplateMutation.isPending}
+          >
+            {createDefaultTemplateMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {hasDefaultTemplate ? 'Recriando...' : 'Criando...'}
+              </>
+            ) : (
+              <>
+                <FileText className="mr-2 h-4 w-4" />
+                {hasDefaultTemplate ? 'Recriar Template Padrão' : 'Criar Template Padrão'}
+              </>
+            )}
+          </Button>
+          
+          <Button onClick={handleNewTemplate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Template
+          </Button>
+        </div>
+      </div>
+
+      {isLoadingTemplates ? (
+        <div className="flex items-center justify-center p-8">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <span className="ml-2">Carregando templates...</span>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {templates && templates.length > 0 ? (
+            templates.map((template) => (
+              <Card key={template.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h4 className="font-medium">{template.name}</h4>
+                        <Badge variant={template.is_active ? "default" : "secondary"}>
+                          {template.is_active ? "Ativo" : "Inativo"}
+                        </Badge>
+                        {template.is_default && (
+                          <Badge variant="outline">Padrão</Badge>
+                        )}
+                        <Badge variant="outline">v{template.version}</Badge>
+                      </div>
+                      {template.description && (
+                        <p className="text-sm text-muted-foreground">{template.description}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedTemplate(template)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditTemplate(template)}
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive/90"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {template.is_default ? (
+                                <>
+                                  <strong>Atenção:</strong> Você está prestes a excluir o template PADRÃO "{template.name}". 
+                                  Tem certeza? Você pode recriá-lo usando o botão "Recriar Template Padrão".
+                                </>
+                              ) : (
+                                <>Tem certeza que deseja excluir o template "{template.name}"? Esta ação não pode ser desfeita.</>
+                              )}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteTemplate(template.id)}
+                              className="bg-destructive hover:bg-destructive/90"
+                            >
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <div className="text-center text-muted-foreground p-8 rounded-md border border-dashed">
+              <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground/60" />
+              <p className="text-lg font-medium mb-2">Nenhum template encontrado</p>
+              <p className="text-sm mb-4">
+                Crie um template padrão para começar a usar termos de responsabilidade.
+              </p>
+              <Button onClick={() => createDefaultTemplateMutation.mutate()}>
+                <FileText className="h-4 w-4 mr-2" />
+                Criar Template Padrão
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Templates de Termos de Responsabilidade</CardTitle>
-              <CardDescription>
-                Gerencie os templates usados para gerar termos de responsabilidade de equipamentos
-              </CardDescription>
-            </div>
-            <div className="flex gap-2">
-              {!hasDefaultTemplate && (
-                <Button
-                  onClick={() => createDefaultTemplateMutation.mutate()}
-                  disabled={createDefaultTemplateMutation.isPending}
-                  variant="outline"
-                >
-                  {createDefaultTemplateMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <FileText className="h-4 w-4 mr-2" />
-                  )}
-                  Criar Template Padrão
-                </Button>
-              )}
-              <Button onClick={handleCreateTemplate}>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Template
-              </Button>
-            </div>
-          </div>
+          <CardTitle>Templates de Termos de Responsabilidade</CardTitle>
+          <CardDescription>
+            Gerencie os templates usados para gerar termos de responsabilidade de equipamentos
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoadingTemplates ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <span className="ml-2">Carregando templates...</span>
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              {templates && templates.length > 0 ? (
-                templates.map((template) => (
-                  <Card key={template.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-medium">{template.name}</h4>
-                            <Badge variant={template.is_active ? "default" : "secondary"}>
-                              {template.is_active ? "Ativo" : "Inativo"}
-                            </Badge>
-                            {template.is_default && (
-                              <Badge variant="outline">Padrão</Badge>
-                            )}
-                            <Badge variant="outline">v{template.version}</Badge>
-                          </div>
-                          {template.description && (
-                            <p className="text-sm text-muted-foreground">{template.description}</p>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedTemplate(template);
-                              setIsViewingTemplate(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditTemplate(template)}
-                          >
-                            <Edit3 className="h-4 w-4" />
-                          </Button>
-                          {!template.is_default && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-destructive hover:text-destructive/90"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Tem certeza que deseja excluir o template "{template.name}"? Esta ação não pode ser desfeita.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => handleDeleteTemplate(template.id)}
-                                    className="bg-destructive hover:bg-destructive/90"
-                                  >
-                                    Excluir
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              ) : (
-                <div className="text-center text-muted-foreground p-8 rounded-md border border-dashed">
-                  <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground/60" />
-                  <p className="text-lg font-medium mb-2">Nenhum template encontrado</p>
-                  <p className="text-sm mb-4">
-                    Crie um template padrão para começar a usar termos de responsabilidade.
-                  </p>
-                  <Button onClick={() => createDefaultTemplateMutation.mutate()}>
-                    <FileText className="h-4 w-4 mr-2" />
-                    Criar Template Padrão
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
+          {renderTemplatesList()}
         </CardContent>
       </Card>
 
       {/* Dialog para visualizar template */}
-      {isViewingTemplate && selectedTemplate && (
-        <Dialog open={isViewingTemplate} onOpenChange={setIsViewingTemplate}>
-          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+      {selectedTemplate && (
+        <Dialog open={!!selectedTemplate} onOpenChange={() => setSelectedTemplate(null)}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -521,8 +542,8 @@ export default function TermTemplatesSettings() {
                     size="sm"
                     onClick={() => setPreviewMode('visual')}
                   >
-                    <Eye className="h-4 w-4 mr-1" />
-                    Visualização
+                    <Monitor className="h-4 w-4 mr-1" />
+                    Preview
                   </Button>
                   <Button
                     variant={previewMode === 'code' ? 'default' : 'outline'}
@@ -538,35 +559,71 @@ export default function TermTemplatesSettings() {
             <div className="space-y-4">
               {previewMode === 'visual' ? (
                 <div>
-                  <Label className="font-medium mb-2 block">Pré-visualização do Template</Label>
-                  <div className="mt-2 border border-border rounded-lg bg-card overflow-hidden">
-                    <div className="p-2 bg-muted border-b text-xs text-muted-foreground">
-                      💡 Esta é uma pré-visualização com dados de exemplo. As variáveis serão substituídas pelos dados reais quando o termo for gerado.
+                  <Label className="font-medium">Preview do Template</Label>
+                  <div className="mt-1 border border-border rounded-lg bg-card">
+                    <div className="p-4 border-b bg-muted rounded-t-lg">
+                      <div className="text-sm text-muted-foreground">
+                        💡 Esta é uma pré-visualização com dados de exemplo. As variáveis serão substituídas pelos dados reais quando o termo for gerado.
+                      </div>
                     </div>
                     <div 
-                      className="p-4 bg-white"
-                      style={{ 
-                        minHeight: '600px',
-                        maxHeight: '70vh',
-                        overflow: 'auto'
-                      }}
-                      dangerouslySetInnerHTML={{ 
-                        __html: renderTemplateWithSampleData(selectedTemplate.content) 
+                      className="p-4 max-h-96 overflow-y-auto"
+                      dangerouslySetInnerHTML={{
+                        __html: renderTemplateWithSampleData(selectedTemplate.content)
                       }}
                     />
+                  </div>
+                  <div className="mt-2 p-2 bg-primary/10 rounded text-xs text-primary">
+                    💡 Este é um preview com dados de exemplo. As variáveis serão substituídas pelos dados reais quando o termo for gerado.
                   </div>
                 </div>
               ) : (
                 <div>
-                  <Label className="font-medium mb-2 block">Código HTML do Template</Label>
-                  <div className="mt-2 p-4 bg-muted rounded border font-mono text-xs overflow-x-auto">
-                    <pre className="whitespace-pre-wrap">{selectedTemplate.content}</pre>
-                  </div>
+                  <Label className="font-medium">Conteúdo HTML</Label>
+                  <Textarea 
+                    value={selectedTemplate.content} 
+                    readOnly 
+                    className="h-32 font-mono text-xs"
+                  />
                 </div>
               )}
+              
+              {/* Seção de Variáveis Disponíveis */}
+              <div>
+                <Label className="font-medium">Variáveis Disponíveis</Label>
+                <div className="mt-1 p-3 bg-muted rounded border text-xs">
+                  {(() => {
+                    return (
+                      <div className="grid grid-cols-1 gap-3">
+                        {Object.entries(AVAILABLE_VARIABLES).map(([category, info]) => {
+                          if (info.variables.length === 0) return null;
+                          
+                          return (
+                            <div key={category}>
+                              <h4 className="font-medium text-muted-foreground mb-2">{info.label}</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {info.variables.map((variable) => (
+                                  <div key={variable.key} className="bg-card p-2 rounded border border-border">
+                                    <code className="text-primary font-medium">
+                                      {"{{"}{variable.key}{"}}"}
+                                    </code>
+                                    <div className="text-muted-foreground text-xs mt-1">
+                                      {variable.description}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsViewingTemplate(false)}>
+              <Button variant="outline" onClick={() => setSelectedTemplate(null)}>
                 Fechar
               </Button>
             </DialogFooter>
@@ -576,161 +633,156 @@ export default function TermTemplatesSettings() {
 
       {/* Dialog para editar/criar template */}
       <Dialog open={isEditingTemplate} onOpenChange={setIsEditingTemplate}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {selectedTemplate ? 'Editar Template' : 'Novo Template'}
             </DialogTitle>
             <DialogDescription>
-              Configure o template HTML para termos de responsabilidade. Use as variáveis disponíveis abaixo.
+              Configure o template HTML para termos de responsabilidade
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="name">Nome do Template *</Label>
+                <Label>Nome do Template</Label>
                 <Input
-                  id="name"
-                  value={templateForm.name}
-                  onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })}
-                  placeholder="Ex: Termo Padrão"
+                  value={templateForm.name || ''}
+                  onChange={(e) => setTemplateForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Nome do template"
                 />
               </div>
               <div>
-                <Label htmlFor="description">Descrição</Label>
+                <Label>Descrição</Label>
                 <Input
-                  id="description"
-                  value={templateForm.description}
-                  onChange={(e) => setTemplateForm({ ...templateForm, description: e.target.value })}
-                  placeholder="Descrição do template"
+                  value={templateForm.description || ''}
+                  onChange={(e) => setTemplateForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Descrição do template (opcional)"
                 />
               </div>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label htmlFor="content">Conteúdo HTML *</Label>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const textarea = document.getElementById('content') as HTMLTextAreaElement;
-                      if (textarea) {
-                        textarea.focus();
-                        document.execCommand('paste');
-                      }
-                    }}
-                  >
-                    <Code className="h-4 w-4 mr-1" />
-                    Colar HTML
-                  </Button>
-                </div>
+              <Label>Conteúdo HTML</Label>
+              <Textarea
+                value={templateForm.content || ''}
+                onChange={(e) => setTemplateForm(prev => ({ ...prev, content: e.target.value }))}
+                placeholder="Template HTML com variáveis {{companyName}}, {{userName}}, etc."
+                className="h-40 font-mono text-xs"
+              />
+              <div className="mt-2 p-2 bg-primary/10 rounded text-xs text-primary">
+                💡 Dica: Use variáveis como {'{{companyName}}'}, {'{{userName}}'}, {'{{productName}}'}, etc. Você pode ver um preview do template após salvá-lo.
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Textarea
-                    id="content"
-                    value={templateForm.content}
-                    onChange={(e) => setTemplateForm({ ...templateForm, content: e.target.value })}
-                    placeholder="Cole ou digite o HTML do template aqui..."
-                    className="font-mono text-xs"
-                    rows={20}
-                  />
-                </div>
-                <div>
-                  <Label className="mb-2 block">Pré-visualização</Label>
-                  <div className="border border-border rounded-lg bg-card overflow-hidden" style={{ height: '500px' }}>
-                    <div className="p-2 bg-muted border-b text-xs text-muted-foreground">
-                      💡 Pré-visualização com dados de exemplo
-                    </div>
-                    <div 
-                      className="p-4 bg-white overflow-auto"
-                      style={{ 
-                        height: 'calc(100% - 40px)'
-                      }}
-                      dangerouslySetInnerHTML={{ 
-                        __html: templateForm.content ? renderTemplateWithSampleData(templateForm.content) : '<p class="text-muted-foreground text-sm">Digite o HTML do template para ver a pré-visualização</p>'
-                      }}
-                    />
-                  </div>
+            </div>
+
+            {/* Documentação de Variáveis Disponíveis */}
+            <div className="border border-border rounded-lg p-4 bg-muted">
+              <h4 className="font-medium text-foreground mb-3">
+                📋 Variáveis Disponíveis
+              </h4>
+              <div className="max-h-32 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                  {Object.entries(AVAILABLE_VARIABLES).flatMap(([category, info]) =>
+                    info.variables.map((variable) => {
+                      return (
+                        <div key={variable.key} className="bg-card p-2 rounded border border-border">
+                          <code className="text-primary font-medium">
+                            {"{{"}{variable.key}{"}}"}
+                          </code>
+                          {variable.description && (
+                            <div className="text-muted-foreground text-xs mt-1">
+                              {variable.description}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="is_active"
-                  checked={templateForm.is_active}
-                  onCheckedChange={(checked) => setTemplateForm({ ...templateForm, is_active: checked })}
-                />
-                <Label htmlFor="is_active">Template Ativo</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="is_default"
-                  checked={templateForm.is_default}
-                  onCheckedChange={(checked) => setTemplateForm({ ...templateForm, is_default: checked })}
-                />
-                <Label htmlFor="is_default">Template Padrão</Label>
-              </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="template-active"
+                checked={templateForm.is_active === true}
+                onCheckedChange={(checked) => setTemplateForm(prev => ({ ...prev, is_active: checked }))}
+              />
+              <Label htmlFor="template-active">Template Ativo</Label>
             </div>
 
-            {/* Variáveis disponíveis */}
-            <div className="mt-4 p-4 bg-muted rounded border">
-              <div className="flex items-center gap-2 mb-3">
-                <Code className="h-4 w-4" />
-                <Label className="text-sm font-medium">Variáveis Disponíveis</Label>
-              </div>
-              <div className="space-y-3">
-                {Object.entries(AVAILABLE_VARIABLES).map(([category, info]) => (
-                  <div key={category}>
-                    <div className="text-xs font-semibold text-muted-foreground mb-1">{category}</div>
-                    <div className="flex flex-wrap gap-2">
-                      {info.variables.map((variable) => (
-                        <Button
-                          key={variable.name}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="text-xs"
-                          onClick={() => copyVariable(variable.name)}
-                        >
-                          <Copy className="h-3 w-3 mr-1" />
-                          {`{{${variable.name}}}`}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 p-3 bg-background rounded border text-xs">
-                <p className="font-semibold mb-1">Como usar:</p>
-                <p className="text-muted-foreground">
-                  Clique em uma variável acima para copiá-la. Cole no template usando o formato <code className="bg-muted px-1 rounded">{`{{nomeDaVariavel}}`}</code>.
-                </p>
-                <p className="text-muted-foreground mt-2">
-                  <strong>Importante:</strong> Use <code className="bg-muted px-1 rounded">{`{{productsTable}}`}</code> para termos em lote - ela gera automaticamente uma tabela formatada.
-                </p>
-              </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="template-default"
+                checked={templateForm.is_default === true}
+                onCheckedChange={(checked) => setTemplateForm(prev => ({ ...prev, is_default: checked }))}
+              />
+              <Label htmlFor="template-default">Template Padrão</Label>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditingTemplate(false)}>
               Cancelar
             </Button>
-            <Button
+            <Button 
               onClick={handleSaveTemplate}
               disabled={createTemplateMutation.isPending || updateTemplateMutation.isPending}
             >
               {(createTemplateMutation.isPending || updateTemplateMutation.isPending) ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Salvando...
+                </>
               ) : (
-                <Check className="h-4 w-4 mr-2" />
+                'Salvar Template'
               )}
-              {selectedTemplate ? 'Salvar Alterações' : 'Criar Template'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Documentação de Variáveis */}
+      <Dialog open={showVariablesDoc} onOpenChange={setShowVariablesDoc}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>📋 Documentação Completa de Variáveis</DialogTitle>
+            <DialogDescription>
+              Todas as variáveis disponíveis para uso nos templates de termos de responsabilidade
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            {Object.entries(AVAILABLE_VARIABLES).map(([category, info]) => (
+              <div key={category} className="border border-border rounded-lg p-4">
+                <h3 className="font-semibold text-lg mb-3 text-foreground">{info.label}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {info.variables.map((variable) => (
+                    <div key={variable.key} className="bg-muted p-3 rounded border">
+                      <code className="text-primary font-bold text-sm">
+                        {"{{"}{variable.key}{"}}"}
+                      </code>
+                      <div className="text-muted-foreground text-sm mt-2">
+                        {variable.description}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            
+            <div className="border border-border rounded-lg p-4 bg-primary/10">
+              <h3 className="font-semibold text-lg mb-3 text-primary">💡 Dicas de Uso</h3>
+              <ul className="text-sm text-primary space-y-1">
+                <li>• Use as variáveis exatamente como mostrado, incluindo as chaves duplas</li>
+                <li>• O sistema substitui automaticamente as variáveis pelos valores reais</li>
+                <li>• Use o Preview para ver como o termo ficará com dados de exemplo</li>
+                <li>• Variáveis não encontradas aparecerão como texto literal no termo</li>
+                <li>• Use <code className="bg-muted px-1 rounded">{`{{productsTable}}`}</code> para termos em lote - ela gera automaticamente uma tabela formatada</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowVariablesDoc(false)}>
+              Fechar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -738,5 +790,3 @@ export default function TermTemplatesSettings() {
     </div>
   );
 }
-
-

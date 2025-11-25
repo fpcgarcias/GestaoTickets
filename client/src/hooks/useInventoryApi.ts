@@ -408,7 +408,7 @@ const useInventoryMutation = <TVariables = any, TData = any>({
         method === "GET" ? undefined : getBody ? getBody(variables) : (variables as Record<string, any>);
       return mutateJson<TData>(method, targetPath, payload);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       if (successMessage) toast({ title: successMessage });
       invalidateKeys.forEach((key) => {
         queryClient.invalidateQueries({ queryKey: key });
@@ -652,7 +652,6 @@ export const useCreateInventoryTerm = () =>
       // Para termos em lote, usar endpoint de termos diretamente
       return `/api/inventory/terms/batch`;
     },
-    successMessage: "Termo gerado",
     errorMessage: "Erro ao gerar termo",
     invalidateKeys: [inventoryKeys.assignments.root],
     getBody: (vars) => {
