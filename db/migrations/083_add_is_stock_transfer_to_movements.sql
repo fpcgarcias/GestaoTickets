@@ -10,3 +10,4 @@ COMMENT ON COLUMN inventory_movements.is_stock_transfer IS 'Indica se a moviment
 
 
 
+

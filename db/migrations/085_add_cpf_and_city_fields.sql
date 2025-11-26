@@ -26,3 +26,4 @@ ADD COLUMN IF NOT EXISTS city TEXT;
 COMMENT ON COLUMN companies.city IS 'Cidade da empresa (usado em termos de responsabilidade)';
 
 
+

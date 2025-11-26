@@ -12,7 +12,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Loader2, Mail, Settings as SettingsIcon, Brain } from "lucide-react";
+import { Plus, Loader2, Mail, Settings as SettingsIcon, Brain, FileSignature } from "lucide-react";
 import { useQuery, useMutation, QueryClient } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,7 @@ import NotificationSettings from "@/components/notification-settings";
 import EmailSettings from "@/components/email-settings";
 import AdvancedNotificationSettings from "@/components/advanced-notification-settings";
 import AiSettings from "@/components/ai-settings";
+import ClicksignConfigPage from "./settings/clicksign-config";
 
 // A interface User local pode ser removida se a do hook global for suficiente.
 // A interface Company local pode ser removida.
@@ -323,6 +324,14 @@ export default function Settings() {
             </TabsTrigger>
           )}
           
+          {/* Aba ClickSign - para company_admin */}
+          {user?.role === 'company_admin' && (
+            <TabsTrigger value="clicksign" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+              <FileSignature className="mr-2 h-4 w-4" />
+              {formatMessage('clicksign.config.title')}
+            </TabsTrigger>
+          )}
+          
           {/* Aba Notificações - para todas as roles */}
           <TabsTrigger value="notifications" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             {formatMessage('settings.notifications')}
@@ -425,6 +434,13 @@ export default function Settings() {
         {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') && (
           <TabsContent value="ai">
             <AiSettings />
+          </TabsContent>
+        )}
+        
+        {/* Conteúdo da aba ClickSign - apenas para company_admin */}
+        {user?.role === 'company_admin' && (
+          <TabsContent value="clicksign">
+            <ClicksignConfigPage />
           </TabsContent>
         )}
         

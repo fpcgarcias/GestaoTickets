@@ -119,3 +119,4 @@ COMMENT ON COLUMN inventory_responsibility_terms.is_batch_term IS 'Indica se est
 -- Não precisamos fazer nada aqui pois os dados existentes já têm assignment_id preenchido
 
 
+

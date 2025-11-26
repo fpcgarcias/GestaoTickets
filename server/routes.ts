@@ -288,7 +288,7 @@ import {
 import {
 
   listResponsibilityTerms,
-
+  getResponsibilityTermDetails,
   generateResponsibilityTerm,
 
   sendResponsibilityTerm,
@@ -19314,7 +19314,11 @@ Obrigado por nos ajudar a melhorar continuamente.
 
   router.put("/settings/ai-usage", authRequired, authorize(['company_admin', 'manager', 'supervisor']), updateAiUsageSettings);
 
-
+  // Configurações ClickSign
+  const clicksignConfigHandlers = await import("./api/clicksign-config");
+  router.get("/clicksign-config", authRequired, companyAdminRequired, clicksignConfigHandlers.getClicksignConfig);
+  router.put("/clicksign-config", authRequired, companyAdminRequired, clicksignConfigHandlers.updateClicksignConfig);
+  router.post("/clicksign-config/test", authRequired, companyAdminRequired, clicksignConfigHandlers.testClicksignConnection);
 
   // --- FIM DAS ROTAS DE PERMISSÕES ---
 
@@ -20024,10 +20028,11 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   router.delete("/tickets/:ticketId/inventory/:itemId", authRequired, removeTicketInventoryItem);
 
   router.get("/inventory/terms", authRequired, listResponsibilityTerms);
+  router.get("/inventory/terms/:termId", authRequired, getResponsibilityTermDetails);
   router.post("/inventory/assignments/:assignmentId/terms", authRequired, generateResponsibilityTerm);
   router.post("/inventory/terms/batch", authRequired, generateResponsibilityTerm);
   router.post("/inventory/terms/:termId/send", authRequired, sendResponsibilityTerm);
-  router.post("/inventory/terms/:termId/clicksign", authRequired, sendToClicksign);
+  router.post("/inventory/terms/:termId/request-signature", authRequired, sendToClicksign);
   router.get("/inventory/terms/:termId/download", authRequired, downloadResponsibilityTerm);
 
   // Templates de termos
@@ -20099,6 +20104,10 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   router.get("/satisfaction-dashboard/export", authRequired, satisfactionDashboardHandlers.exportData);
 
   
+
+  // Webhook da ClickSign (sem autenticação padrão, mas com validação de secret)
+  const clicksignWebhookHandlers = await import("./api/clicksign-webhook");
+  app.post("/api/webhooks/clicksign", clicksignWebhookHandlers.handleClicksignWebhook);
 
   app.use("/api", router);
 

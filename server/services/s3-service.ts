@@ -222,6 +222,63 @@ class S3Service {
   }
 
   /**
+   * Upload específico para PDFs assinados de termos de responsabilidade
+   */
+  async uploadSignedTermPdf(params: {
+    buffer: Buffer;
+    termId: number;
+    companyId: number;
+    mimeType?: string;
+  }): Promise<UploadResult> {
+    const timestamp = Date.now();
+    const randomId = crypto.randomBytes(8).toString('hex');
+    const s3Key = `inventory/${params.companyId}/signed-terms/${params.termId}_${timestamp}_${randomId}_signed.pdf`;
+    const filename = path.basename(s3Key);
+    const mimeType = params.mimeType || 'application/pdf';
+
+    const fileData: FileData = {
+      buffer: params.buffer,
+      originalName: `termo-assinado-${params.termId}.pdf`,
+      mimeType,
+      size: params.buffer.length,
+    };
+
+    const validation = this.validateFile(fileData);
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
+
+    try {
+      const uploadCommand = new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: s3Key,
+        Body: params.buffer,
+        ContentType: mimeType,
+        Metadata: {
+          'original-filename': `termo-assinado-${params.termId}.pdf`,
+          'company-id': params.companyId.toString(),
+          'term-id': params.termId.toString(),
+          'signed-at': new Date().toISOString(),
+        },
+      });
+
+      await s3Client.send(uploadCommand);
+
+      return {
+        s3Key,
+        bucket: BUCKET_NAME,
+        filename,
+        originalFilename: `termo-assinado-${params.termId}.pdf`,
+        fileSize: params.buffer.length,
+        mimeType,
+      };
+    } catch (error) {
+      console.error('[S3] ❌ Erro no upload de PDF assinado:', error);
+      throw new Error('Falha ao fazer upload do PDF assinado. Tente novamente.');
+    }
+  }
+
+  /**
    * Gera URL assinada para download de arquivo
    */
   async getDownloadUrl(s3Key: string): Promise<string> {

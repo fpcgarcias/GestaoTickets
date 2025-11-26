@@ -977,13 +977,24 @@
         "actual": "Actual:",
         "status": "Status",
         "term_status": "Term",
+        "signature_status": "Signature Status",
         "actions": "Actions",
         "return": "Register return",
         "generate_term": "Generate term",
         "term_created": "Term generated",
         "return_registered": "Return registered",
         "empty_title": "No assignments",
-        "empty_description": "No assignments match the current filters."
+        "empty_description": "No assignments match the current filters.",
+        "send_clicksign": "Send to ClickSign",
+        "send_to_clicksign_auto": "Automatically send to ClickSign",
+        "view_pdf": "View PDF"
+      },
+      "signature_status": {
+        "not_sent": "Not sent",
+        "pending": "Pending",
+        "signed": "Signed",
+        "cancelled": "Cancelled",
+        "declined": "Declined"
       }
     },
     "settings": {
@@ -2454,6 +2465,38 @@
     "password_no_number": "Password must contain at least one number",
     "password_no_special": "Password must contain at least one special character (@$!%*?&)",
     "password_common_sequence": "Password cannot contain common sequences"
+  },
+  "clicksign": {
+    "config": {
+      "title": "ClickSign Settings",
+      "description": "Configure ClickSign integration for digital signature of responsibility terms",
+      "enabled": "Enable ClickSign",
+      "enabled_description": "Enable or disable ClickSign integration",
+      "access_token": "Access Token",
+      "access_token_placeholder": "Enter ClickSign access token",
+      "access_token_description": "ClickSign API access token. Get it from your ClickSign account.",
+      "api_url": "API URL",
+      "api_url_description": "ClickSign API base URL",
+      "webhook_secret": "Webhook Secret",
+      "webhook_secret_placeholder": "Enter secret to validate webhooks",
+      "webhook_secret_description": "Secret to validate that webhooks come from ClickSign",
+      "save": "Save",
+      "saving": "Saving...",
+      "test": "Test Connection",
+      "testing": "Testing...",
+      "toast": {
+        "saved": "Settings saved successfully",
+        "error": "Error saving settings"
+      },
+      "test_result": {
+        "success": "Connection established successfully",
+        "error": "Failed to connect to ClickSign",
+        "validation": "Configure Access Token and enable ClickSign to test"
+      },
+      "validation": {
+        "access_token_required": "Access Token is required when ClickSign is enabled"
+      }
+    }
   }
 }
 

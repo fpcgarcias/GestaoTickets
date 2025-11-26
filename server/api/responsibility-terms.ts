@@ -2,8 +2,8 @@ import { Request, Response } from 'express';
 import responsibilityTermService from '../services/responsibility-term-service';
 import digitalSignatureService from '../services/digital-signature-service';
 import { db } from '../db';
-import { inventoryResponsibilityTerms, userInventoryAssignments, inventoryTermTemplates, users, responsibilityTermAssignments } from '@shared/schema';
-import { eq, and } from 'drizzle-orm';
+import { inventoryResponsibilityTerms, userInventoryAssignments, inventoryTermTemplates, users, responsibilityTermAssignments, inventoryProducts } from '@shared/schema';
+import { eq, and, inArray } from 'drizzle-orm';
 
 function resolveCompanyId(req: Request): number {
   const userRole = req.session?.userRole;
@@ -30,6 +30,7 @@ export async function listResponsibilityTerms(req: Request, res: Response) {
       });
     }
 
+    // Buscar todos os termos
     const terms = await db
       .select({
         term: inventoryResponsibilityTerms,
@@ -41,7 +42,63 @@ export async function listResponsibilityTerms(req: Request, res: Response) {
       .leftJoin(inventoryTermTemplates, eq(inventoryResponsibilityTerms.template_id, inventoryTermTemplates.id))
       .where(eq(inventoryResponsibilityTerms.company_id, companyId));
 
-    res.json({ success: true, data: terms });
+    // Identificar termos em lote
+    const batchTermIds = terms
+      .filter(t => t.term.is_batch_term)
+      .map(t => t.term.id);
+
+    // Buscar assignments relacionados para termos em lote
+    let batchAssignmentsMap: Map<number, any[]> = new Map();
+    if (batchTermIds.length > 0) {
+      const termAssignments = await db
+        .select({
+          term_id: responsibilityTermAssignments.term_id,
+          assignment_id: responsibilityTermAssignments.assignment_id,
+          assignment: userInventoryAssignments,
+          product: inventoryProducts,
+          user: users,
+        })
+        .from(responsibilityTermAssignments)
+        .innerJoin(userInventoryAssignments, eq(responsibilityTermAssignments.assignment_id, userInventoryAssignments.id))
+        .leftJoin(inventoryProducts, eq(userInventoryAssignments.product_id, inventoryProducts.id))
+        .leftJoin(users, eq(userInventoryAssignments.user_id, users.id))
+        .where(inArray(responsibilityTermAssignments.term_id, batchTermIds));
+
+      // Agrupar por term_id
+      termAssignments.forEach(ta => {
+        if (!batchAssignmentsMap.has(ta.term_id)) {
+          batchAssignmentsMap.set(ta.term_id, []);
+        }
+        batchAssignmentsMap.get(ta.term_id)!.push({
+          assignment: ta.assignment,
+          product: ta.product,
+          user: ta.user,
+        });
+      });
+    }
+
+    // Montar resposta com informações de lote
+    const enrichedTerms = terms.map(t => {
+      const baseData: any = {
+        term: t.term,
+        assignment: t.assignment,
+        template: t.template,
+        is_batch_term: t.term.is_batch_term,
+      };
+
+      if (t.term.is_batch_term) {
+        const assignments = batchAssignmentsMap.get(t.term.id) || [];
+        baseData.assignments = assignments;
+        baseData.productsCount = assignments.length;
+      } else {
+        baseData.assignments = t.assignment ? [t.assignment] : [];
+        baseData.productsCount = t.assignment ? 1 : 0;
+      }
+
+      return baseData;
+    });
+
+    res.json({ success: true, data: enrichedTerms });
   } catch (error) {
     console.error('Erro ao listar termos:', error);
     res.status(500).json({ success: false, message: String(error) });
@@ -136,11 +193,117 @@ export async function downloadResponsibilityTerm(req: Request, res: Response) {
       });
     }
 
+    // Em desenvolvimento, regenerar o PDF e retornar diretamente
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    if (isDevelopment) {
+      const pdfBuffer = await responsibilityTermService.regenerateTermPdf(termId, companyId);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename=termo-${termId}.pdf`);
+      res.send(pdfBuffer);
+      return;
+    }
+
+    // Em produção, retornar URL do S3
     const url = await responsibilityTermService.getTermPdfUrl(termId, companyId);
-    res.json({ success: true, url });
+    res.redirect(url);
   } catch (error) {
     console.error('Erro ao obter PDF do termo:', error);
     res.status(400).json({ success: false, message: String(error) });
+  }
+}
+
+export async function getResponsibilityTermDetails(req: Request, res: Response) {
+  try {
+    const companyId = resolveCompanyId(req);
+    const userRole = req.session?.userRole;
+    const termId = parseInt(req.params.termId, 10);
+
+    // Bloquear customers
+    if (userRole === 'customer') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acesso negado ao inventário' 
+      });
+    }
+
+    // Buscar termo
+    const [term] = await db
+      .select({
+        term: inventoryResponsibilityTerms,
+        template: inventoryTermTemplates,
+      })
+      .from(inventoryResponsibilityTerms)
+      .leftJoin(inventoryTermTemplates, eq(inventoryResponsibilityTerms.template_id, inventoryTermTemplates.id))
+      .where(and(
+        eq(inventoryResponsibilityTerms.id, termId),
+        eq(inventoryResponsibilityTerms.company_id, companyId)
+      ))
+      .limit(1);
+
+    if (!term) {
+      return res.status(404).json({ success: false, message: 'Termo não encontrado' });
+    }
+
+    // Buscar assignments relacionados
+    let assignments: any[] = [];
+    if (term.term.is_batch_term) {
+      // Termo em lote: buscar via responsibility_term_assignments
+      const termAssignments = await db
+        .select({
+          assignment_id: responsibilityTermAssignments.assignment_id,
+          assignment: userInventoryAssignments,
+          product: inventoryProducts,
+          user: users,
+        })
+        .from(responsibilityTermAssignments)
+        .innerJoin(userInventoryAssignments, eq(responsibilityTermAssignments.assignment_id, userInventoryAssignments.id))
+        .leftJoin(inventoryProducts, eq(userInventoryAssignments.product_id, inventoryProducts.id))
+        .leftJoin(users, eq(userInventoryAssignments.user_id, users.id))
+        .where(eq(responsibilityTermAssignments.term_id, termId));
+
+      assignments = termAssignments.map(ta => ({
+        id: ta.assignment.id,
+        assignment: ta.assignment,
+        product: ta.product,
+        user: ta.user,
+      }));
+    } else if (term.term.assignment_id) {
+      // Termo único: buscar assignment direto
+      const [assignmentData] = await db
+        .select({
+          assignment: userInventoryAssignments,
+          product: inventoryProducts,
+          user: users,
+        })
+        .from(userInventoryAssignments)
+        .leftJoin(inventoryProducts, eq(userInventoryAssignments.product_id, inventoryProducts.id))
+        .leftJoin(users, eq(userInventoryAssignments.user_id, users.id))
+        .where(eq(userInventoryAssignments.id, term.term.assignment_id))
+        .limit(1);
+
+      if (assignmentData) {
+        assignments = [{
+          id: assignmentData.assignment.id,
+          assignment: assignmentData.assignment,
+          product: assignmentData.product,
+          user: assignmentData.user,
+        }];
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        term: term.term,
+        template: term.template,
+        is_batch_term: term.term.is_batch_term,
+        assignments,
+        productsCount: assignments.length,
+      },
+    });
+  } catch (error) {
+    console.error('Erro ao buscar detalhes do termo:', error);
+    res.status(500).json({ success: false, message: String(error) });
   }
 }
 

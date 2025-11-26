@@ -204,6 +204,12 @@ class ResponsibilityTermService {
       is_batch_term: false,
     }).returning();
 
+    // Atualizar assignment com o ID do termo gerado
+    await db
+      .update(userInventoryAssignments)
+      .set({ responsibility_term_id: term.id })
+      .where(eq(userInventoryAssignments.id, params.assignmentId!));
+
     return { ...term, pdfBase64: pdfBase64 as string | undefined };
   }
 
@@ -294,6 +300,12 @@ class ResponsibilityTermService {
 
     await db.insert(responsibilityTermAssignments).values(termAssignments);
 
+    // Atualizar todos os assignments com o ID do termo gerado
+    await db
+      .update(userInventoryAssignments)
+      .set({ responsibility_term_id: term.id })
+      .where(inArray(userInventoryAssignments.id, assignmentIds));
+
     return { ...term, pdfBase64: pdfBase64 as string | undefined };
   }
 
@@ -355,6 +367,50 @@ class ResponsibilityTermService {
       throw new Error('Termo ou PDF não encontrado.');
     }
     return s3Service.getDownloadUrl(term.pdf_s3_key);
+  }
+
+  async regenerateTermPdf(termId: number, companyId: number): Promise<Buffer> {
+    // Buscar termo
+    const [term] = await db
+      .select({
+        term: inventoryResponsibilityTerms,
+        template: inventoryTermTemplates,
+      })
+      .from(inventoryResponsibilityTerms)
+      .leftJoin(inventoryTermTemplates, eq(inventoryResponsibilityTerms.template_id, inventoryTermTemplates.id))
+      .where(
+        and(
+          eq(inventoryResponsibilityTerms.id, termId),
+          eq(inventoryResponsibilityTerms.company_id, companyId)
+        )
+      );
+
+    if (!term || !term.template) {
+      throw new Error('Termo ou template não encontrado.');
+    }
+
+    // Se for termo em lote
+    if (term.term.is_batch_term) {
+      // Buscar assignments relacionados
+      const assignments = await db
+        .select({
+          assignment_id: responsibilityTermAssignments.assignment_id,
+        })
+        .from(responsibilityTermAssignments)
+        .where(eq(responsibilityTermAssignments.term_id, termId));
+
+      const assignmentIds = assignments.map(a => a.assignment_id);
+      const batchContext = await this.getBatchAssignmentContext(assignmentIds, companyId);
+      const context = await this.buildBatchTemplateContext(batchContext);
+      const html = this.renderTemplate(term.template.content, context);
+      return this.generatePdf(html);
+    } else {
+      // Termo individual
+      const assignmentContext = await this.getAssignmentContext(term.term.assignment_id!, companyId);
+      const context = await this.buildTemplateContext(assignmentContext);
+      const html = this.renderTemplate(term.template.content, context);
+      return this.generatePdf(html);
+    }
   }
 
   private async getTemplate(id: number, companyId: number) {

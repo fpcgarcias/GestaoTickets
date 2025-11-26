@@ -1,0 +1,80 @@
+# ============================================
+# REQUISIÇÃO CURL PARA TESTAR WEBHOOK DO CLICKSIGN
+# ============================================
+# 
+# IMPORTANTE: 
+# 1. Substitua {{SEU_DOMINIO}} pela URL do seu sistema (ex: https://seu-dominio.com ou http://localhost:5173)
+# 2. Substitua {{ENVELOPE_KEY}} pela chave do envelope que você quer testar (deve existir no banco)
+# 3. Se você configurou webhook_secret, gere a signature correta usando HMAC SHA256
+#
+# Para importar no Postman:
+# - Abra o Postman
+# - Clique em "Import" > "Raw Text"
+# - Cole este curl e ajuste as variáveis
+#
+# ============================================
+
+# Webhook - Documento Assinado (envelope.signed)
+# Este é o evento que a Clicksign envia quando um documento é assinado
+curl --location 'https://b3b05e737bc9.ngrok-free.app/api/webhooks/clicksign' \
+--header 'Content-Type: application/json' \
+--header 'x-clicksign-signature: 41743cf45fdbde2b850916270b6c3312' \
+--data-raw '{
+  "event": "envelope.signed",
+  "envelope": {
+    "key": "2ac37b89-604f-4ba0-bec1-37213d995991",
+    "status": "signed",
+    "signers": [
+      {
+        "key": "signer-key-1",
+        "name": "João Silva",
+        "email": "joao@example.com",
+        "status": "signed",
+        "signed_at": "2024-01-15T10:30:00Z"
+      }
+    ],
+    "documents": [
+      {
+        "key": "doc-key-123",
+        "download_url": "https://clicksign.com/api/v3/documents/doc-key-123/download"
+      }
+    ]
+  }
+}'
+
+# ============================================
+# Webhook - Envelope Finalizado (envelope.finished)
+# Este é o evento que a Clicksign envia quando todos os signatários assinaram
+curl --location '{{SEU_DOMINIO}}/api/webhooks/clicksign' \
+--header 'Content-Type: application/json' \
+--header 'x-clicksign-signature: {{SIGNATURE_HMAC_SHA256_HEX}}' \
+--data-raw '{
+  "event": "envelope.finished",
+  "envelope": {
+    "key": "{{ENVELOPE_KEY}}",
+    "status": "finished",
+    "signers": [
+      {
+        "key": "signer-key-1",
+        "name": "João Silva",
+        "email": "joao@example.com",
+        "status": "signed",
+        "signed_at": "2024-01-15T10:30:00Z"
+      },
+      {
+        "key": "signer-key-2",
+        "name": "Maria Santos",
+        "email": "maria@example.com",
+        "status": "signed",
+        "signed_at": "2024-01-15T10:35:00Z"
+      }
+    ],
+    "documents": [
+      {
+        "key": "doc-key-123",
+        "download_url": "https://clicksign.com/api/v3/documents/doc-key-123/download"
+      }
+    ]
+  }
+}'
+

@@ -1247,6 +1247,7 @@ export const inventoryResponsibilityTerms = pgTable("inventory_responsibility_te
   template_version: integer("template_version"),
   generated_pdf_url: text("generated_pdf_url"),
   pdf_s3_key: text("pdf_s3_key"),
+  signed_pdf_s3_key: text("signed_pdf_s3_key"),
   sent_date: timestamp("sent_date", { withTimezone: false }),
   signed_date: timestamp("signed_date", { withTimezone: false }),
   signature_method: text("signature_method"),

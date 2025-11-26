@@ -109,6 +109,10 @@ export interface InventoryAssignment {
     id: number;
     name: string;
   } | null;
+  responsibility_term_id?: number | null;
+  term_status?: 'generated' | 'sent' | 'signed' | null;
+  signature_status?: string | null;
+  _debug?: any;
 }
 
 export interface InventoryWebhook {
@@ -674,6 +678,16 @@ export const useSendInventoryTerm = () =>
     successMessage: "Termo enviado",
     errorMessage: "Erro ao enviar termo",
     getBody: (vars) => vars.payload,
+  });
+
+export const useRequestDigitalSignature = () =>
+  useInventoryMutation<{ termId: number; provider?: string }>({
+    method: "POST",
+    path: (vars) => `/api/inventory/terms/${vars.termId}/request-signature`,
+    successMessage: "Termo enviado para ClickSign com sucesso",
+    errorMessage: "Erro ao enviar termo para assinatura",
+    invalidateKeys: [inventoryKeys.assignments.root],
+    getBody: (vars) => ({ provider: vars.provider || 'clicksign' }),
   });
 
 export const useUpdateInventoryDepartmentSettings = () =>

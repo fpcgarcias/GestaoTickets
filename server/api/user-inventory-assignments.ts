@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { db } from '../db';
-import { userInventoryAssignments, inventoryProducts, users } from '@shared/schema';
+import { userInventoryAssignments, inventoryProducts, users, inventoryResponsibilityTerms } from '@shared/schema';
 import { and, eq, isNull, or, inArray, sql, getTableColumns, desc } from 'drizzle-orm';
 import { getDepartmentFilter } from '../utils/department-filter';
 
@@ -75,10 +75,13 @@ export async function listAssignments(req: Request, res: Response) {
         product_id: inventoryProducts.id,
         product_name: inventoryProducts.name,
         user_name: users.name,
+        term_signature_method: inventoryResponsibilityTerms.signature_method,
+        term_status: inventoryResponsibilityTerms.status,
       })
       .from(userInventoryAssignments)
       .leftJoin(inventoryProducts, eq(userInventoryAssignments.product_id, inventoryProducts.id))
       .leftJoin(users, eq(userInventoryAssignments.user_id, users.id))
+      .leftJoin(inventoryResponsibilityTerms, eq(userInventoryAssignments.responsibility_term_id, inventoryResponsibilityTerms.id))
       .where(and(...conditions))
       .orderBy(desc(userInventoryAssignments.assigned_date));
 
@@ -98,6 +101,30 @@ export async function listAssignments(req: Request, res: Response) {
         status = 'pending';
       }
 
+      // Calcular term_status baseado no termo real
+      let term_status = null;
+      if (row.responsibility_term_id) {
+        console.log(`[DEBUG BACKEND] Assignment #${row.id}:`, {
+          responsibility_term_id: row.responsibility_term_id,
+          term_signature_method: row.term_signature_method,
+          term_status_db: row.term_status,
+        });
+        
+        // Se tem signature_method, significa que foi enviado para assinatura digital
+        if (row.term_signature_method) {
+          if (row.term_status === 'signed') {
+            term_status = 'signed';
+          } else {
+            term_status = 'sent'; // Enviado mas ainda não assinado
+          }
+        } else {
+          // Se não tem signature_method, apenas foi gerado
+          term_status = 'generated';
+        }
+        
+        console.log(`[DEBUG BACKEND] Calculated term_status: "${term_status}"`);
+      }
+
       return {
         ...row,
         product: row.product_id ? {
@@ -106,6 +133,8 @@ export async function listAssignments(req: Request, res: Response) {
         } : null,
         user_name: row.user_name ?? null,
         status,
+        term_status,
+        term_id: row.responsibility_term_id,
         assignment_group_id: row.assignment_group_id ?? null,
       };
     });

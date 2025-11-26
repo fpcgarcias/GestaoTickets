@@ -977,13 +977,24 @@
         "actual": "Real:",
         "status": "Status",
         "term_status": "Termo",
+        "signature_status": "Status Assinatura",
         "actions": "Ações",
         "return": "Registrar devolução",
         "generate_term": "Gerar termo",
         "term_created": "Termo gerado",
         "return_registered": "Devolução registrada",
         "empty_title": "Nenhuma alocação encontrada",
-        "empty_description": "Nenhuma alocação corresponde aos filtros selecionados."
+        "empty_description": "Nenhuma alocação corresponde aos filtros selecionados.",
+        "send_clicksign": "Enviar para ClickSign",
+        "send_to_clicksign_auto": "Enviar automaticamente para ClickSign",
+        "view_pdf": "Ver PDF"
+      },
+      "signature_status": {
+        "not_sent": "Não enviado",
+        "pending": "Pendente",
+        "signed": "Assinado",
+        "cancelled": "Cancelado",
+        "declined": "Recusado"
       }
     },
     "settings": {
@@ -2454,6 +2465,38 @@
     "password_no_number": "A senha deve conter pelo menos um número",
     "password_no_special": "A senha deve conter pelo menos um caractere especial (@$!%*?&)",
     "password_common_sequence": "A senha não pode conter sequências comuns"
+  },
+  "clicksign": {
+    "config": {
+      "title": "Configurações ClickSign",
+      "description": "Configure a integração com ClickSign para assinatura digital de termos de responsabilidade",
+      "enabled": "Habilitar ClickSign",
+      "enabled_description": "Ative ou desative a integração com ClickSign",
+      "access_token": "Access Token",
+      "access_token_placeholder": "Digite o access token da ClickSign",
+      "access_token_description": "Token de acesso da API da ClickSign. Obtenha em sua conta ClickSign.",
+      "api_url": "URL da API",
+      "api_url_description": "URL base da API da ClickSign",
+      "webhook_secret": "Webhook Secret",
+      "webhook_secret_placeholder": "Digite o secret para validar webhooks",
+      "webhook_secret_description": "Secret para validar que os webhooks vêm realmente da ClickSign",
+      "save": "Salvar",
+      "saving": "Salvando...",
+      "test": "Testar Conexão",
+      "testing": "Testando...",
+      "toast": {
+        "saved": "Configurações salvas com sucesso",
+        "error": "Erro ao salvar configurações"
+      },
+      "test_result": {
+        "success": "Conexão estabelecida com sucesso",
+        "error": "Falha ao conectar com ClickSign",
+        "validation": "Configure o Access Token e habilite o ClickSign para testar"
+      },
+      "validation": {
+        "access_token_required": "Access Token é obrigatório quando ClickSign está habilitado"
+      }
+    }
   }
 }
 

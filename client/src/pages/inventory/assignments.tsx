@@ -8,6 +8,7 @@ import {
   useInventoryAssignments,
   useCreateInventoryTerm,
   useReturnInventoryAssignment,
+  useRequestDigitalSignature,
 } from "@/hooks/useInventoryApi";
 import { Button } from "@/components/ui/button";
 import { InventoryStatusBadge } from "@/components/inventory/inventory-status-badge";
@@ -39,6 +40,7 @@ export default function InventoryAssignmentsPage() {
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const [selectedAssignments, setSelectedAssignments] = useState<number[]>([]);
+  const [sendToClicksign, setSendToClicksign] = useState(false);
 
   const assignmentsQuery = useInventoryAssignments({
     search: filters.search || undefined,
@@ -49,6 +51,7 @@ export default function InventoryAssignmentsPage() {
 
   const generateTerm = useCreateInventoryTerm();
   const returnAssignment = useReturnInventoryAssignment();
+  const requestSignature = useRequestDigitalSignature();
 
   const assignments = assignmentsQuery.data?.data ?? [];
   const paginationInfo = assignmentsQuery.data?.pagination;
@@ -94,6 +97,9 @@ export default function InventoryAssignmentsPage() {
       onSuccess: (data: any) => {
         toast({ title: formatMessage("inventory.assignments.table.term_created") });
         
+        // Recarregar assignments para mostrar status atualizado
+        assignmentsQuery.refetch();
+        
         // Abrir PDF em nova aba
         if (data?.data?.pdfBase64) {
           const blob = base64ToBlob(data.data.pdfBase64, 'application/pdf');
@@ -101,6 +107,16 @@ export default function InventoryAssignmentsPage() {
           window.open(url, '_blank');
         } else if (data?.data?.downloadUrl) {
           window.open(data.data.downloadUrl, '_blank');
+        }
+
+        // Se checkbox marcado, enviar automaticamente para ClickSign
+        if (sendToClicksign && data?.data?.id) {
+          requestSignature.mutate({ termId: data.data.id }, {
+            onSuccess: () => {
+              // Recarregar novamente após enviar
+              assignmentsQuery.refetch();
+            }
+          });
         }
       }
     });
@@ -137,6 +153,9 @@ export default function InventoryAssignmentsPage() {
             toast({ title: "Termo em lote gerado com sucesso!" });
             setSelectedAssignments([]);
             
+            // Recarregar assignments para mostrar status atualizado
+            assignmentsQuery.refetch();
+            
             // Abrir PDF em nova aba
             if (data?.data?.pdfBase64) {
               const blob = base64ToBlob(data.data.pdfBase64, 'application/pdf');
@@ -144,6 +163,16 @@ export default function InventoryAssignmentsPage() {
               window.open(url, '_blank');
             } else if (data?.data?.downloadUrl) {
               window.open(data.data.downloadUrl, '_blank');
+            }
+
+            // Se checkbox marcado, enviar automaticamente para ClickSign
+            if (sendToClicksign && data?.data?.id) {
+              requestSignature.mutate({ termId: data.data.id }, {
+                onSuccess: () => {
+                  // Recarregar novamente após enviar
+                  assignmentsQuery.refetch();
+                }
+              });
             }
           },
           onError: (error: any) => {
@@ -161,6 +190,9 @@ export default function InventoryAssignmentsPage() {
             toast({ title: "Termo em lote gerado com sucesso!" });
             setSelectedAssignments([]);
             
+            // Recarregar assignments para mostrar status atualizado
+            assignmentsQuery.refetch();
+            
             // Abrir PDF em nova aba
             if (data?.data?.pdfBase64) {
               const blob = base64ToBlob(data.data.pdfBase64, 'application/pdf');
@@ -168,6 +200,16 @@ export default function InventoryAssignmentsPage() {
               window.open(url, '_blank');
             } else if (data?.data?.downloadUrl) {
               window.open(data.data.downloadUrl, '_blank');
+            }
+
+            // Se checkbox marcado, enviar automaticamente para ClickSign
+            if (sendToClicksign && data?.data?.id) {
+              requestSignature.mutate({ termId: data.data.id }, {
+                onSuccess: () => {
+                  // Recarregar novamente após enviar
+                  assignmentsQuery.refetch();
+                }
+              });
             }
           },
           onError: (error: any) => {
@@ -180,6 +222,23 @@ export default function InventoryAssignmentsPage() {
 
   const handleReturn = (assignmentId: number) => {
     returnAssignment.mutate({ assignmentId }, { onSuccess: () => toast({ title: formatMessage("inventory.assignments.table.return_registered") }) });
+  };
+
+  const handleSendToClicksign = (termId: number) => {
+    requestSignature.mutate({ termId }, {
+      onSuccess: () => {
+        toast({ title: "Termo enviado para assinatura!" });
+        // Recarregar assignments para mostrar status atualizado
+        assignmentsQuery.refetch();
+      },
+      onError: (error: any) => {
+        toast({ 
+          title: "Erro ao enviar termo", 
+          description: error?.message || "Erro desconhecido", 
+          variant: "destructive" 
+        });
+      }
+    });
   };
 
   const formatDateValue = (value?: string | null) => {
@@ -254,31 +313,98 @@ export default function InventoryAssignmentsPage() {
         key: "term",
         header: formatMessage("inventory.assignments.table.term_status"),
         render: (assignment) => (
-          <span className="text-sm">
-            {assignment.term_status
-              ? formatMessage(`inventory.assignments.term_status.${assignment.term_status}` as any)
-              : formatMessage("inventory.assignments.term_status.none")}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm whitespace-nowrap">
+              {assignment.term_status
+                ? formatMessage(`inventory.assignments.term_status.${assignment.term_status}` as any)
+                : formatMessage("inventory.assignments.term_status.none")}
+            </span>
+            {assignment.responsibility_term_id && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                onClick={() => window.open(`/api/inventory/terms/${assignment.responsibility_term_id}/download`, '_blank')}
+              >
+                Ver PDF
+              </Button>
+            )}
+          </div>
         ),
+      },
+      {
+        key: "signature",
+        header: formatMessage("inventory.assignments.table.signature_status"),
+        render: (assignment) => {
+          // DEBUG temporário - REMOVER DEPOIS
+          console.log(`[DEBUG] Assignment #${assignment.id}:`, 
+            `term_id=${assignment.responsibility_term_id}`, 
+            `term_status="${assignment.term_status}"`,
+            `signature_status="${assignment.signature_status}"`,
+            `_debug:`, assignment._debug
+          );
+
+          // Só mostra "Não enviado" e botão se:
+          // 1. Tem termo gerado (responsibility_term_id)
+          // 2. NÃO foi enviado para ClickSign ainda (term_status === 'generated')
+          const isGenerated = assignment.responsibility_term_id && assignment.term_status === 'generated';
+          const isSent = assignment.term_status === 'sent';
+          const isSigned = assignment.term_status === 'signed';
+          
+          return (
+            <div className="flex items-center gap-2">
+              <span className="text-sm whitespace-nowrap">
+                {isSigned 
+                  ? formatMessage("inventory.assignments.signature_status.signed")
+                  : isSent
+                    ? formatMessage("inventory.assignments.signature_status.pending")
+                    : isGenerated
+                      ? formatMessage("inventory.assignments.signature_status.not_sent")
+                      : "--"}
+              </span>
+              {isGenerated && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-green-600 hover:text-green-800 hover:bg-green-50"
+                  onClick={() => handleSendToClicksign(assignment.responsibility_term_id)}
+                  disabled={requestSignature.isPending}
+                >
+                  {formatMessage("inventory.assignments.table.send_clicksign")}
+                </Button>
+              )}
+            </div>
+          );
+        },
       },
       {
         key: "actions",
         header: formatMessage("inventory.assignments.table.actions"),
         render: (assignment) => (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-2">
             {!assignment.actual_return_date && (
-              <Button variant="outline" size="sm" onClick={() => handleReturn(assignment.id)}>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="whitespace-nowrap"
+                onClick={() => handleReturn(assignment.id)}
+              >
                 {formatMessage("inventory.assignments.table.return")}
               </Button>
             )}
-            <Button variant="outline" size="sm" onClick={() => handleGenerateTerm(assignment.id)}>
+            <Button 
+              variant="default" 
+              size="sm"
+              className="whitespace-nowrap"
+              onClick={() => handleGenerateTerm(assignment.id)}
+            >
               {formatMessage("inventory.assignments.table.generate_term")}
             </Button>
           </div>
         ),
       },
     ],
-    [formatDateValue, formatMessage]
+    [formatDateValue, formatMessage, requestSignature.isPending, sendToClicksign]
   );
 
   return (
@@ -295,11 +421,26 @@ export default function InventoryAssignmentsPage() {
             onReset={resetFilters}
             isDirty={Boolean(filters.search || filters.status)}
           />
-          {selectedAssignments.length > 0 && (
-            <Button onClick={handleGenerateBatchTerm} variant="default">
-              Gerar termo em lote ({selectedAssignments.length})
-            </Button>
-          )}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="send-clicksign" 
+                checked={sendToClicksign}
+                onCheckedChange={(checked) => setSendToClicksign(!!checked)}
+              />
+              <label 
+                htmlFor="send-clicksign"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                {formatMessage("inventory.assignments.table.send_to_clicksign_auto")}
+              </label>
+            </div>
+            {selectedAssignments.length > 0 && (
+              <Button onClick={handleGenerateBatchTerm} variant="default">
+                Gerar termo em lote ({selectedAssignments.length})
+              </Button>
+            )}
+          </div>
         </div>
         <EntityTable
           data={assignments}
