@@ -607,7 +607,12 @@
       "pending": "Pending",
       "approved": "Approved",
       "rejected": "Rejected",
-      "draft": "Draft"
+      "draft": "Draft",
+      "signed": "Delivered",
+      "active": "Active",
+      "returned": "Returned",
+      "pending_signature": "Pending Signature",
+      "expired": "Expired"
     },
     "table": {
       "empty_title": "No records found",

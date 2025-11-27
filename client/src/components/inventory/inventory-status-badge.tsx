@@ -11,7 +11,12 @@ type StatusKey =
   | "pending"
   | "approved"
   | "rejected"
-  | "draft";
+  | "draft"
+  | "signed"
+  | "active"
+  | "returned"
+  | "pending_signature"
+  | "expired";
 
 const statusStyles: Record<
   StatusKey,
@@ -26,6 +31,11 @@ const statusStyles: Record<
   approved: { messageKey: "inventory.status.approved", className: "bg-emerald-100 text-emerald-900 border-emerald-200" },
   rejected: { messageKey: "inventory.status.rejected", className: "bg-rose-100 text-rose-900 border-rose-200" },
   draft: { messageKey: "inventory.status.draft", className: "bg-gray-100 text-gray-900 border-gray-200" },
+  signed: { messageKey: "inventory.status.signed", className: "bg-emerald-100 text-emerald-900 border-emerald-200" },
+  active: { messageKey: "inventory.status.active", className: "bg-blue-100 text-blue-900 border-blue-200" },
+  returned: { messageKey: "inventory.status.returned", className: "bg-slate-100 text-slate-900 border-slate-200" },
+  pending_signature: { messageKey: "inventory.status.pending_signature", className: "bg-amber-100 text-amber-900 border-amber-200" },
+  expired: { messageKey: "inventory.status.expired", className: "bg-rose-100 text-rose-900 border-rose-200" },
 };
 
 interface InventoryStatusBadgeProps {

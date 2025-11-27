@@ -363,8 +363,17 @@ class ResponsibilityTermService {
 
   async getTermPdfUrl(termId: number, companyId: number): Promise<string> {
     const term = await this.getTerm(termId, companyId);
-    if (!term || !term.pdf_s3_key) {
-      throw new Error('Termo ou PDF não encontrado.');
+    if (!term) {
+      throw new Error('Termo não encontrado.');
+    }
+
+    // ✅ SE JÁ ESTIVER ASSINADO, RETORNAR O PDF ASSINADO (PRIORIDADE MÁXIMA)
+    if (term.signed_pdf_s3_key) {
+      return s3Service.getDownloadUrl(term.signed_pdf_s3_key);
+    }
+
+    if (!term.pdf_s3_key) {
+      throw new Error('PDF não encontrado.');
     }
     return s3Service.getDownloadUrl(term.pdf_s3_key);
   }

@@ -193,7 +193,27 @@ export async function downloadResponsibilityTerm(req: Request, res: Response) {
       });
     }
 
-    // Em desenvolvimento, regenerar o PDF e retornar diretamente
+    // Verificar se tem PDF assinado ANTES de tentar regenerar (mesmo em dev)
+    const [term] = await db
+      .select({ 
+          signed_pdf_s3_key: inventoryResponsibilityTerms.signed_pdf_s3_key,
+          status: inventoryResponsibilityTerms.status,
+          id: inventoryResponsibilityTerms.id
+      })
+      .from(inventoryResponsibilityTerms)
+      .where(eq(inventoryResponsibilityTerms.id, termId))
+      .limit(1);
+
+    console.log(`[downloadResponsibilityTerm] Term ID: ${termId}, Status: ${term?.status}, SignedKey: ${term?.signed_pdf_s3_key}`);
+
+    // Se já tem PDF assinado, retornar ele DIRETAMENTE via URL assinada
+    if (term?.signed_pdf_s3_key) {
+      console.log(`[downloadResponsibilityTerm] Retornando PDF assinado: ${term.signed_pdf_s3_key}`);
+      const url = await responsibilityTermService.getTermPdfUrl(termId, companyId);
+      return res.redirect(url);
+    }
+
+    // Em desenvolvimento, se NÃO estiver assinado, regenerar o PDF rascunho
     const isDevelopment = process.env.NODE_ENV !== 'production';
     if (isDevelopment) {
       console.log(`[downloadResponsibilityTerm] Regenerating PDF for term ${termId} (Company: ${companyId})`);

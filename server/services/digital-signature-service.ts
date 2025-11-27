@@ -23,6 +23,7 @@ export interface SignatureRequestOptions {
 
 export interface SignatureRequestResult {
   requestId: string;
+  documentId?: string; // Adicionado ID do documento para facilitar busca no webhook
   signingUrl: string;
   provider: SupportedSignatureProvider;
   status: 'pending' | 'signed' | 'cancelled';
@@ -419,6 +420,7 @@ export class ClicksignProvider implements SignatureProvider {
 
       return {
         requestId: envelopeKey,
+        documentId: documentKey, // Retornar também o ID do documento
         signingUrl,
         provider: 'clicksign',
         status: 'pending',
@@ -474,41 +476,81 @@ export class ClicksignProvider implements SignatureProvider {
 
   parseWebhook(payload: any): SignatureStatus | null {
     // Webhook da API v3 da ClickSign
-    // Eventos: envelope.signed, envelope.finished, envelope.cancelled, envelope.declined
-    if (!payload?.envelope?.key) {
+    
+    // 1. Tentar extrair key do envelope ou documento
+    let requestId = payload.envelope?.key;
+    
+    // Fallback: Se não tem envelope.key, tenta document.key (alguns eventos V3)
+    if (!requestId && payload.document?.key) {
+      requestId = payload.document.key;
+    }
+
+    if (!requestId) {
       return null;
     }
 
-    const requestId = payload.envelope.key;
-    const event = payload.event; // envelope.signed, envelope.finished, etc.
-    const envelope = payload.envelope;
-
-    // ✅ Filtrar apenas eventos relevantes onde dados de qualificação estão completos
-    // Processar apenas quando envelope.finished ou envelope.signed
-    if (event !== 'envelope.finished' && event !== 'envelope.signed') {
-      console.log(`[Clicksign Webhook] Evento ${event} ignorado - processando apenas envelope.finished e envelope.signed`);
-      return null;
+    // 2. Normalizar nome do evento
+    let eventName = '';
+    if (payload.event && typeof payload.event === 'object' && payload.event.name) {
+      eventName = payload.event.name;
+    } else if (typeof payload.event === 'string') {
+      eventName = payload.event;
     }
 
-    // Verificar status dos signatários
-    const allSigned = envelope.signers?.every((signer: any) => signer.status === 'signed') || false;
-    const anyCancelled = envelope.signers?.some((signer: any) => signer.status === 'cancelled') || false;
-    const anyDeclined = envelope.signers?.some((signer: any) => signer.status === 'declined' || signer.status === 'refused') || false;
+    // ✅ Mapear eventos para status
+    // Eventos de sucesso: 'sign', 'envelope.signed', 'envelope.finished', 'auto_close', 'document_closed'
+    // Eventos de cancelamento: 'cancel', 'envelope.cancelled'
+    // Eventos de recusa: 'refuse', 'envelope.refused'
+    
+    const successEvents = ['sign', 'signed', 'envelope.signed', 'envelope.finished', 'auto_close', 'document_closed', 'finish', 'finished'];
+    const cancelEvents = ['cancel', 'canceled', 'envelope.cancelled', 'envelope.canceled'];
+    const declineEvents = ['refuse', 'refused', 'envelope.refused', 'envelope.declined', 'decline'];
+
+    if (!successEvents.includes(eventName) && !cancelEvents.includes(eventName) && !declineEvents.includes(eventName)) {
+      console.log(`[DigitalSignature] Evento ${eventName} ignorado pelo parser.`);
+      return null;
+    }
 
     let mappedStatus: 'pending' | 'signed' | 'declined' | 'cancelled' = 'pending';
-    if (event === 'envelope.signed' || event === 'envelope.finished' || allSigned) {
+    
+    if (successEvents.includes(eventName)) {
       mappedStatus = 'signed';
-    } else if (event === 'envelope.declined' || anyDeclined) {
+    } else if (declineEvents.includes(eventName)) {
       mappedStatus = 'declined';
-    } else if (event === 'envelope.cancelled' || anyCancelled) {
+    } else if (cancelEvents.includes(eventName)) {
       mappedStatus = 'cancelled';
     }
 
-    // Evidence URL - URL do documento assinado completo
-    const evidenceUrl = envelope.documents?.[0]?.download_url || undefined;
-    const signedAt = envelope.signers?.[0]?.signed_at || undefined;
+    // Evidence URL e Datas
+    // Tenta pegar do envelope (payload completo) ou do documento
+    const envelope = payload.envelope || {};
+    const document = payload.document || {};
+    
+    // 1. PRIORIDADE: URL do documento ASSINADO
+    // Tenta pegar do evento document_closed ou structure downloads
+    let evidenceUrl: string | undefined;
 
-    // ✅ Capturar dados de qualificação dos signatários
+    if (payload.document?.downloads?.signed_file_url) {
+        evidenceUrl = payload.document.downloads.signed_file_url;
+    } else if (document.downloads?.signed_file_url) {
+        evidenceUrl = document.downloads.signed_file_url;
+    } else if (envelope.documents?.[0]?.downloads?.signed_file_url) {
+        evidenceUrl = envelope.documents[0].downloads.signed_file_url;
+    } 
+    // Check generic download_url only if it explicitly does NOT look like original (though API often serves signed via download_url in finished state)
+    // But to be safe, we prioritize signed_file_url above.
+    else if (envelope.documents?.[0]?.download_url) {
+        evidenceUrl = envelope.documents[0].download_url;
+    }
+
+    // ⚠️ JAMAIS usar original_file_url como fallback para evidenceUrl final
+    
+    console.log(`[DigitalSignature] Evidence URL extraída: ${evidenceUrl}`);
+
+    // Signed At
+    const signedAt = payload.event?.occurred_at || new Date().toISOString();
+
+    // ✅ Capturar dados de qualificação dos signatários se disponível
     const signersData = envelope.signers?.map((signer: any) => ({
       name: signer.name || '',
       email: signer.email || '',
@@ -628,6 +670,8 @@ class DigitalSignatureService {
       deliveryResponsibleEmail: options.deliveryResponsibleEmail,
     });
 
+    console.log(`[DigitalSignature] DEBUG CRÍTICO - Salvando request no banco:`, JSON.stringify(request, null, 2));
+
     await db
       .update(inventoryResponsibilityTerms)
       .set({
@@ -655,9 +699,16 @@ class DigitalSignatureService {
   }
 
   async handleProviderWebhook(providerName: SupportedSignatureProvider, payload: any, companyId?: number) {
+    console.log(`[DigitalSignature] handleProviderWebhook: provider=${providerName}, companyId=${companyId}`);
     const provider = this.createProvider(providerName, companyId);
     const status = provider.parseWebhook(payload);
-    if (!status) return;
+    
+    if (!status) {
+      console.warn('[DigitalSignature] parseWebhook retornou null (evento ignorado ou inválido)');
+      return;
+    }
+    
+    console.log(`[DigitalSignature] Webhook parseado com sucesso. Status: ${status.status}, RequestID: ${status.requestId}`);
 
     // ✅ Adicionar payload completo ao status para salvar no banco
     status.webhookPayload = payload;
@@ -665,7 +716,30 @@ class DigitalSignatureService {
     await this.updateTermStatusByRequestId(providerName, status, companyId, payload);
   }
 
+  /**
+   * Processa webhook para um termo específico já identificado
+   * Evita ter que buscar o termo novamente no banco
+   */
+  async handleWebhookForTerm(termId: number, providerName: SupportedSignatureProvider, payload: any, companyId: number) {
+    console.log(`[DigitalSignature] handleWebhookForTerm: termId=${termId}, provider=${providerName}`);
+    const provider = this.createProvider(providerName, companyId);
+    const status = provider.parseWebhook(payload);
+
+    if (!status) {
+      console.warn('[DigitalSignature] parseWebhook retornou null (evento ignorado ou inválido)');
+      return;
+    }
+
+    console.log(`[DigitalSignature] Webhook parseado com sucesso. Status: ${status.status}`);
+    
+    // Adicionar payload completo
+    status.webhookPayload = payload;
+
+    await this.updateTermStatus(termId, status, companyId, payload);
+  }
+
   private async updateTermStatus(termId: number, status: SignatureStatus, companyId: number, webhookPayload?: any) {
+    console.log(`[DigitalSignature] updateTermStatus: termId=${termId}, status=${status.status}`);
     // ✅ Salvar payload completo do webhook no status
     if (webhookPayload) {
       status.webhookPayload = webhookPayload;
@@ -681,6 +755,7 @@ class DigitalSignatureService {
       
       // Se temos evidenceUrl, baixar e salvar PDF assinado
       if (status.evidenceUrl) {
+        console.log(`[DigitalSignature] Baixando PDF assinado de: ${status.evidenceUrl}`);
         try {
           const provider = this.createProvider('clicksign', companyId) as ClicksignProvider;
           const pdfBuffer = await provider.downloadSignedPdf(status.evidenceUrl);
@@ -693,10 +768,13 @@ class DigitalSignatureService {
           });
           
           updates.signed_pdf_s3_key = uploadResult.s3Key;
+          console.log(`[DigitalSignature] PDF assinado salvo no S3: ${uploadResult.s3Key}`);
         } catch (error) {
           console.error(`[DigitalSignature] Erro ao baixar/salvar PDF assinado para termo ${termId}:`, error);
           // Não falhar o processo se o download falhar, apenas logar
         }
+      } else {
+        console.warn('[DigitalSignature] Status é signed mas não tem evidenceUrl');
       }
     }
 
@@ -710,10 +788,64 @@ class DigitalSignatureService {
       }
     }
 
-    await db
-      .update(inventoryResponsibilityTerms)
-      .set(updates)
-      .where(eq(inventoryResponsibilityTerms.id, termId));
+        console.log(`[DigitalSignature] Salvando atualizações no banco para termo ${termId}:`, JSON.stringify(updates, null, 2));
+        await db
+          .update(inventoryResponsibilityTerms)
+          .set(updates)
+          .where(eq(inventoryResponsibilityTerms.id, termId));
+
+        // ✅ Atualizar status da assinatura na alocação (user_inventory_assignments)
+        if (updates.status) {
+            // Mapear status do termo para status da alocação
+            let assignmentSignatureStatus = 'pending';
+            if (updates.status === 'signed') assignmentSignatureStatus = 'signed';
+            else if (updates.status === 'sent') assignmentSignatureStatus = 'sent'; // enviado
+            else if (updates.status === 'expired' || updates.status === 'declined') assignmentSignatureStatus = 'expired';
+            
+            // Buscar dados do termo para identificar alocações vinculadas
+            const [termData] = await db
+                .select({ 
+                    assignment_id: inventoryResponsibilityTerms.assignment_id,
+                    is_batch_term: inventoryResponsibilityTerms.is_batch_term
+                })
+                .from(inventoryResponsibilityTerms)
+                .where(eq(inventoryResponsibilityTerms.id, termId))
+                .limit(1);
+
+            if (termData) {
+                const assignmentIdsToUpdate: number[] = [];
+
+                // 1. Se tiver assignment_id direto (termo simples)
+                if (termData.assignment_id) {
+                    assignmentIdsToUpdate.push(termData.assignment_id);
+                }
+
+                // 2. Se for termo em lote, buscar assignments na tabela de relacionamento
+                if (termData.is_batch_term) {
+                    const batchAssignments = await db
+                        .select({ assignment_id: responsibilityTermAssignments.assignment_id })
+                        .from(responsibilityTermAssignments)
+                        .where(eq(responsibilityTermAssignments.term_id, termId));
+                    
+                    batchAssignments.forEach(a => assignmentIdsToUpdate.push(a.assignment_id));
+                }
+
+                // Remover duplicatas e atualizar
+                const uniqueIds = [...new Set(assignmentIdsToUpdate)];
+                
+                if (uniqueIds.length > 0) {
+                    console.log(`[DigitalSignature] Atualizando status da alocação para ${assignmentSignatureStatus} nos IDs: ${uniqueIds.join(', ')}`);
+                    await db
+                        .update(userInventoryAssignments)
+                        .set({ signature_status: assignmentSignatureStatus })
+                        .where(inArray(userInventoryAssignments.id, uniqueIds));
+                } else {
+                    console.warn(`[DigitalSignature] Nenhuma alocação encontrada para atualizar status do termo ${termId}`);
+                }
+            }
+        }
+
+        console.log(`[DigitalSignature] Atualização concluída para termo ${termId}`);
   }
 
   /**
@@ -844,7 +976,12 @@ class DigitalSignatureService {
   }
 
   private async updateTermStatusByRequestId(providerName: SupportedSignatureProvider, status: SignatureStatus, companyId?: number, webhookPayload?: any) {
-    const whereConditions = [eq(inventoryResponsibilityTerms.signature_method, providerName)];
+    console.log(`[DigitalSignature] updateTermStatusByRequestId: provider=${providerName}, requestId=${status.requestId}, companyId=${companyId}`);
+    
+    // Buscar termos com método do provedor OU genérico 'digital'
+    const methodsToSearch = [providerName, 'digital'];
+    
+    const whereConditions = [inArray(inventoryResponsibilityTerms.signature_method, methodsToSearch)];
     if (companyId) {
       whereConditions.push(eq(inventoryResponsibilityTerms.company_id, companyId));
     }
@@ -857,14 +994,35 @@ class DigitalSignatureService {
     const targetTerm = terms.find((term) => {
       if (!term.signature_data) return false;
       try {
-        const data = JSON.parse(term.signature_data) as { requestId?: string };
-        return data.requestId === status.requestId;
+        let data: any = term.signature_data;
+        // Tratamento robusto para JSON ou String (igual ao webhook)
+        if (typeof data === 'string') {
+            try { data = JSON.parse(data); } catch {}
+            // Se ainda for string, parsear de novo (double stringify)
+            if (typeof data === 'string') {
+                try { data = JSON.parse(data); } catch {}
+            }
+        }
+        
+        const casted = data as { requestId?: string; documentId?: string };
+        
+        if (casted.requestId === status.requestId) return true;
+        
+        // Se status.requestId for na verdade o ID do documento (alguns webhooks mandam assim)
+        if (casted.documentId && casted.documentId === status.requestId) return true;
+        
+        return false;
       } catch {
         return false;
       }
     });
 
-    if (!targetTerm) return;
+    if (!targetTerm) {
+      console.warn(`[DigitalSignature] Termo não encontrado para RequestID: ${status.requestId}`);
+      return;
+    }
+    
+    console.log(`[DigitalSignature] Termo encontrado para atualização: ${targetTerm.id}`);
     await this.updateTermStatus(targetTerm.id, status, targetTerm.company_id, webhookPayload);
   }
 

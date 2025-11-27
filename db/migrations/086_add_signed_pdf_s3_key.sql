@@ -24,3 +24,4 @@ WHERE signed_pdf_s3_key IS NOT NULL;
 COMMENT ON COLUMN inventory_responsibility_terms.signed_pdf_s3_key IS 'Chave S3 do PDF assinado baixado da ClickSign após assinatura';
 
 
+

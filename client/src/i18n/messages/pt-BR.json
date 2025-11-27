@@ -608,7 +608,12 @@
       "pending": "Pendente",
       "approved": "Aprovado",
       "rejected": "Rejeitado",
-      "draft": "Rascunho"
+      "draft": "Rascunho",
+      "signed": "Entregue",
+      "active": "Em uso",
+      "returned": "Devolvido",
+      "pending_signature": "Aguardando Assinatura",
+      "expired": "Expirado"
     },
     "table": {
       "empty_title": "Nenhum registro encontrado",
