@@ -92,6 +92,11 @@ export default function InventoryAssignmentsPage() {
     setPage(1);
   };
 
+  const handleViewPdf = (termId: number) => {
+    // Abrir URL diretamente - servidor retorna PDF com Content-Disposition: inline
+    window.open(`/api/inventory/terms/${termId}/download`, '_blank');
+  };
+
   const handleGenerateTerm = (assignmentId: number) => {
     generateTerm.mutate({ assignmentId }, { 
       onSuccess: (data: any) => {
@@ -324,7 +329,7 @@ export default function InventoryAssignmentsPage() {
                 variant="ghost"
                 size="sm"
                 className="h-7 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-                onClick={() => window.open(`/api/inventory/terms/${assignment.responsibility_term_id}/download`, '_blank')}
+                onClick={() => handleViewPdf(assignment.responsibility_term_id!)}
               >
                 Ver PDF
               </Button>

@@ -165,16 +165,16 @@ class ResponsibilityTermService {
     const context = this.buildTemplateContext(assignmentContext);
     const html = this.renderTemplate(template.content, context);
     const pdfBuffer = await this.generatePdf(html);
-    
+
     // Em desenvolvimento, retornar PDF como base64 para visualização direta
     const isDevelopment = process.env.NODE_ENV !== 'production';
     let pdfBase64: string | undefined = undefined;
     if (isDevelopment) {
       pdfBase64 = Buffer.from(pdfBuffer).toString('base64');
     }
-    
+
     let s3Key = `terms/${params.assignmentId}/termo-responsabilidade-${params.assignmentId}.pdf`;
-    
+
     // Apenas fazer upload para S3 em produção
     if (!isDevelopment) {
       const uploadResult = await s3Service.uploadInventoryFile({
@@ -251,17 +251,17 @@ class ResponsibilityTermService {
     const context = await this.buildBatchTemplateContext(batchContext);
     const html = this.renderTemplate(template.content, context);
     const pdfBuffer = await this.generatePdf(html);
-    
+
     // Em desenvolvimento, retornar PDF como base64 para visualização direta
     const isDevelopment = process.env.NODE_ENV !== 'production';
     let pdfBase64: string | undefined = undefined;
     if (isDevelopment) {
       pdfBase64 = Buffer.from(pdfBuffer).toString('base64');
     }
-    
+
     const termId = `batch-${Date.now()}`;
     let s3Key = `terms/batch/${termId}/termo-responsabilidade-lote-${termId}.pdf`;
-    
+
     // Apenas fazer upload para S3 em produção
     if (!isDevelopment) {
       const uploadResult = await s3Service.uploadInventoryFile({
@@ -400,13 +400,32 @@ class ResponsibilityTermService {
         .where(eq(responsibilityTermAssignments.term_id, termId));
 
       const assignmentIds = assignments.map(a => a.assignment_id);
+
+      if (assignmentIds.length === 0) {
+        throw new Error('Nenhuma alocação encontrada para este termo em lote.');
+      }
+
       const batchContext = await this.getBatchAssignmentContext(assignmentIds, companyId);
+
+      if (!batchContext) {
+        throw new Error(`Dados das alocações não encontrados (IDs: ${assignmentIds.join(', ')}). Verifique se pertencem à empresa atual.`);
+      }
+
       const context = await this.buildBatchTemplateContext(batchContext);
       const html = this.renderTemplate(term.template.content, context);
       return this.generatePdf(html);
     } else {
       // Termo individual
-      const assignmentContext = await this.getAssignmentContext(term.term.assignment_id!, companyId);
+      if (!term.term.assignment_id) {
+        throw new Error('ID da alocação não encontrado no termo.');
+      }
+
+      const assignmentContext = await this.getAssignmentContext(term.term.assignment_id, companyId);
+
+      if (!assignmentContext) {
+        throw new Error(`Dados da alocação não encontrados (ID: ${term.term.assignment_id}). Verifique se pertence à empresa atual.`);
+      }
+
       const context = await this.buildTemplateContext(assignmentContext);
       const html = this.renderTemplate(term.template.content, context);
       return this.generatePdf(html);
@@ -682,7 +701,7 @@ class ResponsibilityTermService {
 
   private formatProductList(assignments: Array<{ product?: typeof inventoryProducts.$inferSelect | null; assignment: typeof userInventoryAssignments.$inferSelect }>): string {
     if (assignments.length === 0) return '';
-    
+
     const items = assignments.map((item, index) => {
       const product = item.product;
       const name = product?.name ?? 'Produto não identificado';
@@ -690,13 +709,13 @@ class ResponsibilityTermService {
       const model = product?.model ? ` ${product.model}` : '';
       return `<li>${index + 1}. ${name}${brand}${model}</li>`;
     }).join('\n');
-    
+
     return `<ul>${items}</ul>`;
   }
 
   private formatProductTable(assignments: Array<{ product?: typeof inventoryProducts.$inferSelect | null; assignment: typeof userInventoryAssignments.$inferSelect }>): string {
     if (assignments.length === 0) return '';
-    
+
     const rows = assignments.map((item) => {
       const product = item.product;
       // Formato do modelo: apenas nome do equipamento (pode incluir marca/modelo se necessário)
@@ -708,7 +727,7 @@ class ResponsibilityTermService {
         equipmentName = parts.join(' - ');
       }
       const serial = product?.serial_number ?? '-';
-      
+
       return `
         <tr>
           <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 9pt;">${equipmentName}</td>
@@ -716,7 +735,7 @@ class ResponsibilityTermService {
         </tr>
       `;
     }).join('\n');
-    
+
     return `
       <table class="equipment-table" style="width: 100%; border-collapse: collapse; margin: 12px 0; border: 1px solid #000; page-break-inside: avoid;">
         <thead>
@@ -732,11 +751,11 @@ class ResponsibilityTermService {
     `;
   }
 
-  private renderTemplate(template: string, data: Record<string, string>) {
+  private renderTemplate(template: string, data: Record<string, any>) {
     let rendered = template;
     for (const [key, value] of Object.entries(data)) {
       const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'gi');
-      rendered = rendered.replace(regex, value ?? '');
+      rendered = rendered.replace(regex, String(value ?? ''));
     }
     return rendered;
   }
@@ -744,20 +763,20 @@ class ResponsibilityTermService {
   private async generatePdf(html: string): Promise<Buffer> {
     // Detectar caminho do executável baseado na plataforma
     let executablePath: string | undefined;
-    
+
     if (process.platform === 'linux') {
       // Linux: usar caminho do chromium-browser do sistema
       executablePath = '/usr/bin/chromium-browser';
     } else if (process.platform === 'win32') {
       // Windows: tentar encontrar Chrome instalado em caminhos comuns
       const fs = await import('fs');
-      
+
       const possiblePaths = [
         'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
         'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
         process.env.LOCALAPPDATA + '\\Google\\Chrome\\Application\\chrome.exe',
       ];
-      
+
       // Procurar Chrome instalado
       for (const path of possiblePaths) {
         try {
@@ -769,7 +788,7 @@ class ResponsibilityTermService {
           // Ignorar erros e tentar próximo caminho
         }
       }
-      
+
       // Se não encontrou nenhum, deixar undefined (Puppeteer vai tentar usar o bundled)
       if (!executablePath) {
         executablePath = undefined;
@@ -780,11 +799,11 @@ class ResponsibilityTermService {
     }
 
     const browser = await puppeteer.launch({
-      headless: 'new',
+      headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
       executablePath,
     });
-    
+
     try {
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'networkidle0' });
@@ -794,7 +813,7 @@ class ResponsibilityTermService {
         margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
       });
       await page.close();
-      return buffer;
+      return Buffer.from(buffer);
     } finally {
       await browser.close();
     }

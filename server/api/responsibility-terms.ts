@@ -24,9 +24,9 @@ export async function listResponsibilityTerms(req: Request, res: Response) {
 
     // Bloquear customers
     if (userRole === 'customer') {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Acesso negado ao inventário' 
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado ao inventário'
       });
     }
 
@@ -114,9 +114,9 @@ export async function generateResponsibilityTerm(req: Request, res: Response) {
 
     // Bloquear customers
     if (userRole === 'customer') {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Acesso negado ao inventário' 
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado ao inventário'
       });
     }
 
@@ -134,8 +134,8 @@ export async function generateResponsibilityTerm(req: Request, res: Response) {
       createdById: userId,
     });
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       data: result
     });
   } catch (error) {
@@ -153,9 +153,9 @@ export async function sendResponsibilityTerm(req: Request, res: Response) {
 
     // Bloquear customers
     if (userRole === 'customer') {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Acesso negado ao inventário' 
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado ao inventário'
       });
     }
 
@@ -187,15 +187,16 @@ export async function downloadResponsibilityTerm(req: Request, res: Response) {
 
     // Bloquear customers
     if (userRole === 'customer') {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Acesso negado ao inventário' 
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado ao inventário'
       });
     }
 
     // Em desenvolvimento, regenerar o PDF e retornar diretamente
     const isDevelopment = process.env.NODE_ENV !== 'production';
     if (isDevelopment) {
+      console.log(`[downloadResponsibilityTerm] Regenerating PDF for term ${termId} (Company: ${companyId})`);
       const pdfBuffer = await responsibilityTermService.regenerateTermPdf(termId, companyId);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename=termo-${termId}.pdf`);
@@ -207,7 +208,7 @@ export async function downloadResponsibilityTerm(req: Request, res: Response) {
     const url = await responsibilityTermService.getTermPdfUrl(termId, companyId);
     res.redirect(url);
   } catch (error) {
-    console.error('Erro ao obter PDF do termo:', error);
+    console.error(`[downloadResponsibilityTerm] Erro ao obter PDF do termo ${req.params.termId}:`, error);
     res.status(400).json({ success: false, message: String(error) });
   }
 }
@@ -220,9 +221,9 @@ export async function getResponsibilityTermDetails(req: Request, res: Response) 
 
     // Bloquear customers
     if (userRole === 'customer') {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Acesso negado ao inventário' 
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado ao inventário'
       });
     }
 
@@ -316,9 +317,9 @@ export async function sendToClicksign(req: Request, res: Response) {
 
     // Bloquear customers
     if (userRole === 'customer') {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Acesso negado ao inventário' 
+      return res.status(403).json({
+        success: false,
+        message: 'Acesso negado ao inventário'
       });
     }
 
@@ -376,7 +377,7 @@ export async function sendToClicksign(req: Request, res: Response) {
         .from(users)
         .where(eq(users.id, firstAssignment.assignment.assigned_by_id))
         .limit(1);
-      
+
       if (responsible) {
         deliveryResponsibleName = responsible.name;
         deliveryResponsibleEmail = responsible.email;
