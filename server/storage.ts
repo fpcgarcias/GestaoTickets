@@ -67,12 +67,17 @@ export interface IStorage {
       status?: string;
       priority?: string;
       department_id?: number;
+      incident_type_id?: number;
+      category_id?: number;
       assigned_to_id?: number;
       unassigned?: boolean;
       hide_resolved?: boolean;
       time_filter?: string;
       date_from?: string;
       date_to?: string;
+      start_date?: string;
+      end_date?: string;
+      include_open_outside_period?: boolean;
     },
     page?: number,
     limit?: number

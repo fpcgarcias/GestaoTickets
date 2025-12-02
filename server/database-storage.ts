@@ -446,6 +446,8 @@ export class DatabaseStorage implements IStorage {
       status?: string;
       priority?: string;
       department_id?: number;
+      incident_type_id?: number;
+      category_id?: number;
       assigned_to_id?: number;
       unassigned?: boolean;
       hide_resolved?: boolean;
@@ -634,6 +636,12 @@ export class DatabaseStorage implements IStorage {
     }
     if (filters.department_id && filters.department_id !== 0) {
       whereClauses.push(eq(tickets.department_id, filters.department_id));
+    }
+    if (filters.incident_type_id && filters.incident_type_id !== 0) {
+      whereClauses.push(eq(tickets.incident_type_id, filters.incident_type_id));
+    }
+    if (filters.category_id && filters.category_id !== 0) {
+      whereClauses.push(eq(tickets.category_id, filters.category_id));
     }
     if (filters.assigned_to_id && filters.assigned_to_id !== 0) {
       if (filters.assigned_to_id === -1) {

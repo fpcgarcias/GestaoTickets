@@ -1502,6 +1502,10 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const departmentFilter = req.query.department_id as string;
 
+      const incidentTypeFilter = req.query.incident_type_id as string;
+
+      const categoryFilter = req.query.category_id as string;
+
       const assignedToFilter = req.query.assigned_to_id as string;
 
       const hideResolved = req.query.hide_resolved === 'true';
@@ -1549,6 +1553,22 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       if (departmentFilter && departmentFilter !== 'all') {
 
         filters.department_id = parseInt(departmentFilter);
+
+      }
+
+      
+
+      if (incidentTypeFilter && incidentTypeFilter !== 'all') {
+
+        filters.incident_type_id = parseInt(incidentTypeFilter);
+
+      }
+
+      
+
+      if (categoryFilter && categoryFilter !== 'all') {
+
+        filters.category_id = parseInt(categoryFilter);
 
       }
 

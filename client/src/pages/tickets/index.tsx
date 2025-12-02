@@ -58,6 +58,8 @@ export default function TicketsIndex() {
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [incidentTypeFilter, setIncidentTypeFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [assignedToFilter, setAssignedToFilter] = useState('all');
   const [hideResolved, setHideResolved] = useState(true);
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ 
@@ -125,7 +127,7 @@ export default function TicketsIndex() {
 
   // Busca tickets com base no papel do usuário com paginação e filtros
   const { data: ticketsResponse, isLoading: isTicketsLoading } = useQuery({
-    queryKey: ['/api/tickets/user-role', currentPage, searchQuery, statusFilter, priorityFilter, departmentFilter, assignedToFilter, hideResolved, timeFilter, dateRange, includeOpenOutsidePeriod],
+    queryKey: ['/api/tickets/user-role', currentPage, searchQuery, statusFilter, priorityFilter, departmentFilter, incidentTypeFilter, categoryFilter, assignedToFilter, hideResolved, timeFilter, dateRange, includeOpenOutsidePeriod],
     queryFn: async () => {
       const { startDate, endDate } = getPeriodDates();
       
@@ -136,6 +138,8 @@ export default function TicketsIndex() {
         ...(statusFilter && statusFilter !== 'all' && { status: statusFilter }),
         ...(priorityFilter && priorityFilter !== 'all' && { priority: priorityFilter }),
         ...(departmentFilter && departmentFilter !== 'all' && { department_id: departmentFilter }),
+        ...(incidentTypeFilter && incidentTypeFilter !== 'all' && { incident_type_id: incidentTypeFilter }),
+        ...(categoryFilter && categoryFilter !== 'all' && { category_id: categoryFilter }),
         ...(assignedToFilter && assignedToFilter !== 'all' && { assigned_to_id: assignedToFilter }),
         ...(hideResolved && { hide_resolved: 'true' }),
         // SEMPRE enviar start_date e end_date como o dashboard faz
@@ -167,9 +171,58 @@ export default function TicketsIndex() {
 
   const departments = departmentsResponse?.departments || departmentsResponse || [];
 
+  // Buscar tipos de incidente conforme departamento selecionado
+  const selectedDeptId = departmentFilter !== 'all' ? parseInt(departmentFilter) : undefined;
+  const { data: incidentTypesResponse, isLoading: isIncidentTypesLoading } = useQuery({
+    queryKey: ['/api/incident-types', selectedDeptId, { active_only: true }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('active_only', 'true');
+      params.append('limit', '1000');
+      if (selectedDeptId) {
+        params.append('department_id', selectedDeptId.toString());
+      }
+      const res = await fetch(`/api/incident-types?${params.toString()}`);
+      if (!res.ok) throw new Error('Erro ao carregar tipos de chamado');
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const incidentTypes = incidentTypesResponse?.incidentTypes || incidentTypesResponse?.data || incidentTypesResponse || [];
+
+  // Resetar tipo de chamado se não existir mais na lista após mudança de departamento
+  useEffect(() => {
+    if (incidentTypeFilter === 'all') return;
+    const exists = incidentTypes.some((type: any) => type.id?.toString() === incidentTypeFilter);
+    if (!exists && incidentTypes.length > 0) {
+      setIncidentTypeFilter('all');
+      setCategoryFilter('all');
+    }
+  }, [incidentTypes, incidentTypeFilter]);
+
+  // 🆕 Busca categorias (filtrado por empresa e tipo de incidente se selecionado)
+  const selectedIncidentTypeId = incidentTypeFilter !== 'all' ? parseInt(incidentTypeFilter) : undefined;
+  const { data: categoriesResponse, isLoading: isCategoriesLoading } = useQuery({
+    queryKey: ['/api/categories', { active_only: true }, selectedIncidentTypeId],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('active_only', 'true');
+      params.append('limit', '1000');
+      if (selectedIncidentTypeId) {
+        params.append('incident_type_id', selectedIncidentTypeId.toString());
+      }
+      const res = await fetch(`/api/categories?${params.toString()}`);
+      if (!res.ok) throw new Error('Erro ao carregar categorias');
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const categories = categoriesResponse?.categories || categoriesResponse || [];
+
   // Buscar prioridades do departamento selecionado
   // Se nenhum departamento selecionado, pega prioridades padrão (sem departmentId)
-  const selectedDeptId = departmentFilter !== 'all' ? parseInt(departmentFilter) : undefined;
   const { data: departmentPriorities = [], isLoading: prioritiesLoading } = usePriorities(selectedDeptId);
   
   // Para o filtro, sempre mostrar prioridades disponíveis (padrão quando nenhum departamento selecionado)
@@ -235,6 +288,8 @@ export default function TicketsIndex() {
           </div>
           {/* Segunda linha de filtros */}
           <div className="flex flex-wrap items-center gap-4">
+            <Skeleton className="h-10 w-[200px]" />
+            <Skeleton className="h-10 w-[200px]" />
             <Skeleton className="h-10 w-[200px]" />
             <Skeleton className="h-10 w-[200px]" />
             <Skeleton className="h-10 w-[200px]" />
@@ -353,15 +408,17 @@ export default function TicketsIndex() {
           )}
         </div>
 
-        {/* Segunda linha: Filtros de Departamento, Prioridade, Status e Atendente */}
+        {/* Segunda linha: Filtros de Departamento, Tipo de Chamado, Categoria, Prioridade, Status e Atendente */}
         <div className="flex flex-wrap items-center gap-4">
-          {/* 🏢 Filtro de Departamento - PRIMEIRO (prioridades dependem dele) */}
+          {/* 🏢 Filtro de Departamento - PRIMEIRO (tipos de chamado dependem dele) */}
           <Select
             value={departmentFilter}
             onValueChange={(value) => {
               handleFilterChange(setDepartmentFilter)(value);
-              // Limpar filtro de prioridade quando departamento muda
+              // Limpar filtros dependentes quando departamento muda
               if (value !== departmentFilter) {
+                setIncidentTypeFilter('all');
+                setCategoryFilter('all');
                 setPriorityFilter('all');
               }
             }}
@@ -381,7 +438,55 @@ export default function TicketsIndex() {
             </SelectContent>
           </Select>
 
-          {/* 🎯 Filtro de Prioridade - SEGUNDO (depende do departamento) */}
+          {/* 📋 Filtro de Tipo de Chamado - SEGUNDO (entre departamento e categoria) */}
+          <Select
+            value={incidentTypeFilter}
+            onValueChange={(value) => {
+              handleFilterChange(setIncidentTypeFilter)(value);
+              // Limpar filtro de categoria quando tipo de chamado muda
+              if (value !== incidentTypeFilter) {
+                setCategoryFilter('all');
+              }
+            }}
+            disabled={isIncidentTypesLoading}
+          >
+            <SelectTrigger className="w-full sm:w-[200px]">
+              <SelectValue placeholder={isIncidentTypesLoading ? formatMessage('tickets.loading') : formatMessage('tickets.ticket_type')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{formatMessage('tickets.all_ticket_types')}</SelectItem>
+              {incidentTypes && incidentTypes.length > 0 && (
+                [...incidentTypes].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map((incidentType: any) => (
+                  <SelectItem key={incidentType.id} value={incidentType.id.toString()}>
+                    {incidentType.name}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+
+          {/* 📁 Filtro de Categoria - TERCEIRO (entre tipo de chamado e prioridade) */}
+          <Select
+            value={categoryFilter}
+            onValueChange={handleFilterChange(setCategoryFilter)}
+            disabled={isCategoriesLoading}
+          >
+            <SelectTrigger className="w-full sm:w-[200px]">
+              <SelectValue placeholder={isCategoriesLoading ? formatMessage('tickets.loading') : formatMessage('tickets.category')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{formatMessage('tickets.all_categories')}</SelectItem>
+              {categories && categories.length > 0 && (
+                [...categories].sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map((category: any) => (
+                  <SelectItem key={category.id} value={category.id.toString()}>
+                    {category.name}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+
+          {/* 🎯 Filtro de Prioridade - TERCEIRO (depende do departamento) */}
           <Select
             value={priorityFilter}
             onValueChange={handleFilterChange(setPriorityFilter)}
