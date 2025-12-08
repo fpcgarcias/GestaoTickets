@@ -43,6 +43,7 @@ import departmentServiceProvidersRouter from './routes/department-service-provid
 import ticketServiceProvidersRouter from './routes/ticket-service-providers';
 
 import reportsRouter from './routes/reports';
+import notificationsRouter from './routes/notifications';
 
 
 
@@ -19808,6 +19809,9 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   // Registrar rotas de relatórios
 
   app.use("/api/reports", reportsRouter);
+
+  // Registrar rotas de notificações
+  app.use("/api/notifications", notificationsRouter);
 
   
 

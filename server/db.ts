@@ -9,7 +9,7 @@ async function createDb() {
     connectionString: process.env.DATABASE_URL,
     max: 45,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 3000,
+    connectionTimeoutMillis: 10000, // 10 segundos para testes
     allowExitOnIdle: true,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
   });

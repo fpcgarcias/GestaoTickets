@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { config } from '@/lib/config';
@@ -37,9 +37,80 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [notifications, setNotifications] = useState<NotificationPayload[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
   // Usar hook dinâmico para horário comercial
   const isWithinAllowedHours = useBusinessHours();
+
+  /**
+   * Recupera notificações não lidas do servidor
+   * Requirements: 1.4, 6.1
+   */
+  const fetchUnreadNotifications = async () => {
+    if (!user || isLoadingNotifications) return;
+
+    try {
+      setIsLoadingNotifications(true);
+      
+      // Buscar notificações não lidas (Requirement 1.4)
+      const response = await fetch(`${config.apiBaseUrl}/api/notifications?read=false&limit=100`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar notificações: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Atualizar estado local com notificações recuperadas (Requirement 1.4)
+      if (data.notifications && Array.isArray(data.notifications)) {
+        // Converter notificações do banco para o formato do WebSocket
+        const formattedNotifications = data.notifications.map((notif: any) => ({
+          type: notif.type,
+          title: notif.title,
+          message: notif.message,
+          ticketId: notif.ticket_id,
+          ticketCode: notif.ticket_code,
+          timestamp: new Date(notif.created_at),
+          priority: notif.priority || 'medium',
+          participantId: notif.metadata?.participantId,
+          participantName: notif.metadata?.participantName,
+          action: notif.metadata?.action,
+        }));
+
+        // Mesclar notificações recuperadas com notificações em tempo real
+        // Evitar duplicatas baseado em timestamp e tipo
+        setNotifications(prev => {
+          const merged = [...formattedNotifications, ...prev];
+          // Remover duplicatas mantendo a primeira ocorrência
+          const unique = merged.filter((notif, index, self) => 
+            index === self.findIndex(n => 
+              n.timestamp.getTime() === notif.timestamp.getTime() && 
+              n.type === notif.type &&
+              n.ticketId === notif.ticketId
+            )
+          );
+          // Ordenar por timestamp decrescente
+          return unique.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 100);
+        });
+      }
+
+      // Atualizar contador de não lidas (Requirement 6.1)
+      if (typeof data.unreadCount === 'number') {
+        setUnreadCount(data.unreadCount);
+      }
+    } catch (error) {
+      console.error('[WEBSOCKET] Erro ao recuperar notificações não lidas:', error);
+      // Não mostrar toast de erro para não incomodar o usuário
+      // O sistema continuará funcionando com notificações em tempo real
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+  };
 
   useEffect(() => {
     // Não conectar WebSocket fora do horário comercial (21h às 6h)
@@ -66,6 +137,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           userRole: user.role
         };
         newSocket.send(JSON.stringify(authMessage));
+        
+        // Recuperar notificações não lidas após autenticação (Requirement 1.4)
+        // Usar setTimeout para garantir que a autenticação foi processada
+        setTimeout(() => {
+          fetchUnreadNotifications();
+        }, 100);
       }
     };
 
@@ -124,7 +201,24 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               toastVariant = notification.priority === 'critical' ? 'destructive' : 'default';
           }
 
-          setNotifications(prev => [notification, ...prev.slice(0, 99)]);
+          // Mesclar notificações em tempo real com notificações recuperadas
+          // Evitar duplicatas baseado em timestamp e tipo
+          setNotifications(prev => {
+            const newNotif = notification;
+            // Verificar se já existe uma notificação similar
+            const isDuplicate = prev.some(n => 
+              n.timestamp?.getTime() === newNotif.timestamp?.getTime() && 
+              n.type === newNotif.type &&
+              n.ticketId === newNotif.ticketId
+            );
+            
+            if (isDuplicate) {
+              return prev;
+            }
+            
+            return [newNotif, ...prev.slice(0, 99)];
+          });
+          
           setUnreadCount(prev => prev + 1);
           
           if (notification.title && notification.message) {

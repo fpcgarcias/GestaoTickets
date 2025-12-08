@@ -1,7 +1,7 @@
 import { WebSocket } from 'ws';
 import { db } from '../db';
-import { tickets, users, ticketStatusHistory, userNotificationSettings, ticketParticipants } from '@shared/schema';
-import { eq, and, ne } from 'drizzle-orm';
+import { tickets, users, ticketStatusHistory, userNotificationSettings, ticketParticipants, notifications } from '@shared/schema';
+import { eq, and, ne, isNull } from 'drizzle-orm';
 import { emailNotificationService } from './email-notification-service';
 
 interface NotificationPayload {
@@ -12,6 +12,21 @@ interface NotificationPayload {
   ticketCode?: string;
   timestamp: Date;
   priority?: 'low' | 'medium' | 'high' | 'critical';
+  metadata?: Record<string, any>;
+}
+
+interface PersistentNotification {
+  id: number;
+  userId: number;
+  type: string;
+  title: string;
+  message: string;
+  priority: string;
+  ticketId?: number | null;
+  ticketCode?: string | null;
+  metadata?: any;
+  readAt?: Date | null;
+  createdAt: Date;
 }
 
 type WebSocketWithUser = WebSocket & { userId?: number; userRole?: string };
@@ -24,6 +39,71 @@ class NotificationService {
   constructor() {
     // Inicializar os ouvintes de eventos do banco de dados aqui
     this.setupEventListeners();
+  }
+  
+  /**
+   * Persiste uma notificação no banco de dados
+   * @private
+   * @param userId - ID do usuário destinatário
+   * @param payload - Dados da notificação
+   * @returns Notificação persistida ou null em caso de erro
+   */
+  private async persistNotification(userId: number, payload: NotificationPayload): Promise<PersistentNotification | null> {
+    try {
+      console.log(`[💾 PERSISTÊNCIA] Salvando notificação para usuário ${userId}, tipo: ${payload.type}`);
+      
+      const [notification] = await db
+        .insert(notifications)
+        .values({
+          user_id: userId,
+          type: payload.type,
+          title: payload.title,
+          message: payload.message,
+          priority: payload.priority || 'medium',
+          ticket_id: payload.ticketId || null,
+          ticket_code: payload.ticketCode || null,
+          metadata: payload.metadata || null,
+          read_at: null,
+          created_at: new Date(),
+        })
+        .returning();
+      
+      console.log(`[💾 PERSISTÊNCIA] ✅ Notificação ${notification.id} salva com sucesso`);
+      
+      return {
+        id: notification.id,
+        userId: notification.user_id,
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        priority: notification.priority,
+        ticketId: notification.ticket_id,
+        ticketCode: notification.ticket_code,
+        metadata: notification.metadata,
+        readAt: notification.read_at,
+        createdAt: notification.created_at,
+      };
+    } catch (error) {
+      console.error('[💾 PERSISTÊNCIA] ❌ Erro ao persistir notificação:', error);
+      console.error('[💾 PERSISTÊNCIA] Detalhes:', {
+        userId,
+        type: payload.type,
+        title: payload.title,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      return null;
+    }
+  }
+  
+  /**
+   * Verifica se um usuário está online (conectado via WebSocket)
+   * @private
+   * @param userId - ID do usuário
+   * @returns true se o usuário está online, false caso contrário
+   */
+  private isUserOnline(userId: number): boolean {
+    return this.clients.has(userId) && this.clients.get(userId)!.length > 0;
   }
   
   // Método para adicionar uma conexão WebSocket
@@ -194,27 +274,54 @@ class NotificationService {
 
   // Enviar notificação para um usuário específico (com verificação de configurações)
   public async sendNotificationToUser(userId: number, payload: NotificationPayload): Promise<void> {
-    // Verificar apenas se o tipo de notificação está habilitado (sem verificar horário para WebSocket)
-    const shouldNotifyWebSocket = await this.shouldNotifyWebSocketByType(userId, payload.type);
+    // 1. PERSISTIR NOTIFICAÇÃO PRIMEIRO (Requirements 1.1, 1.2, 1.3)
+    const persistedNotification = await this.persistNotification(userId, payload);
     
-    if (shouldNotifyWebSocket && this.clients.has(userId)) {
-      const userClients = this.clients.get(userId)!;
-      for (const client of userClients) {
-        if (client.readyState === WebSocket.OPEN) {
-          // Enviar no formato esperado pelo cliente
-          const message = {
-            type: 'notification',
-            notification: payload
-          };
-          client.send(JSON.stringify(message));
+    if (!persistedNotification) {
+      console.error(`[🔔 NOTIFICAÇÃO] ⚠️ Falha na persistência, mas continuando com WebSocket (Requirement 7.3)`);
+    }
+    
+    // 2. ENTREGAR VIA WEBSOCKET SE USUÁRIO ESTIVER ONLINE (Requirement 1.2)
+    try {
+      // Verificar apenas se o tipo de notificação está habilitado (sem verificar horário para WebSocket)
+      const shouldNotifyWebSocket = await this.shouldNotifyWebSocketByType(userId, payload.type);
+      
+      if (shouldNotifyWebSocket && this.clients.has(userId)) {
+        const userClients = this.clients.get(userId)!;
+        for (const client of userClients) {
+          if (client.readyState === WebSocket.OPEN) {
+            // Enviar no formato esperado pelo cliente
+            const message = {
+              type: 'notification',
+              notification: payload
+            };
+            client.send(JSON.stringify(message));
+            console.log(`[🔔 NOTIFICAÇÃO] ✅ Notificação entregue via WebSocket para usuário ${userId}`);
+          }
         }
+      } else if (!this.isUserOnline(userId)) {
+        console.log(`[🔔 NOTIFICAÇÃO] 📴 Usuário ${userId} offline, notificação apenas persistida (Requirement 1.3)`);
       }
+    } catch (error) {
+      console.error('[🔔 NOTIFICAÇÃO] ❌ Erro ao enviar via WebSocket:', error);
+      console.error('[🔔 NOTIFICAÇÃO] Detalhes:', {
+        userId,
+        type: payload.type,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      // Continuar mesmo se WebSocket falhar (Requirement 7.1)
     }
 
-    // Se as notificações por email estão habilitadas, enviar também por email (COM verificação de horário)
-    const shouldNotifyEmail = await this.shouldNotifyUser(userId, payload.type);
-    if (shouldNotifyEmail) {
-      await this.sendEmailNotification(userId, payload);
+    // 3. ENVIAR EMAIL SE HABILITADO (COM verificação de horário)
+    try {
+      const shouldNotifyEmail = await this.shouldNotifyUser(userId, payload.type);
+      if (shouldNotifyEmail) {
+        await this.sendEmailNotification(userId, payload);
+      }
+    } catch (error) {
+      console.error('[🔔 NOTIFICAÇÃO] ❌ Erro ao enviar email:', error);
+      // Continuar mesmo se email falhar
     }
   }
 
@@ -305,48 +412,61 @@ class NotificationService {
   
   // Enviar notificação para todos os administradores
   public async sendNotificationToAdmins(payload: NotificationPayload): Promise<void> {
-    for (const client of this.adminClients) {
-      if (client.readyState === WebSocket.OPEN && client.userId) {
-        // Verificar configurações individuais de cada admin (sem verificar horário para WebSocket)
-        const shouldNotifyWebSocket = await this.shouldNotifyWebSocketByType(client.userId, payload.type);
-        if (shouldNotifyWebSocket) {
-          // Enviar no formato esperado pelo cliente
-          const message = {
-            type: 'notification',
-            notification: payload
-          };
-          client.send(JSON.stringify(message));
-        }
-        
-        // Verificar separadamente para email (com verificação de horário)
-        const shouldNotifyEmail = await this.shouldNotifyUser(client.userId, payload.type);
-        if (shouldNotifyEmail) {
-          await this.sendEmailNotification(client.userId, payload);
-        }
-      }
+    // Buscar todos os usuários admin
+    const admins = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(
+        eq(users.role, 'admin'),
+        eq(users.active, true)
+      ));
+    
+    console.log(`[🔔 NOTIFICAÇÃO] Enviando para ${admins.length} administradores`);
+    
+    // Enviar notificação para cada admin (que irá persistir automaticamente)
+    for (const admin of admins) {
+      await this.sendNotificationToUser(admin.id, payload);
     }
   }
   
   // Enviar notificação para todos os agentes de suporte
   public async sendNotificationToSupport(payload: NotificationPayload): Promise<void> {
-    for (const client of this.supportClients) {
-      if (client.readyState === WebSocket.OPEN && client.userId) {
-        // Verificar configurações individuais de cada agente (sem verificar horário para WebSocket)
-        const shouldNotifyWebSocket = await this.shouldNotifyWebSocketByType(client.userId, payload.type);
-        if (shouldNotifyWebSocket) {
-          // Enviar no formato esperado pelo cliente
-          const message = {
-            type: 'notification',
-            notification: payload
-          };
-          client.send(JSON.stringify(message));
+    // Buscar todos os usuários de suporte (support, manager, supervisor)
+    const supportUsers = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(
+        eq(users.active, true)
+      ));
+    
+    // Filtrar apenas roles de suporte
+    const supportRoles = ['support', 'manager', 'supervisor'];
+    const filteredSupport = supportUsers.filter(user => {
+      // Buscar role do usuário
+      const client = this.supportClients.find(c => c.userId === user.id);
+      return client && supportRoles.includes(client.userRole || '');
+    });
+    
+    // Se não encontrou via WebSocket, buscar no banco
+    if (filteredSupport.length === 0) {
+      const dbSupportUsers = await db
+        .select({ id: users.id, role: users.role })
+        .from(users)
+        .where(and(
+          eq(users.active, true)
+        ));
+      
+      for (const user of dbSupportUsers) {
+        if (supportRoles.includes(user.role)) {
+          await this.sendNotificationToUser(user.id, payload);
         }
-        
-        // Verificar separadamente para email (com verificação de horário)
-        const shouldNotifyEmail = await this.shouldNotifyUser(client.userId, payload.type);
-        if (shouldNotifyEmail) {
-          await this.sendEmailNotification(client.userId, payload);
-        }
+      }
+    } else {
+      console.log(`[🔔 NOTIFICAÇÃO] Enviando para ${filteredSupport.length} agentes de suporte`);
+      
+      // Enviar notificação para cada agente (que irá persistir automaticamente)
+      for (const support of filteredSupport) {
+        await this.sendNotificationToUser(support.id, payload);
       }
     }
   }
