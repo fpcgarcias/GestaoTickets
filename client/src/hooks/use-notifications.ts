@@ -100,11 +100,14 @@ export function useNotifications(): UseNotificationsReturn {
       if (filters.search) params.append('search', filters.search);
       
       const response = await fetch(
-        `${config.apiBaseUrl}/api/notifications?${params.toString()}`,
+        `${config.apiBaseUrl}/api/notifications?${params.toString()}&_t=${Date.now()}`,
         {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           },
         }
       );
@@ -176,7 +179,8 @@ export function useNotifications(): UseNotificationsReturn {
       );
       
       // Sincronizar contador via WebSocket (Requirement 6.5)
-      // O contador será atualizado pelo WebSocket automaticamente
+      // O contador será atualizado automaticamente pelo WebSocket através da mensagem 'unread_count_update'
+      // Não precisamos atualizar manualmente aqui
       
     } catch (error) {
       console.error('[useNotifications] Erro ao marcar como lida:', error);
@@ -212,7 +216,8 @@ export function useNotifications(): UseNotificationsReturn {
       );
       
       // Sincronizar contador via WebSocket (Requirement 6.5)
-      // O contador será atualizado pelo WebSocket automaticamente
+      // O contador será atualizado automaticamente pelo WebSocket através da mensagem 'unread_count_update'
+      // Não precisamos atualizar manualmente aqui
       
     } catch (error) {
       console.error('[useNotifications] Erro ao marcar todas como lidas:', error);
@@ -313,6 +318,12 @@ export function useNotifications(): UseNotificationsReturn {
     }
   }, [wsContext.notifications]);
   
+  // Calcular contador de não lidas baseado nas notificações persistentes
+  const persistentUnreadCount = notifications.filter(notif => !notif.readAt).length;
+  const finalUnreadCount = Math.max(wsContext.unreadCount, persistentUnreadCount);
+  
+
+  
   return {
     // Estado de notificações persistentes
     notifications,
@@ -321,7 +332,7 @@ export function useNotifications(): UseNotificationsReturn {
     
     // WebSocket (funcionalidades existentes mantidas)
     connected: wsContext.connected,
-    unreadCount: wsContext.unreadCount,
+    unreadCount: finalUnreadCount, // Usar o maior valor
     
     // Ações de gerenciamento
     loadMore,

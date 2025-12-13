@@ -1,8 +1,10 @@
 import { WebSocket } from 'ws';
 import { db } from '../db';
 import { tickets, users, ticketStatusHistory, userNotificationSettings, ticketParticipants, notifications } from '@shared/schema';
-import { eq, and, ne, isNull } from 'drizzle-orm';
+import { eq, and, ne, isNull, sql, inArray } from 'drizzle-orm';
 import { emailNotificationService } from './email-notification-service';
+import { webPushService } from './web-push-service';
+import { logNotificationError } from './logger';
 
 interface NotificationPayload {
   type: string;
@@ -13,6 +15,15 @@ interface NotificationPayload {
   timestamp: Date;
   priority?: 'low' | 'medium' | 'high' | 'critical';
   metadata?: Record<string, any>;
+}
+
+// Função para validar e normalizar prioridade (Requirements 9.1, 9.5)
+function validatePriority(priority?: string): 'low' | 'medium' | 'high' | 'critical' {
+  const validPriorities = ['low', 'medium', 'high', 'critical'];
+  if (priority && validPriorities.includes(priority)) {
+    return priority as 'low' | 'medium' | 'high' | 'critical';
+  }
+  return 'medium'; // Prioridade padrão (Requirement 9.5)
 }
 
 interface PersistentNotification {
@@ -42,7 +53,7 @@ class NotificationService {
   }
   
   /**
-   * Persiste uma notificação no banco de dados
+   * Persiste uma notificação no banco de dados e envia via Web Push se usuário estiver offline
    * @private
    * @param userId - ID do usuário destinatário
    * @param payload - Dados da notificação
@@ -52,6 +63,9 @@ class NotificationService {
     try {
       console.log(`[💾 PERSISTÊNCIA] Salvando notificação para usuário ${userId}, tipo: ${payload.type}`);
       
+      // Validar e normalizar prioridade (Requirements 9.1, 9.5)
+      const validatedPriority = validatePriority(payload.priority);
+
       const [notification] = await db
         .insert(notifications)
         .values({
@@ -59,39 +73,94 @@ class NotificationService {
           type: payload.type,
           title: payload.title,
           message: payload.message,
-          priority: payload.priority || 'medium',
+          priority: validatedPriority,
           ticket_id: payload.ticketId || null,
           ticket_code: payload.ticketCode || null,
           metadata: payload.metadata || null,
           read_at: null,
-          created_at: new Date(),
+          // Remover created_at para usar o DEFAULT do banco
         })
         .returning();
       
       console.log(`[💾 PERSISTÊNCIA] ✅ Notificação ${notification.id} salva com sucesso`);
       
-      return {
+      const persistedNotification: PersistentNotification = {
         id: notification.id,
         userId: notification.user_id,
         type: notification.type,
         title: notification.title,
         message: notification.message,
         priority: notification.priority,
-        ticketId: notification.ticket_id,
-        ticketCode: notification.ticket_code,
+        ticketId: notification.ticket_id ?? undefined,
+        ticketCode: notification.ticket_code ?? undefined,
         metadata: notification.metadata,
-        readAt: notification.read_at,
+        readAt: notification.read_at ?? undefined,
         createdAt: notification.created_at,
       };
+
+      // 🔥 INTEGRAÇÃO WEB PUSH (Requirements 3.4, 7.2, 9.2)
+      // Verificar se usuário está offline e enviar Web Push
+      const isOnline = this.isUserOnline(userId);
+      
+      if (!isOnline) {
+        console.log(`[📱 WEB PUSH] Usuário ${userId} offline, verificando push subscriptions`);
+        
+        try {
+          // Buscar push subscriptions do banco
+          const subscriptions = await webPushService.getSubscriptions(userId);
+          
+          if (subscriptions.length > 0) {
+            console.log(`[📱 WEB PUSH] Encontradas ${subscriptions.length} subscriptions para usuário ${userId}`);
+            
+            // Enviar notificação via Web Push
+            // Converter para o formato esperado pelo WebPushService (null -> undefined)
+            await webPushService.sendPushNotification(userId, {
+              id: persistedNotification.id,
+              userId: persistedNotification.userId,
+              type: persistedNotification.type,
+              title: persistedNotification.title,
+              message: persistedNotification.message,
+              priority: persistedNotification.priority,
+              ticketId: persistedNotification.ticketId ?? undefined,
+              ticketCode: persistedNotification.ticketCode ?? undefined,
+              metadata: persistedNotification.metadata,
+              readAt: persistedNotification.readAt ?? undefined,
+              createdAt: persistedNotification.createdAt,
+            });
+            
+            console.log(`[📱 WEB PUSH] ✅ Web Push enviado para usuário ${userId}`);
+          } else {
+            console.log(`[📱 WEB PUSH] Nenhuma subscription encontrada para usuário ${userId}`);
+          }
+        } catch (webPushError) {
+          // Requirement 7.2: Se Web Push falhar, registrar mas manter notificação no banco
+          logNotificationError(
+            'Web Push delivery failed',
+            webPushError,
+            'error',
+            { userId, notificationId: persistedNotification.id, ticketId: payload.ticketId }
+          );
+          console.error('[📱 WEB PUSH] Detalhes:', {
+            userId,
+            notificationId: notification.id,
+            error: webPushError instanceof Error ? webPushError.message : String(webPushError),
+            stack: webPushError instanceof Error ? webPushError.stack : undefined,
+          });
+          // Continuar normalmente - notificação já está persistida
+        }
+      } else {
+        console.log(`[📱 WEB PUSH] Usuário ${userId} online, Web Push não necessário`);
+      }
+      
+      return persistedNotification;
     } catch (error) {
-      console.error('[💾 PERSISTÊNCIA] ❌ Erro ao persistir notificação:', error);
-      console.error('[💾 PERSISTÊNCIA] Detalhes:', {
-        userId,
-        type: payload.type,
-        title: payload.title,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+      // Requirement 7.3: Se persistência falhar, registrar erro crítico
+      logNotificationError(
+        'Notification persistence failed',
+        error,
+        'critical',
+        { userId, notificationType: payload.type, title: payload.title, ticketId: payload.ticketId }
+      );
       return null;
     }
   }
@@ -103,7 +172,61 @@ class NotificationService {
    * @returns true se o usuário está online, false caso contrário
    */
   private isUserOnline(userId: number): boolean {
-    return this.clients.has(userId) && this.clients.get(userId)!.length > 0;
+    const userClients = this.clients.get(userId);
+    if (!userClients || userClients.length === 0) {
+      console.log(`[🔔 ONLINE CHECK] Usuário ${userId} OFFLINE - sem clientes WebSocket`);
+      return false;
+    }
+    
+    // Verificar se pelo menos um cliente está com conexão ativa
+    const activeClients = userClients.filter(client => client.readyState === WebSocket.OPEN);
+    const isOnline = activeClients.length > 0;
+    
+    console.log(`[🔔 ONLINE CHECK] Usuário ${userId} ${isOnline ? 'ONLINE' : 'OFFLINE'} - ${activeClients.length}/${userClients.length} clientes ativos`);
+    return isOnline;
+  }
+  
+  /**
+   * Envia atualização de contador de notificações não lidas via WebSocket
+   * Requirements: 6.5 - Sincronização de contador via WebSocket
+   * @param userId - ID do usuário
+   */
+  public async sendUnreadCountUpdate(userId: number): Promise<void> {
+    try {
+      // Verificar se usuário está online
+      if (!this.isUserOnline(userId)) {
+        return;
+      }
+      
+      // Calcular contador de não lidas
+      const [{ count: unreadCount }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(notifications)
+        .where(and(
+          eq(notifications.user_id, userId),
+          isNull(notifications.read_at)
+        ));
+      
+      // Enviar atualização via WebSocket
+      const userClients = this.clients.get(userId)!;
+      for (const client of userClients) {
+        if (client.readyState === WebSocket.OPEN) {
+          const message = {
+            type: 'unread_count_update',
+            unreadCount
+          };
+          client.send(JSON.stringify(message));
+          console.log(`[🔔 CONTADOR] ✅ Contador atualizado via WebSocket para usuário ${userId}: ${unreadCount}`);
+        }
+      }
+    } catch (error) {
+      logNotificationError(
+        'Counter update via WebSocket failed',
+        error,
+        'warning',
+        { userId }
+      );
+    }
   }
   
   // Método para adicionar uma conexão WebSocket
@@ -111,11 +234,15 @@ class NotificationService {
     ws.userId = userId;
     ws.userRole = userRole;
     
+    console.log(`[🔔 WEBSOCKET] 🔌 ADICIONANDO cliente WebSocket para usuário ID: ${userId}, Função: ${userRole}`);
+    
     // Adicionar ao grupo específico com base na função
     if (userRole === 'admin') {
       this.adminClients.push(ws);
+      console.log(`[🔔 WEBSOCKET] 👑 Usuário ${userId} adicionado aos ADMINS`);
     } else if (userRole === 'support') {
       this.supportClients.push(ws);
+      console.log(`[🔔 WEBSOCKET] 🛠️ Usuário ${userId} adicionado ao SUPORTE`);
     }
     
     // Adicionar à lista de clientes por ID do usuário
@@ -124,16 +251,9 @@ class NotificationService {
     }
     this.clients.get(userId)!.push(ws);
     
-    console.log(`Cliente WebSocket adicionado para usuário ID: ${userId}, Função: ${userRole}`);
-    console.log(`Total de clientes WebSocket conectados: ${this.getTotalClients()}`);
-    
-    // Enviar uma notificação de boas-vindas
-    this.sendNotificationToUser(userId, {
-      type: 'welcome',
-      title: 'Bem-vindo ao Sistema de Chamados',
-      message: 'Você está agora conectado ao sistema de notificações.',
-      timestamp: new Date()
-    });
+    console.log(`[🔔 WEBSOCKET] ✅ Cliente WebSocket REGISTRADO para usuário ID: ${userId}`);
+    console.log(`[🔔 WEBSOCKET] 📊 Total de clientes WebSocket conectados: ${this.getTotalClients()}`);
+    console.log(`[🔔 WEBSOCKET] 📊 Usuário ${userId} agora tem ${this.clients.get(userId)!.length} conexões`);
   }
   
   // Método para remover uma conexão WebSocket
@@ -203,7 +323,12 @@ class NotificationService {
           return true;
       }
     } catch (error) {
-      console.error('Erro ao verificar configurações de notificação:', error);
+      logNotificationError(
+        'Failed to check notification settings by type',
+        error,
+        'warning',
+        { userId, notificationType }
+      );
       return true; // Em caso de erro, permitir notificação
     }
   }
@@ -267,13 +392,20 @@ class NotificationService {
           return true;
       }
     } catch (error) {
-      console.error('Erro ao verificar configurações de notificação:', error);
+      logNotificationError(
+        'Failed to check user notification settings',
+        error,
+        'warning',
+        { userId, notificationType }
+      );
       return true; // Em caso de erro, permitir notificação
     }
   }
 
   // Enviar notificação para um usuário específico (com verificação de configurações)
   public async sendNotificationToUser(userId: number, payload: NotificationPayload): Promise<void> {
+    console.log(`[🔔 NOTIFICAÇÃO] 🚀 INICIANDO notificação para usuário ${userId}, tipo: ${payload.type}`);
+    
     // 1. PERSISTIR NOTIFICAÇÃO PRIMEIRO (Requirements 1.1, 1.2, 1.3)
     const persistedNotification = await this.persistNotification(userId, payload);
     
@@ -281,13 +413,15 @@ class NotificationService {
       console.error(`[🔔 NOTIFICAÇÃO] ⚠️ Falha na persistência, mas continuando com WebSocket (Requirement 7.3)`);
     }
     
-    // 2. ENTREGAR VIA WEBSOCKET SE USUÁRIO ESTIVER ONLINE (Requirement 1.2)
+    // 2. ENTREGAR VIA WEBSOCKET - SEMPRE TENTAR PRIMEIRO! (Requirement 1.2)
     try {
-      // Verificar apenas se o tipo de notificação está habilitado (sem verificar horário para WebSocket)
-      const shouldNotifyWebSocket = await this.shouldNotifyWebSocketByType(userId, payload.type);
+      console.log(`[🔔 WEBSOCKET] 🔍 Verificando se usuário ${userId} está online...`);
       
-      if (shouldNotifyWebSocket && this.clients.has(userId)) {
+      if (this.clients.has(userId)) {
         const userClients = this.clients.get(userId)!;
+        console.log(`[🔔 WEBSOCKET] 📱 Usuário ${userId} tem ${userClients.length} clientes WebSocket`);
+        
+        let notificationSent = false;
         for (const client of userClients) {
           if (client.readyState === WebSocket.OPEN) {
             // Enviar no formato esperado pelo cliente
@@ -296,20 +430,30 @@ class NotificationService {
               notification: payload
             };
             client.send(JSON.stringify(message));
-            console.log(`[🔔 NOTIFICAÇÃO] ✅ Notificação entregue via WebSocket para usuário ${userId}`);
+            console.log(`[🔔 WEBSOCKET] ✅ Notificação ENVIADA via WebSocket para usuário ${userId}`);
+            notificationSent = true;
+          } else {
+            console.log(`[🔔 WEBSOCKET] ⚠️ Cliente WebSocket não está aberto (readyState: ${client.readyState})`);
           }
         }
-      } else if (!this.isUserOnline(userId)) {
-        console.log(`[🔔 NOTIFICAÇÃO] 📴 Usuário ${userId} offline, notificação apenas persistida (Requirement 1.3)`);
+        
+        if (notificationSent) {
+          // 🔥 SINCRONIZAÇÃO DE CONTADOR VIA WEBSOCKET (Requirement 6.5)
+          // Após criar notificação, enviar contador atualizado via WebSocket
+          await this.sendUnreadCountUpdate(userId);
+        }
+      } else {
+        console.log(`[🔔 WEBSOCKET] 📴 Usuário ${userId} NÃO TEM clientes WebSocket registrados`);
       }
     } catch (error) {
-      console.error('[🔔 NOTIFICAÇÃO] ❌ Erro ao enviar via WebSocket:', error);
-      console.error('[🔔 NOTIFICAÇÃO] Detalhes:', {
-        userId,
-        type: payload.type,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+      console.error(`[🔔 WEBSOCKET] ❌ ERRO ao enviar via WebSocket:`, error);
+      // Requirement 7.1: Se WebSocket falhar, registrar mas continuar com persistência
+      logNotificationError(
+        'WebSocket delivery failed',
+        error,
+        'error',
+        { userId, notificationType: payload.type, ticketId: payload.ticketId }
+      );
       // Continuar mesmo se WebSocket falhar (Requirement 7.1)
     }
 
@@ -320,9 +464,16 @@ class NotificationService {
         await this.sendEmailNotification(userId, payload);
       }
     } catch (error) {
-      console.error('[🔔 NOTIFICAÇÃO] ❌ Erro ao enviar email:', error);
+      logNotificationError(
+        'Email notification failed',
+        error,
+        'warning',
+        { userId, notificationType: payload.type, ticketId: payload.ticketId }
+      );
       // Continuar mesmo se email falhar
     }
+    
+    console.log(`[🔔 NOTIFICAÇÃO] 🏁 FINALIZADA notificação para usuário ${userId}`);
   }
 
   // Enviar notificação por email (usando o serviço real de email)
@@ -406,7 +557,12 @@ class NotificationService {
       */
       
     } catch (error) {
-      console.error('Erro ao enviar notificação por email:', error);
+      logNotificationError(
+        'Email notification service failed',
+        error,
+        'error',
+        { userId, ticketId, notificationType: 'email' }
+      );
     }
   }
   
@@ -431,81 +587,26 @@ class NotificationService {
   
   // Enviar notificação para todos os agentes de suporte
   public async sendNotificationToSupport(payload: NotificationPayload): Promise<void> {
-    // Buscar todos os usuários de suporte (support, manager, supervisor)
+    // Buscar todos os usuários de suporte no banco (support, manager, supervisor)
+    const supportRoles = ['support', 'manager', 'supervisor'];
     const supportUsers = await db
-      .select({ id: users.id })
+      .select({ id: users.id, role: users.role })
       .from(users)
       .where(and(
-        eq(users.active, true)
+        eq(users.active, true),
+        inArray(users.role, supportRoles)
       ));
     
-    // Filtrar apenas roles de suporte
-    const supportRoles = ['support', 'manager', 'supervisor'];
-    const filteredSupport = supportUsers.filter(user => {
-      // Buscar role do usuário
-      const client = this.supportClients.find(c => c.userId === user.id);
-      return client && supportRoles.includes(client.userRole || '');
-    });
+    console.log(`[🔔 NOTIFICAÇÃO] Enviando para ${supportUsers.length} agentes de suporte`);
     
-    // Se não encontrou via WebSocket, buscar no banco
-    if (filteredSupport.length === 0) {
-      const dbSupportUsers = await db
-        .select({ id: users.id, role: users.role })
-        .from(users)
-        .where(and(
-          eq(users.active, true)
-        ));
-      
-      for (const user of dbSupportUsers) {
-        if (supportRoles.includes(user.role)) {
-          await this.sendNotificationToUser(user.id, payload);
-        }
-      }
-    } else {
-      console.log(`[🔔 NOTIFICAÇÃO] Enviando para ${filteredSupport.length} agentes de suporte`);
-      
-      // Enviar notificação para cada agente (que irá persistir automaticamente)
-      for (const support of filteredSupport) {
-        await this.sendNotificationToUser(support.id, payload);
-      }
+    // Enviar notificação para cada agente (que irá persistir automaticamente)
+    for (const support of supportUsers) {
+      await this.sendNotificationToUser(support.id, payload);
     }
   }
   
-  // Enviar notificação para todos os usuários
-  public async sendNotificationToAll(payload: NotificationPayload, excludeUserIds: number[] = []): Promise<void> {
-    // Coletar todos os clientes em um único array
-    const allClients: WebSocketWithUser[] = [];
-    this.clients.forEach(clientArray => {
-      allClients.push(...clientArray);
-    });
-    
-    // Enviar para todos os clientes abertos (verificando configurações individuais)
-    for (const client of allClients) {
-      if (client.readyState === WebSocket.OPEN && client.userId) {
-        // Pular usuários que devem ser excluídos
-        if (excludeUserIds.includes(client.userId)) {
-          continue;
-        }
-        
-        // Verificar configurações para WebSocket (sem verificar horário)
-        const shouldNotifyWebSocket = await this.shouldNotifyWebSocketByType(client.userId, payload.type);
-        if (shouldNotifyWebSocket) {
-          // Enviar no formato esperado pelo cliente
-          const message = {
-            type: 'notification',
-            notification: payload
-          };
-          client.send(JSON.stringify(message));
-        }
-        
-        // Verificar separadamente para email (com verificação de horário)
-        const shouldNotifyEmail = await this.shouldNotifyUser(client.userId, payload.type);
-        if (shouldNotifyEmail) {
-          await this.sendEmailNotification(client.userId, payload);
-        }
-      }
-    }
-  }
+  // Método sendNotificationToAll removido - todas as notificações agora usam o sistema persistente
+  // Use sendNotificationToUser, sendNotificationToSupport ou sendNotificationToAdmins
   
   // Notificar sobre a criação de um novo ticket
   public async notifyNewTicket(ticketId: number): Promise<void> {
@@ -513,6 +614,8 @@ class NotificationService {
       // Obter os detalhes do ticket
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
       if (!ticket) return;
+      
+      console.log(`[🔔 NEW TICKET] 🎫 Iniciando notificação para novo ticket #${ticket.ticket_id}`);
       
       // Notificar administradores e agentes de suporte
       const payload: NotificationPayload = {
@@ -525,12 +628,21 @@ class NotificationService {
         priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
       };
       
-      this.sendNotificationToAdmins(payload);
-      this.sendNotificationToSupport(payload);
+      console.log(`[🔔 NEW TICKET] 📢 Enviando para administradores...`);
+      await this.sendNotificationToAdmins(payload);
       
-      console.log(`Notificação enviada para novo ticket #${ticket.ticket_id}`);
+      console.log(`[🔔 NEW TICKET] 📢 Enviando para agentes de suporte...`);
+      await this.sendNotificationToSupport(payload);
+      
+      console.log(`[🔔 NEW TICKET] ✅ Notificação enviada para novo ticket #${ticket.ticket_id}`);
     } catch (error) {
-      console.error('Erro ao notificar sobre novo ticket:', error);
+      console.error(`[🔔 NEW TICKET] ❌ Erro ao notificar novo ticket:`, error);
+      logNotificationError(
+        'New ticket notification failed',
+        error,
+        'error',
+        { ticketId, ticketCode: ticket?.ticket_id }
+      );
     }
   }
   
@@ -590,7 +702,12 @@ class NotificationService {
       
       console.log(`Notificação enviada para atualização de status do ticket #${ticket.ticket_id}`);
     } catch (error) {
-      console.error('Erro ao notificar sobre atualização de status do ticket:', error);
+      logNotificationError(
+        'Ticket status update notification failed',
+        error,
+        'error',
+        { ticketId: ticket.ticket_id, ticketCode: ticket.ticket_code, newStatus: ticket.status }
+      );
     }
   }
   
@@ -702,7 +819,12 @@ class NotificationService {
       
       console.log(`Notificação enviada para nova resposta no ticket #${ticket.ticket_id}`);
     } catch (error) {
-      console.error('Erro ao notificar sobre nova resposta no ticket:', error);
+      logNotificationError(
+        'New ticket reply notification failed',
+        error,
+        'error',
+        { ticketId: ticket.ticket_id, ticketCode: ticket.ticket_code, replyId: reply.id }
+      );
     }
   }
   
@@ -797,7 +919,12 @@ class NotificationService {
       console.log(`[🔔 WEBSOCKET] ✅ Notificação de participante adicionado concluída`);
 
     } catch (error) {
-      console.error('[🔔 WEBSOCKET] ❌ Erro ao notificar participante adicionado:', error);
+      logNotificationError(
+        'Participant added notification failed',
+        error,
+        'error',
+        { ticketId, participantId, participantName }
+      );
     }
   }
 
@@ -891,7 +1018,12 @@ class NotificationService {
       console.log(`[🔔 WEBSOCKET] ✅ Notificação de participante removido concluída`);
 
     } catch (error) {
-      console.error('[🔔 WEBSOCKET] ❌ Erro ao notificar participante removido:', error);
+      logNotificationError(
+        'Participant removed notification failed',
+        error,
+        'error',
+        { ticketId, participantId, participantName }
+      );
     }
   }
 
@@ -924,7 +1056,12 @@ class NotificationService {
       console.log(`[🔔 WEBSOCKET] ✅ Notificação de participantes concluída`);
 
     } catch (error) {
-      console.error('[🔔 WEBSOCKET] ❌ Erro ao notificar participantes:', error);
+      logNotificationError(
+        'Participants notification failed',
+        error,
+        'error',
+        { ticketId, participantIds }
+      );
     }
   }
   
@@ -1004,7 +1141,12 @@ class NotificationService {
       
       console.log(`Notificação enviada para mudança de status no ticket #${ticket.ticket_id}`);
     } catch (error) {
-      console.error('Erro ao notificar mudança de status:', error);
+      logNotificationError(
+        'Status change notification failed',
+        error,
+        'error',
+        { ticketId: ticket.ticket_id, ticketCode: ticket.ticket_code, oldStatus, newStatus }
+      );
     }
   }
   

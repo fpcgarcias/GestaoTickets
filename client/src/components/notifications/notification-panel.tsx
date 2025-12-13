@@ -257,19 +257,35 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
     }
   };
 
-  // Obter cor da prioridade
+  // Obter cor da prioridade (Requirements 9.3)
   const getPriorityColor = (priority: string): string => {
     switch (priority) {
       case 'critical':
-        return 'border-l-red-600';
+        return 'border-l-red-600 bg-red-50/50 dark:bg-red-950/20';
       case 'high':
-        return 'border-l-orange-500';
+        return 'border-l-orange-500 bg-orange-50/50 dark:bg-orange-950/20';
       case 'medium':
-        return 'border-l-blue-500';
+        return 'border-l-blue-500 bg-blue-50/50 dark:bg-blue-950/20';
       case 'low':
-        return 'border-l-gray-400';
+        return 'border-l-gray-400 bg-gray-50/50 dark:bg-gray-950/20';
       default:
-        return 'border-l-gray-300';
+        return 'border-l-gray-300 bg-gray-50/50 dark:bg-gray-950/20';
+    }
+  };
+
+  // Obter badge de prioridade (Requirements 9.3)
+  const getPriorityBadge = (priority: string): { text: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } => {
+    switch (priority) {
+      case 'critical':
+        return { text: 'Crítica', variant: 'destructive' };
+      case 'high':
+        return { text: 'Alta', variant: 'default' };
+      case 'medium':
+        return { text: 'Média', variant: 'secondary' };
+      case 'low':
+        return { text: 'Baixa', variant: 'outline' };
+      default:
+        return { text: 'Média', variant: 'secondary' };
     }
   };
 
@@ -404,14 +420,23 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-lg">{getNotificationIcon(notification.type)}</span>
-                      <h4 className="font-medium text-sm truncate">
+                      <h4 className="font-medium text-sm truncate flex-1">
                         {notification.title}
                       </h4>
-                      {!notification.readAt && (
-                        <Badge variant="secondary" className="text-xs">
-                          Nova
+                      <div className="flex items-center gap-1">
+                        {/* Badge de prioridade (Requirements 9.3) */}
+                        <Badge 
+                          variant={getPriorityBadge(notification.priority).variant} 
+                          className="text-xs"
+                        >
+                          {getPriorityBadge(notification.priority).text}
                         </Badge>
-                      )}
+                        {!notification.readAt && (
+                          <Badge variant="secondary" className="text-xs">
+                            Nova
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <p className="text-sm text-muted-foreground line-clamp-2">
                       {notification.message}

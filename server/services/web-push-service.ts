@@ -1,8 +1,8 @@
 import webPush from 'web-push';
 import { db } from '../db';
-import { pushSubscriptions } from '@/shared/schema';
+import { pushSubscriptions } from '../../shared/schema';
 import { eq, and } from 'drizzle-orm';
-import logger from './logger';
+import logger, { logNotificationError } from './logger';
 
 interface PushSubscriptionData {
   endpoint: string;
@@ -92,11 +92,12 @@ class WebPushService {
 
       logger.info(`Nova push subscription registrada para usuário ${userId}`);
     } catch (error) {
-      logger.error('Erro ao registrar push subscription:', {
-        userId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+      logNotificationError(
+        'Push subscription registration failed',
+        error,
+        'error',
+        { userId, endpoint: subscription.endpoint }
+      );
       throw error;
     }
   }
@@ -119,12 +120,12 @@ class WebPushService {
 
       logger.info(`Push subscription removida para usuário ${userId}`);
     } catch (error) {
-      logger.error('Erro ao remover push subscription:', {
-        userId,
-        endpoint,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+      logNotificationError(
+        'Push subscription removal failed',
+        error,
+        'error',
+        { userId, endpoint }
+      );
       throw error;
     }
   }
@@ -149,11 +150,12 @@ class WebPushService {
         },
       }));
     } catch (error) {
-      logger.error('Erro ao buscar push subscriptions:', {
-        userId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+      logNotificationError(
+        'Failed to fetch push subscriptions',
+        error,
+        'error',
+        { userId }
+      );
       return [];
     }
   }
@@ -179,7 +181,7 @@ class WebPushService {
         return;
       }
 
-      // Preparar payload da notificação
+      // Preparar payload da notificação com configurações baseadas na prioridade
       const payload = JSON.stringify({
         id: notification.id,
         title: notification.title,
@@ -192,6 +194,13 @@ class WebPushService {
           ? `/tickets/${notification.ticketId}` 
           : '/',
         timestamp: notification.createdAt.toISOString(),
+        // Configurações específicas por prioridade (Requirements 9.2)
+        requireInteraction: notification.priority === 'critical',
+        vibrate: notification.priority === 'critical' 
+          ? [200, 100, 200] 
+          : notification.priority === 'high' 
+            ? [100] 
+            : undefined,
       });
 
       // Enviar para todas as subscriptions
@@ -207,12 +216,12 @@ class WebPushService {
 
       logger.info(`Web Push enviado para usuário ${userId}: ${successful} sucesso, ${failed} falhas`);
     } catch (error) {
-      logger.error('Erro ao enviar push notification:', {
-        userId,
-        notificationId: notification.id,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+      logNotificationError(
+        'Push notification sending failed',
+        error,
+        'error',
+        { userId, notificationId: notification.id }
+      );
       // Não propagar erro - falha de Web Push não deve quebrar o fluxo
     }
   }
@@ -281,12 +290,12 @@ class WebPushService {
       }
 
       // Falha após todas as tentativas
-      logger.error('Falha ao enviar push notification após retries:', {
-        endpoint: subscription.endpoint,
-        retries: MAX_RETRIES,
-        error: error.message,
-        statusCode: error.statusCode,
-      });
+      logNotificationError(
+        'Push notification failed after retries',
+        error,
+        'error',
+        { endpoint: subscription.endpoint, retries: MAX_RETRIES, statusCode: error.statusCode }
+      );
 
       return false;
     }
@@ -304,11 +313,12 @@ class WebPushService {
 
       logger.info(`Subscription inválida removida: ${endpoint}`);
     } catch (error) {
-      logger.error('Erro ao remover subscription inválida:', {
-        endpoint,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
+      logNotificationError(
+        'Failed to remove invalid subscription',
+        error,
+        'error',
+        { endpoint }
+      );
     }
   }
 

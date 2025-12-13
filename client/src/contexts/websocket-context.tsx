@@ -53,10 +53,14 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setIsLoadingNotifications(true);
       
       // Buscar notificações não lidas (Requirement 1.4)
-      const response = await fetch(`${config.apiBaseUrl}/api/notifications?read=false&limit=100`, {
+
+      const response = await fetch(`${config.apiBaseUrl}/api/notifications?read=false&limit=100&_t=${Date.now()}`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         },
       });
 
@@ -65,6 +69,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       const data = await response.json();
+      
+
       
       // Atualizar estado local com notificações recuperadas (Requirement 1.4)
       if (data.notifications && Array.isArray(data.notifications)) {
@@ -88,14 +94,20 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const merged = [...formattedNotifications, ...prev];
           // Remover duplicatas mantendo a primeira ocorrência
           const unique = merged.filter((notif, index, self) => 
-            index === self.findIndex(n => 
-              n.timestamp.getTime() === notif.timestamp.getTime() && 
-              n.type === notif.type &&
-              n.ticketId === notif.ticketId
-            )
+            index === self.findIndex(n => {
+              const nTime = n.timestamp instanceof Date ? n.timestamp.getTime() : new Date(n.timestamp).getTime();
+              const notifTime = notif.timestamp instanceof Date ? notif.timestamp.getTime() : new Date(notif.timestamp).getTime();
+              return nTime === notifTime && 
+                     n.type === notif.type &&
+                     n.ticketId === notif.ticketId;
+            })
           );
           // Ordenar por timestamp decrescente
-          return unique.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 100);
+          return unique.sort((a, b) => {
+            const aTime = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+            const bTime = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+            return bTime - aTime;
+          }).slice(0, 100);
         });
       }
 
@@ -113,9 +125,10 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   useEffect(() => {
-    // Não conectar WebSocket fora do horário comercial (21h às 6h)
-    // Isso evita que o banco de dados fique ativo durante a noite
-    if (!isAuthenticated || !user || !isWithinAllowedHours) {
+    // Em desenvolvimento, sempre permitir conexão WebSocket
+    // Em produção, respeitar horário comercial (21h às 6h)
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    if (!isAuthenticated || !user || (!isDevelopment && !isWithinAllowedHours)) {
       if (socket) {
         socket.close();
         setSocket(null);
@@ -149,11 +162,12 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     newSocket.onclose = (event) => {
       setConnected(false);
       setSocket(null);
-      // Não reconectar automaticamente fora do horário comercial
-      if (event.code !== 1000 && isAuthenticated && isWithinAllowedHours) {
+      // Em desenvolvimento, sempre reconectar. Em produção, respeitar horário comercial
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      if (event.code !== 1000 && isAuthenticated && (isDevelopment || isWithinAllowedHours)) {
         setTimeout(() => {
-          // Reconectar apenas se ainda estiver no horário comercial
-          if (isWithinAllowedHours) {
+          // Reconectar apenas se ainda estiver no horário comercial ou em desenvolvimento
+          if (isDevelopment || isWithinAllowedHours) {
             // A reconexão será feita pelo useEffect principal
           }
         }, 3000);
@@ -171,6 +185,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     newSocket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        
         if (data.type === 'notification') {
           const notification = data.notification;
           
@@ -201,16 +216,21 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               toastVariant = notification.priority === 'critical' ? 'destructive' : 'default';
           }
 
-          // Mesclar notificações em tempo real com notificações recuperadas
+          // Mesclar notificações em tempo real with notificações recuperadas
           // Evitar duplicatas baseado em timestamp e tipo
           setNotifications(prev => {
             const newNotif = notification;
             // Verificar se já existe uma notificação similar
-            const isDuplicate = prev.some(n => 
-              n.timestamp?.getTime() === newNotif.timestamp?.getTime() && 
-              n.type === newNotif.type &&
-              n.ticketId === newNotif.ticketId
-            );
+            const isDuplicate = prev.some(n => {
+              if (!n.timestamp || !newNotif.timestamp) return false;
+              
+              const nTime = n.timestamp instanceof Date ? n.timestamp.getTime() : new Date(n.timestamp).getTime();
+              const newTime = newNotif.timestamp instanceof Date ? newNotif.timestamp.getTime() : new Date(newNotif.timestamp).getTime();
+              
+              return nTime === newTime && 
+                     n.type === newNotif.type &&
+                     n.ticketId === newNotif.ticketId;
+            });
             
             if (isDuplicate) {
               return prev;
@@ -228,6 +248,11 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               variant: toastVariant
             });
           }
+        }
+        // 🔥 SINCRONIZAÇÃO DE CONTADOR VIA WEBSOCKET (Requirement 6.5)
+        else if (data.type === 'unread_count_update') {
+          console.log(`[WEBSOCKET] 🔢 Contador atualizado via WebSocket: ${data.unreadCount}`);
+          setUnreadCount(data.unreadCount);
         }
       } catch (error) {
         if (process.env.NODE_ENV !== 'production') {

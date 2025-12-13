@@ -3,6 +3,9 @@ import { db } from '../db';
 import { notifications } from '@shared/schema';
 import { eq, and, desc, sql, gte, lte, or, ilike } from 'drizzle-orm';
 import { authRequired } from '../middleware/authorization';
+import { webPushService } from '../services/web-push-service';
+import { notificationService } from '../services/notification-service';
+import { logNotificationError } from '../services/logger';
 
 const router = express.Router();
 
@@ -51,6 +54,8 @@ router.get('/', authRequired, async (req: Request, res: Response) => {
     const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
     const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
     const search = req.query.search as string | undefined;
+    const sortBy = req.query.sortBy as string | undefined; // 'created_at' | 'priority'
+    const sortOrder = req.query.sortOrder as string | undefined; // 'asc' | 'desc'
 
     // Construir condições de filtro
     const conditions: any[] = [eq(notifications.user_id, userId)];
@@ -107,13 +112,32 @@ router.get('/', authRequired, async (req: Request, res: Response) => {
         sql`${notifications.read_at} IS NULL`
       ));
 
+    // Configurar ordenação (Requirement 9.4)
+    let orderByClause;
+    if (sortBy === 'priority') {
+      // Ordenar por prioridade: critical > high > medium > low
+      const priorityOrder = sql`
+        CASE ${notifications.priority}
+          WHEN 'critical' THEN 4
+          WHEN 'high' THEN 3
+          WHEN 'medium' THEN 2
+          WHEN 'low' THEN 1
+          ELSE 0
+        END
+      `;
+      orderByClause = sortOrder === 'asc' ? priorityOrder : desc(priorityOrder);
+    } else {
+      // Ordenação padrão por data de criação
+      orderByClause = sortOrder === 'asc' ? notifications.created_at : desc(notifications.created_at);
+    }
+
     // Buscar notificações com paginação (Requirement 1.5)
     const offset = (page - 1) * limit;
     const notificationsList = await db
       .select()
       .from(notifications)
       .where(whereClause)
-      .orderBy(desc(notifications.created_at))
+      .orderBy(orderByClause)
       .limit(limit)
       .offset(offset);
 
@@ -130,7 +154,12 @@ router.get('/', authRequired, async (req: Request, res: Response) => {
 
     res.json(response);
   } catch (error) {
-    console.error('[API NOTIFICAÇÕES] Erro ao listar notificações:', error);
+    logNotificationError(
+      'API: List notifications failed',
+      error,
+      'error',
+      { userId: req.user?.id, query: req.query }
+    );
     res.status(500).json({ 
       message: 'Erro ao listar notificações',
       error: error instanceof Error ? error.message : String(error)
@@ -161,7 +190,12 @@ router.get('/unread-count', authRequired, async (req: Request, res: Response) =>
 
     res.json({ count });
   } catch (error) {
-    console.error('[API NOTIFICAÇÕES] Erro ao contar notificações não lidas:', error);
+    logNotificationError(
+      'API: Count unread notifications failed',
+      error,
+      'error',
+      { userId: req.user?.id }
+    );
     res.status(500).json({ 
       message: 'Erro ao contar notificações não lidas',
       error: error instanceof Error ? error.message : String(error)
@@ -215,9 +249,18 @@ router.patch('/:id/read', authRequired, async (req: Request, res: Response) => {
         sql`${notifications.read_at} IS NULL`
       ));
 
+    // 🔥 SINCRONIZAÇÃO DE CONTADOR VIA WEBSOCKET (Requirement 6.5)
+    // Após marcar como lida, enviar novo contador para usuário online
+    await notificationService.sendUnreadCountUpdate(userId);
+
     res.json({ success: true, unreadCount });
   } catch (error) {
-    console.error('[API NOTIFICAÇÕES] Erro ao marcar notificação como lida:', error);
+    logNotificationError(
+      'API: Mark notification as read failed',
+      error,
+      'error',
+      { userId: req.user?.id, notificationId: req.params.id }
+    );
     res.status(500).json({ 
       message: 'Erro ao marcar notificação como lida',
       error: error instanceof Error ? error.message : String(error)
@@ -246,10 +289,19 @@ router.patch('/read-all', authRequired, async (req: Request, res: Response) => {
         sql`${notifications.read_at} IS NULL`
       ));
 
+    // 🔥 SINCRONIZAÇÃO DE CONTADOR VIA WEBSOCKET (Requirement 6.5)
+    // Após marcar todas como lidas, enviar contador atualizado (deve ser 0)
+    await notificationService.sendUnreadCountUpdate(userId);
+
     // Retornar contador atualizado (deve ser 0) (Requirement 2.6)
     res.json({ success: true, unreadCount: 0 });
   } catch (error) {
-    console.error('[API NOTIFICAÇÕES] Erro ao marcar todas as notificações como lidas:', error);
+    logNotificationError(
+      'API: Mark all notifications as read failed',
+      error,
+      'error',
+      { userId: req.user?.id }
+    );
     res.status(500).json({ 
       message: 'Erro ao marcar todas as notificações como lidas',
       error: error instanceof Error ? error.message : String(error)
@@ -295,7 +347,12 @@ router.delete('/:id', authRequired, async (req: Request, res: Response) => {
 
     res.json({ success: true });
   } catch (error) {
-    console.error('[API NOTIFICAÇÕES] Erro ao excluir notificação:', error);
+    logNotificationError(
+      'API: Delete notification failed',
+      error,
+      'error',
+      { userId: req.user?.id, notificationId: req.params.id }
+    );
     res.status(500).json({ 
       message: 'Erro ao excluir notificação',
       error: error instanceof Error ? error.message : String(error)
@@ -344,9 +401,139 @@ router.delete('/', authRequired, async (req: Request, res: Response) => {
 
     res.json({ success: true, deletedCount: result.length });
   } catch (error) {
-    console.error('[API NOTIFICAÇÕES] Erro ao excluir notificações em lote:', error);
+    logNotificationError(
+      'API: Batch delete notifications failed',
+      error,
+      'error',
+      { userId: req.user?.id, notificationIds: req.body.ids }
+    );
     res.status(500).json({ 
       message: 'Erro ao excluir notificações em lote',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * POST /api/notifications/push/subscribe
+ * Registra uma nova push subscription para o usuário
+ * Requirements: 3.2, 3.5
+ */
+router.post('/push/subscribe', authRequired, async (req: Request, res: Response) => {
+  try {
+    const userId = req.session.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Não autenticado' });
+    }
+
+    const { endpoint, keys } = req.body;
+
+    // Validar dados da subscription (Requirement 3.2)
+    if (!endpoint || typeof endpoint !== 'string') {
+      return res.status(400).json({ message: 'Endpoint inválido' });
+    }
+
+    if (!keys || typeof keys !== 'object') {
+      return res.status(400).json({ message: 'Keys inválidas' });
+    }
+
+    if (!keys.p256dh || typeof keys.p256dh !== 'string') {
+      return res.status(400).json({ message: 'Chave p256dh inválida' });
+    }
+
+    if (!keys.auth || typeof keys.auth !== 'string') {
+      return res.status(400).json({ message: 'Chave auth inválida' });
+    }
+
+    // Extrair user agent do request
+    const userAgent = req.headers['user-agent'];
+
+    // Registrar subscription usando o WebPushService
+    // O serviço já trata duplicatas internamente (Requirement 3.5)
+    await webPushService.subscribe(
+      userId,
+      { endpoint, keys },
+      userAgent
+    );
+
+    res.status(201).json({ success: true });
+  } catch (error) {
+    logNotificationError(
+      'API: Register push subscription failed',
+      error,
+      'error',
+      { userId: req.user?.id, endpoint: req.body.endpoint }
+    );
+    res.status(500).json({ 
+      message: 'Erro ao registrar push subscription',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * POST /api/notifications/push/unsubscribe
+ * Remove uma push subscription do usuário
+ * Requirements: 3.5
+ */
+router.post('/push/unsubscribe', authRequired, async (req: Request, res: Response) => {
+  try {
+    const userId = req.session.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Não autenticado' });
+    }
+
+    const { endpoint } = req.body;
+
+    // Validar endpoint
+    if (!endpoint || typeof endpoint !== 'string') {
+      return res.status(400).json({ message: 'Endpoint inválido' });
+    }
+
+    // Remover subscription usando o WebPushService (Requirement 3.5)
+    await webPushService.unsubscribe(userId, endpoint);
+
+    res.json({ success: true });
+  } catch (error) {
+    logNotificationError(
+      'API: Remove push subscription failed',
+      error,
+      'error',
+      { userId: req.user?.id, endpoint: req.body.endpoint }
+    );
+    res.status(500).json({ 
+      message: 'Erro ao remover push subscription',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * GET /api/notifications/push/public-key
+ * Retorna a chave pública VAPID para uso no frontend
+ * Requirements: 3.2
+ */
+router.get('/push/public-key', async (req: Request, res: Response) => {
+  try {
+    // Obter chave pública do WebPushService (Requirement 3.2)
+    const publicKey = webPushService.getPublicKey();
+
+    if (!publicKey) {
+      return res.status(503).json({ 
+        message: 'Web Push não configurado no servidor',
+        publicKey: null
+      });
+    }
+
+    res.json({ publicKey });
+  } catch (error) {
+    logNotificationError(
+      'API: Get VAPID public key failed',
+      error,
+      'error'
+    );
+    res.status(500).json({ 
+      message: 'Erro ao obter chave pública VAPID',
       error: error instanceof Error ? error.message : String(error)
     });
   }

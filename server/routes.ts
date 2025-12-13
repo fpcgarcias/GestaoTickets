@@ -2782,20 +2782,84 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       
 
       // Notificar sobre a atualização de atribuição
+      try {
+        // Notificar o cliente do ticket
+        if (ticket.customer_id) {
+          await notificationService.sendNotificationToUser(ticket.customer_id, {
+            type: 'ticket_assignment_updated',
+            ticketId: ticket.id,
+            ticketCode: ticket.ticket_id,
+            title: `Atribuição Atualizada: ${ticket.title}`,
+            message: `O ticket ${ticket.ticket_id} foi atribuído/desatribuído.`,
+            priority: 'medium',
+            timestamp: new Date(),
+            metadata: {
+              ticketId: ticket.id,
+              ticketCode: ticket.ticket_id,
+              previousAssignedToId,
+              newAssignedToId: updateData.assigned_to_id
+            }
+          });
+        }
 
-      notificationService.sendNotificationToAll({
+        // Notificar o usuário anteriormente atribuído (se houver)
+        if (previousAssignedToId && previousAssignedToId !== updateData.assigned_to_id) {
+          await notificationService.sendNotificationToUser(previousAssignedToId, {
+            type: 'ticket_assignment_updated',
+            ticketId: ticket.id,
+            ticketCode: ticket.ticket_id,
+            title: `Ticket Desatribuído: ${ticket.title}`,
+            message: `O ticket ${ticket.ticket_id} foi desatribuído de você.`,
+            priority: 'medium',
+            timestamp: new Date(),
+            metadata: {
+              ticketId: ticket.id,
+              ticketCode: ticket.ticket_id,
+              action: 'unassigned'
+            }
+          });
+        }
 
-        type: 'ticket_updated',
+        // Notificar o novo usuário atribuído (se houver)
+        if (updateData.assigned_to_id && updateData.assigned_to_id !== previousAssignedToId) {
+          await notificationService.sendNotificationToUser(updateData.assigned_to_id, {
+            type: 'ticket_assignment_updated',
+            ticketId: ticket.id,
+            ticketCode: ticket.ticket_id,
+            title: `Ticket Atribuído: ${ticket.title}`,
+            message: `O ticket ${ticket.ticket_id} foi atribuído para você.`,
+            priority: 'high',
+            timestamp: new Date(),
+            metadata: {
+              ticketId: ticket.id,
+              ticketCode: ticket.ticket_id,
+              action: 'assigned'
+            }
+          });
+        }
 
-        ticketId: ticket.id,
+        // Notificar equipe de suporte sobre a mudança
+        await notificationService.sendNotificationToSupport({
+          type: 'ticket_assignment_updated',
+          ticketId: ticket.id,
+          ticketCode: ticket.ticket_id,
+          title: `Atribuição Atualizada: ${ticket.title}`,
+          message: `O ticket ${ticket.ticket_id} teve sua atribuição alterada.`,
+          priority: 'medium',
+          timestamp: new Date(),
+          metadata: {
+            ticketId: ticket.id,
+            ticketCode: ticket.ticket_id,
+            previousAssignedToId,
+            newAssignedToId: updateData.assigned_to_id
+          }
+        });
 
-        title: `Atribuição Atualizada: ${ticket.title}`,
 
-        message: `O ticket ${ticket.ticket_id} foi atribuído/desatribuído.`,
-
-        timestamp: new Date()
-
-      });
+      } catch (notificationError) {
+        console.error('Erro ao enviar notificações de atualização de atribuição:', notificationError);
+        // Não falhar a atualização do ticket por erro de notificação
+      }
 
       
 
@@ -4133,31 +4197,51 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       res.status(201).json(ticket);
 
+      // 🔔 ENVIAR NOTIFICAÇÃO PERSISTENTE DE NOVO TICKET
+      try {
+        // Notificar o cliente que criou o ticket
+        if (customerId) {
+          await notificationService.sendNotificationToUser(customerId, {
+            type: 'new_ticket',
+            title: 'Chamado Criado',
+            message: `Seu chamado ${ticket.ticket_id} foi criado com sucesso e está sendo analisado`,
+            priority: (finalPriority as 'low' | 'medium' | 'high' | 'critical') || 'medium',
+            ticketId: ticket.id,
+            ticketCode: ticket.ticket_id,
+            timestamp: new Date(),
+            metadata: {
+              customerName: ticketData.customer_name || 'Cliente',
+              departmentId: ticket.department_id,
+              category: ticketData.category_id ? 'Categorizado' : 'Sem categoria'
+            }
+          });
+        }
+
+        // Notificar a equipe de suporte sobre o novo ticket
+        await notificationService.sendNotificationToSupport({
+          type: 'new_ticket',
+          title: 'Novo Chamado Recebido',
+          message: `Novo chamado ${ticket.ticket_id} de ${ticketData.customer_name || ticketData.customer_email}`,
+          priority: (finalPriority === 'critical' || finalPriority === 'high') ? 'high' : 'medium',
+          ticketId: ticket.id,
+          ticketCode: ticket.ticket_id,
+          timestamp: new Date(),
+          metadata: {
+            customerName: ticketData.customer_name || ticketData.customer_email,
+            customerEmail: ticketData.customer_email,
+            departmentId: ticket.department_id,
+            category: ticketData.category_id ? 'Categorizado' : 'Sem categoria',
+            description: ticketData.description.substring(0, 100) + (ticketData.description.length > 100 ? '...' : '')
+          }
+        });
+      } catch (notificationError) {
+        console.error('Erro ao enviar notificações de novo ticket:', notificationError);
+        // Não falhar a criação do ticket por erro de notificação
+      }
+
       
 
-      // Enviar notificação via WebSocket (excluindo participantes que serão notificados separadamente)
-
-      const participantIds = ticketData.participants && Array.isArray(ticketData.participants) ? ticketData.participants : [];
-
-      // @ts-ignore
-
-      notificationService.sendNotificationToAll({
-
-        type: 'new_ticket',
-
-        title: 'Novo Ticket Criado',
-
-        message: `Novo ticket ${ticket.ticket_id}: ${ticketData.title}`,
-
-        ticketId: ticket.id,
-
-        ticketCode: ticket.ticket_id,
-
-        priority: finalPriority as 'low' | 'medium' | 'high' | 'critical' | undefined,
-
-        timestamp: new Date()
-
-      }, participantIds); // Excluir participantes da notificação geral
+      // Notificação de novo ticket já foi enviada via sistema persistente acima
 
       
 
