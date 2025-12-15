@@ -277,19 +277,19 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
                       disabled={isAssigning || isOfficialsLoading}
                     >
                       <SelectTrigger 
-                        className="w-[180px] h-8 text-xs font-medium bg-primary/5 border-2 border-primary/20 hover:border-primary/30 focus:border-primary/50"
+                        className="w-[180px] h-8 text-xs font-medium"
                       >
                         <SelectValue placeholder={formatMessage('tickets.card.assign_to')} />
                       </SelectTrigger>
                       <SelectContent position="popper" className="min-w-[180px] z-50">
-                        <SelectItem value="unassigned" className="text-muted-foreground font-medium">
+                        <SelectItem value="unassigned" className="font-medium">
                           {formatMessage('tickets.card.unassigned')}
                         </SelectItem>
                         {[...officials].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })).map((official) => (
                           <SelectItem 
                             key={official.id} 
                             value={official.id.toString()} 
-                            className="text-primary/80 font-medium"
+                            className="font-medium"
                           >
                             {official.name || `Atendente ${official.id}`}
                           </SelectItem>

@@ -72,13 +72,30 @@ process.on('unhandledRejection', (reason, promise) => {
 // Capturar erros de sintaxe e outros erros síncronos
 process.on('SIGTERM', () => {
   console.log('🛑 SIGTERM recebido, encerrando graciosamente...');
-  process.exit(0);
+  gracefulShutdown();
 });
 
 process.on('SIGINT', () => {
   console.log('🛑 SIGINT recebido, encerrando graciosamente...');
-  process.exit(0);
+  gracefulShutdown();
 });
+
+// Função para encerramento gracioso
+function gracefulShutdown() {
+  console.log('[🧹 CLEANUP] Parando CleanupScheduler...');
+  
+  if (cleanupSchedulerInstance) {
+    try {
+      cleanupSchedulerInstance.stop();
+      console.log('[🧹 CLEANUP] ✅ CleanupScheduler parado com sucesso');
+    } catch (error) {
+      console.error('[🧹 CLEANUP] ❌ Erro ao parar CleanupScheduler:', error);
+    }
+  }
+  
+  console.log('🛑 Servidor encerrado graciosamente');
+  process.exit(0);
+}
 
 // === CONFIGURAÇÕES DE PROXY ===
 // Configuração robusta para múltiplos proxies e acessos
@@ -241,6 +258,9 @@ const notificationService = {
   }
 };
 
+// Variável global para armazenar a instância do CleanupScheduler
+let cleanupSchedulerInstance: any = null;
+
 // Inicializar serviço
 notificationService.initialize();
 
@@ -389,7 +409,19 @@ async function startServer() {
     const { schedulerService } = await import("./services/scheduler-service");
     schedulerService.start();
     
-    // 5. Iniciar servidor na porta especificada
+    // 5. Inicializar CleanupScheduler para limpeza automática de notificações
+    console.log("[🧹 CLEANUP] Inicializando CleanupScheduler...");
+    try {
+      const { cleanupScheduler } = await import("./services/cleanup-scheduler");
+      cleanupScheduler.start();
+      cleanupSchedulerInstance = cleanupScheduler; // Armazenar para graceful shutdown
+      console.log("[🧹 CLEANUP] ✅ CleanupScheduler inicializado com sucesso");
+    } catch (error) {
+      console.error("[🧹 CLEANUP] ❌ Erro ao inicializar CleanupScheduler:", error);
+      console.error("[🧹 CLEANUP] Stack trace:", error instanceof Error ? error.stack : 'N/A');
+    }
+    
+    // 6. Iniciar servidor na porta especificada
     const PORT = process.env.PORT || 5000; 
     server.listen(PORT, () => {
       console.log(`Servidor rodando na porta ${PORT}`);

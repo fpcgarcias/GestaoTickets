@@ -1,15 +1,30 @@
 {
-  "current": "1.2.0-beta",
-  "releaseDate": "2025-11-16",
+  "current": "1.2.0",
+  "releaseDate": "2025-12-15",
   "versions": [
     {
-      "version": "1.2.0-beta",
-      "date": "2025-11-16",
+      "version": "1.2.0",
+      "date": "2025-12-15",
       "title": "Implementação de novas funcionalidades.",
       "type": "feature",
       "changes": {
         "new": [
+          "Nova estrutura de notificações no sistema, tornando o sistema mais interativo e moderno.",
           "Implementação de nova tela de inventário de equipamentos, com funcionalidades de movimentação de equipamentos entre estoques."
+        ]
+      }
+    },
+    {
+      "version": "1.1.2",
+      "date": "2025-12-02",
+      "title": "Implementação de novas funcionalidades.",
+      "type": "update",
+      "changes": {
+        "improved": [
+          "implementação dos filtros de tipos de chamados e categorias na tela de tickets."
+        ],
+        "fixed": [
+          "Correção nas cores de algumas funcionalidades nos temas personalizados."
         ]
       }
     },

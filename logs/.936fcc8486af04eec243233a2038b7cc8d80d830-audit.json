@@ -6,39 +6,19 @@
     "auditLog": "C:\\GitHub\\GestaoTickets\\logs\\.936fcc8486af04eec243233a2038b7cc8d80d830-audit.json",
     "files": [
         {
-            "date": 1763134405084,
-            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-11-14.log",
-            "hash": "8daf3b6b48b8a4b0e43ebabb7a3166e7c8aa02f6491fa6fe19f343919a451521"
+            "date": 1764610205079,
+            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-12-01.log",
+            "hash": "a550aa2867a799d307cfc40cfce0de061e3bf6af93986e154d8c924fc42f98ab"
         },
         {
-            "date": 1763255578122,
-            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-11-15.log",
-            "hash": "e52719a68fc8f2305baffa15e1b0f44e09752fcc6cad91db75a67465093e426e"
+            "date": 1764679698125,
+            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-12-02.log",
+            "hash": "c3e21b9c91ed3e10fd41ce9c0d0c130fe07a6d2bdfa1535f0f37f90e53319c03"
         },
         {
-            "date": 1763300830778,
-            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-11-16.log",
-            "hash": "5e8039ac2486ab9f76488f6de8120b9279949e668bc5c4e870a1fb5cb0b99260"
-        },
-        {
-            "date": 1763724019953,
-            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-11-21.log",
-            "hash": "b968e096c6a1dcbe2019d8425b58d4989e5497821b34fa5fc57133f76f85eb0f"
-        },
-        {
-            "date": 1763916602792,
-            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-11-23.log",
-            "hash": "78146c4a56b2a57eaf2f0f3eeb87adce15ee1c5ed1b2fa26471deeaf4d633728"
-        },
-        {
-            "date": 1763986280912,
-            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-11-24.log",
-            "hash": "aff0422213a9eccfe0e19951df4491b7672bc0cf7984ff1fa6829d2f2a03f437"
-        },
-        {
-            "date": 1764171466908,
-            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-11-26.log",
-            "hash": "14e5f9382ccfc178d003bd8300bad245747a442dcbdb79169aa5a209ec8be1be"
+            "date": 1765591052474,
+            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-12-12.log",
+            "hash": "3505245f100d52e2672c19c64c4ddf6d379da9f188131a34dd877d432946b7b1"
         }
     ],
     "hashType": "sha256"

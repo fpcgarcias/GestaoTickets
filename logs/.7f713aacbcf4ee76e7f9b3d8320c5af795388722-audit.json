@@ -6,34 +6,29 @@
     "auditLog": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\.7f713aacbcf4ee76e7f9b3d8320c5af795388722-audit.json",
     "files": [
         {
-            "date": 1763386259891,
-            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-11-17.log",
-            "hash": "dac56b79287c46e09b44bf8663b5c8e92c27b15a43b470a430c527807d0d2e76"
+            "date": 1765224415397,
+            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-12-08.log",
+            "hash": "6705b7ce3e925d15524812dbc1d5592ac7670efe24e5c069d82439118e262e9e"
         },
         {
-            "date": 1763471983132,
-            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-11-18.log",
-            "hash": "94418fd883b75ff8402ec1496c53573d4c18a23dfb6f6e8317d6f4eaff921405"
+            "date": 1765302672745,
+            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-12-09.log",
+            "hash": "785bb8c4597396555d17283099af60009440c92bc931f6ec39033e61ac8e2e0f"
         },
         {
-            "date": 1763563230552,
-            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-11-19.log",
-            "hash": "17727bf9c8bb84f21af553e70d8a43b95c898caed779ac9c158bc52221673827"
+            "date": 1765482143426,
+            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-12-11.log",
+            "hash": "cbc13e6b5a79f3eca271488f9cbf449f2992cc5dd32bba4777efe921d0a2c01f"
         },
         {
-            "date": 1764079616876,
-            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-11-25.log",
-            "hash": "d4968eeaba030860dbd8389be643dffbaa03b636f3fab387b9eec29147df9b67"
+            "date": 1765577589524,
+            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-12-12.log",
+            "hash": "b6ab62152f6d92d2d31e51f0f6acbd4247e7de9a091bbb98da833e171aafcef8"
         },
         {
-            "date": 1764167166844,
-            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-11-26.log",
-            "hash": "8e61ed8c5768ac30197b87b37ad13fba5f5ad7fd3f794c0c3f443d4a85ae57b8"
-        },
-        {
-            "date": 1764254127732,
-            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-11-27.log",
-            "hash": "66d001b3146086da5cecdbeb2ced1b0df57a490a4c28be01d0941e8bd1c90208"
+            "date": 1765811059924,
+            "name": "C:\\Users\\felipe.garcia\\Documents\\GitHub\\GestaoTickets\\logs\\performance-2025-12-15.log",
+            "hash": "49909c5d99e4f3a5ba8a98b778e5af619e0e4f5646db0edb9859c01da8b58f04"
         }
     ],
     "hashType": "sha256"

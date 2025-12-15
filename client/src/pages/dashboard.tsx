@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -102,7 +102,7 @@ function normalizarPrioridade(prioridade: string) {
 export default function Dashboard() {
   const { user, isLoading: isLoadingAuth } = useAuth();
   const { formatMessage, locale } = useI18n();
-  const isChangingFromIncidentType = React.useRef(false);
+  const isChangingFromIncidentType = useRef(false);
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
   const shouldShowSatisfactionPrompt = user?.role === 'customer';
   
@@ -201,7 +201,7 @@ export default function Dashboard() {
   const rawIncidentTypes = incidentTypesResponse?.incidentTypes || incidentTypesResponse?.data || incidentTypesResponse || [];
   const incidentTypes: IncidentTypeOption[] = Array.isArray(rawIncidentTypes) ? rawIncidentTypes : [];
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (selectedIncidentTypeId === 'all') return;
     // Não resetar se a mudança veio de handleIncidentTypeChange
     if (isChangingFromIncidentType.current) return;
@@ -245,7 +245,7 @@ export default function Dashboard() {
   const rawCategories = categoriesResponse?.categories || categoriesResponse?.data || categoriesResponse || [];
   const categories: CategoryOption[] = Array.isArray(rawCategories) ? rawCategories : [];
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (selectedCategoryId === 'all') return;
     const exists = categories.some((category) => category.id?.toString() === selectedCategoryId);
     if (!exists) {
@@ -282,7 +282,7 @@ export default function Dashboard() {
 
   const filteredOfficials = getFilteredOfficials();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (selectedOfficialId === 'all') return;
     const exists = filteredOfficials.some((official: Official) => official.id.toString() === selectedOfficialId);
     if (!exists) {

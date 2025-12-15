@@ -43,42 +43,43 @@ import departmentServiceProvidersRouter from './routes/department-service-provid
 import ticketServiceProvidersRouter from './routes/ticket-service-providers';
 
 import reportsRouter from './routes/reports';
+import notificationsRouter from './routes/notifications';
 
 
 
 // 🔥 FASE 5.2: Importar middlewares de autorização centralizados
 
-import { 
+import {
 
-  authRequired, 
+  authRequired,
 
-  adminRequired, 
+  adminRequired,
 
-  companyAdminRequired, 
+  companyAdminRequired,
 
-  managerRequired, 
+  managerRequired,
 
-  supervisorRequired, 
+  supervisorRequired,
 
-  triageRequired, 
+  triageRequired,
 
-  viewerRequired, 
+  viewerRequired,
 
-  authorize, 
+  authorize,
 
-  companyAccessRequired, 
+  companyAccessRequired,
 
-  ticketAccessRequired, 
+  ticketAccessRequired,
 
-  participantManagementRequired, 
+  participantManagementRequired,
 
-  canAddParticipants, 
+  canAddParticipants,
 
   canRemoveParticipants,
 
   departmentAccessRequired,
 
-  canManageUserRole 
+  canManageUserRole
 
 } from './middleware/authorization';
 
@@ -138,15 +139,15 @@ import { logger, logPerformance, logSecurity } from './services/logger';
 
 import { AiService } from './services/ai-service';
 
-import { 
+import {
 
-  getAiConfigurations, 
+  getAiConfigurations,
 
-  createAiConfiguration, 
+  createAiConfiguration,
 
-  updateAiConfiguration, 
+  updateAiConfiguration,
 
-  deleteAiConfiguration, 
+  deleteAiConfiguration,
 
   testAiConfiguration,
 
@@ -387,7 +388,7 @@ import { resolveSLA, getCacheStats, preloadCache, cleanCache } from './api/sla-r
 
 // Importar funções do serviço de configurações SLA
 
-import { 
+import {
 
   getSLAConfigurations,
 
@@ -453,7 +454,7 @@ async function saveSystemSetting(key: string, value: string, companyId?: number)
 
   const compositeKey = companyId ? `${key}_company_${companyId}` : key;
 
-  
+
 
   const whereCondition = eq(schema.systemSettings.key, compositeKey);
 
@@ -467,7 +468,7 @@ async function saveSystemSetting(key: string, value: string, companyId?: number)
 
     .where(whereCondition);
 
-    
+
 
   if (existing) {
 
@@ -475,7 +476,7 @@ async function saveSystemSetting(key: string, value: string, companyId?: number)
 
       .update(schema.systemSettings)
 
-      .set({ 
+      .set({
 
         value: value,
 
@@ -517,7 +518,7 @@ async function getSystemSetting(key: string, defaultValue: string = '', companyI
 
   const compositeKey = companyId ? `${key}_company_${companyId}` : key;
 
-  
+
 
   const whereCondition = eq(schema.systemSettings.key, compositeKey);
 
@@ -531,7 +532,7 @@ async function getSystemSetting(key: string, defaultValue: string = '', companyI
 
     .where(whereCondition);
 
-    
+
 
   return setting ? setting.value : defaultValue;
 
@@ -587,7 +588,7 @@ function fixEmailDomain(email: string, source: string): { email: string, wasFixe
 
   }
 
-  
+
 
   const parts = email.split('@');
 
@@ -595,15 +596,15 @@ function fixEmailDomain(email: string, source: string): { email: string, wasFixe
 
   const domainPart = parts[1];
 
-  
 
-  if (domainPart && 
 
-      ((
+  if (domainPart &&
 
-        process.env.AD_DOMAIN && domainPart.toLowerCase() === process.env.AD_DOMAIN.toLowerCase()
+    ((
 
-      ) ||
+      process.env.AD_DOMAIN && domainPart.toLowerCase() === process.env.AD_DOMAIN.toLowerCase()
+
+    ) ||
 
       domainPart.toLowerCase().includes('local') ||
 
@@ -613,7 +614,7 @@ function fixEmailDomain(email: string, source: string): { email: string, wasFixe
 
       domainPart.toLowerCase().includes('corp'))
 
-    ) {
+  ) {
 
     const fixedEmail = `${userPart}@${process.env.AD_EMAIL_DOMAIN}`;
 
@@ -621,7 +622,7 @@ function fixEmailDomain(email: string, source: string): { email: string, wasFixe
 
   }
 
-  
+
 
   return { email, wasFixed: false };
 
@@ -657,7 +658,7 @@ async function isUserAlsoOfficial(userId: number): Promise<boolean> {
 
       .limit(1);
 
-    
+
 
     return !!official;
 
@@ -677,11 +678,11 @@ async function isUserAlsoOfficial(userId: number): Promise<boolean> {
 
 async function canUserReplyToTicket(
 
-  userId: number, 
+  userId: number,
 
-  userRole: string, 
+  userRole: string,
 
-  ticketId: number, 
+  ticketId: number,
 
   userCompanyId?: number
 
@@ -715,7 +716,7 @@ async function canUserReplyToTicket(
 
     const isParticipant = await storage.isUserTicketParticipant(ticketId, userId);
 
-    
+
 
     // Se é participante, sempre pode responder
 
@@ -751,7 +752,7 @@ async function canUserReplyToTicket(
 
           .where(eq(customers.id, ticket.customer_id));
 
-        
+
 
         if (customer?.user_id === userId) {
 
@@ -790,16 +791,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   const authLimiter = securityMiddleware.authLimiter as any;
   const apiLimiter = securityMiddleware.apiLimiter as any;
   const uploadLimiter = securityMiddleware.uploadLimiter as any;
-  const { 
-    validateSchema, 
-    loginSchema, 
-    ticketSchema, 
-    sanitizeHtml, 
-    securityLogger, 
+  const {
+    validateSchema,
+    loginSchema,
+    ticketSchema,
+    sanitizeHtml,
+    securityLogger,
     validateFileUpload
   } = securityMiddleware;
 
-  
+
 
   // === APLICAR MIDDLEWARES DE SEGURANÇA SELETIVAMENTE ===
 
@@ -819,13 +820,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   }
 
-  
+
 
   // === APLICAR MIDDLEWARE DE PERFORMANCE ===
 
   router.use(performanceMiddleware); // Monitoramento de performance em todas as rotas
 
-  
+
 
   // Nova rota para diagnóstico de extração de email do AD (admin)
 
@@ -835,29 +836,29 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const username = req.query.username as string;
 
-      
+
 
       if (!username) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Nome de usuário é obrigatório", 
+          message: "Nome de usuário é obrigatório",
 
-          usage: "?username=nome.usuario" 
+          usage: "?username=nome.usuario"
 
         });
 
       }
 
-      
 
 
 
-      
+
+
 
       const { authenticateAD } = await import('./utils/active-directory');
 
-      
+
 
       if (!process.env.AD_URL || !process.env.AD_BASE_DN || !process.env.AD_USERNAME || !process.env.AD_PASSWORD) {
 
@@ -871,7 +872,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const { Client } = await import('ldapts');
 
@@ -887,7 +888,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       };
 
-      
+
 
       const client = new Client({
 
@@ -897,7 +898,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       });
 
-      
+
 
       try {
 
@@ -905,7 +906,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         await client.bind(adConfig.username, adConfig.password);
 
-        
+
 
         // Buscar o usuário
 
@@ -913,7 +914,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const searchFilter = `(|(sAMAccountName=${formattedUsername})(userPrincipalName=${username}))`;
 
-        
+
 
         const { searchEntries } = await client.search(adConfig.baseDN, {
 
@@ -925,7 +926,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         });
 
-        
+
 
         if (!searchEntries || searchEntries.length === 0) {
 
@@ -933,13 +934,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         const userEntry = searchEntries[0];
 
         res.json({ success: true, user: userEntry });
 
-        
+
 
       } catch (err) {
 
@@ -973,7 +974,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Rotas públicas (sem autenticação) - Login, Logout, Registro
 
@@ -989,13 +990,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const { email, password, name, role, cnpj } = req.body;
 
-      
+
 
       // Usar o email como nome de usuário
 
       const username = email;
 
-      
+
 
       // Verificar se o usuário já existe
 
@@ -1007,7 +1008,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const existingEmail = await storage.getUserByEmail(email);
 
@@ -1017,7 +1018,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Buscar empresa pelo CNPJ
 
@@ -1035,7 +1036,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           .limit(1);
 
-        
+
 
         if (company) {
 
@@ -1057,13 +1058,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Criar usuário - por padrão, novos usuários terão o papel de 'customer' a menos que especificado diferente
 
       const userRole = role || 'customer';
 
-      
+
 
       // Criptografar a senha fornecida pelo usuário
 
@@ -1071,7 +1072,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const hashedPassword = await hashPassword(password);
 
-      
+
 
       // Criar o usuário com o companyId
 
@@ -1093,7 +1094,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       });
 
-      
+
 
       // Criar um registro de cliente vinculado ao usuário
 
@@ -1113,7 +1114,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Autenticar o usuário recém-registrado
 
@@ -1147,13 +1148,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Não retornar a senha
 
       const { password: _, ...userWithoutPassword } = user;
 
-      
+
 
       res.status(201).json(userWithoutPassword);
 
@@ -1207,7 +1208,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         } else {
 
-           return res.json([]); // company_admin sem companyId não deve ver tickets
+          return res.json([]); // company_admin sem companyId não deve ver tickets
 
         }
 
@@ -1217,7 +1218,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           conditions.push(eq(schema.tickets.company_id, companyId));
 
-          
+
 
           // Manager pode ver tickets de:
 
@@ -1227,7 +1228,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           // 3. Tickets não atribuídos dos departamentos dos atendentes sob sua gestão
 
-          
+
 
           const [managerOfficial] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId)).limit(1);
 
@@ -1239,7 +1240,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             const subordinateIds = subordinates.map(s => s.id);
 
-            
+
 
             // Buscar departamentos dos subordinados para tickets não atribuídos
 
@@ -1253,7 +1254,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             }
 
-            
+
 
             // Buscar seus próprios departamentos também
 
@@ -1261,11 +1262,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             managerDepartments.forEach(dept => allDepartments.add(dept.department_id));
 
-            
+
 
             const departmentIds = Array.from(allDepartments);
 
-            
+
 
             const ticketConditions = [
 
@@ -1273,7 +1274,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             ];
 
-            
+
 
             if (subordinateIds.length > 0) {
 
@@ -1281,7 +1282,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             }
 
-            
+
 
             if (departmentIds.length > 0) {
 
@@ -1299,7 +1300,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             }
 
-            
+
 
             conditions.push(or(...ticketConditions));
 
@@ -1311,7 +1312,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         } else {
 
-            return res.json([]); // manager sem companyId não deve ver tickets
+          return res.json([]); // manager sem companyId não deve ver tickets
 
         }
 
@@ -1321,7 +1322,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           conditions.push(eq(schema.tickets.company_id, companyId));
 
-          
+
 
           // Supervisor pode ver tickets de:
 
@@ -1331,7 +1332,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           // 3. Tickets não atribuídos dos departamentos dos atendentes sob sua supervisão
 
-          
+
 
           const [supervisorOfficial] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId)).limit(1);
 
@@ -1343,7 +1344,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             const subordinateIds = subordinates.map(s => s.id);
 
-            
+
 
             // Buscar departamentos dos subordinados para tickets não atribuídos
 
@@ -1357,7 +1358,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             }
 
-            
+
 
             // Buscar seus próprios departamentos também
 
@@ -1365,11 +1366,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             supervisorDepartments.forEach(dept => allDepartments.add(dept.department_id));
 
-            
+
 
             const departmentIds = Array.from(allDepartments);
 
-            
+
 
             const ticketConditions = [
 
@@ -1377,7 +1378,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             ];
 
-            
+
 
             if (subordinateIds.length > 0) {
 
@@ -1385,7 +1386,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             }
 
-            
+
 
             if (departmentIds.length > 0) {
 
@@ -1403,7 +1404,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             }
 
-            
+
 
             conditions.push(or(...ticketConditions));
 
@@ -1415,7 +1416,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         } else {
 
-            return res.json([]); // supervisor sem companyId não deve ver tickets
+          return res.json([]); // supervisor sem companyId não deve ver tickets
 
         }
 
@@ -1425,7 +1426,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           conditions.push(eq(schema.tickets.company_id, companyId));
 
-          
+
 
           // Support pode ver tickets de:
 
@@ -1433,7 +1434,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           // 2. Tickets não atribuídos dos seus departamentos
 
-          
+
 
           const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId)).limit(1);
 
@@ -1445,7 +1446,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               const departmentIds = departments.map(d => d.department_id);
 
-              
+
 
               if (departmentIds.length > 0) {
 
@@ -1491,7 +1492,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         } else {
 
-            return res.json([]); // support sem companyId não deve ver tickets
+          return res.json([]); // support sem companyId não deve ver tickets
 
         }
 
@@ -1505,7 +1506,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         } else {
 
-            return res.json([]); // triage sem companyId não deve ver tickets
+          return res.json([]); // triage sem companyId não deve ver tickets
 
         }
 
@@ -1527,7 +1528,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           } else {
 
-             return res.json([]); // Customer sem registro ou email
+            return res.json([]); // Customer sem registro ou email
 
           }
 
@@ -1541,17 +1542,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-         // Se for admin (que também é viewer/quality implicitamente e já tratado) ou se não tiver companyId, pode ver todos os globais (se aplicável)
+        // Se for admin (que também é viewer/quality implicitamente e já tratado) ou se não tiver companyId, pode ver todos os globais (se aplicável)
 
-         // Se for viewer/quality SEM companyId e NÃO for admin, não deve ver tickets.
+        // Se for viewer/quality SEM companyId e NÃO for admin, não deve ver tickets.
 
-         // A verificação de 'admin' já é feita acima, então se chegou aqui e é viewer/quality, não é admin.
+        // A verificação de 'admin' já é feita acima, então se chegou aqui e é viewer/quality, não é admin.
 
-         else if (!companyId) { 
+        else if (!companyId) {
 
-            return res.json([]);
+          return res.json([]);
 
-         }
+        }
 
       } else {
 
@@ -1643,7 +1644,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Stats and dashboard endpoints
 
@@ -1659,7 +1660,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const userRole = req.session.userRole as string;
 
-      
+
 
       if (!userId || !userRole) {
 
@@ -1667,7 +1668,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Parâmetros de paginação
 
@@ -1675,7 +1676,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const limit = parseInt(req.query.limit as string) || 20; // 20 por página para tickets
 
-      
+
 
       // Parâmetros de filtro
 
@@ -1686,6 +1687,10 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       const priorityFilter = req.query.priority as string;
 
       const departmentFilter = req.query.department_id as string;
+
+      const incidentTypeFilter = req.query.incident_type_id as string;
+
+      const categoryFilter = req.query.category_id as string;
 
       const assignedToFilter = req.query.assigned_to_id as string;
 
@@ -1699,13 +1704,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const dateTo = req.query.date_to as string;
 
-      
+
 
       // Preparar filtros para o método paginado
 
       const filters: any = {};
 
-      
+
 
       if (search) {
 
@@ -1713,7 +1718,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       if (statusFilter && statusFilter !== 'all') {
 
@@ -1721,7 +1726,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       if (priorityFilter && priorityFilter !== 'all') {
 
@@ -1729,7 +1734,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       if (departmentFilter && departmentFilter !== 'all') {
 
@@ -1737,7 +1742,23 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
+
+      if (incidentTypeFilter && incidentTypeFilter !== 'all') {
+
+        filters.incident_type_id = parseInt(incidentTypeFilter);
+
+      }
+
+
+
+      if (categoryFilter && categoryFilter !== 'all') {
+
+        filters.category_id = parseInt(categoryFilter);
+
+      }
+
+
 
       if (assignedToFilter && assignedToFilter !== 'all') {
 
@@ -1753,7 +1774,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       if (hideResolved) {
 
@@ -1767,7 +1788,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Processar filtros de data - USAR MESMA LÓGICA DO DASHBOARD
 
@@ -1775,7 +1796,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const endDate = req.query.end_date as string;
 
-      
+
 
       if (startDate || endDate) {
 
@@ -1811,13 +1832,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Usar o método paginado que aplica filtros no SQL
 
       const result = await storage.getTicketsByUserRolePaginated!(userId, userRole, filters, page, limit);
 
-      
+
 
       res.json(result);
 
@@ -1831,7 +1852,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   router.get("/tickets/stats", authRequired, async (req: Request, res: Response) => {
 
@@ -1843,7 +1864,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const userRole = req.session.userRole as string;
 
-      
+
 
       if (!userId || !userRole) {
 
@@ -1851,7 +1872,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Obter filtros se fornecidos
 
@@ -1861,7 +1882,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const endDate = req.query.end_date ? new Date(req.query.end_date as string) : undefined;
 
-      
+
 
       // Obter estatísticas de tickets filtradas pelo papel do usuário, atendente e período
 
@@ -1891,7 +1912,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const userRole = req.session.userRole as string;
 
-      
+
 
       if (!userId || !userRole) {
 
@@ -1899,7 +1920,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
 
@@ -1909,7 +1930,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const endDate = req.query.end_date ? new Date(req.query.end_date as string) : undefined;
 
-      
+
 
       // Obter tickets recentes filtrados pelo papel do usuário, atendente e período
 
@@ -1939,7 +1960,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const userRole = req.session.userRole as string;
 
-      
+
 
       if (!userId || !userRole) {
 
@@ -1947,7 +1968,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const officialId = req.query.official_id ? parseInt(req.query.official_id as string) : undefined;
 
@@ -1955,7 +1976,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const endDate = req.query.end_date ? new Date(req.query.end_date as string) : undefined;
 
-      
+
 
       // Obter tempo médio de primeira resposta filtrado pelo papel do usuário, atendente e período
 
@@ -1985,7 +2006,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const userRole = req.session.userRole as string;
 
-      
+
 
       if (!userId || !userRole) {
 
@@ -1993,7 +2014,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const officialId = req.query.official_id ? parseInt(req.query.official_id as string) : undefined;
 
@@ -2001,7 +2022,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const endDate = req.query.end_date ? new Date(req.query.end_date as string) : undefined;
 
-      
+
 
       // Obter tempo médio de resolução filtrado pelo papel do usuário, atendente e período
 
@@ -2089,7 +2110,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const userCompanyId = req.session?.companyId;
 
-      
+
 
       const ticket = await storage.getTicket(ticketId, userRole, userCompanyId);
 
@@ -2179,7 +2200,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const userCompanyId = req.session?.companyId;
 
-      
+
 
       const ticket = await storage.getTicket(ticketId, userRole, userCompanyId);
 
@@ -2733,7 +2754,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Rota para atualizar parcialmente um ticket (ex: atribuir atendente)
 
@@ -2757,7 +2778,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const userCompanyId = req.session?.companyId;
 
-      
+
 
       const existingTicket = await storage.getTicket(id, userRole, userCompanyId);
 
@@ -2773,7 +2794,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const { assigned_to_id } = req.body;
 
-      
+
 
       if (userRole === 'customer' && assigned_to_id !== undefined) {
 
@@ -2781,21 +2802,21 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const isAlsoOfficial = await isUserAlsoOfficial(req.session?.userId!);
 
-        
+
 
         if (!isAlsoOfficial) {
 
-          return res.status(403).json({ 
+          return res.status(403).json({
 
-            message: "Operação não permitida", 
+            message: "Operação não permitida",
 
-            details: "Clientes não podem alterar o atendente do ticket." 
+            details: "Clientes não podem alterar o atendente do ticket."
 
           });
 
         }
 
-        
+
 
         console.log(`[PERMISSÃO] ✅ Usuário ${req.session?.userId} é customer MAS também é official - operação permitida`);
 
@@ -2811,11 +2832,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       if (existingTicket.status === 'resolved' && assigned_to_id !== undefined && assigned_to_id !== existingTicket.assigned_to_id) {
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          message: "Operação não permitida", 
+          message: "Operação não permitida",
 
-          details: "Não é possível alterar o atendente de um ticket resolvido." 
+          details: "Não é possível alterar o atendente de um ticket resolvido."
 
         });
 
@@ -2824,6 +2845,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
       // Validar assignedToId se fornecido
+
+      let assignedOfficialUserId: number | null = null; // Variável para armazenar o user_id do funcionário
 
       if (assigned_to_id !== undefined) {
 
@@ -2849,7 +2872,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             if (!assignedOfficial) {
 
-              return res.status(400).json({ 
+              return res.status(400).json({
 
                 message: "Atendente atribuído não encontrado ou inativo",
 
@@ -2871,9 +2894,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               console.error(`[🚨 SEGURANÇA] ❌ Atendente: ${assignedOfficial.name} (${assignedOfficial.email})`);
 
-              
 
-              return res.status(403).json({ 
+
+              return res.status(403).json({
 
                 message: "Operação não permitida",
 
@@ -2893,9 +2916,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               console.error(`[🚨 SEGURANÇA] ❌ Ticket empresa: ${existingTicket.company_id}, Atendente empresa: ${assignedOfficial.company_id}`);
 
-              
 
-              return res.status(403).json({ 
+
+              return res.status(403).json({
 
                 message: "Operação não permitida",
 
@@ -2909,9 +2932,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             console.log(`[✅ SEGURANÇA] Validação de empresa: OK - Ticket e atendente são da mesma empresa`);
 
+            assignedOfficialUserId = assignedOfficial.user_id; // ✅ Capturar ID do usuário para notificação
+
           }
 
-          
+
 
           updateData.assigned_to_id = assigned_to_id;
 
@@ -2943,25 +2968,107 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Notificar sobre a atualização de atribuição
+      try {
+        // Notificar o cliente do ticket
+        if (ticket.customer_id) {
+          // 🔥 CORREÇÃO: Converter customer_id para user_id
+          const [customer] = await db
+            .select({ user_id: schema.customers.user_id })
+            .from(schema.customers)
+            .where(eq(schema.customers.id, ticket.customer_id))
+            .limit(1);
 
-      notificationService.sendNotificationToAll({
+          if (customer?.user_id) {
+            await notificationService.sendNotificationToUser(customer.user_id, {
+              type: 'ticket_assignment_updated',
+              ticketId: ticket.id,
+              ticketCode: ticket.ticket_id,
+              title: `Atribuição Atualizada: ${ticket.title}`,
+              message: `O ticket ${ticket.ticket_id} foi atribuído/desatribuído.`,
+              priority: 'medium',
+              timestamp: new Date(),
+              metadata: {
+                ticketId: ticket.id,
+                ticketCode: ticket.ticket_id,
+                previousAssignedToId,
+                newAssignedToId: updateData.assigned_to_id
+              }
+            });
+          }
+        }
 
-        type: 'ticket_updated',
+        // Notificar o usuário anteriormente atribuído (se houver)
+        if (previousAssignedToId && previousAssignedToId !== updateData.assigned_to_id) {
+          // 🔥 CORREÇÃO: Converter official_id para user_id
+          const [previousOfficial] = await db
+            .select({ user_id: schema.officials.user_id })
+            .from(schema.officials)
+            .where(eq(schema.officials.id, previousAssignedToId))
+            .limit(1);
 
-        ticketId: ticket.id,
+          if (previousOfficial?.user_id) {
+            await notificationService.sendNotificationToUser(previousOfficial.user_id, {
+              type: 'ticket_assignment_updated',
+              ticketId: ticket.id,
+              ticketCode: ticket.ticket_id,
+              title: `Ticket Desatribuído: ${ticket.title}`,
+              message: `O ticket ${ticket.ticket_id} foi desatribuído de você.`,
+              priority: 'medium',
+              timestamp: new Date(),
+              metadata: {
+                ticketId: ticket.id,
+                ticketCode: ticket.ticket_id,
+                action: 'unassigned'
+              }
+            });
+          }
+        }
 
-        title: `Atribuição Atualizada: ${ticket.title}`,
+        // Notificar o novo usuário atribuído (se houver)
+        if (assignedOfficialUserId && updateData.assigned_to_id && updateData.assigned_to_id !== previousAssignedToId) {
+          await notificationService.sendNotificationToUser(assignedOfficialUserId, {
+            type: 'ticket_assignment_updated',
+            ticketId: ticket.id,
+            ticketCode: ticket.ticket_id,
+            title: `Ticket Atribuído: ${ticket.title}`,
+            message: `O ticket ${ticket.ticket_id} foi atribuído para você.`,
+            priority: 'high',
+            timestamp: new Date(),
+            metadata: {
+              ticketId: ticket.id,
+              ticketCode: ticket.ticket_id,
+              action: 'assigned'
+            }
+          });
+        }
 
-        message: `O ticket ${ticket.ticket_id} foi atribuído/desatribuído.`,
+        // Notificar equipe de suporte sobre a mudança
+        await notificationService.sendNotificationToSupport({
+          type: 'ticket_assignment_updated',
+          ticketId: ticket.id,
+          ticketCode: ticket.ticket_id,
+          title: `Atribuição Atualizada: ${ticket.title}`,
+          message: `O ticket ${ticket.ticket_id} teve sua atribuição alterada.`,
+          priority: 'medium',
+          timestamp: new Date(),
+          metadata: {
+            ticketId: ticket.id,
+            ticketCode: ticket.ticket_id,
+            previousAssignedToId,
+            newAssignedToId: updateData.assigned_to_id
+          }
+        });
 
-        timestamp: new Date()
 
-      });
+      } catch (notificationError) {
+        console.error('Erro ao enviar notificações de atualização de atribuição:', notificationError);
+        // Não falhar a atualização do ticket por erro de notificação
+      }
 
-      
+
 
       // Registrar histórico de transferência se atribuição mudou
 
@@ -3015,7 +3122,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         console.log(`📧 [EMAIL BACKGROUND] ========================================`);
 
-        
+
 
         // Fire-and-forget: não aguarda o envio dos e-mails
 
@@ -3087,7 +3194,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const userCompanyId = req.session?.companyId;
 
-      
+
 
       const existingTicket = await storage.getTicket(id, userRole, userCompanyId);
 
@@ -3099,17 +3206,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      const { 
+      const {
 
-        title, 
+        title,
 
-        description, 
+        description,
 
-        status, 
+        status,
 
-        priority, 
+        priority,
 
-        assigned_to_id, 
+        assigned_to_id,
 
         department_id,
 
@@ -3161,7 +3268,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       let oldStatus = existingTicket.status;
 
-      
+
 
       if (status !== undefined && status !== existingTicket.status) {
 
@@ -3169,11 +3276,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (userRole === 'customer' && status !== 'waiting_customer') {
 
-          return res.status(403).json({ 
+          return res.status(403).json({
 
-            message: "Operação não permitida", 
+            message: "Operação não permitida",
 
-            details: "Clientes só podem alterar o status para 'Aguardando Cliente'." 
+            details: "Clientes só podem alterar o status para 'Aguardando Cliente'."
 
           });
 
@@ -3183,11 +3290,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (existingTicket.status === 'new' && !assigned_to_id && !existingTicket.assigned_to_id) {
 
-          return res.status(400).json({ 
+          return res.status(400).json({
 
-            message: "Não é possível alterar status", 
+            message: "Não é possível alterar status",
 
-            details: "É necessário atribuir um atendente ao ticket antes de alterar o status de 'Novo'." 
+            details: "É necessário atribuir um atendente ao ticket antes de alterar o status de 'Novo'."
 
           });
 
@@ -3323,22 +3430,24 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         try {
 
-          // Enviar notificação de email para mudança de status
+          // ✅ 1. Enviar notificação persistente via WebSocket
+          // 🔥 CORREÇÃO: Usar notifyStatusChange (mais completo, notifica participantes)
+          await notificationService.notifyStatusChange(
+            ticket.id,
+            String(oldStatus),
+            String(status),
+            req.session?.userId || 0
+          );
+
+          // ✅ 2. Enviar notificação de email para mudança de status
 
           emailNotificationService.notifyStatusChanged(
-
             ticket.id,
-
             String(oldStatus || ''),
-
             String(status || ''),
-
             req.session?.userId
-
           ).catch((emailError) => {
-
             console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de mudança de status:`, emailError);
-
           });
 
 
@@ -3349,18 +3458,20 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             try {
 
-              emailNotificationService.notifyTicketEscalated(
-
+              // 🔥 CORREÇÃO: Enviar notificação persistente + email
+              await notificationService.notifyTicketEscalated(
                 ticket.id,
-
                 req.session?.userId,
-
                 `Ticket escalado manualmente por ${req.session?.adUsername || 'usuário'}`
+              );
 
-              )!!!.catch((escalationError) => {
-
+              // Também enviar email
+              emailNotificationService.notifyTicketEscalated(
+                ticket.id,
+                req.session?.userId,
+                `Ticket escalado manualmente por ${req.session?.adUsername || 'usuário'}`
+              ).catch((escalationError) => {
                 console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de escalação:`, escalationError);
-
               });
 
             } catch (escalationError) {
@@ -3386,6 +3497,34 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       if (assigned_to_id !== undefined && existingTicket.assigned_to_id !== assigned_to_id) {
 
         try {
+
+          // ✅ Enviar notificação persistente
+          try {
+            const [official] = await db
+              .select({ user_id: schema.officials.user_id })
+              .from(schema.officials)
+              .where(eq(schema.officials.id, assigned_to_id))
+              .limit(1);
+
+            if (official && official.user_id) {
+              await notificationService.sendNotificationToUser(official.user_id, {
+                type: 'ticket_assignment_updated',
+                ticketId: ticket.id,
+                ticketCode: ticket.ticket_id,
+                title: `Ticket Atribuído: ${ticket.title}`,
+                message: `O ticket ${ticket.ticket_id} foi atribuído para você.`,
+                priority: 'high',
+                timestamp: new Date(),
+                metadata: {
+                  ticketId: ticket.id,
+                  ticketCode: ticket.ticket_id,
+                  action: 'assigned'
+                }
+              });
+            }
+          } catch (persistErr) {
+            console.error('[Notification] Erro ao enviar notificação persistente de atribuição:', persistErr);
+          }
 
           emailNotificationService.notifyTicketAssigned(ticket.id, assigned_to_id).catch((emailError) => {
 
@@ -3761,7 +3900,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Ticket creation and responses
 
@@ -3773,31 +3912,25 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const ticketData = insertTicketSchema.parse(req.body);
 
-      
+
 
       // ✅ BUSCAR O CUSTOMER_ID E COMPANY_ID BASEADO NO EMAIL FORNECIDO
 
       let customerId: number | null = null;
-
+      let customerUserId: number | null = null; // ID do usuário associado ao cliente
       let companyId: number | null = null;
-
-      
+      let existingCustomer: any = null;
 
       if (ticketData.customer_email) {
-
-        const existingCustomer = await storage.getCustomerByEmail(ticketData.customer_email);
-
+        existingCustomer = await storage.getCustomerByEmail(ticketData.customer_email);
         if (existingCustomer) {
-
           customerId = existingCustomer.id;
-
+          customerUserId = existingCustomer.user_id; // ✅ CAPTURAR O USER_ID PARA NOTIFICAÇÕES
           companyId = existingCustomer.company_id; // ✅ USAR O COMPANY_ID DO CLIENTE
-
         }
+      }
 
-              }
 
-        
 
       // 🔎 Validação: categoria obrigatória por modo do departamento
 
@@ -3871,119 +4004,119 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       // 🤖 ANÁLISE DE PRIORIDADE COM IA ANTES DE SALVAR O TICKET
 
-        let finalPriority = ticketData.priority || null;
-
-        
-
-        // ✅ CRIAR O TICKET PRIMEIRO (com prioridade padrão)
-
-        const ticket = await storage.createTicket({
-
-          ...ticketData,
-
-          priority: finalPriority || undefined, // Prioridade inicial (será atualizada pela IA se necessário)
-
-          customer_id: customerId || undefined,
-
-          company_id: companyId || undefined // ✅ USAR O COMPANY_ID DO CLIENTE
-
-        });
+      let finalPriority = ticketData.priority || null;
 
 
 
-        // 🔍 OBTER A PRIORIDADE REAL QUE FOI SALVA NO TICKET
+      // ✅ CRIAR O TICKET PRIMEIRO (com prioridade padrão)
 
-        let originalPriority = ticket.priority || null;
+      const ticket = await storage.createTicket({
 
+        ...ticketData,
 
+        priority: finalPriority || undefined, // Prioridade inicial (será atualizada pela IA se necessário)
 
-        // ✅ ADICIONAR PARTICIPANTES SE FORNECIDOS
+        customer_id: customerId || undefined,
 
-        if (ticketData.participants && Array.isArray(ticketData.participants) && ticketData.participants.length > 0) {
+        company_id: companyId || undefined // ✅ USAR O COMPANY_ID DO CLIENTE
 
-          try {
-
-            const userId = req.session?.userId;
-
-            if (!userId) {
-
-              throw new Error('Usuário não identificado para adicionar participantes');
-
-            }
-
-            
-
-            // Adicionar cada participante individualmente
-
-            for (const participantId of ticketData.participants) {
-
-              try {
-
-                await storage.addTicketParticipant(ticket.id, participantId, userId);
-
-                
-
-                // 🔥 FASE 4.2: Enviar notificação WebSocket de participante adicionado
-
-                try {
-
-                  await notificationService.notifyParticipantAdded(ticket.id, participantId, userId);
-
-                } catch (notificationError) {
-
-                  console.error('Erro ao enviar notificação WebSocket de participante adicionado:', notificationError);
-
-                  // Não falhar a operação por erro de notificação
-
-                }
+      });
 
 
 
-                // 🔥 NOVO: Enviar notificação de participante adicionado
+      // 🔍 OBTER A PRIORIDADE REAL QUE FOI SALVA NO TICKET
 
-                try {
+      let originalPriority = ticket.priority || null;
 
-                  await emailNotificationService.notifyTicketParticipantAdded(ticket.id, participantId, userId);
 
-                } catch (notificationError) {
 
-                  console.error('Erro ao enviar notificação de participante adicionado:', notificationError);
+      // ✅ ADICIONAR PARTICIPANTES SE FORNECIDOS
 
-                  // Não falhar a operação por erro de notificação
+      if (ticketData.participants && Array.isArray(ticketData.participants) && ticketData.participants.length > 0) {
 
-                }
+        try {
 
-              } catch (error) {
+          const userId = req.session?.userId;
 
-                console.error(`[Participantes] Erro ao adicionar participante ${participantId}:`, error);
+          if (!userId) {
 
-                // Continuar com os próximos participantes mesmo se um falhar
-
-              }
-
-            }
-
-            console.log(`[Participantes] ${ticketData.participants.length} participante(s) adicionado(s) ao ticket ${ticket.id}`);
-
-          } catch (participantError) {
-
-            console.error('[Participantes] Erro ao adicionar participantes:', participantError);
-
-            // Erro na adição de participantes não impede a criação do ticket
+            throw new Error('Usuário não identificado para adicionar participantes');
 
           }
 
+
+
+          // Adicionar cada participante individualmente
+
+          for (const participantId of ticketData.participants) {
+
+            try {
+
+              await storage.addTicketParticipant(ticket.id, participantId, userId);
+
+
+
+              // 🔥 FASE 4.2: Enviar notificação WebSocket de participante adicionado
+
+              try {
+
+                await notificationService.notifyParticipantAdded(ticket.id, participantId, userId);
+
+              } catch (notificationError) {
+
+                console.error('Erro ao enviar notificação WebSocket de participante adicionado:', notificationError);
+
+                // Não falhar a operação por erro de notificação
+
+              }
+
+
+
+              // 🔥 NOVO: Enviar notificação de participante adicionado
+
+              try {
+
+                await emailNotificationService.notifyTicketParticipantAdded(ticket.id, participantId, userId);
+
+              } catch (notificationError) {
+
+                console.error('Erro ao enviar notificação de participante adicionado:', notificationError);
+
+                // Não falhar a operação por erro de notificação
+
+              }
+
+            } catch (error) {
+
+              console.error(`[Participantes] Erro ao adicionar participante ${participantId}:`, error);
+
+              // Continuar com os próximos participantes mesmo se um falhar
+
+            }
+
+          }
+
+          console.log(`[Participantes] ${ticketData.participants.length} participante(s) adicionado(s) ao ticket ${ticket.id}`);
+
+        } catch (participantError) {
+
+          console.error('[Participantes] Erro ao adicionar participantes:', participantError);
+
+          // Erro na adição de participantes não impede a criação do ticket
+
         }
 
+      }
 
 
-        // 🤖 ANÁLISE DE PRIORIDADE COM IA APÓS CRIAR O TICKET (salva histórico automaticamente)
 
-        let aiAnalyzed = false;
+      // 🤖 ANÁLISE DE PRIORIDADE COM IA APÓS CRIAR O TICKET (salva histórico automaticamente)
 
-        let finalPriorityId: number | null = null;
+      let aiAnalyzed = false;
 
-      
+      let finalPriorityId: number | null = null;
+
+
 
       if (companyId && ticketData.title && ticketData.description && ticket.department_id) {
 
@@ -3995,9 +4128,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             {
 
-              title: ticketData.title, 
+              title: ticketData.title,
 
-              description: ticketData.description, 
+              description: ticketData.description,
 
               companyId: companyId,
 
@@ -4009,7 +4142,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           );
 
-          
+
 
           if (aiResult && !aiResult.usedFallback) {
 
@@ -4017,11 +4150,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             aiAnalyzed = true;
 
-            
+
 
             console.log(`[AI] IA retornou prioridade: ${finalPriority}`);
 
-            
+
 
             // 🔍 BUSCAR ID CORRETO DA PRIORIDADE NO BANCO
 
@@ -4085,7 +4218,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-              const foundPriority = allPriorities.find(p => 
+              const foundPriority = allPriorities.find(p =>
 
                 p.name.toLowerCase() === (finalPriority || '').toLowerCase()
 
@@ -4113,7 +4246,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             }
 
-            
+
 
             // 🔄 ATUALIZAR PRIORIDADE DO TICKET SE A IA SUGERIU DIFERENTE
 
@@ -4125,29 +4258,29 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             };
 
-            
+
 
             const normalizedOriginal = normalizeForComparison(originalPriority);
 
             const normalizedFinal = normalizeForComparison(finalPriority);
 
-            
 
 
 
-            
+
+
 
             if (normalizedFinal !== normalizedOriginal && finalPriorityId && finalPriority) {
 
               console.log(`[AI] Atualizando ticket: ${originalPriority} → ${finalPriority} (ID: ${finalPriorityId})`);
 
-              
+
 
               await db
 
                 .update(schema.tickets)
 
-                .set({ 
+                .set({
 
                   priority: finalPriority as any // SALVAR EXATAMENTE como a IA retornou
 
@@ -4155,7 +4288,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                 .where(eq(schema.tickets.id, ticket.id));
 
-                
+
 
               // 🤖 REGISTRAR MUDANÇA NO HISTÓRICO DE STATUS
 
@@ -4175,7 +4308,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               let botUserId: number;
 
-              
+
 
               if (botUser.length === 0) {
 
@@ -4209,7 +4342,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                   .returning();
 
-                
+
 
                 botUserId = createdBot.id;
 
@@ -4243,7 +4376,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                 });
 
-                
+
 
               // Atualizar prioridade final para resposta
 
@@ -4297,33 +4430,71 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       res.status(201).json(ticket);
 
-      
+      // 🔔 ENVIAR NOTIFICAÇÃO PERSISTENTE DE NOVO TICKET
+      try {
+        // Notificar o cliente que criou o ticket
+        if (customerUserId) {
+          await notificationService.sendNotificationToUser(customerUserId, {
+            type: 'new_ticket',
+            title: 'Chamado Criado',
+            message: `Seu chamado ${ticket.ticket_id} foi criado com sucesso e está sendo analisado`,
+            priority: (finalPriority as 'low' | 'medium' | 'high' | 'critical') || 'medium',
+            ticketId: ticket.id,
+            ticketCode: ticket.ticket_id,
+            timestamp: new Date(),
+            metadata: {
+              customerName: existingCustomer?.name || (req.body.customer_name as string) || 'Cliente',
+              departmentId: ticket.department_id,
+              category: ticketData.category_id ? 'Categorizado' : 'Sem categoria'
+            }
+          });
+        }
 
-      // Enviar notificação via WebSocket (excluindo participantes que serão notificados separadamente)
+        // Notificar o criador do ticket (se não for o próprio cliente e não for user bot)
+        const creatorId = req.session?.userId;
+        if (creatorId && creatorId !== customerUserId) {
+          await notificationService.sendNotificationToUser(creatorId, {
+            type: 'new_ticket',
+            title: 'Ticket Criado',
+            message: `O chamado #${ticket.ticket_id} foi criado por ${req.user?.username || 'você'} com sucesso.`,
+            priority: 'medium',
+            ticketId: ticket.id,
+            ticketCode: ticket.ticket_id,
+            timestamp: new Date(),
+            metadata: {
+              role: 'creator',
+              ticketCode: ticket.ticket_id
+            }
+          });
+        }
 
-      const participantIds = ticketData.participants && Array.isArray(ticketData.participants) ? ticketData.participants : [];
+        // Notificar a equipe de suporte sobre o novo ticket
+        await notificationService.sendNotificationToSupport({
+          type: 'new_ticket',
+          title: 'Novo Chamado Recebido',
+          message: `Novo chamado ${ticket.ticket_id} de ${existingCustomer?.name || (req.body.customer_name as string) || ticketData.customer_email || 'Cliente'}`,
+          priority: (finalPriority === 'critical' || finalPriority === 'high') ? 'high' : 'medium',
+          ticketId: ticket.id,
+          ticketCode: ticket.ticket_id,
+          timestamp: new Date(),
+          metadata: {
+            customerName: existingCustomer?.name || (req.body.customer_name as string) || ticketData.customer_email,
+            customerEmail: ticketData.customer_email,
+            departmentId: ticket.department_id,
+            category: ticketData.category_id ? 'Categorizado' : 'Sem categoria',
+            description: ticketData.description.substring(0, 100) + (ticketData.description.length > 100 ? '...' : '')
+          }
+        });
+      } catch (notificationError) {
+        console.error('Erro ao enviar notificações de novo ticket:', notificationError);
+        // Não falhar a criação do ticket por erro de notificação
+      }
 
-      // @ts-ignore
 
-      notificationService.sendNotificationToAll({
 
-        type: 'new_ticket',
+      // Notificação de novo ticket já foi enviada via sistema persistente acima
 
-        title: 'Novo Ticket Criado',
 
-        message: `Novo ticket ${ticket.ticket_id}: ${ticketData.title}`,
-
-        ticketId: ticket.id,
-
-        ticketCode: ticket.ticket_id,
-
-        priority: finalPriority as 'low' | 'medium' | 'high' | 'critical' | undefined,
-
-        timestamp: new Date()
-
-      }, participantIds); // Excluir participantes da notificação geral
-
-      
 
       // 📧 ENVIAR EMAIL DE CONFIRMAÇÃO PARA O CLIENTE
 
@@ -4335,7 +4506,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const customer = await storage.getCustomer(customerId);
 
-          
+
 
           if (customer) {
 
@@ -4343,9 +4514,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             emailNotificationService.sendEmailNotification(
 
-              'new_ticket', 
+              'new_ticket',
 
-              customer.email, 
+              customer.email,
 
               {
 
@@ -4397,7 +4568,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             });
 
-            
+
 
 
 
@@ -4411,7 +4582,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // 📧 ENVIAR EMAIL PARA ADMINS E SUPPORT (fire-and-forget)
 
@@ -4431,7 +4602,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.log(`📧 [EMAIL BACKGROUND] ========================================`);
 
-      
+
 
       // Fire-and-forget: não aguarda o envio dos e-mails
 
@@ -4463,23 +4634,23 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       });
 
-      
+
 
     } catch (error) {
 
       if (error instanceof z.ZodError) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Dados inválidos", 
+          message: "Dados inválidos",
 
-          errors: error.issues 
+          errors: error.issues
 
         });
 
       }
 
-      
+
 
       console.error(error);
 
@@ -4489,9 +4660,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
 
-    // Rota para criar respostas de tickets com análise de IA
+
+  // Rota para criar respostas de tickets com análise de IA
 
   router.post("/ticket-replies", authRequired, validateRequest(insertTicketReplySchema), async (req: Request, res: Response) => {
 
@@ -4513,7 +4684,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Customer endpoints with pagination
 
@@ -4537,19 +4708,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const sessionCompanyId = req.session?.companyId;
 
-      
+
 
       // Buscar todos os clientes
 
       const allCustomers = await storage.getCustomers();
 
-      
+
 
       // Aplicar filtros de empresa
 
       let customers = allCustomers;
 
-      
+
 
       if (userRole === 'admin') {
 
@@ -4571,7 +4742,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Enriquecer clientes com nome da empresa e status do usuário, sem sobrescrever o campo company original
 
@@ -4585,17 +4756,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }));
 
-      
+
 
       // Filtrar os clientes inativos se necessário
 
-      let filteredCustomers = includeInactive 
+      let filteredCustomers = includeInactive
 
-        ? enrichedCustomers 
+        ? enrichedCustomers
 
         : enrichedCustomers.filter(customer => customer.active);
 
-      
+
 
       // Aplicar filtro de busca se fornecido
 
@@ -4603,7 +4774,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const searchLower = search.toLowerCase();
 
-        filteredCustomers = filteredCustomers.filter(customer => 
+        filteredCustomers = filteredCustomers.filter(customer =>
 
           customer.name.toLowerCase().includes(searchLower) ||
 
@@ -4615,11 +4786,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Ordenação já é feita no banco de dados via DatabaseStorage.getCustomers()
 
-      
+
 
       // Calcular paginação
 
@@ -4631,7 +4802,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const paginatedCustomers = filteredCustomers.slice(offset, offset + limit);
 
-      
+
 
       res.json({
 
@@ -4685,13 +4856,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const allCustomers = await storage.getCustomers();
 
-      
+
 
       // Filtrar por empresa se necessário
 
       let customers = allCustomers;
 
-      
+
 
       if (userRole === 'admin') {
 
@@ -4823,7 +4994,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   router.post("/customers", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
 
@@ -4831,7 +5002,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const { email, name, company_id, linkExistingUser } = req.body;
 
-      
+
 
       // Garantir que linkExistingUser seja boolean
 
@@ -4839,7 +5010,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.log('Cliente - linkExistingUser recebido:', linkExistingUser, 'convertido para:', shouldLinkUser);
 
-      
+
 
       // Verificar se já existe cliente com este email
 
@@ -4851,11 +5022,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const existingUser = await storage.getUserByEmail(email);
 
-      
+
 
       if (existingUser && !shouldLinkUser) {
 
@@ -4863,9 +5034,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         console.log(`Cliente - Usuário com email '${email}' já existe. Sugerindo vinculação.`);
 
-        
 
-        const responseData = { 
+
+        const responseData = {
 
           message: "Usuário já existe",
 
@@ -4885,7 +5056,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         };
 
-        
+
 
         console.log('Cliente - Resposta 409 sendo enviada:', JSON.stringify(responseData, null, 2));
 
@@ -4893,17 +5064,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       if (existingUser && shouldLinkUser) {
 
         console.log(`Cliente - Vinculando usuário existente (ID: ${existingUser.id}, role: ${existingUser.role}) como cliente`);
 
-        
+
 
         // Atualizar o role do usuário para 'customer' ao vincular como cliente
 
-        const updatedUser = await storage.updateUser(existingUser.id, { 
+        const updatedUser = await storage.updateUser(existingUser.id, {
 
           role: 'customer'
 
@@ -4925,7 +5096,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Determinar company_id efetivo
 
@@ -4933,11 +5104,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const sessionCompanyId = req.session?.companyId;
 
-      
+
 
       let effectiveCompanyId: number | null = null;
 
-      
+
 
       if (userRole === 'admin') {
 
@@ -4959,13 +5130,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       let user;
 
       let tempPassword = '';
 
-      
+
 
       if (!existingUser) {
 
@@ -4973,7 +5144,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const username = email;
 
-        
+
 
         // Gerar senha temporária segura
 
@@ -4981,13 +5152,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         tempPassword = generateSecurePassword();
 
-        
+
 
         // Criptografar senha
 
         const hashedPassword = await hashPassword(tempPassword);
 
-        
+
 
         // Criar usuário primeiro com company_id
 
@@ -5017,7 +5188,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         console.log(`Cliente - Usando usuário existente ID: ${user.id}`);
 
-        
+
 
         // Atualizar company_id se necessário e se for admin
 
@@ -5037,7 +5208,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Criar cliente associado ao usuário com company_id
 
@@ -5051,7 +5222,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       });
 
-      
+
 
       // Notificar sobre novo cliente registrado
 
@@ -5067,7 +5238,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Retornar o cliente com informações de acesso (apenas para novos usuários)
 
@@ -5113,7 +5284,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   router.patch("/customers/:id", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
 
@@ -5147,7 +5318,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         if (customer.user_id) {
 
@@ -5160,7 +5331,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             hashedPassword = await hashPassword(password);
           } catch (passwordError: any) {
             if (passwordError.passwordErrors) {
-              return res.status(400).json({ 
+              return res.status(400).json({
                 message: "Password validation failed",
                 passwordErrors: passwordError.passwordErrors
               });
@@ -5168,11 +5339,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             throw passwordError;
           }
 
-          
+
 
           // Atualizar a senha do usuário associado
 
-          await storage.updateUser(customer.user_id, { 
+          await storage.updateUser(customer.user_id, {
 
             password: hashedPassword,
 
@@ -5228,7 +5399,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   router.delete("/customers/:id", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
 
@@ -5254,7 +5425,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Armazenar o user_id para inativação/ativação posterior
 
@@ -5268,7 +5439,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const user = await storage.getUser(userId);
 
-        
+
 
         if (!user) {
 
@@ -5276,7 +5447,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         // Se o usuário estiver ativo, inativamos; se estiver inativo, ativamos
 
@@ -5292,9 +5463,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           }
 
-          res.json({ 
+          res.json({
 
-            success: true, 
+            success: true,
 
             message: "Cliente inativado com sucesso",
 
@@ -5316,9 +5487,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           }
 
-          res.json({ 
+          res.json({
 
-            success: true, 
+            success: true,
 
             message: "Cliente ativado com sucesso",
 
@@ -5360,7 +5531,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   // Bulk import endpoint for customers - processar na memória
 
-  const csvUpload = multer({ 
+  const csvUpload = multer({
 
     storage: multer.memoryStorage(), // Processar na memória
 
@@ -5412,7 +5583,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const fileContent = req.file.buffer.toString('utf-8');
 
-      
+
 
       // Parse CSV content
 
@@ -5430,7 +5601,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const dataLines = lines.slice(1);
 
-      
+
 
       // Validate required headers
 
@@ -5440,9 +5611,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       if (missingHeaders.length > 0) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: `Cabeçalhos obrigatórios não encontrados: ${missingHeaders.join(', ')}` 
+          message: `Cabeçalhos obrigatórios não encontrados: ${missingHeaders.join(', ')}`
 
         });
 
@@ -5476,7 +5647,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const values = line.split(';').map(v => v.trim());
 
-        
+
 
         try {
 
@@ -5542,7 +5713,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const username = userData.username || userData.email;
 
-          
+
 
           // Use provided password or generate one
 
@@ -5650,7 +5821,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const filterDepartmentId = req.query.department_id ? parseInt(req.query.department_id as string) : null;
 
-      
+
 
       const userRole = req.session?.userRole as string;
 
@@ -5658,15 +5829,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const sessionCompanyId = req.session?.companyId;
 
-      
+
 
       const allOfficials = await storage.getOfficials();
 
-      
+
 
       let officials = allOfficials;
 
-      
+
 
       // APLICAR FILTROS DE EMPRESA
 
@@ -5684,7 +5855,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         officials = includeInactive ? officials : officials.filter(official => official.is_active);
 
-        
+
 
       } else if (userRole === 'company_admin') {
 
@@ -5714,7 +5885,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const currentOfficial = allOfficials.find(o => o.user_id === userId);
 
-          
+
 
           if (!currentOfficial) {
 
@@ -5732,7 +5903,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               .where(eq(schema.officialDepartments.official_id, currentOfficial.id));
 
-            
+
 
             if (managerDepartments.length === 0) {
 
@@ -5742,7 +5913,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               const departmentIds = managerDepartments.map(d => d.department_id).filter(id => id !== null);
 
-              
+
 
               // Buscar todos os atendentes desses departamentos
 
@@ -5754,11 +5925,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                 .where(inArray(schema.officialDepartments.department_id, departmentIds));
 
-              
+
 
               const allowedOfficialIds = departmentOfficials.map(o => o.official_id);
 
-              
+
 
               // Filtrar atendentes pelos departamentos permitidos
 
@@ -5770,7 +5941,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                 const isAllowed = allowedOfficialIds.includes(official.id);
 
-                
+
 
                 return sameCompany && isActive && isAllowed;
 
@@ -5794,7 +5965,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const currentOfficial = allOfficials.find(o => o.user_id === userId);
 
-          
+
 
           if (!currentOfficial) {
 
@@ -5806,7 +5977,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             let allowedOfficialIds = [currentOfficial.id];
 
-            
+
 
             // Incluir subordinados diretos
 
@@ -5814,7 +5985,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             allowedOfficialIds.push(...subordinates.map(s => s.id));
 
-            
+
 
             // Filtrar pelos IDs permitidos
 
@@ -5826,7 +5997,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               const isAllowed = allowedOfficialIds.includes(official.id);
 
-              
+
 
               return sameCompany && isActive && isAllowed;
 
@@ -5848,7 +6019,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const currentOfficial = allOfficials.find(o => o.user_id === userId);
 
-          
+
 
           if (currentOfficial) {
 
@@ -5872,7 +6043,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // APLICAR FILTRO DE DEPARTAMENTO SE FORNECIDO
 
@@ -5886,11 +6057,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           .where(eq(schema.officialDepartments.department_id, filterDepartmentId));
 
-        
+
 
         const allowedOfficialIds = officialIds.map(o => o.official_id);
 
-        
+
 
         // Filtrar apenas os atendentes que pertencem ao departamento
 
@@ -5898,7 +6069,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Aplicar filtro de busca se fornecido
 
@@ -5906,7 +6077,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const searchLower = search.toLowerCase();
 
-        officials = officials.filter(official => 
+        officials = officials.filter(official =>
 
           official.name.toLowerCase().includes(searchLower) ||
 
@@ -5916,7 +6087,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Calcular paginação
 
@@ -5928,7 +6099,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const paginatedOfficials = officials.slice(offset, offset + limit);
 
-      
+
 
       res.json({
 
@@ -5962,7 +6133,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   router.post("/officials", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
 
@@ -5972,21 +6143,21 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const { departments, company_id, ...officialData } = req.body;
 
-      
+
 
       // Verificar se há departamentos selecionados
 
       if (!departments || !Array.isArray(departments) || departments.length === 0) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Pelo menos um departamento deve ser selecionado para o atendente" 
+          message: "Pelo menos um departamento deve ser selecionado para o atendente"
 
         });
 
       }
 
-      
+
 
       // Verificar se o usuário existe
 
@@ -6006,7 +6177,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Para compatibilidade com a tabela física, usar o primeiro departamento como principal
 
@@ -6018,7 +6189,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Determinar company_id efetivo
 
@@ -6026,11 +6197,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const sessionCompanyId = req.session?.companyId;
 
-      
+
 
       let effectiveCompanyId: number | null = null;
 
-      
+
 
       if (userRole === 'admin') {
 
@@ -6052,7 +6223,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Criar atendente primeiro
 
@@ -6066,7 +6237,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       };
 
-      
+
 
       console.log(`Criando atendente com dados:`, JSON.stringify(dataWithDepartment, null, 2));
 
@@ -6074,7 +6245,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.log(`Atendente criado com sucesso: ID=${official.id}`);
 
-      
+
 
       // Se foram enviados departamentos, adicionar os departamentos do atendente
 
@@ -6212,7 +6383,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         // Buscar os departamentos reais do banco para retornar nomes corretos
 
@@ -6238,7 +6409,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         // Anexar nomes de departamentos ao resultado
 
@@ -6246,7 +6417,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       console.log(`Retornando atendente criado: ID=${official.id}`);
 
@@ -6256,7 +6427,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error('Erro ao criar atendente:', error);
 
-      
+
 
       // Se o erro ocorreu depois da criação do usuário, verificamos se temos um userId
 
@@ -6264,17 +6435,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       if (req.body.userId) {
 
-        console.log(`ERRO: Falha ao criar atendente para usuário ${req.body.userId}. `+
+        console.log(`ERRO: Falha ao criar atendente para usuário ${req.body.userId}. ` +
 
-                   `Considere excluir o usuário para evitar inconsistências.`);
+          `Considere excluir o usuário para evitar inconsistências.`);
 
       }
 
-      
 
-      res.status(500).json({ 
 
-        message: "Falha ao criar atendente", 
+      res.status(500).json({
+
+        message: "Falha ao criar atendente",
 
         error: String(error),
 
@@ -6288,7 +6459,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   router.patch("/officials/:id", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
 
@@ -6306,7 +6477,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const { departments, password, department, user, company_id, ...officialData } = req.body;
 
-      
+
 
       // Verificar se temos pelo menos um departamento
 
@@ -6320,7 +6491,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Verificar permissões para alterar company_id
 
@@ -6328,11 +6499,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const sessionCompanyId = req.session?.companyId;
 
-      
+
 
       let effectiveCompanyId: number | null = null;
 
-      
+
 
       if (userRole === 'admin') {
 
@@ -6354,13 +6525,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Preparar o objeto de atualização, incluindo department para compatibilidade
 
       let departmentValue = 'technical'; // Fallback para um departamento padrão
 
-      
+
 
       // Se department foi fornecido diretamente, use-o
 
@@ -6386,7 +6557,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const updateData = {
 
@@ -6398,7 +6569,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       };
 
-      
+
 
       // Buscar o atendente para obter o userId associado
 
@@ -6410,21 +6581,21 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Se recebemos dados do usuário e o atendente tem um usuário associado, atualizá-lo
 
       if (user && official.user_id) {
 
-        
+
 
         // Preparar os dados de atualização do usuário
 
         const userUpdateData: any = {};
 
-        
 
-        
+
+
 
         // Se o username for fornecido, atualizá-lo
 
@@ -6434,7 +6605,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         // Se o email for fornecido, atualizá-lo
 
@@ -6444,7 +6615,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         // Se o nome for fornecido, atualizá-lo
 
@@ -6462,13 +6633,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         // Incluir company_id no usuário também
 
         userUpdateData.company_id = effectiveCompanyId;
-        
+
         // Incluir must_change_password se fornecido
         if (req.body.must_change_password !== undefined) {
           userUpdateData.must_change_password = req.body.must_change_password;
         }
 
-        
+
 
         // Se a senha for fornecida no objeto user, usar ela
 
@@ -6482,7 +6653,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             userUpdateData.password = await hashPassword(user.password);
           } catch (passwordError: any) {
             if (passwordError.passwordErrors) {
-              return res.status(400).json({ 
+              return res.status(400).json({
                 message: "Password validation failed",
                 passwordErrors: passwordError.passwordErrors
               });
@@ -6504,7 +6675,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             userUpdateData.password = await hashPassword(password);
           } catch (passwordError: any) {
             if (passwordError.passwordErrors) {
-              return res.status(400).json({ 
+              return res.status(400).json({
                 message: "Password validation failed",
                 passwordErrors: passwordError.passwordErrors
               });
@@ -6514,7 +6685,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         // Se temos dados para atualizar, realizar a atualização
 
@@ -6561,7 +6732,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           hashedPassword = await hashPassword(password);
         } catch (passwordError: any) {
           if (passwordError.passwordErrors) {
-            return res.status(400).json({ 
+            return res.status(400).json({
               message: "Password validation failed",
               passwordErrors: passwordError.passwordErrors
             });
@@ -6569,16 +6740,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           throw passwordError;
         }
 
-        
+
 
         // Atualizar a senha do usuário associado, incluindo company_id
 
-        await storage.updateUser(official.user_id, { 
+        await storage.updateUser(official.user_id, {
 
           password: hashedPassword,
 
           company_id: effectiveCompanyId,
-          
+
           must_change_password: req.body.must_change_password || false
 
         });
@@ -6607,7 +6778,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       else if (official.user_id && effectiveCompanyId !== undefined) {
 
-        await storage.updateUser(official.user_id, { 
+        await storage.updateUser(official.user_id, {
 
           company_id: effectiveCompanyId
 
@@ -6615,7 +6786,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Atualizar dados básicos do atendente
 
@@ -6627,7 +6798,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Se foram enviados departamentos, atualizar os departamentos do atendente
 
@@ -6655,7 +6826,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         // Adicionar novos departamentos
 
@@ -6783,7 +6954,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         // Buscar os departamentos reais do banco para retornar nomes corretos
 
@@ -6809,7 +6980,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         // Anexar nomes de departamentos ao resultado
 
@@ -6851,7 +7022,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Rota para alternar status (ativar/inativar) de um atendente
 
@@ -6879,13 +7050,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const userId = official.user_id; // Corrigido para user_id
 
       const currentActiveStatus = official.is_active; // Corrigido para is_active
 
-      
+
 
       let updatedOfficial;
 
@@ -6895,7 +7066,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         updatedOfficial = await storage.inactivateOfficial(id); // Removido ?
 
-        
+
 
         // Também inativar o usuário associado, se existir
 
@@ -6905,11 +7076,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
 
-        res.json({ 
 
-          success: true, 
+        res.json({
+
+          success: true,
 
           message: "Atendente inativado com sucesso",
 
@@ -6923,7 +7094,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         updatedOfficial = await storage.activateOfficial(id); // Removido ?
 
-        
+
 
         // Também ativar o usuário associado, se existir
 
@@ -6933,15 +7104,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
 
-        res.json({ 
 
-          success: true, 
+        res.json({
+
+          success: true,
 
           message: "Atendente ativado com sucesso",
 
-          isActive: true 
+          isActive: true
 
         });
 
@@ -6957,7 +7128,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   router.delete("/officials/:id", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
 
@@ -6983,7 +7154,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Armazenar o userId para inativação posterior
 
@@ -6999,7 +7170,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       // 2. Se quisermos remover completamente o atendente, fazemos como está comentado abaixo
 
-      
+
 
       // Opção 1: Inativar apenas o usuário (manter atendente para referência histórica)
 
@@ -7013,17 +7184,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         // Também inativar o atendente na tabela de atendentes para consistência
 
         await storage.updateOfficial(id, { is_active: false }); // Corrigido para is_active
 
-        
 
-        res.json({ 
 
-          success: true, 
+        res.json({
+
+          success: true,
 
           message: "Atendente inativado com sucesso",
 
@@ -7097,7 +7268,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const { username, password } = req.body;
 
-      
+
 
       if (!username || !password) {
 
@@ -7111,7 +7282,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const user = await storage.getUserByUsername(username);
 
-      
+
 
       if (!user) {
 
@@ -7119,7 +7290,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Verificar se o usuário está ativo
 
@@ -7129,7 +7300,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Verificar a senha - voltar para o import dinâmico que funcionava antes
 
@@ -7137,7 +7308,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const passwordValid = await verifyPassword(password, user.password);
 
-      
+
 
       if (!passwordValid) {
 
@@ -7145,13 +7316,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Verificar se o usuário deve trocar a senha no próximo login
 
       if (user.must_change_password) {
 
-        return res.status(200).json({ 
+        return res.status(200).json({
 
           must_change_password: true,
 
@@ -7163,7 +7334,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Buscar a empresa do usuário, se não for admin
 
@@ -7181,7 +7352,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           .limit(1);
 
-          
+
 
         if (companyData) {
 
@@ -7193,7 +7364,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           }
 
-          
+
 
           company = companyData;
 
@@ -7201,7 +7372,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Se for admin sem empresa definida, permitir acesso sem restrição de empresa
 
@@ -7213,7 +7384,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         req.session.userRole = user.role;
 
-        
+
 
         // Retornar o usuário sem empresa
 
@@ -7221,21 +7392,21 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Para usuários não-admin, é obrigatório ter uma empresa
 
       if (!company && user.role !== 'admin') {
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          message: "Usuário não possui empresa associada. Contate o administrador." 
+          message: "Usuário não possui empresa associada. Contate o administrador."
 
         });
 
       }
 
-      
+
 
       // Salvar informações na sessão
 
@@ -7267,7 +7438,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Adicionar a informação da empresa ao objeto do usuário para retornar ao cliente
 
@@ -7279,7 +7450,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         console.log('✅ [LOGIN] Nome da empresa das configurações:', configuredCompanyName);
 
-        
+
 
         return res.json({
 
@@ -7353,19 +7524,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const { user_id, old_password, new_password } = req.body;
 
-      
+
 
       if (!user_id || !old_password || !new_password) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "ID do usuário, senha atual e nova senha são obrigatórios" 
+          message: "ID do usuário, senha atual e nova senha são obrigatórios"
 
         });
 
       }
 
-      
+
 
       // Buscar o usuário
 
@@ -7377,21 +7548,21 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Verificar se o usuário realmente deve trocar a senha
 
       if (!user.must_change_password) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Este usuário não precisa trocar a senha" 
+          message: "Este usuário não precisa trocar a senha"
 
         });
 
       }
 
-      
+
 
       // Verificar a senha atual
 
@@ -7399,7 +7570,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const passwordValid = await verifyPassword(old_password, user.password);
 
-      
+
 
       if (!passwordValid) {
 
@@ -7407,7 +7578,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Verificar se a nova senha não é a padrão
 
@@ -7415,35 +7586,35 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       if (new_password === DEFAULT_PASSWORD) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Você não pode usar a senha padrão. Escolha uma senha diferente." 
+          message: "Você não pode usar a senha padrão. Escolha uma senha diferente."
 
         });
 
       }
 
-      
+
 
       // Validar critérios da nova senha (pode usar a mesma validação do registro)
 
       if (new_password.length < 8) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "A nova senha deve ter pelo menos 8 caracteres" 
+          message: "A nova senha deve ter pelo menos 8 caracteres"
 
         });
 
       }
 
-      
+
 
       // Criptografar a nova senha
 
       const hashedNewPassword = await hashPassword(new_password);
 
-      
+
 
       // Atualizar a senha e remover a flag de must_change_password
 
@@ -7451,7 +7622,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         .update(schema.users)
 
-        .set({ 
+        .set({
 
           password: hashedNewPassword,
 
@@ -7463,7 +7634,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         .where(eq(schema.users.id, user_id));
 
-      
+
 
       // Encerrar todas as sessões do usuário após a troca de senha
 
@@ -7485,19 +7656,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Retornar sucesso
 
-      res.json({ 
+      res.json({
 
-        success: true, 
+        success: true,
 
-        message: "Senha alterada com sucesso" 
+        message: "Senha alterada com sucesso"
 
       });
 
-      
+
 
     } catch (error) {
 
@@ -7519,19 +7690,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const { user_ids } = req.body;
 
-      
+
 
       if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Lista de IDs de usuários é obrigatória" 
+          message: "Lista de IDs de usuários é obrigatória"
 
         });
 
       }
 
-      
+
 
       // Atualizar todos os usuários especificados
 
@@ -7539,7 +7710,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         .update(schema.users)
 
-        .set({ 
+        .set({
 
           must_change_password: true,
 
@@ -7551,11 +7722,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         .returning({ id: schema.users.id, username: schema.users.username });
 
-      
 
-      res.json({ 
 
-        success: true, 
+      res.json({
+
+        success: true,
 
         message: `${result.length} usuários marcados para trocar senha`,
 
@@ -7563,7 +7734,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       });
 
-      
+
 
     } catch (error) {
 
@@ -7575,7 +7746,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Rota para testar a conexão com o Active Directory (apenas admin)
 
@@ -7593,9 +7764,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error('Erro ao testar conexão AD:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        success: false, 
+        success: false,
 
         message: 'Erro ao testar conexão com AD',
 
@@ -7607,7 +7778,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Rota para testar a conexão com o Active Directory (acesso público para depuração)
 
@@ -7629,9 +7800,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error('[AD Debug] Erro ao testar conexão AD:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        success: false, 
+        success: false,
 
         message: 'Erro ao testar conexão com AD',
 
@@ -7643,7 +7814,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Rota para testar a autenticação de um usuário específico com o AD
 
@@ -7653,7 +7824,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const { username, password } = req.body;
 
-      
+
 
       if (!username || !password) {
 
@@ -7661,33 +7832,33 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       console.log(`[AD Debug] Testando autenticação do usuário '${username}' com o AD`);
 
       const { authenticateAD } = await import('./utils/active-directory');
 
-      
+
 
       // Tenta autenticar com AD
 
       const adUser = await authenticateAD(username, password);
 
-      
+
 
       if (!adUser) {
 
-        return res.status(401).json({ 
+        return res.status(401).json({
 
           success: false,
 
-          message: "Credenciais inválidas no Active Directory" 
+          message: "Credenciais inválidas no Active Directory"
 
         });
 
       }
 
-      
+
 
       // Autenticação bem-sucedida, retornar dados do usuário (sem informações sensíveis)
 
@@ -7715,9 +7886,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error('[AD Debug] Erro ao testar autenticação de usuário:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        success: false, 
+        success: false,
 
         message: 'Erro ao testar autenticação de usuário com AD',
 
@@ -7743,11 +7914,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const sessionCompanyId = req.session?.companyId;
 
-      
+
 
       console.log(`Tentando criar usuário: ${name}, email: ${email}, username: ${username}, role: ${role}`);
 
-      
+
 
       // VALIDAÇÃO CRÍTICA DE SEGURANÇA: Apenas usuários admin podem criar outros admin
 
@@ -7755,15 +7926,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         console.log(`TENTATIVA DE ESCALAÇÃO DE PRIVILÉGIOS: Usuário com role '${userRole}' tentou criar usuário admin`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          message: "Acesso negado: Apenas administradores globais podem criar outros administradores" 
+          message: "Acesso negado: Apenas administradores globais podem criar outros administradores"
 
         });
 
       }
 
-      
+
 
       const existingUser = await storage.getUserByUsername(username);
 
@@ -7775,7 +7946,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const existingEmail = await storage.getUserByEmail(email);
 
@@ -7787,7 +7958,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Determinar company_id baseado no role do usuário logado
 
@@ -7807,13 +7978,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const { hashPassword } = await import('./utils/password');
 
       const hashedPassword = await hashPassword(password);
 
-      
+
 
       const user = await storage.createUser({
 
@@ -7837,13 +8008,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       });
 
-      
+
 
       // Notificar sobre novo usuário criado
 
       try {
 
         await emailNotificationService.notifyNewUserCreated(user.id, req.session?.userId);
+        await notificationService.notifyNewUserCreated(user.id, req.session?.userId);
 
       } catch (notificationError) {
 
@@ -7853,11 +8025,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const { password: _, ...userWithoutPassword } = user;
 
-      
+
 
       res.status(201).json(userWithoutPassword);
 
@@ -7871,7 +8043,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Endpoint para criar usuário de suporte e atendente em uma única transação atômica
 
@@ -7887,7 +8059,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Endpoint para atualizar informações do usuário
 
@@ -7903,13 +8075,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const { name, email, username, password, role, must_change_password, cpf } = req.body;
 
       const userRole = req.session?.userRole as string;
 
-      
+
 
       // Verificar se o usuário existe
 
@@ -7921,7 +8093,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // VALIDAÇÃO DE HIERARQUIA: Verificar se o usuário pode alterar o role
 
@@ -7929,15 +8101,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         console.log(`TENTATIVA DE ESCALAÇÃO DE PRIVILÉGIOS: Usuário com role '${userRole}' tentou alterar usuário ${id} para '${role}'`);
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
-          message: `Acesso negado: Seu nível de permissão (${userRole}) não permite definir o role '${role}'` 
+          message: `Acesso negado: Seu nível de permissão (${userRole}) não permite definir o role '${role}'`
 
         });
 
       }
 
-      
+
 
       // Se estamos alterando o nome de usuário, verificar se já existe
 
@@ -7953,7 +8125,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Se estamos alterando o email, verificar se já existe
 
@@ -7969,7 +8141,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Se uma senha foi fornecida, criptografá-la
 
@@ -7983,7 +8155,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
           hashedPassword = await hashPassword(password);
         } catch (passwordError: any) {
           if (passwordError.passwordErrors) {
-            return res.status(400).json({ 
+            return res.status(400).json({
               message: "Password validation failed",
               passwordErrors: passwordError.passwordErrors
             });
@@ -7993,7 +8165,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Preparar dados de atualização
 
@@ -8008,7 +8180,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       if (role) updateData.role = role;
 
       if (hashedPassword) updateData.password = hashedPassword;
-      
+
       // Se must_change_password foi fornecido, incluir na atualização
       if (must_change_password !== undefined) updateData.must_change_password = must_change_password;
 
@@ -8017,13 +8189,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       updateData.updated_at = new Date();
 
-      
+
 
       // Atualizar usuário
 
       const updatedUser = await storage.updateUser(id, updateData);
 
-      
+
 
       // Se a senha foi atualizada, encerrar sessões desse usuário
 
@@ -8053,13 +8225,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Não retornar a senha
 
       const { password: _, ...userWithoutPassword } = updatedUser;
 
-      
+
 
       res.json(userWithoutPassword);
 
@@ -8089,7 +8261,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Buscar usuário atual para verificar seu status atual
 
@@ -8101,13 +8273,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Impedir inativação da própria conta do administrador logado
 
       if (user.id === req.session?.userId && user.active !== false) {
 
-        return res.status(403).json({ 
+        return res.status(403).json({
 
           message: "Não é possível inativar sua própria conta de administrador",
 
@@ -8117,7 +8289,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Alternar o status active do usuário
 
@@ -8133,7 +8305,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       if (!updatedUser) {
 
@@ -8141,13 +8313,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Não retornar a senha
 
       const { password: _, ...userWithoutPassword } = updatedUser;
 
-      
+
 
       res.json({
 
@@ -8191,23 +8363,23 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const sessionCompanyId = req.session?.companyId;
 
-      
+
 
       // Buscar usuários
 
-      const allUsers = includeInactive ? 
+      const allUsers = includeInactive ?
 
-        await storage.getAllUsers() : 
+        await storage.getAllUsers() :
 
         await storage.getActiveUsers();
 
-      
+
 
       // Aplicar filtros de empresa
 
       let filteredUsers = allUsers;
 
-      
+
 
       if (userRole === 'admin') {
 
@@ -8229,7 +8401,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Aplicar filtro de busca se fornecido
 
@@ -8237,7 +8409,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const searchLower = search.toLowerCase();
 
-        filteredUsers = filteredUsers.filter(user => 
+        filteredUsers = filteredUsers.filter(user =>
 
           user.name.toLowerCase().includes(searchLower) ||
 
@@ -8251,11 +8423,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Ordenação já é feita no banco de dados via DatabaseStorage.getActiveUsers()/getAllUsers()
 
-      
+
 
       // Não retornar as senhas
 
@@ -8267,7 +8439,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       });
 
-      
+
 
       // Calcular paginação
 
@@ -8279,7 +8451,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const paginatedUsers = usersWithoutPasswords.slice(offset, offset + limit);
 
-      
+
 
       res.json({
 
@@ -8313,7 +8485,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Endpoint para obter o usuário atual (quando autenticado)
 
@@ -8329,13 +8501,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Buscar o usuário pelo ID da sessão
 
       const user = await storage.getUser(req.session.userId);
 
-      
+
 
       if (!user) {
 
@@ -8343,7 +8515,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Verificar se o usuário está ativo
 
@@ -8353,7 +8525,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Se o usuário tem uma empresa associada, buscar os dados da empresa
 
@@ -8361,7 +8533,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const companyData = await storage.getCompany(req.session.companyId);
 
-        
+
 
         if (companyData) {
 
@@ -8369,7 +8541,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const configuredCompanyName = await getSystemSetting('companyName', 'Ticket Wise', req.session.companyId);
 
-          
+
 
           const userWithCompany = {
 
@@ -8399,7 +8571,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           };
 
-          
+
 
           return res.json(userWithCompany);
 
@@ -8425,7 +8597,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Rotas para configurações do sistema
 
@@ -8437,7 +8609,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const companyId = req.session.companyId;
 
-      
+
 
       // Buscar configurações do sistema para a empresa específica
 
@@ -8447,7 +8619,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const allowCustomerRegistration = await getSystemSetting('allowCustomerRegistration', 'true', companyId);
 
-      
+
 
       // Montar objeto de resposta
 
@@ -8471,7 +8643,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   router.post("/settings/general", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
 
@@ -8481,7 +8653,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const companyId = req.session.companyId;
 
-      
+
 
       // Salvar configurações para a empresa específica
 
@@ -8491,7 +8663,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       await saveSystemSetting('allowCustomerRegistration', allowCustomerRegistration.toString(), companyId);
 
-      
+
 
       res.json({
 
@@ -8513,7 +8685,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Configurações de departamentos
 
@@ -8525,7 +8697,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const departmentsJson = await getSystemSetting('departments', '[]');
 
-      
+
 
       try {
 
@@ -8561,7 +8733,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   router.post("/settings/departments", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
 
@@ -8569,7 +8741,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const departments = req.body;
 
-      
+
 
       if (!Array.isArray(departments)) {
 
@@ -8577,7 +8749,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Converter para string JSON e salvar
 
@@ -8585,7 +8757,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       await saveSystemSetting('departments', departmentsJson);
 
-      
+
 
       res.json(departments);
 
@@ -8599,7 +8771,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Configurações de tipos de incidentes
 
@@ -8617,7 +8789,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         .orderBy(schema.incidentTypes.id);
 
-      
+
 
       return res.json(incidentTypes);
 
@@ -8631,7 +8803,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Rota para usuários obterem tipos de incidentes com paginação
 
@@ -8809,11 +8981,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         });
 
-        
+
 
         const totalPages = Math.ceil(totalCount / limit);
 
-        
+
 
         return res.json({
 
@@ -8861,11 +9033,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           .offset(offset);
 
-        
+
 
         const totalPages = Math.ceil(totalCount / limit);
 
-        
+
 
         return res.json({
 
@@ -8897,7 +9069,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-  
+
 
   // Rota para criar um novo Tipo de Chamado (Incident Type)
 
@@ -9001,23 +9173,23 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (department_id === undefined) {
 
-            return res.status(400).json({ message: "Department ID é obrigatório." });
+          return res.status(400).json({ message: "Department ID é obrigatório." });
 
         }
 
-        
+
 
         // Opcional: Verificar se o department_id fornecido pertence à effectiveCompanyId (se não for global)
 
         if (effectiveCompanyId !== null && department_id) {
 
-            const [department] = await db.select().from(departmentsSchema).where(and(eq(departmentsSchema.id, department_id), eq(departmentsSchema.company_id, effectiveCompanyId)));
+          const [department] = await db.select().from(departmentsSchema).where(and(eq(departmentsSchema.id, department_id), eq(departmentsSchema.company_id, effectiveCompanyId)));
 
-            if(!department){
+          if (!department) {
 
-                return res.status(400).json({ message: `Departamento ID ${department_id} não encontrado ou não pertence à empresa ID ${effectiveCompanyId}.` });
+            return res.status(400).json({ message: `Departamento ID ${department_id} não encontrado ou não pertence à empresa ID ${effectiveCompanyId}.` });
 
-            }
+          }
 
         }
 
@@ -9103,7 +9275,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (error && error.code === '23503' && error.constraint && error.constraint.includes('incident_types_department_id_fkey')) {
 
-            return res.status(400).json({ message: "Department ID inválido ou não existente."});
+          return res.status(400).json({ message: "Department ID inválido ou não existente." });
 
         }
 
@@ -9503,7 +9675,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               .where(eq(schema.officialDepartments.official_id, subordinate.id));
 
-            
+
 
             // Adicionar departamentos dos subordinados que ainda não estão na lista
 
@@ -9667,11 +9839,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         });
 
-        
+
 
         const totalPages = Math.ceil(totalCount / limit);
 
-        
+
 
         res.json({
 
@@ -9719,11 +9891,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           .offset(offset);
 
-        
+
 
         const totalPages = Math.ceil(totalCount / limit);
 
-        
+
 
         res.json({
 
@@ -9833,7 +10005,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
     authRequired,
 
-    authorize(['admin', 'company_admin', 'manager']), 
+    authorize(['admin', 'company_admin', 'manager']),
 
     async (req: Request, res: Response) => {
 
@@ -9931,7 +10103,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           ));
 
-        
+
 
         if (existingDepartment) {
 
@@ -10295,17 +10467,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const [ticketLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
 
-                                       .from(schema.tickets)
+          .from(schema.tickets)
 
-                                       .where(eq(schema.tickets.department_id, departmentIdParam));
+          .where(eq(schema.tickets.department_id, departmentIdParam));
 
-        if(ticketLink && ticketLink.count > 0) {
+        if (ticketLink && ticketLink.count > 0) {
 
-            return res.status(400).json({ 
+          return res.status(400).json({
 
-              message: `Departamento não pode ser excluído pois está vinculado a ${ticketLink.count} chamado(s).` 
+            message: `Departamento não pode ser excluído pois está vinculado a ${ticketLink.count} chamado(s).`
 
-            });
+          });
 
         }
 
@@ -10315,17 +10487,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const [incidentTypeLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
 
-                                           .from(schema.incidentTypes)
+          .from(schema.incidentTypes)
 
-                                           .where(eq(schema.incidentTypes.department_id, departmentIdParam));
+          .where(eq(schema.incidentTypes.department_id, departmentIdParam));
 
-        if(incidentTypeLink && incidentTypeLink.count > 0) {
+        if (incidentTypeLink && incidentTypeLink.count > 0) {
 
-            return res.status(400).json({ 
+          return res.status(400).json({
 
-              message: `Departamento não pode ser excluído pois está vinculado a ${incidentTypeLink.count} tipo(s) de chamado.` 
+            message: `Departamento não pode ser excluído pois está vinculado a ${incidentTypeLink.count} tipo(s) de chamado.`
 
-            });
+          });
 
         }
 
@@ -10335,17 +10507,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const [officialDepartmentLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
 
-                                                 .from(schema.officialDepartments)
+          .from(schema.officialDepartments)
 
-                                                 .where(eq(schema.officialDepartments.department_id, departmentIdParam));
+          .where(eq(schema.officialDepartments.department_id, departmentIdParam));
 
-        if(officialDepartmentLink && officialDepartmentLink.count > 0) {
+        if (officialDepartmentLink && officialDepartmentLink.count > 0) {
 
-            return res.status(400).json({ 
+          return res.status(400).json({
 
-              message: `Departamento não pode ser excluído pois está vinculado a ${officialDepartmentLink.count} oficial(is).` 
+            message: `Departamento não pode ser excluído pois está vinculado a ${officialDepartmentLink.count} oficial(is).`
 
-            });
+          });
 
         }
 
@@ -10355,17 +10527,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const [categoryLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
 
-                                      .from(schema.categories)
+          .from(schema.categories)
 
-                                      // Categorias não têm department_id - removido filtro incorreto
+        // Categorias não têm department_id - removido filtro incorreto
 
-        if(categoryLink && categoryLink.count > 0) {
+        if (categoryLink && categoryLink.count > 0) {
 
-            return res.status(400).json({ 
+          return res.status(400).json({
 
-              message: `Departamento não pode ser excluído pois está vinculado a ${categoryLink.count} categoria(s).` 
+            message: `Departamento não pode ser excluído pois está vinculado a ${categoryLink.count} categoria(s).`
 
-            });
+          });
 
         }
 
@@ -10399,7 +10571,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         console.error("Error deleting department:", error);
 
-        
+
 
         // Verificar se o erro é por violação de FK
 
@@ -10411,7 +10583,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           let specificMessage = "Departamento não pode ser excluído pois possui vínculos existentes.";
 
-          
+
 
           if (constraint.includes('tickets')) {
 
@@ -10431,33 +10603,33 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           }
 
-          
+
 
           return res.status(400).json({ message: specificMessage });
 
         }
 
-        
+
 
         // Outros tipos de erro
 
         if (error && typeof error === 'object' && 'message' in error) {
 
-          return res.status(500).json({ 
+          return res.status(500).json({
 
             message: "Erro ao excluir departamento",
 
-            details: error.message 
+            details: error.message
 
           });
 
         }
 
-        
 
-        res.status(500).json({ 
 
-          message: "Erro interno ao excluir departamento. Tente novamente mais tarde." 
+        res.status(500).json({
+
+          message: "Erro interno ao excluir departamento. Tente novamente mais tarde."
 
         });
 
@@ -10477,31 +10649,31 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
     try {
 
-        // Verificar conexão com o banco
+      // Verificar conexão com o banco
 
-        const testConnection = await db.select().from(schema.companies).limit(1);
+      const testConnection = await db.select().from(schema.companies).limit(1);
 
-        
 
-        // Buscar todas as empresas
 
-        const companies = await db.select().from(schema.companies).orderBy(desc(schema.companies.id));
+      // Buscar todas as empresas
 
-        
+      const companies = await db.select().from(schema.companies).orderBy(desc(schema.companies.id));
 
-        res.json(companies);
+
+
+      res.json(companies);
 
     } catch (error) {
 
-        console.error("[ERROR] Erro completo ao buscar empresas:", error);
+      console.error("[ERROR] Erro completo ao buscar empresas:", error);
 
-        res.status(500).json({ 
+      res.status(500).json({
 
-            message: "Erro interno ao buscar empresas",
+        message: "Erro interno ao buscar empresas",
 
-            error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error)
 
-        });
+      });
 
     }
 
@@ -10839,7 +11011,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const conditions: SQLWrapper[] = [eq(schema.incidentTypes.id, incidentTypeId)];
 
-        
+
 
         // Fetch the current incident type to know its original company_id
 
@@ -10903,9 +11075,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const managerCondition = or(
 
-              isNull(schema.incidentTypes.company_id), 
+            isNull(schema.incidentTypes.company_id),
 
-              eq(schema.incidentTypes.company_id, sessionCompanyId)
+            eq(schema.incidentTypes.company_id, sessionCompanyId)
 
           );
 
@@ -10923,7 +11095,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           }
 
-          
+
 
           // Manager cannot change company_id. If sent in body, it's ignored.
 
@@ -10967,9 +11139,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const supervisorCondition = or(
 
-              isNull(schema.incidentTypes.company_id), 
+            isNull(schema.incidentTypes.company_id),
 
-              eq(schema.incidentTypes.company_id, sessionCompanyId)
+            eq(schema.incidentTypes.company_id, sessionCompanyId)
 
           );
 
@@ -10985,7 +11157,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           }
 
-          
+
 
           // Supervisor não pode alterar company_id. Se enviado no body, é ignorado.
 
@@ -11003,7 +11175,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         // Validação do department_id
 
@@ -11013,13 +11185,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             const [department] = await db.select()
 
-                                         .from(departmentsSchema)
+              .from(departmentsSchema)
 
-                                         .where(and(eq(departmentsSchema.id, department_id), eq(departmentsSchema.company_id, effectiveCompanyIdForUpdateLogic)));
+              .where(and(eq(departmentsSchema.id, department_id), eq(departmentsSchema.company_id, effectiveCompanyIdForUpdateLogic)));
 
-            if(!department){
+            if (!department) {
 
-                return res.status(400).json({ message: `Departamento ID ${department_id} não encontrado ou não pertence à empresa ID ${effectiveCompanyIdForUpdateLogic}.` });
+              return res.status(400).json({ message: `Departamento ID ${department_id} não encontrado ou não pertence à empresa ID ${effectiveCompanyIdForUpdateLogic}.` });
 
             }
 
@@ -11027,9 +11199,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             const [department] = await db.select().from(departmentsSchema).where(eq(departmentsSchema.id, department_id));
 
-            if(!department){ // Se global, o depto precisa existir, mas não precisa ser global (pode pertencer a uma empresa)
+            if (!department) { // Se global, o depto precisa existir, mas não precisa ser global (pode pertencer a uma empresa)
 
-                return res.status(400).json({ message: `Departamento ID ${department_id} não encontrado.`});
+              return res.status(400).json({ message: `Departamento ID ${department_id} não encontrado.` });
 
             }
 
@@ -11043,31 +11215,31 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (name !== undefined) {
 
-            const duplicateCheckConditions: SQLWrapper[] = [
+          const duplicateCheckConditions: SQLWrapper[] = [
 
-                eq(schema.incidentTypes.name, name),
+            eq(schema.incidentTypes.name, name),
 
-                ne(schema.incidentTypes.id, incidentTypeId)
+            ne(schema.incidentTypes.id, incidentTypeId)
 
-            ];
+          ];
 
-            if (effectiveCompanyIdForUpdateLogic === null) {
+          if (effectiveCompanyIdForUpdateLogic === null) {
 
-                duplicateCheckConditions.push(isNull(schema.incidentTypes.company_id));
+            duplicateCheckConditions.push(isNull(schema.incidentTypes.company_id));
 
-            } else {
+          } else {
 
-                duplicateCheckConditions.push(eq(schema.incidentTypes.company_id, effectiveCompanyIdForUpdateLogic));
+            duplicateCheckConditions.push(eq(schema.incidentTypes.company_id, effectiveCompanyIdForUpdateLogic));
 
-            }
+          }
 
-            const [existingIncidentTypeWithName] = await db.select().from(schema.incidentTypes).where(and(...duplicateCheckConditions));
+          const [existingIncidentTypeWithName] = await db.select().from(schema.incidentTypes).where(and(...duplicateCheckConditions));
 
-            if (existingIncidentTypeWithName) {
+          if (existingIncidentTypeWithName) {
 
-                return res.status(409).json({ message: `Já existe um tipo de chamado com o nome "${name}" ${effectiveCompanyIdForUpdateLogic === null ? 'globalmente' : 'nesta empresa'}.` });
+            return res.status(409).json({ message: `Já existe um tipo de chamado com o nome "${name}" ${effectiveCompanyIdForUpdateLogic === null ? 'globalmente' : 'nesta empresa'}.` });
 
-            }
+          }
 
         }
 
@@ -11105,7 +11277,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (error && error.code === '23503' && error.constraint && error.constraint.includes('incident_types_department_id_fkey')) {
 
-            return res.status(400).json({ message: "Department ID inválido ou não existente ao atualizar."});
+          return res.status(400).json({ message: "Department ID inválido ou não existente ao atualizar." });
 
         }
 
@@ -11193,25 +11365,25 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           // Adiciona a condição para garantir que o manager só delete da sua empresa ou globais
 
-           const managerDeleteCondition = or(
+          const managerDeleteCondition = or(
 
-              isNull(schema.incidentTypes.company_id),
+            isNull(schema.incidentTypes.company_id),
 
-              eq(schema.incidentTypes.company_id, sessionCompanyId)
+            eq(schema.incidentTypes.company_id, sessionCompanyId)
 
-            )!;
+          )!;
 
-            if (managerDeleteCondition) {
+          if (managerDeleteCondition) {
 
-                conditions.push(managerDeleteCondition);
+            conditions.push(managerDeleteCondition);
 
-            } else {
+          } else {
 
-                console.error("Error generating manager condition for incident type delete");
+            console.error("Error generating manager condition for incident type delete");
 
-                return res.status(500).json({ message: "Erro interno ao processar permissões." });
+            return res.status(500).json({ message: "Erro interno ao processar permissões." });
 
-            }
+          }
 
         } else if (userRole === 'admin') {
 
@@ -11273,25 +11445,25 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           // Adiciona a condição para garantir que o supervisor só delete da sua empresa ou globais
 
-           const supervisorDeleteCondition = or(
+          const supervisorDeleteCondition = or(
 
-              isNull(schema.incidentTypes.company_id),
+            isNull(schema.incidentTypes.company_id),
 
-              eq(schema.incidentTypes.company_id, sessionCompanyId)
+            eq(schema.incidentTypes.company_id, sessionCompanyId)
 
-            )!;
+          )!;
 
-            if (supervisorDeleteCondition) {
+          if (supervisorDeleteCondition) {
 
-                conditions.push(supervisorDeleteCondition);
+            conditions.push(supervisorDeleteCondition);
 
-            } else {
+          } else {
 
-                console.error("Error generating supervisor condition for incident type delete");
+            console.error("Error generating supervisor condition for incident type delete");
 
-                return res.status(500).json({ message: "Erro interno ao processar permissões." });
+            return res.status(500).json({ message: "Erro interno ao processar permissões." });
 
-            }
+          }
 
         } else {
 
@@ -11305,13 +11477,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         const [ticketLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
 
-                                       .from(schema.tickets)
+          .from(schema.tickets)
 
-                                       .where(eq(schema.tickets.incident_type_id, incidentTypeId));
+          .where(eq(schema.tickets.incident_type_id, incidentTypeId));
 
-        if(ticketLink && ticketLink.count > 0) {
+        if (ticketLink && ticketLink.count > 0) {
 
-            return res.status(400).json({ message: "Tipo de chamado não pode ser excluído pois está vinculado a chamados existentes." });
+          return res.status(400).json({ message: "Tipo de chamado não pode ser excluído pois está vinculado a chamados existentes." });
 
         }
 
@@ -11325,7 +11497,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           .where(and(...conditions))
 
-          .returning(); 
+          .returning();
 
 
 
@@ -11341,7 +11513,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         console.error("Error deleting incident type:", error);
 
-        if (error && typeof error === 'object' && 'code' in error && error.code === '23503') { 
+        if (error && typeof error === 'object' && 'code' in error && error.code === '23503') {
 
           return res.status(400).json({ message: "Tipo de chamado não pode ser excluído devido a vínculos existentes (erro de banco de dados)." });
 
@@ -11359,7 +11531,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   // === ROTAS DE TICKET TYPES ===
 
-  
+
 
   // GET /api/ticket-types - Listar tipos de chamado
 
@@ -11425,65 +11597,65 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-             } else if (['manager', 'supervisor', 'support'].includes(userRole)) {
+      } else if (['manager', 'supervisor', 'support'].includes(userRole)) {
 
-         // Manager/Supervisor/Support veem apenas tipos dos seus departamentos
+        // Manager/Supervisor/Support veem apenas tipos dos seus departamentos
 
-         if (sessionCompanyId && sessionUserId) {
+        if (sessionCompanyId && sessionUserId) {
 
-           // Buscar o official do usuário
+          // Buscar o official do usuário
 
-           const [userOfficial] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, sessionUserId));
+          const [userOfficial] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, sessionUserId));
 
-           
 
-           if (userOfficial) {
 
-             // Buscar departamentos do oficial
+          if (userOfficial) {
 
-             const userDepartments = await db.select({ department_id: schema.officialDepartments.department_id })
+            // Buscar departamentos do oficial
 
-               .from(schema.officialDepartments)
+            const userDepartments = await db.select({ department_id: schema.officialDepartments.department_id })
 
-               .where(eq(schema.officialDepartments.official_id, userOfficial.id));
+              .from(schema.officialDepartments)
 
-             
+              .where(eq(schema.officialDepartments.official_id, userOfficial.id));
 
-             if (userDepartments.length > 0) {
 
-               const departmentIds = userDepartments.map(dept => dept.department_id);
 
-               
+            if (userDepartments.length > 0) {
 
-               conditions.push(
+              const departmentIds = userDepartments.map(dept => dept.department_id);
 
-                 and(
 
-                   eq(schema.ticketTypes.company_id, sessionCompanyId),
 
-                   inArray(schema.ticketTypes.department_id, departmentIds)
+              conditions.push(
 
-                 )!!!!!!
+                and(
 
-               )!!!!;
+                  eq(schema.ticketTypes.company_id, sessionCompanyId),
 
-             } else {
+                  inArray(schema.ticketTypes.department_id, departmentIds)
 
-               // Se o usuário não tem departamentos, não deve ver nada
+                )!!!!!!
 
-               conditions.push(sql`1 = 0`);
+              )!!!!;
 
-             }
+            } else {
 
-           } else {
+              // Se o usuário não tem departamentos, não deve ver nada
 
-             // Se não há official, não deve ver nada
+              conditions.push(sql`1 = 0`);
 
-             conditions.push(sql`1 = 0`);
+            }
 
-           }
+          } else {
 
-         }
+            // Se não há official, não deve ver nada
+
+            conditions.push(sql`1 = 0`);
+
+          }
+
+        }
 
       } else {
 
@@ -11601,11 +11773,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       });
 
-      
+
 
       const totalPages = Math.ceil(totalCount / limit);
 
-      
+
 
       return res.json({
 
@@ -11707,7 +11879,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
-        
+
 
         // Verificar se o department_id pertence à empresa
 
@@ -11901,7 +12073,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const effectiveCompanyId = userRole === 'admin' ? ticketTypeToUpdate.company_id : sessionCompanyId;
 
-          
+
 
           if (effectiveCompanyId !== null) {
 
@@ -11931,7 +12103,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           ];
 
-          
+
 
           if (ticketTypeToUpdate.company_id !== null) {
 
@@ -11969,7 +12141,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           ];
 
-          
+
 
           if (ticketTypeToUpdate.company_id !== null) {
 
@@ -12117,7 +12289,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           .where(eq(schema.tickets.type, ticketTypeToDelete.value));
 
-          
+
 
         if (ticketLink && ticketLink.count > 0) {
 
@@ -12153,7 +12325,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         console.error("Error deleting ticket type:", error);
 
-        if (error && typeof error === 'object' && 'code' in error && error.code === '23503') { 
+        if (error && typeof error === 'object' && 'code' in error && error.code === '23503') {
 
           return res.status(400).json({ message: "Tipo de chamado não pode ser excluído devido a vínculos existentes." });
 
@@ -12171,7 +12343,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   // === ROTAS DE CATEGORIAS ===
 
-  
+
 
   // GET /api/categories - Listar categorias
 
@@ -12411,7 +12583,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const [userOfficial] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, sessionUserId));
 
-          
+
 
           if (userOfficial) {
 
@@ -12423,13 +12595,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               .where(eq(schema.officialDepartments.official_id, userOfficial.id));
 
-            
+
 
             if (userDepartments.length > 0) {
 
               const departmentIds = userDepartments.map(dept => dept.department_id);
 
-              
+
 
               // Buscar tipos de incidente dos departamentos do usuário
 
@@ -12449,7 +12621,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                 )!!!!!!;
 
-              
+
 
               if (incidentTypes.length > 0) {
 
@@ -12701,7 +12873,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       let effectiveCompanyId: number | null = null;
 
-      
+
 
       if (userRole === 'admin') {
 
@@ -13201,7 +13373,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         .orderBy(schema.slaDefinitions.priority); // Ordenar pode ser útil, mas prioridades são fixas
 
-      
+
 
       // Estruturar a resposta para ser facilmente consumida pelo frontend
 
@@ -13209,7 +13381,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const slaSettings: Record<string, { response_time_hours?: number, resolution_time_hours?: number }> = {};
 
-      
+
 
       // Usar prioridades dinâmicas ao invés de enum fixo
 
@@ -13239,7 +13411,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           // Se não houver regra definida para uma prioridade, pode-se enviar null/undefined ou valores padrão
 
-          slaSettings[prio] = { response_time_hours: undefined, resolution_time_hours: undefined }; 
+          slaSettings[prio] = { response_time_hours: undefined, resolution_time_hours: undefined };
 
         }
 
@@ -13291,15 +13463,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (isNaN(effectiveCompanyId)) {
 
-            return res.status(400).json({ message: "company_id inválido fornecido no corpo da requisição." });
+          return res.status(400).json({ message: "company_id inválido fornecido no corpo da requisição." });
 
         }
 
-        const [companyExists] = await db.select({id: schema.companies.id}).from(schema.companies).where(eq(schema.companies.id, effectiveCompanyId));
+        const [companyExists] = await db.select({ id: schema.companies.id }).from(schema.companies).where(eq(schema.companies.id, effectiveCompanyId));
 
         if (!companyExists) {
 
-            return res.status(404).json({ message: `Empresa com ID ${effectiveCompanyId} não encontrada.` });
+          return res.status(404).json({ message: `Empresa com ID ${effectiveCompanyId} não encontrada.` });
 
         }
 
@@ -13397,7 +13569,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const ruleData = settings[priority];
 
-          
+
 
           const existingRule = await tx.query.slaDefinitions.findFirst({
 
@@ -13415,9 +13587,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           if (ruleData && ruleData.response_time_hours !== undefined && ruleData.resolution_time_hours !== undefined &&
 
-              ruleData.response_time_hours !== '' && ruleData.resolution_time_hours !== '') {
+            ruleData.response_time_hours !== '' && ruleData.resolution_time_hours !== '') {
 
-            
+
 
             const response_time_hours = parseInt(ruleData.response_time_hours, 10);
 
@@ -13509,7 +13681,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }); // Fim da db.transaction
 
-      
+
 
       res.status(200).json({ company_id: effectiveCompanyId, outcome: results });
 
@@ -13529,13 +13701,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       // @ts-ignore: Acessar error.code e error.constraint se existirem
 
-      if (error && typeof error === 'object' && 'code' in error && error.code === '23503') { 
+      if (error && typeof error === 'object' && 'code' in error && error.code === '23503') {
 
         // @ts-ignore
 
         if ('constraint' in error && error.constraint && typeof error.constraint === 'string' && error.constraint.includes('sla_definitions_company_id_fkey')) {
 
-            return res.status(400).json({ message: `ID da empresa ${effectiveCompanyId !== undefined ? effectiveCompanyId : 'desconhecido'} inválido ou não existente.` });
+          return res.status(400).json({ message: `ID da empresa ${effectiveCompanyId !== undefined ? effectiveCompanyId : 'desconhecido'} inválido ou não existente.` });
 
         }
 
@@ -13601,7 +13773,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           .returning();
 
-        
+
 
         return res.json(newSettings);
 
@@ -13843,7 +14015,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const extension = file.originalname.split('.').pop()?.toLowerCase();
 
-      
+
 
       if (extension && allowedTypes.includes(extension)) {
 
@@ -14379,11 +14551,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error('Erro ao testar conexão S3:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        success: false, 
+        success: false,
 
-        error: "Erro interno ao testar conexão" 
+        error: "Erro interno ao testar conexão"
 
       });
 
@@ -14409,11 +14581,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         console.error('Erro ao executar teste de prioridades:', error);
 
-        res.status(500).json({ 
+        res.status(500).json({
 
-          success: false, 
+          success: false,
 
-          error: "Erro interno ao executar teste" 
+          error: "Erro interno ao executar teste"
 
         });
 
@@ -14435,11 +14607,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         console.error('Erro ao testar prioridades do departamento:', error);
 
-        res.status(500).json({ 
+        res.status(500).json({
 
-          success: false, 
+          success: false,
 
-          error: "Erro interno ao testar prioridades" 
+          error: "Erro interno ao testar prioridades"
 
         });
 
@@ -14453,7 +14625,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   // --- ROTAS DE PRIORIDADES FLEXÍVEIS ---
 
-  
+
 
   // Listar prioridades de um departamento
 
@@ -14469,11 +14641,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error('Erro ao buscar prioridades do departamento:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        success: false, 
+        success: false,
 
-        message: "Erro interno ao buscar prioridades" 
+        message: "Erro interno ao buscar prioridades"
 
       });
 
@@ -14497,11 +14669,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error('Erro ao criar prioridade:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        success: false, 
+        success: false,
 
-        message: "Erro interno ao criar prioridade" 
+        message: "Erro interno ao criar prioridade"
 
       });
 
@@ -14525,11 +14697,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error('Erro ao editar prioridade:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        success: false, 
+        success: false,
 
-        message: "Erro interno ao editar prioridade" 
+        message: "Erro interno ao editar prioridade"
 
       });
 
@@ -14553,11 +14725,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error('Erro ao excluir prioridade:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        success: false, 
+        success: false,
 
-        message: "Erro interno ao excluir prioridade" 
+        message: "Erro interno ao excluir prioridade"
 
       });
 
@@ -14581,11 +14753,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error('Erro ao reordenar prioridades:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        success: false, 
+        success: false,
 
-        message: "Erro interno ao reordenar prioridades" 
+        message: "Erro interno ao reordenar prioridades"
 
       });
 
@@ -14609,11 +14781,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error('Erro ao criar prioridades padrão:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        success: false, 
+        success: false,
 
-        message: "Erro interno ao criar prioridades padrão" 
+        message: "Erro interno ao criar prioridades padrão"
 
       });
 
@@ -14637,11 +14809,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error('Erro ao buscar prioridades da empresa:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        success: false, 
+        success: false,
 
-        message: "Erro interno ao buscar prioridades da empresa" 
+        message: "Erro interno ao buscar prioridades da empresa"
 
       });
 
@@ -14663,7 +14835,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       let companyId = req.session.companyId;
 
-      
+
 
       // Se for admin e especificou company_id na query, usar ele
 
@@ -14673,7 +14845,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const config = await emailConfigService.getEmailConfigForFrontend(companyId);
 
@@ -14701,7 +14873,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const config: any = { ...req.body };
 
-      
+
 
       // Se for admin e especificou company_id no body, usar ele
 
@@ -14715,7 +14887,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       // Debug: Logar o que está chegando
 
@@ -14729,21 +14901,21 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.log('[DEBUG] API Key:', config.api_key ? '***mascarado***' : 'vazio');
 
-      
+
 
       await emailConfigService.saveEmailConfigFromFrontend(config, companyId);
 
-      
+
 
       console.log('[DEBUG] Configurações salvas com sucesso!');
 
-      
 
-      res.json({ 
 
-        success: true, 
+      res.json({
 
-        message: "Configurações de email salvas com sucesso" 
+        success: true,
+
+        message: "Configurações de email salvas com sucesso"
 
       });
 
@@ -14769,7 +14941,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const type = req.query.type as string;
 
-      
+
 
       // Se for admin e especificou company_id na query, usar ele
 
@@ -14779,11 +14951,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const templates = await emailConfigService.getEmailTemplates(companyId, type);
 
-      
+
 
       // Se for uma requisição para verificar templates faltantes
 
@@ -14793,7 +14965,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           'new_ticket',
 
-          'ticket_assigned', 
+          'ticket_assigned',
 
           'ticket_reply',
 
@@ -14817,13 +14989,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         ];
 
-        
+
 
         const existingTypes = templates.map(t => t.type);
 
         const missingTypes = allTemplateTypes.filter(type => !existingTypes.includes(type as any));
 
-        
+
 
         res.json({
 
@@ -14869,7 +15041,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const templateData: any = { ...req.body };
 
-      
+
 
       // Se for admin e especificou company_id no body, usar ele
 
@@ -14883,7 +15055,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const template = await emailConfigService.saveEmailTemplate({
 
@@ -14897,7 +15069,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       });
 
-      
+
 
       res.status(201).json(template);
 
@@ -14925,7 +15097,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const templateData: any = { ...req.body };
 
-      
+
 
       // Se for admin e especificou company_id no body, remover antes de salvar
 
@@ -14935,7 +15107,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       const template = await emailConfigService.updateEmailTemplate(templateId, {
 
@@ -14945,7 +15117,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       });
 
-      
+
 
       if (!template) {
 
@@ -14953,7 +15125,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       res.json(template);
 
@@ -14977,11 +15149,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const templateId = parseInt(req.params.id);
 
-      
+
 
       const success = await emailConfigService.deleteEmailTemplate(templateId);
 
-      
+
 
       if (!success) {
 
@@ -14989,7 +15161,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       res.json({ success: true, message: "Template deletado com sucesso" });
 
@@ -15015,7 +15187,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const userId = req.session.userId;
 
-      
+
 
       // Para admin, pode receber company_id via body
 
@@ -15027,7 +15199,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      
+
 
       if (!targetCompanyId) {
 
@@ -15159,7 +15331,7 @@ Best regards,
 {{system.from_name}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','customer.email','ticket.priority_text','ticket.status_text','ticket.link','user.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'customer.name', 'customer.email', 'ticket.priority_text', 'ticket.status_text', 'ticket.link', 'user.name', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             },
             // 2. Ticket Assigned
             {
@@ -15252,7 +15424,7 @@ Description: {{ticket.description}}
 View Ticket: {{ticket.link}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','customer.email','ticket.priority_text','ticket.status_text','ticket.description','ticket.link','user.name','system.company_name','system.support_email','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'customer.name', 'customer.email', 'ticket.priority_text', 'ticket.status_text', 'ticket.description', 'ticket.link', 'user.name', 'system.company_name', 'system.support_email', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             },
             // 3. Ticket Reply
             {
@@ -15341,7 +15513,7 @@ View Ticket: {{ticket.link}}`,
 View Ticket: {{ticket.link}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','ticket.status_text','reply.author_name','reply.message','ticket.link','user.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'ticket.status_text', 'reply.author_name', 'reply.message', 'ticket.link', 'user.name', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             },
             // 4. Status Changed
             {
@@ -15364,7 +15536,7 @@ View Ticket: {{ticket.link}}`,
               text_template: `Ticket {{ticket.ticket_id}} status updated\n\nNew Status: {{ticket.status_text}}\n\nView Ticket: {{ticket.link}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','ticket.status_text','ticket.link','user.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'ticket.status_text', 'ticket.link', 'user.name', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             },
             // 5. Ticket Resolved
             {
@@ -15387,7 +15559,7 @@ View Ticket: {{ticket.link}}`,
               text_template: `Ticket {{ticket.ticket_id}} has been resolved\n\nView Ticket: {{ticket.link}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','ticket.link','user.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'ticket.link', 'user.name', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             },
             // 6. Ticket Escalated
             {
@@ -15410,7 +15582,7 @@ View Ticket: {{ticket.link}}`,
               text_template: `Ticket {{ticket.ticket_id}} has been escalated\n\nView Ticket: {{ticket.link}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['ticket.ticket_id','ticket.link','user.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.link', 'user.name', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             },
             // 7. Ticket Due Soon
             {
@@ -15433,7 +15605,7 @@ View Ticket: {{ticket.link}}`,
               text_template: `Ticket {{ticket.ticket_id}} is due soon\n\nView Ticket: {{ticket.link}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['ticket.ticket_id','ticket.link','user.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.link', 'user.name', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             },
             // 8. Customer Registered
             {
@@ -15455,7 +15627,7 @@ View Ticket: {{ticket.link}}`,
               text_template: `New Customer Registered\n\nName: {{customer.name}}\nEmail: {{customer.email}}\nCompany: {{customer.company}}\nPhone: {{customer.phone}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['customer.name','customer.email','customer.company','customer.phone'])
+              available_variables: JSON.stringify(['customer.name', 'customer.email', 'customer.company', 'customer.phone'])
             },
             // 9. User Created
             {
@@ -15477,7 +15649,7 @@ View Ticket: {{ticket.link}}`,
               text_template: `New User Created\n\n{{system.message}}\n\nName: {{user.name}}\nEmail: {{user.email}}\nRole: {{user.role_text}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['user.name','user.email','user.role_text','system.message'])
+              available_variables: JSON.stringify(['user.name', 'user.email', 'user.role_text', 'system.message'])
             },
             // 10. System Maintenance
             {
@@ -15499,7 +15671,7 @@ View Ticket: {{ticket.link}}`,
               text_template: `Scheduled System Maintenance\n\n⚠️ Attention: {{system.message}}\n\nWe appreciate your understanding and apologize for any inconvenience.\n\n{{system.from_name}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['user.name','system.message','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['user.name', 'system.message', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             },
             // 11. Participant Added
             {
@@ -15522,7 +15694,7 @@ View Ticket: {{ticket.link}}`,
               text_template: `You have been added as a participant!\n\nHello {{user.name}},\n\nYou have been added as a participant to ticket {{ticket.ticket_id}} by {{official.name}}.\n\nTicket Details:\n- Title: {{ticket.title}}\n- Status: {{ticket.status_text}}\n- Priority: {{ticket.priority_text}}\n\nTo track this ticket, access: {{ticket.link}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['user.name','ticket.ticket_id','official.name','ticket.title','ticket.status_text','ticket.priority_text','ticket.created_at_formatted','customer.name','customer.email','ticket.link','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['user.name', 'ticket.ticket_id', 'official.name', 'ticket.title', 'ticket.status_text', 'ticket.priority_text', 'ticket.created_at_formatted', 'customer.name', 'customer.email', 'ticket.link', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             },
             // 12. Participant Removed
             {
@@ -15543,7 +15715,7 @@ View Ticket: {{ticket.link}}`,
               text_template: `You have been removed as a participant\n\nHello {{user.name}},\n\nYou have been removed as a participant from ticket {{ticket.ticket_id}} by {{official.name}}.`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['user.name','ticket.ticket_id','official.name','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['user.name', 'ticket.ticket_id', 'official.name', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             },
             // 13. Satisfaction Survey + Reminder (combining both)
             {
@@ -15565,7 +15737,7 @@ View Ticket: {{ticket.link}}`,
               text_template: `Hello {{customer.name}},\n\nWe would love to know how your experience was.\n\nRate the service for ticket {{ticket.ticket_id}}: {{survey.link}}\n\nThank you!\n{{system.from_name}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['customer.name','ticket.ticket_id','ticket.title','ticket.assigned_official_name','ticket.resolved_at_formatted','survey.link','survey.days_until_expiration','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['customer.name', 'ticket.ticket_id', 'ticket.title', 'ticket.assigned_official_name', 'ticket.resolved_at_formatted', 'survey.link', 'survey.days_until_expiration', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             },
             {
               name: 'Survey Reminder',
@@ -15586,24 +15758,24 @@ View Ticket: {{ticket.link}}`,
               text_template: `Hello {{customer.name}},\n\nYour link to rate ticket {{ticket.ticket_id}} expires in {{survey.days_until_expiration}} day(s).\n\nRate now: {{survey.link}}\n\nThank you!\n{{system.from_name}}`,
               is_active: true,
               is_default: true,
-              available_variables: JSON.stringify(['customer.name','ticket.ticket_id','ticket.title','ticket.assigned_official_name','ticket.resolved_at_formatted','survey.link','survey.days_until_expiration','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['customer.name', 'ticket.ticket_id', 'ticket.title', 'ticket.assigned_official_name', 'ticket.resolved_at_formatted', 'survey.link', 'survey.days_until_expiration', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             }
           ];
         } else {
           // Templates em português (padrão atual)
           return [
 
-        {
+            {
 
-          name: 'Novo Ticket',
+              name: 'Novo Ticket',
 
-          type: 'new_ticket',
+              type: 'new_ticket',
 
-          description: 'Notificação enviada quando um novo ticket é criado',
+              description: 'Notificação enviada quando um novo ticket é criado',
 
-          subject_template: 'Novo ticket criado: {{ticket.ticket_id}}',
+              subject_template: 'Novo ticket criado: {{ticket.ticket_id}}',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -15785,7 +15957,7 @@ View Ticket: {{ticket.link}}`,
 
 </html>`,
 
-          text_template: `Novo ticket criado: {{ticket.ticket_id}}
+              text_template: `Novo ticket criado: {{ticket.ticket_id}}
 
 Título: {{ticket.title}}
 
@@ -15797,25 +15969,25 @@ Status: {{ticket.status_text}}
 
 Ver Ticket: {{ticket.link}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','customer.email','ticket.priority_text','ticket.status_text','ticket.link','user.name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text','system.from_name'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'customer.name', 'customer.email', 'ticket.priority_text', 'ticket.status_text', 'ticket.link', 'user.name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text', 'system.from_name'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Ticket Atribuído',
+              name: 'Ticket Atribuído',
 
-          type: 'ticket_assigned',
+              type: 'ticket_assigned',
 
-          description: 'Notificação enviada quando um ticket é atribuído a um atendente',
+              description: 'Notificação enviada quando um ticket é atribuído a um atendente',
 
-          subject_template: 'Ticket {{ticket.ticket_id}} atribuído a você',
+              subject_template: 'Ticket {{ticket.ticket_id}} atribuído a você',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -16013,7 +16185,7 @@ Ver Ticket: {{ticket.link}}`,
 
 </html>`,
 
-          text_template: `Ticket atribuído a você: {{ticket.ticket_id}}
+              text_template: `Ticket atribuído a você: {{ticket.ticket_id}}
 
 Título: {{ticket.title}}
 
@@ -16027,25 +16199,25 @@ Descrição: {{ticket.description}}
 
 Ver Ticket: {{ticket.link}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','customer.email','ticket.priority_text','ticket.status_text','ticket.description','ticket.link','user.name','system.company_name','system.support_email','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'customer.name', 'customer.email', 'ticket.priority_text', 'ticket.status_text', 'ticket.description', 'ticket.link', 'user.name', 'system.company_name', 'system.support_email', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Nova Resposta',
+              name: 'Nova Resposta',
 
-          type: 'ticket_reply',
+              type: 'ticket_reply',
 
-          description: 'Notificação enviada quando há uma nova resposta no ticket',
+              description: 'Notificação enviada quando há uma nova resposta no ticket',
 
-          subject_template: 'Nova resposta no ticket {{ticket.ticket_id}}',
+              subject_template: 'Nova resposta no ticket {{ticket.ticket_id}}',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -16227,7 +16399,7 @@ Ver Ticket: {{ticket.link}}`,
 
 </html>`,
 
-          text_template: `Nova resposta no ticket {{ticket.ticket_id}}
+              text_template: `Nova resposta no ticket {{ticket.ticket_id}}
 
 Respondido por: {{reply.user.name}}
 
@@ -16237,25 +16409,25 @@ Mensagem: {{reply.message}}
 
 Ver Ticket: {{ticket.link}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','reply.user.name','reply.created_at_formatted','reply.message','ticket.link','user.name','system.company_name','system.support_email','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'reply.user.name', 'reply.created_at_formatted', 'reply.message', 'ticket.link', 'user.name', 'system.company_name', 'system.support_email', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Status Alterado',
+              name: 'Status Alterado',
 
-          type: 'status_changed',
+              type: 'status_changed',
 
-          description: 'Notificação enviada quando o status do ticket é alterado',
+              description: 'Notificação enviada quando o status do ticket é alterado',
 
-          subject_template: 'Ticket {{ticket.ticket_id}}: Status alterado para {{ticket.status_text}}',
+              subject_template: 'Ticket {{ticket.ticket_id}}: Status alterado para {{ticket.status_text}}',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -16435,7 +16607,7 @@ Ver Ticket: {{ticket.link}}`,
 
 </html>`,
 
-          text_template: `Status do Ticket Alterado
+              text_template: `Status do Ticket Alterado
 
 Ticket: {{ticket.ticket_id}} - {{ticket.title}}
 
@@ -16449,25 +16621,25 @@ Data: {{status_change.created_at_formatted}}
 
 Ver Ticket: {{ticket.link}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','status_change.old_status_text','status_change.new_status_text','status_change.changed_by.name','status_change.created_at_formatted','ticket.link','user.name','system.company_name','system.support_email','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'status_change.old_status_text', 'status_change.new_status_text', 'status_change.changed_by.name', 'status_change.created_at_formatted', 'ticket.link', 'user.name', 'system.company_name', 'system.support_email', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Ticket Resolvido',
+              name: 'Ticket Resolvido',
 
-          type: 'ticket_resolved',
+              type: 'ticket_resolved',
 
-          description: 'Notificação enviada quando um ticket é resolvido',
+              description: 'Notificação enviada quando um ticket é resolvido',
 
-          subject_template: 'Ticket {{ticket.ticket_id}} foi resolvido',
+              subject_template: 'Ticket {{ticket.ticket_id}} foi resolvido',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -16639,7 +16811,7 @@ Ver Ticket: {{ticket.link}}`,
 
 </html>`,
 
-          text_template: `Ticket Resolvido
+              text_template: `Ticket Resolvido
 
 Ticket: {{ticket.ticket_id}}
 
@@ -16651,25 +16823,25 @@ Resolvido por: {{user.name}}
 
 Ver Ticket: {{ticket.link}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','ticket.resolved_at_formatted','user.name','ticket.link','system.company_name','system.support_email','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'ticket.resolved_at_formatted', 'user.name', 'ticket.link', 'system.company_name', 'system.support_email', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Ticket Escalado',
+              name: 'Ticket Escalado',
 
-          type: 'ticket_escalated',
+              type: 'ticket_escalated',
 
-          description: 'Notificação enviada quando um ticket é escalado',
+              description: 'Notificação enviada quando um ticket é escalado',
 
-          subject_template: 'Ticket {{ticket.ticket_id}} foi escalado',
+              subject_template: 'Ticket {{ticket.ticket_id}} foi escalado',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -16853,7 +17025,7 @@ Ver Ticket: {{ticket.link}}`,
 
 </html>`,
 
-          text_template: `Ticket Escalado
+              text_template: `Ticket Escalado
 
 Ticket: {{ticket.ticket_id}}
 
@@ -16865,25 +17037,25 @@ Motivo: {{system.message}}
 
 Ver Ticket: {{ticket.link}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','ticket.priority_text','system.message','ticket.link'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'ticket.priority_text', 'system.message', 'ticket.link'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Vencimento Próximo',
+              name: 'Vencimento Próximo',
 
-          type: 'ticket_due_soon',
+              type: 'ticket_due_soon',
 
-          description: 'Notificação enviada quando um ticket está próximo do vencimento',
+              description: 'Notificação enviada quando um ticket está próximo do vencimento',
 
-          subject_template: 'Ticket {{ticket.ticket_id}} próximo do vencimento',
+              subject_template: 'Ticket {{ticket.ticket_id}} próximo do vencimento',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -17075,7 +17247,7 @@ Ver Ticket: {{ticket.link}}`,
 
 </html>`,
 
-          text_template: `Ticket Próximo do Vencimento
+              text_template: `Ticket Próximo do Vencimento
 
 Atenção: {{system.message}}
 
@@ -17089,25 +17261,25 @@ Prioridade: {{ticket.priority_text}}
 
 Ver Ticket: {{ticket.link}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['ticket.ticket_id','ticket.title','customer.name','ticket.priority_text','system.message','ticket.link'])
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'customer.name', 'ticket.priority_text', 'system.message', 'ticket.link'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Cliente Registrado',
+              name: 'Cliente Registrado',
 
-          type: 'customer_registered',
+              type: 'customer_registered',
 
-          description: 'Notificação enviada quando um novo cliente é registrado',
+              description: 'Notificação enviada quando um novo cliente é registrado',
 
-          subject_template: 'Novo cliente registrado: {{customer.name}}',
+              subject_template: 'Novo cliente registrado: {{customer.name}}',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -17255,7 +17427,7 @@ Ver Ticket: {{ticket.link}}`,
 
 </html>`,
 
-          text_template: `Novo Cliente Registrado
+              text_template: `Novo Cliente Registrado
 
 Nome: {{customer.name}}
 
@@ -17265,25 +17437,25 @@ Empresa: {{customer.company}}
 
 Telefone: {{customer.phone}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['customer.name','customer.email','customer.company','customer.phone'])
+              available_variables: JSON.stringify(['customer.name', 'customer.email', 'customer.company', 'customer.phone'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Usuário Criado',
+              name: 'Usuário Criado',
 
-          type: 'user_created',
+              type: 'user_created',
 
-          description: 'Notificação enviada quando um novo usuário é criado',
+              description: 'Notificação enviada quando um novo usuário é criado',
 
-          subject_template: 'Novo usuário criado: {{user.name}}',
+              subject_template: 'Novo usuário criado: {{user.name}}',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -17423,7 +17595,7 @@ Telefone: {{customer.phone}}`,
 
 </html>`,
 
-          text_template: `Novo Usuário Criado
+              text_template: `Novo Usuário Criado
 
 {{system.message}}
 
@@ -17433,25 +17605,25 @@ Email: {{user.email}}
 
 Função: {{user.role_text}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['user.name','user.email','user.role_text','system.message'])
+              available_variables: JSON.stringify(['user.name', 'user.email', 'user.role_text', 'system.message'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Manutenção do Sistema',
+              name: 'Manutenção do Sistema',
 
-          type: 'system_maintenance',
+              type: 'system_maintenance',
 
-          description: 'Notificação enviada para avisar sobre manutenção do sistema',
+              description: 'Notificação enviada para avisar sobre manutenção do sistema',
 
-          subject_template: 'Manutenção Programada do Sistema',
+              subject_template: 'Manutenção Programada do Sistema',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -17623,7 +17795,7 @@ Função: {{user.role_text}}`,
 
 </html>`,
 
-          text_template: `Manutenção Programada
+              text_template: `Manutenção Programada
 
 {{system.message}}
 
@@ -17647,25 +17819,25 @@ Atenciosamente,
 
 {{system.from_name}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['system.message','system.maintenance_start','system.maintenance_end','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['system.message', 'system.maintenance_start', 'system.maintenance_end', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Participante Adicionado',
+              name: 'Participante Adicionado',
 
-          type: 'ticket_participant_added',
+              type: 'ticket_participant_added',
 
-          description: 'Notificação enviada quando um participante é adicionado ao ticket',
+              description: 'Notificação enviada quando um participante é adicionado ao ticket',
 
-          subject_template: 'Você foi adicionado como participante do ticket {{ticket.ticket_id}}',
+              subject_template: 'Você foi adicionado como participante do ticket {{ticket.ticket_id}}',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -17843,7 +18015,7 @@ Atenciosamente,
 
 </html>`,
 
-          text_template: `Você foi adicionado como participante!
+              text_template: `Você foi adicionado como participante!
 
 Olá {{user.name}},
 
@@ -17875,25 +18047,25 @@ Atenciosamente,
 
 {{system.from_name}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['user.name','ticket.ticket_id','official.name','ticket.title','ticket.status_text','ticket.priority_text','ticket.created_at_formatted','customer.name','customer.email','ticket.link','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['user.name', 'ticket.ticket_id', 'official.name', 'ticket.title', 'ticket.status_text', 'ticket.priority_text', 'ticket.created_at_formatted', 'customer.name', 'customer.email', 'ticket.link', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Participante Removido',
+              name: 'Participante Removido',
 
-          type: 'ticket_participant_removed',
+              type: 'ticket_participant_removed',
 
-          description: 'Notificação enviada quando um participante é removido do ticket',
+              description: 'Notificação enviada quando um participante é removido do ticket',
 
-          subject_template: 'Você foi removido como participante do ticket {{ticket.ticket_id}}',
+              subject_template: 'Você foi removido como participante do ticket {{ticket.ticket_id}}',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -18085,7 +18257,7 @@ Atenciosamente,
 
 </html>`,
 
-          text_template: `Você foi removido como participante
+              text_template: `Você foi removido como participante
 
 Olá {{user.name}},
 
@@ -18117,25 +18289,25 @@ Atenciosamente,
 
 {{system.from_name}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['user.name','ticket.ticket_id','official.name','ticket.title','ticket.status_text','ticket.priority_text','customer.name','customer.email','ticket.link','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['user.name', 'ticket.ticket_id', 'official.name', 'ticket.title', 'ticket.status_text', 'ticket.priority_text', 'customer.name', 'customer.email', 'ticket.link', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Pesquisa de Satisfação',
+              name: 'Pesquisa de Satisfação',
 
-          type: 'satisfaction_survey',
+              type: 'satisfaction_survey',
 
-          description: 'Pesquisa de satisfação enviada quando um ticket é resolvido',
+              description: 'Pesquisa de satisfação enviada quando um ticket é resolvido',
 
-          subject_template: 'Como foi seu atendimento? Avalie o ticket {{ticket.ticket_id}}',
+              subject_template: 'Como foi seu atendimento? Avalie o ticket {{ticket.ticket_id}}',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -18335,7 +18507,7 @@ Atenciosamente,
 
 </html>`,
 
-          text_template: `Como foi seu atendimento?
+              text_template: `Como foi seu atendimento?
 
 
 
@@ -18377,25 +18549,25 @@ Atenciosamente,
 
 {{system.from_name}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['customer.name','ticket.ticket_id','ticket.title','ticket.assigned_official_name','ticket.resolved_at_formatted','survey.link','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['customer.name', 'ticket.ticket_id', 'ticket.title', 'ticket.assigned_official_name', 'ticket.resolved_at_formatted', 'survey.link', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
 
-        },
+            },
 
-        {
+            {
 
-          name: 'Lembrete Pesquisa de Satisfação',
+              name: 'Lembrete Pesquisa de Satisfação',
 
-          type: 'satisfaction_survey_reminder',
+              type: 'satisfaction_survey_reminder',
 
-          description: 'Lembrete enviado antes da expiracao da pesquisa de satisfação',
+              description: 'Lembrete enviado antes da expiracao da pesquisa de satisfação',
 
-          subject_template: 'Ainda da tempo! Sua pesquisa expira em {{survey.days_until_expiration}} dia(s)',
+              subject_template: 'Ainda da tempo! Sua pesquisa expira em {{survey.days_until_expiration}} dia(s)',
 
-          html_template: `<!DOCTYPE html>
+              html_template: `<!DOCTYPE html>
 
 <html lang="pt-BR">
 
@@ -18547,7 +18719,7 @@ Atenciosamente,
 
 </html>`,
 
-          text_template: `Ola {{customer.name}},
+              text_template: `Ola {{customer.name}},
 
 
 
@@ -18577,15 +18749,15 @@ Obrigado por nos ajudar a melhorar continuamente.
 
 {{system.from_name}}`,
 
-          is_active: true,
+              is_active: true,
 
-          is_default: true,
+              is_default: true,
 
-          available_variables: JSON.stringify(['customer.name','ticket.ticket_id','ticket.title','ticket.assigned_official_name','ticket.resolved_at_formatted','survey.link','survey.days_until_expiration','system.company_name','system.from_name','system.colors.primary','system.colors.secondary','system.colors.accent','system.colors.background','system.colors.text'])
+              available_variables: JSON.stringify(['customer.name', 'ticket.ticket_id', 'ticket.title', 'ticket.assigned_official_name', 'ticket.resolved_at_formatted', 'survey.link', 'survey.days_until_expiration', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
 
-        }
+            }
 
-      ];
+          ];
         }
       };
 
@@ -18598,13 +18770,13 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       const existingTypes = new Set(existingTemplates.map(t => t.type));
 
-      
+
 
       let created = 0;
 
       let skipped = 0;
 
-      
+
 
       // Salvar apenas templates que não existem
 
@@ -18620,14 +18792,14 @@ Obrigado por nos ajudar a melhorar continuamente.
 
         }
 
-        
+
 
         try {
 
           await emailConfigService.saveEmailTemplate({
 
             ...template,
-            
+
             type: template.type as any,
 
             company_id: targetCompanyId,
@@ -18652,9 +18824,9 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       if (created === 0 && skipped > 0) {
 
-        res.json({ 
+        res.json({
 
-          success: true, 
+          success: true,
 
           message: `Todos os templates padrão já existem para esta empresa (${skipped} templates de email)`,
 
@@ -18666,9 +18838,9 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       } else {
 
-        res.json({ 
+        res.json({
 
-          success: true, 
+          success: true,
 
           message: `Templates padrão processados com sucesso (${created} templates de email criados, ${skipped} já existiam)`,
 
@@ -18704,7 +18876,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       const companyId = req.session.companyId;
 
-      
+
 
       // Para admin, pode receber company_id via query
 
@@ -18716,7 +18888,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       }
 
-      
+
 
       if (!targetCompanyId) {
 
@@ -18744,7 +18916,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
               'theme_primary',
 
-              'theme_secondary', 
+              'theme_secondary',
 
               'theme_accent',
 
@@ -18820,11 +18992,11 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       const config: SMTPConfigInput = req.body;
 
-      
+
 
       const result = await emailConfigService.testEmailConnection(config);
 
-      
+
 
       res.json(result);
 
@@ -18832,11 +19004,11 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       console.error('Erro ao testar conexão de email:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        success: false, 
+        success: false,
 
-        error: "Erro interno ao testar conexão de email" 
+        error: "Erro interno ao testar conexão de email"
 
       });
 
@@ -18996,9 +19168,9 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       if (!maintenance_start || !maintenance_end || !message) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Campos obrigatórios: maintenance_start, maintenance_end, message" 
+          message: "Campos obrigatórios: maintenance_start, maintenance_end, message"
 
         });
 
@@ -19014,9 +19186,9 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Datas de manutenção inválidas" 
+          message: "Datas de manutenção inválidas"
 
         });
 
@@ -19026,9 +19198,9 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       if (startDate >= endDate) {
 
-        return res.status(400).json({ 
+        return res.status(400).json({
 
-          message: "Data de início deve ser anterior à data de fim" 
+          message: "Data de início deve ser anterior à data de fim"
 
         });
 
@@ -19050,9 +19222,14 @@ Obrigado por nos ajudar a melhorar continuamente.
 
 
 
-      res.json({ 
+      await notificationService.notifySystemMaintenance(
+        message,
+        startDate
+      );
 
-        success: true, 
+      res.json({
+
+        success: true,
 
         message: "Notificação de manutenção enviada com sucesso",
 
@@ -19100,23 +19277,27 @@ Obrigado por nos ajudar a melhorar continuamente.
 
 
 
-      await emailNotificationService.notifyTicketEscalated(
-
+      // 🔥 CORREÇÃO: Enviar notificação persistente + email
+      await notificationService.notifyTicketEscalated(
         ticketId,
-
         req.session?.userId,
+        reason || "Ticket escalado manualmente por administrador"
+      );
 
+      await emailNotificationService.notifyTicketEscalated(
+        ticketId,
+        req.session?.userId,
         reason || "Ticket escalado manualmente por administrador"
 
       );
 
 
 
-      res.json({ 
+      res.json({
 
-        success: true, 
+        success: true,
 
-        message: "Notificação de escalação enviada com sucesso" 
+        message: "Notificação de escalação enviada com sucesso"
 
       });
 
@@ -19138,7 +19319,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
   // === ROTAS DE SEGURANÇA E MONITORAMENTO ===
 
-  
+
 
   // Ping leve para monitoramento externo 24/7 (New Relic, UptimeRobot, etc)
 
@@ -19146,37 +19327,37 @@ Obrigado por nos ajudar a melhorar continuamente.
 
   router.get("/ping", ping);
 
-  
+
 
   // Health check completo (verifica banco durante 6h-21h, modo hibernação 21h-6h)
 
   router.get("/health", healthCheck);
 
-  
+
 
   // Relatório de segurança (apenas admin)
 
   router.get("/security/report", authRequired, adminRequired, getSecurityReport);
 
-  
+
 
   // Estatísticas do sistema (apenas admin)
 
   router.get("/security/stats", authRequired, adminRequired, getSystemStats);
 
-  
+
 
   // Estatísticas de performance (apenas admin)
 
   router.get("/performance/stats", authRequired, adminRequired, performanceStatsHandler);
 
-  
+
 
   // Limpar logs de segurança (apenas admin)
 
   router.post("/security/clear-logs", authRequired, adminRequired, clearSecurityLogs);
 
-  
+
 
   // Endpoint para forçar um evento de segurança (desenvolvimento/teste)
 
@@ -19184,7 +19365,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
     const { event, severity = 'medium', details = {} } = req.body;
 
-    
+
 
     if (!event) {
 
@@ -19192,7 +19373,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
     }
 
-    
+
 
     logSecurityEvent(
 
@@ -19208,13 +19389,13 @@ Obrigado por nos ajudar a melhorar continuamente.
 
     );
 
-    
 
-    res.json({ 
 
-      success: true, 
+    res.json({
 
-      message: `Evento de segurança '${event}' registrado com severidade '${severity}'` 
+      success: true,
+
+      message: `Evento de segurança '${event}' registrado com severidade '${severity}'`
 
     });
 
@@ -19224,19 +19405,19 @@ Obrigado por nos ajudar a melhorar continuamente.
 
   // --- ROTAS DE IA ---
 
-  
+
 
   // Listar configurações de IA
 
   router.get("/ai-configurations", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'customer']), getAiConfigurations);
 
-  
+
 
   // Buscar provedores e modelos disponíveis
 
   router.get("/ai-configurations/providers", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), getAiProviders);
 
-  
+
 
   // Endpoints de admin para gerenciar provedores e tokens
 
@@ -19244,7 +19425,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
   router.put("/ai-configurations/admin/providers", authRequired, authorize(['admin']), updateAiProvidersAdmin);
 
-  
+
 
   // Endpoints de admin para gerenciar permissões de IA das empresas
 
@@ -19252,25 +19433,25 @@ Obrigado por nos ajudar a melhorar continuamente.
 
   router.put("/ai-configurations/admin/companies/:id/permission", authRequired, authorize(['admin']), updateAiCompanyPermission);
 
-  
+
 
   // Criar nova configuração de IA
 
   router.post("/ai-configurations", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), createAiConfiguration);
 
-  
+
 
   // Atualizar configuração de IA
 
   router.put("/ai-configurations/:id", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), updateAiConfiguration);
 
-  
+
 
   // Deletar configuração de IA
 
   router.delete("/ai-configurations/:id", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), deleteAiConfiguration);
 
-  
+
 
   // Testar configuração de IA
 
@@ -19284,31 +19465,31 @@ Obrigado por nos ajudar a melhorar continuamente.
 
   // --- ROTAS DE PERMISSÕES DE EMPRESA ---
 
-  
+
 
   // Listar todas as empresas com suas permissões (apenas admin)
 
   router.get("/companies-permissions", authRequired, authorize(['admin']), getAllCompaniesPermissions);
 
-  
+
 
   // Buscar permissões de uma empresa específica (apenas admin)
 
   router.get("/company-permissions/:companyId", authRequired, authorize(['admin']), getCompanyPermissions);
 
-  
+
 
   // Atualizar permissões de uma empresa (apenas admin)
 
   router.put("/company-permissions/:companyId", authRequired, authorize(['admin']), updateCompanyPermissions);
 
-  
+
 
   // Buscar configurações de uso de IA para company_admin, manager e supervisor
 
   router.get("/settings/ai-usage", authRequired, authorize(['company_admin', 'manager', 'supervisor']), getAiUsageSettings);
 
-  
+
 
   // Atualizar configurações de uso de IA para company_admin, manager e supervisor
 
@@ -19326,41 +19507,41 @@ Obrigado por nos ajudar a melhorar continuamente.
 
   // === ROTAS DE RESOLUÇÃO DE SLA ===
 
-  
+
 
   // Resolver SLA para um ticket
 
   router.post("/sla/resolve", authRequired, resolveSLA);
 
-router.get("/sla/resolve", authRequired, async (req, res) => {
+  router.get("/sla/resolve", authRequired, async (req, res) => {
 
-  // Suporte para GET com query parameters (compatibilidade)
+    // Suporte para GET com query parameters (compatibilidade)
 
-  const { companyId, departmentId, incidentTypeId, categoryId, priority } = req.query;
+    const { companyId, departmentId, incidentTypeId, categoryId, priority } = req.query;
 
-  
 
-  // Converter para body format e chamar a função original
 
-  req.body = {
+    // Converter para body format e chamar a função original
 
-    companyId: parseInt(companyId as string),
+    req.body = {
 
-    departmentId: parseInt(departmentId as string),
+      companyId: parseInt(companyId as string),
 
-    incidentTypeId: parseInt(incidentTypeId as string),
+      departmentId: parseInt(departmentId as string),
 
-    categoryId: categoryId ? parseInt(categoryId as string) : undefined,
+      incidentTypeId: parseInt(incidentTypeId as string),
 
-    priority: priority as string
+      categoryId: categoryId ? parseInt(categoryId as string) : undefined,
 
-  };
+      priority: priority as string
 
-  
+    };
 
-  return resolveSLA(req, res);
 
-});
+
+    return resolveSLA(req, res);
+
+  });
 
 
 
@@ -19434,21 +19615,21 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
     }
 
-});
+  });
 
-  
+
 
   // Estatísticas do cache de SLA (apenas admins)
 
   router.get("/sla/cache/stats", authRequired, adminRequired, getCacheStats);
 
-  
+
 
   // Pré-carregar cache de SLA
 
   router.post("/sla/cache/preload", authRequired, adminRequired, preloadCache);
 
-  
+
 
   // Limpar cache expirado
 
@@ -19462,7 +19643,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   // === ROTAS DE CONFIGURAÇÕES SLA ===
 
-  
+
 
   // CRUD básico de configurações SLA
 
@@ -19476,7 +19657,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   router.delete("/sla-configurations/:id", authRequired, deleteSLAConfiguration);
 
-  
+
 
   // Bulk operations
 
@@ -19488,7 +19669,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   router.patch("/sla-configurations/bulk/toggle", authRequired, bulkToggleActiveSLAConfigurations);
 
-  
+
 
   // Operações especiais
 
@@ -19502,7 +19683,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   // === ROTAS DO DASHBOARD SLA ===
 
-  
+
 
   // Dashboard de estatísticas SLA
 
@@ -19516,7 +19697,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       const userId = req.session.userId;
 
-      
+
 
       if (!companyId) {
 
@@ -19526,9 +19707,9 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
 
 
-      let departmentIds = req.query.departments ? 
+      let departmentIds = req.query.departments ?
 
-        (req.query.departments as string).split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : 
+        (req.query.departments as string).split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) :
 
         undefined;
 
@@ -19558,7 +19739,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
         const currentOfficial = allOfficials.find(o => o.user_id === userId);
 
-        
+
 
         if (!currentOfficial) {
 
@@ -19584,11 +19765,11 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
           .where(eq(schema.officialDepartments.official_id, currentOfficial.id));
 
-        
+
 
         const managerDepartmentIds = managerDepartments.map(d => d.department_id).filter(id => id !== null);
 
-        
+
 
         if (managerDepartmentIds.length === 0) {
 
@@ -19646,11 +19827,11 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       console.error('Erro ao obter estatísticas do dashboard SLA:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        message: "Erro ao carregar estatísticas do dashboard SLA", 
+        message: "Erro ao carregar estatísticas do dashboard SLA",
 
-        error: String(error) 
+        error: String(error)
 
       });
 
@@ -19672,7 +19853,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       const userId = req.session.userId;
 
-      
+
 
       if (!companyId) {
 
@@ -19716,7 +19897,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
         const currentOfficial = allOfficials.find(o => o.user_id === userId);
 
-        
+
 
         if (!currentOfficial) {
 
@@ -19742,11 +19923,11 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
           .where(eq(schema.officialDepartments.official_id, currentOfficial.id));
 
-        
+
 
         const managerDepartmentIds = managerDepartments.map(d => d.department_id).filter(id => id !== null);
 
-        
+
 
         // Verificar se o manager tem acesso ao departamento específico
 
@@ -19774,11 +19955,11 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       console.error('Erro ao obter visão geral do departamento:', error);
 
-      res.status(500).json({ 
+      res.status(500).json({
 
-        message: "Erro ao carregar visão geral do departamento", 
+        message: "Erro ao carregar visão geral do departamento",
 
-        error: String(error) 
+        error: String(error)
 
       });
 
@@ -19798,7 +19979,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   // === NOVAS ROTAS PARA COMPANY_ADMIN ===
 
-  
+
 
   // Endpoint para listar usuários (todos para admin, apenas da empresa para outros)
 
@@ -19812,17 +19993,17 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       const userRole = req.session.userRole;
 
-      
+
 
       // Buscar usuários
 
-      const allUsers = includeInactive ? 
+      const allUsers = includeInactive ?
 
-        await storage.getAllUsers() : 
+        await storage.getAllUsers() :
 
         await storage.getActiveUsers();
 
-      
+
 
       // Filtrar usuários baseado no papel do usuário
 
@@ -19848,7 +20029,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       }
 
-      
+
 
       // Não retornar as senhas
 
@@ -19860,7 +20041,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       });
 
-      
+
 
       res.json(usersWithoutPasswords);
 
@@ -19874,7 +20055,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   });
 
-  
+
 
   // Endpoint para company_admin listar clientes da sua empresa
 
@@ -19884,7 +20065,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       const companyId = req.session.companyId;
 
-      
+
 
       if (!companyId) {
 
@@ -19892,19 +20073,19 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       }
 
-      
+
 
       // Buscar todos os clientes
 
       const allCustomers = await storage.getCustomers();
 
-      
+
 
       // Filtrar por empresa
 
       const companyCustomers = allCustomers.filter(customer => customer.company_id === companyId);
 
-      
+
 
       res.json(companyCustomers);
 
@@ -19918,7 +20099,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   });
 
-  
+
 
   // Endpoint para company_admin listar departamentos da sua empresa
 
@@ -19928,7 +20109,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       const companyId = req.session.companyId;
 
-      
+
 
       if (!companyId) {
 
@@ -19936,7 +20117,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       }
 
-      
+
 
       // Buscar departamentos da empresa
 
@@ -19950,7 +20131,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
         .orderBy(schema.departments.name);
 
-      
+
 
       res.json(departments);
 
@@ -20074,13 +20255,16 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
   app.use("/api/departments", departmentServiceProvidersRouter);
   app.use("/api/tickets", ticketServiceProvidersRouter);
 
-  
+
 
   // Registrar rotas de relatórios
 
   app.use("/api/reports", reportsRouter);
 
-  
+  // Registrar rotas de notificações
+  app.use("/api/notifications", notificationsRouter);
+
+
 
   // Rotas de pesquisa de satisfação (autenticadas para pendencias e publicas via token)
 
@@ -20091,7 +20275,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   router.post("/satisfaction-surveys/:token", satisfactionSurveyHandlers.POST);
 
-  
+
 
   // Rotas do dashboard de satisfação (com autenticação)
 
@@ -20103,7 +20287,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   router.get("/satisfaction-dashboard/export", authRequired, satisfactionDashboardHandlers.exportData);
 
-  
+
 
   // Webhook da ClickSign (sem autenticação padrão, mas com validação de secret)
   const clicksignWebhookHandlers = await import("./api/clicksign-webhook");
@@ -20111,13 +20295,13 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   app.use("/api", router);
 
-  
+
 
   // Criar servidor HTTP
 
   const httpServer = createServer(app);
 
-  
+
 
   // Interface para WebSocket com heartbeat
 
@@ -20127,13 +20311,13 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   }
 
-  
+
 
   // Configurar o servidor WebSocket com configurações mais flexíveis
 
-  const wss = new WebSocketServer({ 
+  const wss = new WebSocketServer({
 
-    server: httpServer, 
+    server: httpServer,
 
     path: '/ws',
 
@@ -20151,7 +20335,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       }
 
-      
+
 
       // Em produção, verificar origin
 
@@ -20185,7 +20369,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       ];
 
-      
+
 
       // Permitir origins conhecidos ou sem origin (requests diretos)
 
@@ -20197,7 +20381,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       }
 
-      
+
 
       // Permitir qualquer subdomínio dos domínios permitidos
 
@@ -20205,13 +20389,13 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
         '.oficinamuda.com.br',
 
-        '.ticketwise.com.br', 
+        '.ticketwise.com.br',
 
         '.vixbrasil.com'
 
       ];
 
-      
+
 
       for (const domain of allowedDomains) {
 
@@ -20225,7 +20409,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       }
 
-      
+
 
       // Permitir qualquer IP (regex para IPs)
 
@@ -20239,7 +20423,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       }
 
-      
+
 
       // Permitir localhost para testes
 
@@ -20251,7 +20435,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       }
 
-      
+
 
       console.log(`🚫 WebSocket bloqueado para origem: ${origin}`);
 
@@ -20261,7 +20445,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   });
 
-  
+
 
   // Lidar com conexões WebSocket de forma mais robusta
 
@@ -20269,7 +20453,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
     console.log(`Nova conexão WebSocket recebida de: ${req.socket.remoteAddress}`);
 
-    
+
 
     // Configurar heartbeat para manter conexão viva
 
@@ -20285,7 +20469,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
     });
 
-    
+
 
     // Autenticar o usuário e configurar a conexão
 
@@ -20295,7 +20479,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
         const data = JSON.parse(message.toString());
 
-        
+
 
         // Processar mensagem de autenticação
 
@@ -20305,7 +20489,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
           const userRole = data.userRole;
 
-          
+
 
           if (userId && userRole) {
 
@@ -20325,7 +20509,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
     });
 
-    
+
 
     // Lidar com fechamento da conexão
 
@@ -20337,7 +20521,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
     });
 
-    
+
 
     // Lidar com erros
 
@@ -20351,7 +20535,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   });
 
-  
+
 
   // Implementar heartbeat para manter conexões vivas
 
@@ -20363,7 +20547,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
     const hour = now.getHours();
 
-    
+
 
     // Não fazer heartbeat durante a madrugada (21h às 6h)
 
@@ -20373,7 +20557,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
     }
 
-    
+
 
     wss.clients.forEach((ws: WebSocketWithAlive) => {
 
@@ -20383,7 +20567,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
       }
 
-      
+
 
       ws.isAlive = false;
 
@@ -20393,7 +20577,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   }, 30000); // A cada 30 segundos
 
-  
+
 
   // Limpar interval quando servidor fechar
 
@@ -20403,7 +20587,7 @@ router.get("/sla/resolve", authRequired, async (req, res) => {
 
   });
 
-  
+
 
   return httpServer;
 

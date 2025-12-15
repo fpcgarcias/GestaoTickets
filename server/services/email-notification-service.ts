@@ -2471,6 +2471,10 @@ export class EmailNotificationService {
 
         // Notificar se estiver próximo do vencimento (apenas quando SLA ativo)
         if (hoursRemaining > 0 && hoursRemaining <= notificationThreshold) {
+          // 🔥 CORREÇÃO: Enviar notificação persistente + email
+          const { notificationService } = await import('./notification-service');
+          await notificationService.notifyTicketDueSoon(ticket.id, Math.round(hoursRemaining));
+          // Também enviar email (já estava fazendo)
           await this.notifyTicketDueSoon(ticket.id, Math.round(hoursRemaining));
         }
 
@@ -2481,6 +2485,14 @@ export class EmailNotificationService {
             .set({ sla_breached: true })
             .where(eq(tickets.id, ticket.id));
 
+          // 🔥 CORREÇÃO: Enviar notificação persistente + email
+          const { notificationService } = await import('./notification-service');
+          await notificationService.notifyTicketEscalated(
+            ticket.id,
+            undefined,
+            `Ticket escalado automaticamente por violação de SLA de ${typeLabel} (${targetSlaHours}h). Tempo efetivo decorrido: ${elapsedHours.toFixed(1)}h`
+          );
+          // Também enviar email (já estava fazendo)
           await this.notifyTicketEscalated(
             ticket.id,
             undefined,
