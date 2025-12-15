@@ -24,6 +24,7 @@ import NotificationSettings from "@/components/notification-settings";
 import EmailSettings from "@/components/email-settings";
 import AdvancedNotificationSettings from "@/components/advanced-notification-settings";
 import AiSettings from "@/components/ai-settings";
+import { PushNotificationManager } from "@/components/notifications/push-notification-manager";
 
 // A interface User local pode ser removida se a do hook global for suficiente.
 // A interface Company local pode ser removida.
@@ -429,15 +430,19 @@ export default function Settings() {
         )}
         
         <TabsContent value="notifications">
-          <Card>
-            <CardHeader>
-              <CardTitle>{formatMessage('settings.notification_settings')}</CardTitle>
-              <CardDescription>{formatMessage('settings.notification_settings_description')}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <NotificationSettings />
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <PushNotificationManager />
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>{formatMessage('settings.notification_settings')}</CardTitle>
+                <CardDescription>{formatMessage('settings.notification_settings_description')}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <NotificationSettings />
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

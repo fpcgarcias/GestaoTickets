@@ -140,6 +140,53 @@ export const logSecurity = (event: string, severity: 'low' | 'medium' | 'high' |
   });
 };
 
+// Função helper para logging completo de erros do sistema de notificações
+export const logNotificationError = (
+  operation: string,
+  error: any,
+  severity: 'info' | 'warning' | 'error' | 'critical' = 'error',
+  context?: {
+    userId?: number;
+    notificationId?: number;
+    ticketId?: number;
+    endpoint?: string;
+    [key: string]: any;
+  }
+) => {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const stackTrace = error instanceof Error ? error.stack : undefined;
+  
+  const logData = {
+    operation,
+    error: errorMessage,
+    stack: stackTrace,
+    severity,
+    timestamp: new Date().toISOString(),
+    ...context
+  };
+
+  // Log baseado na severidade
+  switch (severity) {
+    case 'critical':
+      logger.error(`[CRÍTICO] ${operation}: ${errorMessage}`, logData);
+      break;
+    case 'error':
+      logger.error(`[ERRO] ${operation}: ${errorMessage}`, logData);
+      break;
+    case 'warning':
+      logger.warn(`[AVISO] ${operation}: ${errorMessage}`, logData);
+      break;
+    case 'info':
+      logger.info(`[INFO] ${operation}: ${errorMessage}`, logData);
+      break;
+  }
+
+  // Para erros críticos, também registrar no log de segurança
+  if (severity === 'critical') {
+    logSecurity(`Critical notification system error: ${operation}`, 'critical', logData);
+  }
+};
+
 // Middleware para capturar logs não tratados
 if (process.env.NODE_ENV === 'production') {
   // Capturar console.log em produção

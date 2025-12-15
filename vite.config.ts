@@ -17,7 +17,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
-      disable: false,
+      disable: false, // Manter habilitado mas com configurações específicas
       manifest: {
         name: 'TicketWise - Sistema de Gestão de Tickets',
         short_name: 'TicketWise',
@@ -58,7 +58,9 @@ export default defineConfig({
         ]
       },
       devOptions: {
-        enabled: false
+        enabled: true, // Habilitar em desenvolvimento para testes
+        type: 'module',
+        navigateFallback: 'index.html'
       }
     }),
   ],
@@ -68,6 +70,8 @@ export default defineConfig({
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },
+    // Garantir que apenas uma versão do React seja usada
+    dedupe: ['react', 'react-dom']
   },
   root: path.resolve(import.meta.dirname, "client"),
   publicDir: path.resolve(import.meta.dirname, "client", "public"),
@@ -151,12 +155,19 @@ export default defineConfig({
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    },
+    // Configurações para resolver problemas de cache com React 19
+    watch: {
+      usePolling: true,
+      interval: 100
     }
   },
   optimizeDeps: {
     include: [
       'react',
       'react-dom',
+      'react/jsx-runtime',
+      'react/jsx-dev-runtime',
       '@tanstack/react-query',
       'react-hook-form',
       'date-fns',
@@ -164,13 +175,20 @@ export default defineConfig({
       'wouter',
       'lucide-react',
       'clsx',
-      'tailwind-merge'
+      'tailwind-merge',
+      'react-day-picker' // Garantir que o day-picker seja otimizado corretamente
     ],
     exclude: [
       '@aws-sdk/client-s3',
       '@aws-sdk/s3-request-presigner'
     ],
-    force: process.env.NODE_ENV === 'development'
+    force: process.env.NODE_ENV === 'development', // Forçar apenas em desenvolvimento
+    esbuildOptions: {
+      target: 'es2020',
+      // Configurações específicas para React 19
+      jsx: 'automatic',
+      jsxImportSource: 'react'
+    }
   },
   preview: {
     port: 4173,

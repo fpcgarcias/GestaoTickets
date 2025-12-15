@@ -340,6 +340,14 @@ export async function POST(req: Request, res: Response) {
       console.error('Erro ao importar serviço de email para notificação de resposta:', notificationError);
     }
 
+    // 🔔 ENVIAR NOTIFICAÇÃO PERSISTENTE DE NOVA RESPOSTA
+    try {
+      const { notificationService } = await import('../services/notification-service');
+      await notificationService.notifyNewReply(ticketId, sessionUserId);
+    } catch (notificationError) {
+      console.error('Erro ao enviar notificação de nova resposta:', notificationError);
+    }
+
     return res.status(201).json(createdReply);
   } catch (error) {
     console.error("Erro ao criar resposta:", error);

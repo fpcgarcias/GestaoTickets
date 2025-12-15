@@ -245,12 +245,17 @@ export default function TicketsIndex() {
   const assignTicketMutation = useMutation({
     mutationFn: async ({ ticketId, assignedToId }: { ticketId: number; assignedToId: number | null }) => {
       const response = await apiRequest('PATCH', `/api/tickets/${ticketId}`, { assigned_to_id: assignedToId });
+      // A API retorna o ticket atualizado, incluindo o código público (ticket_id)
       return response.json();
     },
     onSuccess: (data, variables) => {
+      // Usar o código público do ticket (ex.: 2025-T526132) nas mensagens de sucesso.
+      // Fallback para o ID interno apenas se o código ainda não estiver disponível.
+      const publicTicketCode = (data && (data.ticket_id || data.ticketCode)) ?? variables.ticketId;
+
       toast({
         title: formatMessage('tickets.assign.success'),
-        description: formatMessage('tickets.assign.success_desc', { ticketId: variables.ticketId }),
+        description: formatMessage('tickets.assign.success_desc', { ticketId: publicTicketCode }),
       });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets/user-role'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tickets/stats'] });

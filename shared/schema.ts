@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean, pgEnum, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, pgEnum, primaryKey, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -522,6 +522,47 @@ export const satisfactionSurveys = pgTable("satisfaction_surveys", {
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Tabela de notificações persistentes
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  user_id: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  priority: text("priority").notNull().default('medium'),
+  
+  // Metadados opcionais para contexto
+  ticket_id: integer("ticket_id").references(() => tickets.id, { onDelete: 'cascade' }),
+  ticket_code: text("ticket_code"),
+  
+  // Metadados adicionais em JSON
+  metadata: jsonb("metadata"),
+  
+  // Controle de leitura
+  read_at: timestamp("read_at"),
+  
+  // Timestamps
+  created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Tabela de push subscriptions para Web Push
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: serial("id").primaryKey(),
+  user_id: integer("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Dados da subscription do navegador
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh_key: text("p256dh_key").notNull(),
+  auth_key: text("auth_key").notNull(),
+  
+  // Metadados
+  user_agent: text("user_agent"),
+  
+  // Timestamps
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  last_used_at: timestamp("last_used_at"),
+});
+
 // Schema for inserting companies
 export const insertCompanySchema = createInsertSchema(companies).omit({
   id: true,
@@ -685,6 +726,19 @@ export const insertSatisfactionSurveySchema = createInsertSchema(satisfactionSur
   created_at: true,
 });
 
+// Schema for inserting notifications
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  created_at: true,
+});
+
+// Schema for inserting push subscriptions
+export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({
+  id: true,
+  created_at: true,
+  last_used_at: true,
+});
+
 // Types
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -806,6 +860,17 @@ export type SatisfactionSurvey = typeof satisfactionSurveys.$inferSelect & {
   company?: Partial<Company>;
 };
 export type InsertSatisfactionSurvey = z.infer<typeof insertSatisfactionSurveySchema>;
+
+export type Notification = typeof notifications.$inferSelect & {
+  user?: Partial<User>;
+  ticket?: Partial<Ticket>;
+};
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect & {
+  user?: Partial<User>;
+};
+export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
 
 // Relation declarations
 
@@ -1048,6 +1113,26 @@ export const ticketServiceProvidersRelations = relations(ticketServiceProviders,
   }),
   addedBy: one(users, {
     fields: [ticketServiceProviders.added_by_id],
+    references: [users.id],
+  }),
+}));
+
+// Relações para notificações
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.user_id],
+    references: [users.id],
+  }),
+  ticket: one(tickets, {
+    fields: [notifications.ticket_id],
+    references: [tickets.id],
+  }),
+}));
+
+// Relações para push subscriptions
+export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
+  user: one(users, {
+    fields: [pushSubscriptions.user_id],
     references: [users.id],
   }),
 }));
