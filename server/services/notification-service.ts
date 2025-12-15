@@ -1,10 +1,12 @@
 import { WebSocket } from 'ws';
 import { db } from '../db';
-import { tickets, users, ticketStatusHistory, userNotificationSettings, ticketParticipants, notifications, customers } from '@shared/schema';
+import { tickets, users, ticketStatusHistory, userNotificationSettings, ticketParticipants, notifications, customers, officials, officialDepartments } from '@shared/schema';
+import * as schema from '@shared/schema';
 import { eq, and, ne, isNull, sql, inArray } from 'drizzle-orm';
 import { emailNotificationService } from './email-notification-service';
 import { webPushService } from './web-push-service';
 import { logNotificationError } from './logger';
+import { STATUS_CONFIG } from '@shared/ticket-utils';
 
 interface NotificationPayload {
   type: string;
@@ -406,11 +408,44 @@ class NotificationService {
   public async sendNotificationToUser(userId: number, payload: NotificationPayload): Promise<void> {
     console.log(`[🔔 NOTIFICAÇÃO] 🚀 INICIANDO notificação para usuário ${userId}, tipo: ${payload.type}`);
 
+    // 🔥 VALIDAÇÃO: Verificar se userId existe na tabela users
+    try {
+      const [userExists] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!userExists) {
+        console.error(`[🔔 NOTIFICAÇÃO] ❌ Usuário ${userId} não encontrado na tabela users. Verifique se está passando user_id e não customer_id ou official_id.`);
+        logNotificationError(
+          'User ID validation failed',
+          new Error(`User ${userId} not found in users table`),
+          'error',
+          { userId, notificationType: payload.type, ticketId: payload.ticketId }
+        );
+        return;
+      }
+    } catch (validationError) {
+      console.error(`[🔔 NOTIFICAÇÃO] ❌ Erro ao validar userId ${userId}:`, validationError);
+      logNotificationError(
+        'User ID validation error',
+        validationError,
+        'error',
+        { userId, notificationType: payload.type }
+      );
+      return;
+    }
+
     // 1. PERSISTIR NOTIFICAÇÃO PRIMEIRO (Requirements 1.1, 1.2, 1.3)
+    console.log(`[🔔 NOTIFICAÇÃO] 💾 Tentando persistir notificação no banco de dados...`);
     const persistedNotification = await this.persistNotification(userId, payload);
 
     if (!persistedNotification) {
       console.error(`[🔔 NOTIFICAÇÃO] ⚠️ Falha na persistência, mas continuando com WebSocket (Requirement 7.3)`);
+      console.error(`[🔔 NOTIFICAÇÃO] ⚠️ Detalhes: userId=${userId}, type=${payload.type}, ticketId=${payload.ticketId || 'N/A'}`);
+    } else {
+      console.log(`[🔔 NOTIFICAÇÃO] ✅ Notificação persistida com sucesso: ID=${persistedNotification.id}`);
     }
 
     // 2. ENTREGAR VIA WEBSOCKET - SEMPRE TENTAR PRIMEIRO! (Requirement 1.2)
@@ -443,7 +478,8 @@ class NotificationService {
           await this.sendUnreadCountUpdate(userId);
         }
       } else {
-        console.log(`[🔔 WEBSOCKET] 📴 Usuário ${userId} NÃO TEM clientes WebSocket registrados`);
+        console.log(`[🔔 WEBSOCKET] 📴 Usuário ${userId} NÃO TEM clientes WebSocket registrados (usuário offline)`);
+        console.log(`[🔔 WEBSOCKET] 📴 Notificação foi persistida no banco e aparecerá quando o usuário acessar o sistema`);
       }
     } catch (error) {
       console.error(`[🔔 WEBSOCKET] ❌ ERRO ao enviar via WebSocket:`, error);
@@ -473,7 +509,8 @@ class NotificationService {
       // Continuar mesmo se email falhar
     }
 
-    console.log(`[🔔 NOTIFICAÇÃO] 🏁 FINALIZADA notificação para usuário ${userId}`);
+    console.log(`[🔔 NOTIFICAÇÃO] 🏁 FINALIZADA notificação para usuário ${userId}, tipo: ${payload.type}`);
+    console.log(`[🔔 NOTIFICAÇÃO] 📊 Resumo: Persistida=${persistedNotification ? 'SIM' : 'NÃO'}, WebSocket=${this.clients.has(userId) ? 'ONLINE' : 'OFFLINE'}`);
   }
 
   // Enviar notificação por email (usando o serviço real de email)
@@ -646,6 +683,12 @@ class NotificationService {
     }
   }
 
+  // 🔥 HELPER: Traduzir status para português
+  private translateStatus(status: string): string {
+    const statusKey = status as keyof typeof STATUS_CONFIG;
+    return STATUS_CONFIG[statusKey]?.label || status;
+  }
+
   // Notificar sobre uma atualização de status de ticket
   public async notifyTicketStatusUpdate(ticketId: number, oldStatus: string, newStatus: string): Promise<void> {
     try {
@@ -653,15 +696,9 @@ class NotificationService {
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
       if (!ticket) return;
 
-      // Obter o nome dos status (em português)
-      const statusNames: Record<string, string> = {
-        'new': 'Novo',
-        'ongoing': 'Em Andamento',
-        'resolved': 'Resolvido'
-      };
-
-      const oldStatusName = statusNames[oldStatus as keyof typeof statusNames] || oldStatus;
-      const newStatusName = statusNames[newStatus as keyof typeof statusNames] || newStatus;
+      // 🔥 CORREÇÃO: Usar STATUS_CONFIG para traduzir status
+      const oldStatusName = this.translateStatus(oldStatus);
+      const newStatusName = this.translateStatus(newStatus);
 
       // Notificar o cliente que abriu o ticket
       if (ticket.customer_id) {
@@ -1157,17 +1194,31 @@ class NotificationService {
 
       console.log(`[🔔 NOTIFICAÇÃO] Encontrados ${participants.length} participantes para notificar sobre mudança de status`);
 
+      // 🔥 CORREÇÃO: Traduzir status antes de usar na mensagem
+      const oldStatusTranslated = this.translateStatus(oldStatus);
+      const newStatusTranslated = this.translateStatus(newStatus);
+
       // Determinar prioridade baseada no novo status
       let priority: 'low' | 'medium' | 'high' | 'critical' = 'medium';
-      if (newStatus === 'resolved') priority = 'low';
-      else if (newStatus === 'in_progress') priority = 'high';
-      else if (newStatus === 'pending') priority = 'medium';
+      let title = 'Status do Ticket Alterado';
+      let message = `O status do ticket #${ticket.ticket_id}: "${ticket.title}" foi alterado de "${oldStatusTranslated}" para "${newStatusTranslated}" por ${changedBy.name}.`;
+      
+      // 🔥 MELHORIA: Mensagem específica para ticket resolvido
+      if (newStatus === 'resolved') {
+        priority = 'low';
+        title = 'Ticket Resolvido';
+        message = `O ticket #${ticket.ticket_id}: "${ticket.title}" foi resolvido por ${changedBy.name}.`;
+      } else if (newStatus === 'in_progress') {
+        priority = 'high';
+      } else if (newStatus === 'pending') {
+        priority = 'medium';
+      }
 
       // Criar payload de notificação
       const payload: NotificationPayload = {
         type: 'status_change',
-        title: 'Status do Ticket Alterado',
-        message: `O status do ticket #${ticket.ticket_id}: "${ticket.title}" foi alterado de "${oldStatus}" para "${newStatus}" por ${changedBy.name}.`,
+        title: title,
+        message: message,
         ticketId: ticket.id,
         ticketCode: ticket.ticket_id,
         timestamp: new Date(),
@@ -1175,8 +1226,17 @@ class NotificationService {
       };
 
       // Notificar o cliente (se aplicável)
-      if (ticket.customer_id && ticket.customer_id !== changedByUserId) {
-        this.sendNotificationToUser(ticket.customer_id, payload);
+      if (ticket.customer_id) {
+        // 🔥 CORREÇÃO: Converter customer_id para user_id
+        const [customer] = await db
+          .select({ user_id: customers.user_id })
+          .from(customers)
+          .where(eq(customers.id, ticket.customer_id))
+          .limit(1);
+
+        if (customer?.user_id && customer.user_id !== changedByUserId) {
+          this.sendNotificationToUser(customer.user_id, payload);
+        }
       }
 
       // 🔥 FASE 4.2: Notificar participantes
@@ -1184,7 +1244,7 @@ class NotificationService {
         const participantPayload: NotificationPayload = {
           type: 'status_change',
           title: 'Status do Ticket Alterado',
-          message: `O status do ticket #${ticket.ticket_id}: "${ticket.title}" foi alterado de "${oldStatus}" para "${newStatus}" por ${changedBy.name}.`,
+          message: `O status do ticket #${ticket.ticket_id}: "${ticket.title}" foi alterado de "${oldStatusTranslated}" para "${newStatusTranslated}" por ${changedBy.name}.`,
           ticketId: ticket.id,
           ticketCode: ticket.ticket_id,
           timestamp: new Date(),
@@ -1208,6 +1268,180 @@ class NotificationService {
         error,
         'error',
         { ticketId, oldStatus, newStatus }
+      );
+    }
+  }
+
+  // Notificar sobre vencimento de SLA (ticket próximo do vencimento)
+  public async notifyTicketDueSoon(ticketId: number, hoursUntilDue: number): Promise<void> {
+    try {
+      // Obter os detalhes do ticket
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket) return;
+
+      // Criar mensagem baseada nas horas até o vencimento
+      let message = '';
+      let priority: 'low' | 'medium' | 'high' | 'critical' = 'medium';
+      
+      if (hoursUntilDue <= 1) {
+        message = `O ticket #${ticket.ticket_id} vence em menos de 1 hora. Ação imediata necessária.`;
+        priority = 'critical';
+      } else if (hoursUntilDue <= 4) {
+        message = `O ticket #${ticket.ticket_id} vence em ${hoursUntilDue} horas. Atenção urgente necessária.`;
+        priority = 'high';
+      } else if (hoursUntilDue <= 24) {
+        message = `O ticket #${ticket.ticket_id} vence em ${hoursUntilDue} horas. Verifique o status.`;
+        priority = 'high';
+      } else {
+        const days = Math.ceil(hoursUntilDue / 24);
+        message = `O ticket #${ticket.ticket_id} vence em aproximadamente ${days} dias.`;
+        priority = 'medium';
+      }
+
+      const payload: NotificationPayload = {
+        type: 'ticket_due_soon',
+        title: 'Ticket Próximo do Vencimento',
+        message: message,
+        ticketId: ticket.id,
+        ticketCode: ticket.ticket_id,
+        timestamp: new Date(),
+        priority,
+        metadata: {
+          hoursUntilDue,
+          ticketId: ticket.id,
+          ticketCode: ticket.ticket_id
+        }
+      };
+
+      // Notificar atendente atribuído (se houver)
+      if (ticket.assigned_to_id) {
+        const [official] = await db
+          .select({ user_id: officials.user_id })
+          .from(officials)
+          .where(eq(officials.id, ticket.assigned_to_id))
+          .limit(1);
+
+        if (official?.user_id) {
+          await this.sendNotificationToUser(official.user_id, payload);
+        }
+      }
+
+      // Notificar atendentes do departamento
+      if (ticket.department_id) {
+        // 🔥 CORREÇÃO: Buscar user_id do atendente atribuído para excluir corretamente
+        let assignedUserId: number | null = null;
+        if (ticket.assigned_to_id) {
+          const [assignedOfficial] = await db
+            .select({ user_id: officials.user_id })
+            .from(officials)
+            .where(eq(officials.id, ticket.assigned_to_id))
+            .limit(1);
+          assignedUserId = assignedOfficial?.user_id || null;
+        }
+
+        const departmentUsers = await db
+          .select({
+            id: users.id,
+            name: users.name
+          })
+          .from(users)
+          .innerJoin(officials, eq(users.id, officials.user_id))
+          .innerJoin(officialDepartments, eq(officials.id, officialDepartments.official_id))
+          .where(and(
+            eq(officialDepartments.department_id, ticket.department_id),
+            eq(users.active, true),
+            eq(officials.is_active, true),
+            inArray(users.role, ['admin', 'support', 'manager', 'supervisor'] as any[]),
+            assignedUserId ? ne(users.id, assignedUserId) : undefined
+          ));
+
+        for (const user of departmentUsers) {
+          await this.sendNotificationToUser(user.id, payload);
+        }
+      }
+
+      console.log(`[🔔 NOTIFICAÇÃO] ✅ Notificação de vencimento de SLA enviada para ticket #${ticket.ticket_id}`);
+    } catch (error) {
+      logNotificationError(
+        'Ticket due soon notification failed',
+        error,
+        'error',
+        { ticketId, hoursUntilDue }
+      );
+    }
+  }
+
+  // Notificar sobre escalação de ticket
+  public async notifyTicketEscalated(ticketId: number, escalatedByUserId?: number, reason?: string): Promise<void> {
+    try {
+      // Obter os detalhes do ticket
+      const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
+      if (!ticket) return;
+
+      // Obter detalhes de quem escalou (se houver)
+      let escalatedBy: any = null;
+      if (escalatedByUserId) {
+        const [user] = await db.select().from(users).where(eq(users.id, escalatedByUserId));
+        escalatedBy = user;
+      }
+
+      const payload: NotificationPayload = {
+        type: 'ticket_escalated',
+        title: 'Ticket Escalado',
+        message: reason || `O ticket #${ticket.ticket_id} foi escalado${escalatedBy ? ` por ${escalatedBy.name}` : ''}.`,
+        ticketId: ticket.id,
+        ticketCode: ticket.ticket_id,
+        timestamp: new Date(),
+        priority: 'high',
+        metadata: {
+          reason,
+          escalatedByUserId,
+          ticketId: ticket.id,
+          ticketCode: ticket.ticket_id
+        }
+      };
+
+      // Notificar o cliente
+      if (ticket.customer_id) {
+        const [customer] = await db
+          .select({ user_id: customers.user_id })
+          .from(customers)
+          .where(eq(customers.id, ticket.customer_id))
+          .limit(1);
+
+        if (customer?.user_id) {
+          await this.sendNotificationToUser(customer.user_id, payload);
+        }
+      }
+
+      // Notificar administradores e suporte
+      await this.sendNotificationToAdmins(payload);
+      await this.sendNotificationToSupport(payload);
+
+      // Notificar participantes
+      const participants = await db
+        .select({
+          id: users.id,
+          name: users.name
+        })
+        .from(users)
+        .innerJoin(ticketParticipants, eq(users.id, ticketParticipants.user_id))
+        .where(and(
+          eq(ticketParticipants.ticket_id, ticketId),
+          eq(users.active, true)
+        ));
+
+      for (const participant of participants) {
+        await this.sendNotificationToUser(participant.id, payload);
+      }
+
+      console.log(`[🔔 NOTIFICAÇÃO] ✅ Notificação de escalação enviada para ticket #${ticket.ticket_id}`);
+    } catch (error) {
+      logNotificationError(
+        'Ticket escalated notification failed',
+        error,
+        'error',
+        { ticketId, escalatedByUserId }
       );
     }
   }

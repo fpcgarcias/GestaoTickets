@@ -2,8 +2,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
-// Importar cache manager para monitoramento em desenvolvimento
-import "./utils/cache-manager";
+
 
 // Importar Service Worker Manager
 import { ServiceWorkerManager } from "./services/service-worker-manager";
@@ -21,6 +20,7 @@ initializeServiceWorker();
 
 /**
  * Inicializa o Service Worker para notificações push
+ * Funciona em desenvolvimento E produção, mas com proteções para HMR
  */
 async function initializeServiceWorker() {
   try {
@@ -32,7 +32,9 @@ async function initializeServiceWorker() {
       return;
     }
 
-    // Aguardar um pouco para não interferir com o carregamento inicial
+    // Em desenvolvimento, aguardar mais tempo para evitar conflitos com HMR
+    const delay = process.env.NODE_ENV === 'development' ? 5000 : 2000;
+    
     setTimeout(async () => {
       try {
         // Verificar se já existe permissão concedida
@@ -57,7 +59,7 @@ async function initializeServiceWorker() {
       } catch (error) {
         console.error('[Main] Erro na inicialização do Service Worker:', error);
       }
-    }, 2000); // Aguardar 2 segundos após carregamento
+    }, delay);
     
   } catch (error) {
     console.error('[Main] Erro ao verificar suporte do Service Worker:', error);

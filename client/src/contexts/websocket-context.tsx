@@ -3,6 +3,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { config } from '@/lib/config';
 import { useBusinessHours } from '../hooks/use-business-hours';
+import { useI18n } from '@/i18n';
+import { translateNotification } from '@/utils/notification-i18n';
 
 interface NotificationPayload {
   type: string;
@@ -31,6 +33,7 @@ const WebSocketContext = createContext<WebSocketContextValue | undefined>(undefi
 
 export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
+  const { formatMessage, locale } = useI18n();
   const { toast } = useToast();
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
@@ -125,10 +128,9 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   useEffect(() => {
-    // Em desenvolvimento, sempre permitir conexão WebSocket
-    // Em produção, respeitar horário comercial (21h às 6h)
-    const isDevelopment = process.env.NODE_ENV === 'development';
-    if (!isAuthenticated || !user || (!isDevelopment && !isWithinAllowedHours)) {
+    // 🔥 CORREÇÃO: WebSocket sempre ativo quando usuário está autenticado
+    // Horário comercial afeta apenas emails, não notificações em tempo real
+    if (!isAuthenticated || !user) {
       if (socket) {
         socket.close();
         setSocket(null);
@@ -151,8 +153,8 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         };
         newSocket.send(JSON.stringify(authMessage));
         
-        // Recuperar notificações não lidas após autenticação (Requirement 1.4)
-        // Usar setTimeout para garantir que a autenticação foi processada
+        // 🔥 CORREÇÃO: Sempre recuperar notificações não lidas ao conectar/reconectar
+        // Isso garante que usuários offline vejam notificações ao voltar online
         setTimeout(() => {
           fetchUnreadNotifications();
         }, 100);
@@ -162,14 +164,10 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     newSocket.onclose = (event) => {
       setConnected(false);
       setSocket(null);
-      // Em desenvolvimento, sempre reconectar. Em produção, respeitar horário comercial
-      const isDevelopment = process.env.NODE_ENV === 'development';
-      if (event.code !== 1000 && isAuthenticated && (isDevelopment || isWithinAllowedHours)) {
+      // 🔥 CORREÇÃO: Sempre tentar reconectar se usuário ainda estiver autenticado
+      if (event.code !== 1000 && isAuthenticated && user) {
         setTimeout(() => {
-          // Reconectar apenas se ainda estiver no horário comercial ou em desenvolvimento
-          if (isDevelopment || isWithinAllowedHours) {
-            // A reconexão será feita pelo useEffect principal
-          }
+          // A reconexão será feita pelo useEffect principal
         }, 3000);
       }
     };
@@ -190,27 +188,30 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const notification = data.notification;
           
           // 🔥 FASE 4.2: Tratamento especial para notificações de participantes
+          // Traduzir título e mensagem da notificação
+          const translated = translateNotification(notification.title, notification.message, locale);
+          
           let toastVariant: 'default' | 'destructive' = 'default';
-          let toastTitle = notification.title;
-          let toastDescription = notification.message;
+          let toastTitle = translated.title;
+          let toastDescription = translated.message;
 
           // Personalizar toast baseado no tipo de notificação
           switch (notification.type) {
             case 'participant_added':
               toastVariant = 'default';
-              toastTitle = '👥 Participante Adicionado';
+              toastTitle = `👥 ${formatMessage('notifications.ui.toast_participant_added')}`;
               break;
             case 'participant_removed':
               toastVariant = 'destructive';
-              toastTitle = '👥 Participante Removido';
+              toastTitle = `👥 ${formatMessage('notifications.ui.toast_participant_removed')}`;
               break;
             case 'new_reply':
               toastVariant = notification.priority === 'critical' ? 'destructive' : 'default';
-              toastTitle = '💬 Nova Resposta';
+              toastTitle = `💬 ${formatMessage('notifications.ui.toast_new_reply')}`;
               break;
             case 'status_change':
               toastVariant = notification.priority === 'critical' ? 'destructive' : 'default';
-              toastTitle = '🔄 Status Alterado';
+              toastTitle = `🔄 ${formatMessage('notifications.ui.toast_status_changed')}`;
               break;
             default:
               toastVariant = notification.priority === 'critical' ? 'destructive' : 'default';
@@ -268,24 +269,6 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     };
   }, [isAuthenticated, user, toast]);
-
-  // Monitorar mudanças de horário para desconectar WebSocket fora do horário comercial
-  useEffect(() => {
-    const checkBusinessHours = () => {
-      if (!isWithinAllowedHours && socket) {
-        socket.close();
-        setSocket(null);
-        setConnected(false);
-      }
-    };
-
-    // Verificar a cada minuto se ainda está no horário comercial
-    // Só executar o intervalo se estiver no horário comercial ou se houver uma conexão ativa
-    if (isWithinAllowedHours || socket) {
-      const interval = setInterval(checkBusinessHours, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [socket, isWithinAllowedHours]);
 
   const markAllAsRead = () => {
     setUnreadCount(0);

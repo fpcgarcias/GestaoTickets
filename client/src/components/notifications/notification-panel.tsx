@@ -15,8 +15,10 @@ import {
 import { cn } from '@/lib/utils';
 import { useLocation } from 'wouter';
 import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR, enUS } from 'date-fns/locale';
 import { NotificationFilters } from './notification-filters';
+import { useI18n } from '@/i18n';
+import { translateNotification } from '@/utils/notification-i18n';
 
 interface NotificationPanelProps {
   open: boolean;
@@ -31,8 +33,8 @@ interface PersistentNotification {
   priority: 'low' | 'medium' | 'high' | 'critical';
   ticketId?: number;
   ticketCode?: string;
-  readAt?: Date;
-  createdAt: Date;
+  readAt?: Date | string | null; // Pode ser Date (local), string (do backend) ou null
+  createdAt: Date | string; // Pode ser Date (local) ou string (do backend)
 }
 
 /**
@@ -53,6 +55,14 @@ interface PersistentNotification {
  */
 export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onClose }) => {
   const [, setLocation] = useLocation();
+  // 🔥 CORREÇÃO: Usar hook useNotifications para sincronizar estado e contador
+  const { 
+    notifications: hookNotifications, 
+    markAsRead, 
+    markAllAsRead, 
+    refresh,
+    loading: hookLoading 
+  } = useNotifications();
   const [notifications, setNotifications] = useState<PersistentNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -98,11 +108,18 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
 
       const data = await response.json();
       
-      // Converter datas de string para Date
+      // 🔥 CORREÇÃO: Mapear campos snake_case do backend para camelCase do frontend
       const formattedNotifications = data.notifications.map((notif: any) => ({
-        ...notif,
-        createdAt: new Date(notif.createdAt),
-        readAt: notif.readAt ? new Date(notif.readAt) : undefined,
+        id: notif.id,
+        type: notif.type,
+        title: notif.title,
+        message: notif.message,
+        priority: notif.priority,
+        ticketId: notif.ticket_id,
+        ticketCode: notif.ticket_code,
+        createdAt: notif.created_at ? new Date(notif.created_at) : new Date(), // Backend retorna created_at
+        readAt: notif.read_at ? new Date(notif.read_at) : null, // Backend retorna read_at (null se não lida)
+        metadata: notif.metadata,
       }));
 
       if (append) {
@@ -125,7 +142,10 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
       setPage(1);
       setHasMore(true);
       fetchNotifications(1, false);
+      // 🔥 CORREÇÃO: Sincronizar com hook quando painel abre (sem incluir refresh nas deps para evitar loop)
+      refresh().catch(err => console.error('Erro ao sincronizar notificações:', err));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, filters]);
 
   // Implementar scroll infinito com Intersection Observer
@@ -161,19 +181,11 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
   // Marcar todas como lidas (Requirement 2.3)
   const handleMarkAllAsRead = async () => {
     try {
-      const response = await fetch('/api/notifications/read-all', {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Erro ao marcar todas como lidas');
-      }
-
-      // Atualizar estado local
+      // 🔥 CORREÇÃO: Usar função do hook para sincronizar com badge
+      await markAllAsRead();
+      // Recarregar notificações do servidor para garantir sincronização
+      await refresh();
+      // Atualizar estado local do painel também
       setNotifications(prev =>
         prev.map(notif => ({
           ...notif,
@@ -188,17 +200,15 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
   // Marcar como lida ao clicar (Requirement 2.1, 10.3)
   const handleNotificationClick = async (notification: PersistentNotification) => {
     // Marcar como lida se ainda não foi lida
-    if (!notification.readAt) {
+    if (!notification.readAt || notification.readAt === null) {
       try {
-        await fetch(`/api/notifications/${notification.id}/read`, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
-        // Atualizar estado local
+        // 🔥 CORREÇÃO: Usar função do hook para sincronizar com badge
+        await markAsRead(notification.id);
+        
+        // Recarregar notificações do servidor para garantir sincronização
+        await refresh();
+        
+        // Atualizar estado local do painel também
         setNotifications(prev =>
           prev.map(notif =>
             notif.id === notification.id
@@ -235,7 +245,7 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
       });
 
       if (!response.ok) {
-        throw new Error('Erro ao excluir notificação');
+        throw new Error(formatMessage('notifications.ui.delete_error'));
       }
 
       // Remover do estado local
@@ -248,12 +258,13 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
   // Formatar timestamp relativo (ex: "há 5 minutos")
   const formatRelativeTime = (date: Date): string => {
     try {
+      const dateFnsLocale = locale === 'en-US' ? enUS : ptBR;
       return formatDistanceToNow(date, {
         addSuffix: true,
-        locale: ptBR,
+        locale: dateFnsLocale,
       });
     } catch (error) {
-      return 'agora';
+      return locale === 'en-US' ? 'now' : 'agora';
     }
   };
 
@@ -277,15 +288,15 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
   const getPriorityBadge = (priority: string): { text: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' } => {
     switch (priority) {
       case 'critical':
-        return { text: 'Crítica', variant: 'destructive' };
+        return { text: formatMessage('settings.critical'), variant: 'destructive' };
       case 'high':
-        return { text: 'Alta', variant: 'default' };
+        return { text: formatMessage('settings.high'), variant: 'default' };
       case 'medium':
-        return { text: 'Média', variant: 'secondary' };
+        return { text: formatMessage('settings.medium'), variant: 'secondary' };
       case 'low':
-        return { text: 'Baixa', variant: 'outline' };
+        return { text: formatMessage('settings.low'), variant: 'outline' };
       default:
-        return { text: 'Média', variant: 'secondary' };
+        return { text: formatMessage('settings.medium'), variant: 'secondary' };
     }
   };
 
@@ -311,8 +322,8 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
     }
   };
 
-  // Contar notificações não lidas
-  const unreadCount = notifications.filter(n => !n.readAt).length;
+  // 🔥 CORREÇÃO: Contar notificações não lidas (readAt pode ser Date, string, null ou undefined)
+  const unreadCount = notifications.filter(n => !n.readAt || n.readAt === null).length;
 
   // Limpar filtros
   const handleClearFilters = () => {
@@ -405,62 +416,67 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
             )}
 
             {/* Lista de notificações */}
-            {notifications.map((notification) => (
-              <div
-                key={notification.id}
-                onClick={() => handleNotificationClick(notification)}
-                className={cn(
-                  'p-4 border-l-4 rounded-lg cursor-pointer transition-colors',
-                  'hover:bg-muted/50',
-                  getPriorityColor(notification.priority),
-                  !notification.readAt && 'bg-muted/30'
-                )}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">{getNotificationIcon(notification.type)}</span>
-                      <h4 className="font-medium text-sm truncate flex-1">
-                        {notification.title}
-                      </h4>
-                      <div className="flex items-center gap-1">
-                        {/* Badge de prioridade (Requirements 9.3) */}
-                        <Badge 
-                          variant={getPriorityBadge(notification.priority).variant} 
-                          className="text-xs"
-                        >
-                          {getPriorityBadge(notification.priority).text}
-                        </Badge>
-                        {!notification.readAt && (
-                          <Badge variant="secondary" className="text-xs">
-                            Nova
+            {notifications.map((notification) => {
+              // Traduzir título e mensagem
+              const translated = translateNotification(notification.title, notification.message, locale);
+              
+              return (
+                <div
+                  key={notification.id}
+                  onClick={() => handleNotificationClick(notification)}
+                  className={cn(
+                    'p-4 border-l-4 rounded-lg cursor-pointer transition-colors',
+                    'hover:bg-muted/50',
+                    getPriorityColor(notification.priority),
+                    !notification.readAt && 'bg-muted/30'
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">{getNotificationIcon(notification.type)}</span>
+                        <h4 className="font-medium text-sm truncate flex-1">
+                          {translated.title}
+                        </h4>
+                        <div className="flex items-center gap-1">
+                          {/* Badge de prioridade (Requirements 9.3) */}
+                          <Badge 
+                            variant={getPriorityBadge(notification.priority).variant} 
+                            className="text-xs"
+                          >
+                            {getPriorityBadge(notification.priority).text}
                           </Badge>
-                        )}
+                          {!notification.readAt && (
+                            <Badge variant="secondary" className="text-xs">
+                              {formatMessage('notifications.ui.new')}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {notification.message}
-                    </p>
-                    {notification.ticketCode && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Ticket: {notification.ticketCode}
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {translated.message}
                       </p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {formatRelativeTime(notification.createdAt)}
-                    </p>
+                      {notification.ticketCode && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatMessage('notifications.ui.ticket_label')} {notification.ticketCode}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {formatRelativeTime(notification.createdAt)}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 flex-shrink-0"
+                      onClick={(e) => handleDeleteNotification(e, notification.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 flex-shrink-0"
-                    onClick={(e) => handleDeleteNotification(e, notification.id)}
-                  >
-                    <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                  </Button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* Loading mais notificações */}
             {loading && notifications.length > 0 && (

@@ -2789,39 +2789,57 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       try {
         // Notificar o cliente do ticket
         if (ticket.customer_id) {
-          await notificationService.sendNotificationToUser(ticket.customer_id, {
-            type: 'ticket_assignment_updated',
-            ticketId: ticket.id,
-            ticketCode: ticket.ticket_id,
-            title: `Atribuição Atualizada: ${ticket.title}`,
-            message: `O ticket ${ticket.ticket_id} foi atribuído/desatribuído.`,
-            priority: 'medium',
-            timestamp: new Date(),
-            metadata: {
+          // 🔥 CORREÇÃO: Converter customer_id para user_id
+          const [customer] = await db
+            .select({ user_id: schema.customers.user_id })
+            .from(schema.customers)
+            .where(eq(schema.customers.id, ticket.customer_id))
+            .limit(1);
+
+          if (customer?.user_id) {
+            await notificationService.sendNotificationToUser(customer.user_id, {
+              type: 'ticket_assignment_updated',
               ticketId: ticket.id,
               ticketCode: ticket.ticket_id,
-              previousAssignedToId,
-              newAssignedToId: updateData.assigned_to_id
-            }
-          });
+              title: `Atribuição Atualizada: ${ticket.title}`,
+              message: `O ticket ${ticket.ticket_id} foi atribuído/desatribuído.`,
+              priority: 'medium',
+              timestamp: new Date(),
+              metadata: {
+                ticketId: ticket.id,
+                ticketCode: ticket.ticket_id,
+                previousAssignedToId,
+                newAssignedToId: updateData.assigned_to_id
+              }
+            });
+          }
         }
 
         // Notificar o usuário anteriormente atribuído (se houver)
         if (previousAssignedToId && previousAssignedToId !== updateData.assigned_to_id) {
-          await notificationService.sendNotificationToUser(previousAssignedToId, {
-            type: 'ticket_assignment_updated',
-            ticketId: ticket.id,
-            ticketCode: ticket.ticket_id,
-            title: `Ticket Desatribuído: ${ticket.title}`,
-            message: `O ticket ${ticket.ticket_id} foi desatribuído de você.`,
-            priority: 'medium',
-            timestamp: new Date(),
-            metadata: {
+          // 🔥 CORREÇÃO: Converter official_id para user_id
+          const [previousOfficial] = await db
+            .select({ user_id: schema.officials.user_id })
+            .from(schema.officials)
+            .where(eq(schema.officials.id, previousAssignedToId))
+            .limit(1);
+
+          if (previousOfficial?.user_id) {
+            await notificationService.sendNotificationToUser(previousOfficial.user_id, {
+              type: 'ticket_assignment_updated',
               ticketId: ticket.id,
               ticketCode: ticket.ticket_id,
-              action: 'unassigned'
-            }
-          });
+              title: `Ticket Desatribuído: ${ticket.title}`,
+              message: `O ticket ${ticket.ticket_id} foi desatribuído de você.`,
+              priority: 'medium',
+              timestamp: new Date(),
+              metadata: {
+                ticketId: ticket.id,
+                ticketCode: ticket.ticket_id,
+                action: 'unassigned'
+              }
+            });
+          }
         }
 
         // Notificar o novo usuário atribuído (se houver)
@@ -3228,7 +3246,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         try {
 
           // ✅ 1. Enviar notificação persistente via WebSocket
-          await notificationService.notifyTicketStatusUpdate(ticket.id, String(oldStatus), String(status));
+          // 🔥 CORREÇÃO: Usar notifyStatusChange (mais completo, notifica participantes)
+          await notificationService.notifyStatusChange(
+            ticket.id,
+            String(oldStatus),
+            String(status),
+            req.session?.userId || 0
+          );
 
           // ✅ 2. Enviar notificação de email para mudança de status
 
@@ -3249,18 +3273,20 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             try {
 
-              emailNotificationService.notifyTicketEscalated(
-
+              // 🔥 CORREÇÃO: Enviar notificação persistente + email
+              await notificationService.notifyTicketEscalated(
                 ticket.id,
-
                 req.session?.userId,
-
                 `Ticket escalado manualmente por ${req.session?.adUsername || 'usuário'}`
+              );
 
-              )!!!.catch((escalationError) => {
-
+              // Também enviar email
+              emailNotificationService.notifyTicketEscalated(
+                ticket.id,
+                req.session?.userId,
+                `Ticket escalado manualmente por ${req.session?.adUsername || 'usuário'}`
+              ).catch((escalationError) => {
                 console.error(`[📧 EMAIL] ❌ Erro ao enviar notificação de escalação:`, escalationError);
-
               });
 
             } catch (escalationError) {
@@ -4261,7 +4287,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         await notificationService.sendNotificationToSupport({
           type: 'new_ticket',
           title: 'Novo Chamado Recebido',
-          message: `Novo chamado ${ticket.ticket_id} de ${ticketData.customer_name || ticketData.customer_email}`,
+          message: `Novo chamado ${ticket.ticket_id} de ${existingCustomer?.name || (req.body.customer_name as string) || ticketData.customer_email || 'Cliente'}`,
           priority: (finalPriority === 'critical' || finalPriority === 'high') ? 'high' : 'medium',
           ticketId: ticket.id,
           ticketCode: ticket.ticket_id,
@@ -19060,12 +19086,16 @@ Obrigado por nos ajudar a melhorar continuamente.
 
 
 
-      await emailNotificationService.notifyTicketEscalated(
-
+      // 🔥 CORREÇÃO: Enviar notificação persistente + email
+      await notificationService.notifyTicketEscalated(
         ticketId,
-
         req.session?.userId,
+        reason || "Ticket escalado manualmente por administrador"
+      );
 
+      await emailNotificationService.notifyTicketEscalated(
+        ticketId,
+        req.session?.userId,
         reason || "Ticket escalado manualmente por administrador"
 
       );

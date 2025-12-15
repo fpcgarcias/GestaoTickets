@@ -5,6 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "tsx server/index.ts",
+    "dev:clean": "npm run clear-cache && npm run dev",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/server.js",
     "build:analyze": "vite build --mode analyze && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/server.js",
     "build:prod": "NODE_ENV=production vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/server.js",
@@ -22,7 +23,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "clear-cache": "node scripts/clear-cache.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.896.0",

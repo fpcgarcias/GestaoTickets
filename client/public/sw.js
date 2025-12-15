@@ -1,5 +1,6 @@
 // Service Worker para Web Push Notifications
 // Sistema de Notificações Persistentes
+// Compatível com desenvolvimento (não interfere com HMR)
 
 const CACHE_NAME = 'ticketwise-v1';
 const urlsToCache = [
@@ -10,25 +11,41 @@ const urlsToCache = [
   '/pwa-96x96.png'
 ];
 
+// Detectar se está em desenvolvimento
+const isDevelopment = self.location.hostname === 'localhost' || 
+                     self.location.hostname === '127.0.0.1' ||
+                     self.location.port === '5173';
+
 // Event listener para instalação do Service Worker
 self.addEventListener('install', (event) => {
   console.log('[SW] Service Worker instalando...');
   
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[SW] Cache aberto');
-        return cache.addAll(urlsToCache);
-      })
-      .then(() => {
-        console.log('[SW] Service Worker instalado com sucesso');
-        // Força a ativação imediata do novo Service Worker
+  if (isDevelopment) {
+    console.log('[SW] Modo desenvolvimento - cache simplificado');
+    // Em desenvolvimento, não fazer cache de recursos para não interferir com HMR
+    event.waitUntil(
+      Promise.resolve().then(() => {
+        console.log('[SW] Service Worker instalado (desenvolvimento)');
         return self.skipWaiting();
       })
-      .catch((error) => {
-        console.error('[SW] Erro durante instalação:', error);
-      })
-  );
+    );
+  } else {
+    // Em produção, fazer cache normal
+    event.waitUntil(
+      caches.open(CACHE_NAME)
+        .then((cache) => {
+          console.log('[SW] Cache aberto');
+          return cache.addAll(urlsToCache);
+        })
+        .then(() => {
+          console.log('[SW] Service Worker instalado com sucesso');
+          return self.skipWaiting();
+        })
+        .catch((error) => {
+          console.error('[SW] Erro durante instalação:', error);
+        })
+    );
+  }
 });
 
 // Event listener para ativação do Service Worker
@@ -271,6 +288,25 @@ function markNotificationAsRead(notificationId) {
 
 // Event listener para fetch (cache de recursos)
 self.addEventListener('fetch', (event) => {
+  // IMPORTANTE: Em desenvolvimento, não interceptar requisições do Vite HMR
+  const url = new URL(event.request.url);
+  
+  // Não interceptar requisições do Vite em desenvolvimento
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+    // Permitir requisições do HMR, WebSocket, e recursos do Vite
+    if (url.pathname.includes('/@vite/') || 
+        url.pathname.includes('/@fs/') ||
+        url.pathname.includes('/@id/') ||
+        url.pathname.includes('/node_modules/') ||
+        url.pathname.includes('/__vite_ping') ||
+        url.pathname.includes('/src/') ||
+        url.searchParams.has('import') ||
+        url.searchParams.has('t') || // Vite timestamp
+        event.request.headers.get('sec-fetch-dest') === 'empty') {
+      return; // Deixar o Vite gerenciar
+    }
+  }
+  
   // Apenas cachear recursos GET
   if (event.request.method !== 'GET') {
     return;
@@ -278,6 +314,14 @@ self.addEventListener('fetch', (event) => {
   
   // Não cachear APIs
   if (event.request.url.includes('/api/')) {
+    return;
+  }
+  
+  // Apenas em produção fazer cache agressivo
+  const isProduction = !url.hostname.includes('localhost') && !url.hostname.includes('127.0.0.1');
+  
+  if (!isProduction) {
+    // Em desenvolvimento, apenas passar a requisição sem cache
     return;
   }
   

@@ -118,11 +118,26 @@ export function useNotifications(): UseNotificationsReturn {
       
       const data = await response.json();
       
-      // Atualizar estado com notificações
+      // 🔥 CORREÇÃO: Mapear campos snake_case do backend para camelCase do frontend
+      const formattedNotifications = data.notifications.map((notif: any) => ({
+        id: notif.id,
+        userId: notif.user_id,
+        type: notif.type,
+        title: notif.title,
+        message: notif.message,
+        priority: notif.priority as 'low' | 'medium' | 'high' | 'critical',
+        ticketId: notif.ticket_id,
+        ticketCode: notif.ticket_code,
+        metadata: notif.metadata,
+        readAt: notif.read_at || null, // Backend retorna read_at (pode ser null)
+        createdAt: notif.created_at, // Backend retorna created_at
+      }));
+      
+      // Atualizar estado com notificações formatadas
       if (append) {
-        setNotifications(prev => [...prev, ...data.notifications]);
+        setNotifications(prev => [...prev, ...formattedNotifications]);
       } else {
-        setNotifications(data.notifications);
+        setNotifications(formattedNotifications);
       }
       
       // Atualizar paginação
@@ -169,14 +184,19 @@ export function useNotifications(): UseNotificationsReturn {
       
       const data = await response.json();
       
-      // Atualizar notificação localmente
+      // 🔥 CORREÇÃO: Atualizar notificação localmente com timestamp correto
+      const now = new Date().toISOString();
       setNotifications(prev =>
         prev.map(notif =>
           notif.id === id
-            ? { ...notif, readAt: new Date().toISOString() }
+            ? { ...notif, readAt: now }
             : notif
         )
       );
+      
+      // 🔥 CORREÇÃO: Recarregar notificações do servidor para garantir sincronização
+      // Isso garante que após recarregar a página, as notificações continuem marcadas como lidas
+      await loadNotifications(currentPage, false);
       
       // Sincronizar contador via WebSocket (Requirement 6.5)
       // O contador será atualizado automaticamente pelo WebSocket através da mensagem 'unread_count_update'
@@ -186,7 +206,7 @@ export function useNotifications(): UseNotificationsReturn {
       console.error('[useNotifications] Erro ao marcar como lida:', error);
       throw error;
     }
-  }, []);
+  }, [loadNotifications, currentPage]);
   
   /**
    * Marca todas as notificações como lidas
@@ -215,6 +235,10 @@ export function useNotifications(): UseNotificationsReturn {
         prev.map(notif => ({ ...notif, readAt: now }))
       );
       
+      // 🔥 CORREÇÃO: Recarregar notificações do servidor para garantir sincronização
+      // Isso garante que após recarregar a página, as notificações continuem marcadas como lidas
+      await loadNotifications(1, false);
+      
       // Sincronizar contador via WebSocket (Requirement 6.5)
       // O contador será atualizado automaticamente pelo WebSocket através da mensagem 'unread_count_update'
       // Não precisamos atualizar manualmente aqui
@@ -223,7 +247,7 @@ export function useNotifications(): UseNotificationsReturn {
       console.error('[useNotifications] Erro ao marcar todas como lidas:', error);
       throw error;
     }
-  }, []);
+  }, [loadNotifications]);
   
   /**
    * Exclui uma notificação
@@ -318,9 +342,15 @@ export function useNotifications(): UseNotificationsReturn {
     }
   }, [wsContext.notifications]);
   
-  // Calcular contador de não lidas baseado nas notificações persistentes
-  const persistentUnreadCount = notifications.filter(notif => !notif.readAt).length;
-  const finalUnreadCount = Math.max(wsContext.unreadCount, persistentUnreadCount);
+  // 🔥 CORREÇÃO: Contador de não lidas
+  // Regra:
+  // - Quando o WebSocket estiver conectado, confiar no contador vindo do servidor (`wsContext.unreadCount`),
+  //   que já leva em conta todas as operações (inclusive "marcar todas como lidas") para o usuário.
+  // - Como fallback (ex.: sem conexão WebSocket), usar o contador calculado localmente a partir das notificações persistentes.
+  const persistentUnreadCount = notifications.filter(
+    notif => !notif.readAt || notif.readAt === null
+  ).length;
+  const finalUnreadCount = wsContext.connected ? wsContext.unreadCount : persistentUnreadCount;
   
 
   
