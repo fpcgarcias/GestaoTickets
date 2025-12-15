@@ -1,6 +1,6 @@
 import { WebSocket } from 'ws';
 import { db } from '../db';
-import { tickets, users, ticketStatusHistory, userNotificationSettings, ticketParticipants, notifications } from '@shared/schema';
+import { tickets, users, ticketStatusHistory, userNotificationSettings, ticketParticipants, notifications, customers } from '@shared/schema';
 import { eq, and, ne, isNull, sql, inArray } from 'drizzle-orm';
 import { emailNotificationService } from './email-notification-service';
 import { webPushService } from './web-push-service';
@@ -46,12 +46,12 @@ class NotificationService {
   private clients: Map<number, WebSocketWithUser[]> = new Map();
   private adminClients: WebSocketWithUser[] = [];
   private supportClients: WebSocketWithUser[] = [];
-  
+
   constructor() {
     // Inicializar os ouvintes de eventos do banco de dados aqui
     this.setupEventListeners();
   }
-  
+
   /**
    * Persiste uma notificação no banco de dados e envia via Web Push se usuário estiver offline
    * @private
@@ -62,7 +62,7 @@ class NotificationService {
   private async persistNotification(userId: number, payload: NotificationPayload): Promise<PersistentNotification | null> {
     try {
       console.log(`[💾 PERSISTÊNCIA] Salvando notificação para usuário ${userId}, tipo: ${payload.type}`);
-      
+
       // Validar e normalizar prioridade (Requirements 9.1, 9.5)
       const validatedPriority = validatePriority(payload.priority);
 
@@ -81,9 +81,9 @@ class NotificationService {
           // Remover created_at para usar o DEFAULT do banco
         })
         .returning();
-      
+
       console.log(`[💾 PERSISTÊNCIA] ✅ Notificação ${notification.id} salva com sucesso`);
-      
+
       const persistedNotification: PersistentNotification = {
         id: notification.id,
         userId: notification.user_id,
@@ -101,17 +101,17 @@ class NotificationService {
       // 🔥 INTEGRAÇÃO WEB PUSH (Requirements 3.4, 7.2, 9.2)
       // Verificar se usuário está offline e enviar Web Push
       const isOnline = this.isUserOnline(userId);
-      
+
       if (!isOnline) {
         console.log(`[📱 WEB PUSH] Usuário ${userId} offline, verificando push subscriptions`);
-        
+
         try {
           // Buscar push subscriptions do banco
           const subscriptions = await webPushService.getSubscriptions(userId);
-          
+
           if (subscriptions.length > 0) {
             console.log(`[📱 WEB PUSH] Encontradas ${subscriptions.length} subscriptions para usuário ${userId}`);
-            
+
             // Enviar notificação via Web Push
             // Converter para o formato esperado pelo WebPushService (null -> undefined)
             await webPushService.sendPushNotification(userId, {
@@ -127,7 +127,7 @@ class NotificationService {
               readAt: persistedNotification.readAt ?? undefined,
               createdAt: persistedNotification.createdAt,
             });
-            
+
             console.log(`[📱 WEB PUSH] ✅ Web Push enviado para usuário ${userId}`);
           } else {
             console.log(`[📱 WEB PUSH] Nenhuma subscription encontrada para usuário ${userId}`);
@@ -151,7 +151,7 @@ class NotificationService {
       } else {
         console.log(`[📱 WEB PUSH] Usuário ${userId} online, Web Push não necessário`);
       }
-      
+
       return persistedNotification;
     } catch (error) {
       // Requirement 7.3: Se persistência falhar, registrar erro crítico
@@ -164,7 +164,7 @@ class NotificationService {
       return null;
     }
   }
-  
+
   /**
    * Verifica se um usuário está online (conectado via WebSocket)
    * @private
@@ -177,15 +177,15 @@ class NotificationService {
       console.log(`[🔔 ONLINE CHECK] Usuário ${userId} OFFLINE - sem clientes WebSocket`);
       return false;
     }
-    
+
     // Verificar se pelo menos um cliente está com conexão ativa
     const activeClients = userClients.filter(client => client.readyState === WebSocket.OPEN);
     const isOnline = activeClients.length > 0;
-    
+
     console.log(`[🔔 ONLINE CHECK] Usuário ${userId} ${isOnline ? 'ONLINE' : 'OFFLINE'} - ${activeClients.length}/${userClients.length} clientes ativos`);
     return isOnline;
   }
-  
+
   /**
    * Envia atualização de contador de notificações não lidas via WebSocket
    * Requirements: 6.5 - Sincronização de contador via WebSocket
@@ -197,7 +197,7 @@ class NotificationService {
       if (!this.isUserOnline(userId)) {
         return;
       }
-      
+
       // Calcular contador de não lidas
       const [{ count: unreadCount }] = await db
         .select({ count: sql<number>`count(*)::int` })
@@ -206,7 +206,7 @@ class NotificationService {
           eq(notifications.user_id, userId),
           isNull(notifications.read_at)
         ));
-      
+
       // Enviar atualização via WebSocket
       const userClients = this.clients.get(userId)!;
       for (const client of userClients) {
@@ -228,14 +228,14 @@ class NotificationService {
       );
     }
   }
-  
+
   // Método para adicionar uma conexão WebSocket
   public addClient(ws: WebSocketWithUser, userId: number, userRole: string): void {
     ws.userId = userId;
     ws.userRole = userRole;
-    
+
     console.log(`[🔔 WEBSOCKET] 🔌 ADICIONANDO cliente WebSocket para usuário ID: ${userId}, Função: ${userRole}`);
-    
+
     // Adicionar ao grupo específico com base na função
     if (userRole === 'admin') {
       this.adminClients.push(ws);
@@ -244,47 +244,47 @@ class NotificationService {
       this.supportClients.push(ws);
       console.log(`[🔔 WEBSOCKET] 🛠️ Usuário ${userId} adicionado ao SUPORTE`);
     }
-    
+
     // Adicionar à lista de clientes por ID do usuário
     if (!this.clients.has(userId)) {
       this.clients.set(userId, []);
     }
     this.clients.get(userId)!.push(ws);
-    
+
     console.log(`[🔔 WEBSOCKET] ✅ Cliente WebSocket REGISTRADO para usuário ID: ${userId}`);
     console.log(`[🔔 WEBSOCKET] 📊 Total de clientes WebSocket conectados: ${this.getTotalClients()}`);
     console.log(`[🔔 WEBSOCKET] 📊 Usuário ${userId} agora tem ${this.clients.get(userId)!.length} conexões`);
   }
-  
+
   // Método para remover uma conexão WebSocket
   public removeClient(ws: WebSocketWithUser): void {
     const userId = ws.userId;
     const userRole = ws.userRole;
-    
+
     if (!userId) return;
-    
+
     // Remover dos grupos específicos
     if (userRole === 'admin') {
       this.adminClients = this.adminClients.filter(client => client !== ws);
     } else if (userRole === 'support') {
       this.supportClients = this.supportClients.filter(client => client !== ws);
     }
-    
+
     // Remover da lista por ID do usuário
     if (this.clients.has(userId)) {
       const userClients = this.clients.get(userId)!;
       this.clients.set(userId, userClients.filter(client => client !== ws));
-      
+
       // Se não houver mais clientes para este usuário, remover o item do mapa
       if (this.clients.get(userId)!.length === 0) {
         this.clients.delete(userId);
       }
     }
-    
+
     console.log(`Cliente WebSocket removido para usuário ID: ${userId}, Função: ${userRole}`);
     console.log(`Total de clientes WebSocket conectados: ${this.getTotalClients()}`);
   }
-  
+
   // Verificar apenas se o tipo de notificação está habilitado (sem verificar horário)
   private async shouldNotifyWebSocketByType(userId: number, notificationType: string): Promise<boolean> {
     try {
@@ -363,7 +363,7 @@ class NotificationService {
       // Verificar horário
       const startHour = settings.notification_hours_start || 9;
       const endHour = settings.notification_hours_end || 18;
-      
+
       if (currentHour < startHour || currentHour >= endHour) {
         console.log(`Notificação bloqueada para usuário ${userId}: fora do horário (${currentHour}h, permitido: ${startHour}h-${endHour}h)`);
         return false;
@@ -405,22 +405,22 @@ class NotificationService {
   // Enviar notificação para um usuário específico (com verificação de configurações)
   public async sendNotificationToUser(userId: number, payload: NotificationPayload): Promise<void> {
     console.log(`[🔔 NOTIFICAÇÃO] 🚀 INICIANDO notificação para usuário ${userId}, tipo: ${payload.type}`);
-    
+
     // 1. PERSISTIR NOTIFICAÇÃO PRIMEIRO (Requirements 1.1, 1.2, 1.3)
     const persistedNotification = await this.persistNotification(userId, payload);
-    
+
     if (!persistedNotification) {
       console.error(`[🔔 NOTIFICAÇÃO] ⚠️ Falha na persistência, mas continuando com WebSocket (Requirement 7.3)`);
     }
-    
+
     // 2. ENTREGAR VIA WEBSOCKET - SEMPRE TENTAR PRIMEIRO! (Requirement 1.2)
     try {
       console.log(`[🔔 WEBSOCKET] 🔍 Verificando se usuário ${userId} está online...`);
-      
+
       if (this.clients.has(userId)) {
         const userClients = this.clients.get(userId)!;
         console.log(`[🔔 WEBSOCKET] 📱 Usuário ${userId} tem ${userClients.length} clientes WebSocket`);
-        
+
         let notificationSent = false;
         for (const client of userClients) {
           if (client.readyState === WebSocket.OPEN) {
@@ -436,7 +436,7 @@ class NotificationService {
             console.log(`[🔔 WEBSOCKET] ⚠️ Cliente WebSocket não está aberto (readyState: ${client.readyState})`);
           }
         }
-        
+
         if (notificationSent) {
           // 🔥 SINCRONIZAÇÃO DE CONTADOR VIA WEBSOCKET (Requirement 6.5)
           // Após criar notificação, enviar contador atualizado via WebSocket
@@ -472,7 +472,7 @@ class NotificationService {
       );
       // Continuar mesmo se email falhar
     }
-    
+
     console.log(`[🔔 NOTIFICAÇÃO] 🏁 FINALIZADA notificação para usuário ${userId}`);
   }
 
@@ -482,7 +482,7 @@ class NotificationService {
       // DESABILITADO: E-mails são enviados diretamente pelos endpoints em routes.ts
       // para evitar duplicação. Este método agora é um no-op.
       return;
-      
+
       // Código original comentado para referência:
       /*
       // Tipos de notificação que não devem gerar email
@@ -555,17 +555,17 @@ class NotificationService {
         );
       }
       */
-      
+
     } catch (error) {
       logNotificationError(
         'Email notification service failed',
         error,
         'error',
-        { userId, ticketId, notificationType: 'email' }
+        { userId, notificationType: payload.type }
       );
     }
   }
-  
+
   // Enviar notificação para todos os administradores
   public async sendNotificationToAdmins(payload: NotificationPayload): Promise<void> {
     // Buscar todos os usuários admin
@@ -576,15 +576,15 @@ class NotificationService {
         eq(users.role, 'admin'),
         eq(users.active, true)
       ));
-    
+
     console.log(`[🔔 NOTIFICAÇÃO] Enviando para ${admins.length} administradores`);
-    
+
     // Enviar notificação para cada admin (que irá persistir automaticamente)
     for (const admin of admins) {
       await this.sendNotificationToUser(admin.id, payload);
     }
   }
-  
+
   // Enviar notificação para todos os agentes de suporte
   public async sendNotificationToSupport(payload: NotificationPayload): Promise<void> {
     // Buscar todos os usuários de suporte no banco (support, manager, supervisor)
@@ -594,29 +594,29 @@ class NotificationService {
       .from(users)
       .where(and(
         eq(users.active, true),
-        inArray(users.role, supportRoles)
+        inArray(users.role, supportRoles as any[])
       ));
-    
+
     console.log(`[🔔 NOTIFICAÇÃO] Enviando para ${supportUsers.length} agentes de suporte`);
-    
+
     // Enviar notificação para cada agente (que irá persistir automaticamente)
     for (const support of supportUsers) {
       await this.sendNotificationToUser(support.id, payload);
     }
   }
-  
+
   // Método sendNotificationToAll removido - todas as notificações agora usam o sistema persistente
   // Use sendNotificationToUser, sendNotificationToSupport ou sendNotificationToAdmins
-  
+
   // Notificar sobre a criação de um novo ticket
   public async notifyNewTicket(ticketId: number): Promise<void> {
     try {
       // Obter os detalhes do ticket
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
       if (!ticket) return;
-      
+
       console.log(`[🔔 NEW TICKET] 🎫 Iniciando notificação para novo ticket #${ticket.ticket_id}`);
-      
+
       // Notificar administradores e agentes de suporte
       const payload: NotificationPayload = {
         type: 'new_ticket',
@@ -627,13 +627,13 @@ class NotificationService {
         timestamp: new Date(),
         priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
       };
-      
+
       console.log(`[🔔 NEW TICKET] 📢 Enviando para administradores...`);
       await this.sendNotificationToAdmins(payload);
-      
+
       console.log(`[🔔 NEW TICKET] 📢 Enviando para agentes de suporte...`);
       await this.sendNotificationToSupport(payload);
-      
+
       console.log(`[🔔 NEW TICKET] ✅ Notificação enviada para novo ticket #${ticket.ticket_id}`);
     } catch (error) {
       console.error(`[🔔 NEW TICKET] ❌ Erro ao notificar novo ticket:`, error);
@@ -641,28 +641,28 @@ class NotificationService {
         'New ticket notification failed',
         error,
         'error',
-        { ticketId, ticketCode: ticket?.ticket_id }
+        { ticketId }
       );
     }
   }
-  
+
   // Notificar sobre uma atualização de status de ticket
   public async notifyTicketStatusUpdate(ticketId: number, oldStatus: string, newStatus: string): Promise<void> {
     try {
       // Obter os detalhes do ticket
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
       if (!ticket) return;
-      
+
       // Obter o nome dos status (em português)
       const statusNames: Record<string, string> = {
         'new': 'Novo',
         'ongoing': 'Em Andamento',
         'resolved': 'Resolvido'
       };
-      
+
       const oldStatusName = statusNames[oldStatus as keyof typeof statusNames] || oldStatus;
       const newStatusName = statusNames[newStatus as keyof typeof statusNames] || newStatus;
-      
+
       // Notificar o cliente que abriu o ticket
       if (ticket.customer_id) {
         const payload: NotificationPayload = {
@@ -674,18 +674,18 @@ class NotificationService {
           timestamp: new Date(),
           priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
         };
-        
+
         // Obter o ID do usuário associado ao cliente
-        const [user] = await db
-          .select()
-          .from(users)
-          .where(eq(users.id, ticket.customer_id));
-          
-        if (user) {
-          this.sendNotificationToUser(user.id, payload);
+        const [customer] = await db
+          .select({ user_id: customers.user_id })
+          .from(customers)
+          .where(eq(customers.id, ticket.customer_id));
+
+        if (customer && customer.user_id) {
+          this.sendNotificationToUser(customer.user_id, payload);
         }
       }
-      
+
       // Notificar administradores e agentes de suporte
       const adminPayload: NotificationPayload = {
         type: 'status_update',
@@ -696,32 +696,32 @@ class NotificationService {
         timestamp: new Date(),
         priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
       };
-      
+
       this.sendNotificationToAdmins(adminPayload);
       this.sendNotificationToSupport(adminPayload);
-      
+
       console.log(`Notificação enviada para atualização de status do ticket #${ticket.ticket_id}`);
     } catch (error) {
       logNotificationError(
         'Ticket status update notification failed',
         error,
         'error',
-        { ticketId: ticket.ticket_id, ticketCode: ticket.ticket_code, newStatus: ticket.status }
+        { ticketId, newStatus }
       );
     }
   }
-  
+
   // Notificar sobre uma nova resposta em um ticket
   public async notifyNewReply(ticketId: number, replyUserId: number): Promise<void> {
     try {
       // Obter os detalhes do ticket
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
       if (!ticket) return;
-      
+
       // Obter detalhes do usuário que respondeu
       const [replyUser] = await db.select().from(users).where(eq(users.id, replyUserId));
       if (!replyUser) return;
-      
+
       // 🔥 FASE 4.1: Buscar participantes do ticket
       const participants = await db
         .select({
@@ -740,10 +740,10 @@ class NotificationService {
         ));
 
       console.log(`[🔔 NOTIFICAÇÃO] Encontrados ${participants.length} participantes para notificar sobre nova resposta`);
-      
+
       // Determinar para quem enviar a notificação
       const notifyUserIds: number[] = [];
-      
+
       // Se a resposta foi do cliente, notificar suporte/admin + participantes
       if (replyUser.role === 'customer') {
         // Notificar administradores e suporte
@@ -756,10 +756,10 @@ class NotificationService {
           timestamp: new Date(),
           priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
         };
-        
+
         this.sendNotificationToAdmins(payload);
         this.sendNotificationToSupport(payload);
-        
+
         // 🔥 FASE 4.1: Notificar participantes
         for (const participant of participants) {
           const participantPayload: NotificationPayload = {
@@ -771,21 +771,21 @@ class NotificationService {
             timestamp: new Date(),
             priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
           };
-          
+
           this.sendNotificationToUser(participant.id, participantPayload);
           console.log(`[🔔 NOTIFICAÇÃO] Notificação enviada para participante: ${participant.name}`);
         }
-      } 
+      }
       // Se a resposta foi do suporte/admin, notificar o cliente + participantes
       else if (replyUser.role === 'admin' || replyUser.role === 'support' || replyUser.role === 'manager' || replyUser.role === 'supervisor') {
         // Notificar o cliente
         if (ticket.customer_id) {
-          const [customerUser] = await db
-            .select()
-            .from(users)
-            .where(eq(users.id, ticket.customer_id));
-            
-          if (customerUser) {
+          const [customer] = await db
+            .select({ user_id: customers.user_id })
+            .from(customers)
+            .where(eq(customers.id, ticket.customer_id));
+
+          if (customer && customer.user_id) {
             const payload: NotificationPayload = {
               type: 'new_reply',
               title: 'Nova Resposta no Seu Ticket',
@@ -795,11 +795,11 @@ class NotificationService {
               timestamp: new Date(),
               priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
             };
-            
-            this.sendNotificationToUser(customerUser.id, payload);
+
+            this.sendNotificationToUser(customer.user_id, payload);
           }
         }
-        
+
         // 🔥 FASE 4.1: Notificar participantes
         for (const participant of participants) {
           const participantPayload: NotificationPayload = {
@@ -811,23 +811,85 @@ class NotificationService {
             timestamp: new Date(),
             priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
           };
-          
+
           this.sendNotificationToUser(participant.id, participantPayload);
           console.log(`[🔔 NOTIFICAÇÃO] Notificação enviada para participante: ${participant.name}`);
         }
       }
-      
+
       console.log(`Notificação enviada para nova resposta no ticket #${ticket.ticket_id}`);
     } catch (error) {
       logNotificationError(
         'New ticket reply notification failed',
         error,
         'error',
-        { ticketId: ticket.ticket_id, ticketCode: ticket.ticket_code, replyId: reply.id }
+        { ticketId }
       );
     }
   }
-  
+
+  // Notificar administradores sobre novo usuário
+  public async notifyNewUserCreated(userId: number, createdByUserId?: number): Promise<void> {
+    try {
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user) return;
+
+      let createdByName = 'Sistema';
+      if (createdByUserId) {
+        const [admin] = await db.select().from(users).where(eq(users.id, createdByUserId));
+        if (admin) createdByName = admin.name;
+      }
+
+      const payload: NotificationPayload = {
+        type: 'new_user',
+        title: 'Novo Usuário Criado',
+        message: `O usuário ${user.name} (${user.email}) foi criado por ${createdByName}.`,
+        timestamp: new Date(),
+        priority: 'medium'
+      };
+
+      await this.sendNotificationToAdmins(payload);
+      console.log(`[🔔 NOTIFICAÇÃO] Notificação de novo usuário enviada para admins`);
+    } catch (error) {
+      logNotificationError(
+        'New user notification failed',
+        error,
+        'error',
+        { userId }
+      );
+    }
+  }
+
+  // Notificar todos os usuários sobre manutenção
+  public async notifySystemMaintenance(message: string, scheduledFor: Date): Promise<void> {
+    try {
+      const payload: NotificationPayload = {
+        type: 'system_maintenance',
+        title: 'Manutenção do Sistema',
+        message: message,
+        timestamp: new Date(),
+        priority: 'high',
+        metadata: { scheduledFor }
+      };
+
+      // Notificar todos os usuários ativos
+      const allUsers = await db.select({ id: users.id }).from(users).where(eq(users.active, true));
+
+      console.log(`[🔔 NOTIFICAÇÃO] Enviando aviso de manutenção para ${allUsers.length} usuários`);
+
+      for (const user of allUsers) {
+        await this.sendNotificationToUser(user.id, payload);
+      }
+    } catch (error) {
+      logNotificationError(
+        'System maintenance notification failed',
+        error,
+        'error',
+        { message }
+      );
+    }
+  }
+
   // 🔥 FASE 4.2: Notificar quando um participante é adicionado a um ticket
   public async notifyParticipantAdded(ticketId: number, participantUserId: number, addedByUserId: number): Promise<void> {
     try {
@@ -923,7 +985,7 @@ class NotificationService {
         'Participant added notification failed',
         error,
         'error',
-        { ticketId, participantId, participantName }
+        { ticketId, participantUserId }
       );
     }
   }
@@ -1022,7 +1084,7 @@ class NotificationService {
         'Participant removed notification failed',
         error,
         'error',
-        { ticketId, participantId, participantName }
+        { ticketId, participantUserId }
       );
     }
   }
@@ -1060,22 +1122,22 @@ class NotificationService {
         'Participants notification failed',
         error,
         'error',
-        { ticketId, participantIds }
+        { ticketId }
       );
     }
   }
-  
+
   // Notificar sobre mudança de status de um ticket
   public async notifyStatusChange(ticketId: number, oldStatus: string, newStatus: string, changedByUserId: number): Promise<void> {
     try {
       // Obter os detalhes do ticket
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
       if (!ticket) return;
-      
+
       // Obter detalhes do usuário que mudou o status
       const [changedBy] = await db.select().from(users).where(eq(users.id, changedByUserId));
       if (!changedBy) return;
-      
+
       // 🔥 FASE 4.2: Buscar participantes do ticket
       const participants = await db
         .select({
@@ -1094,13 +1156,13 @@ class NotificationService {
         ));
 
       console.log(`[🔔 NOTIFICAÇÃO] Encontrados ${participants.length} participantes para notificar sobre mudança de status`);
-      
+
       // Determinar prioridade baseada no novo status
       let priority: 'low' | 'medium' | 'high' | 'critical' = 'medium';
       if (newStatus === 'resolved') priority = 'low';
       else if (newStatus === 'in_progress') priority = 'high';
       else if (newStatus === 'pending') priority = 'medium';
-      
+
       // Criar payload de notificação
       const payload: NotificationPayload = {
         type: 'status_change',
@@ -1111,12 +1173,12 @@ class NotificationService {
         timestamp: new Date(),
         priority
       };
-      
+
       // Notificar o cliente (se aplicável)
       if (ticket.customer_id && ticket.customer_id !== changedByUserId) {
         this.sendNotificationToUser(ticket.customer_id, payload);
       }
-      
+
       // 🔥 FASE 4.2: Notificar participantes
       for (const participant of participants) {
         const participantPayload: NotificationPayload = {
@@ -1128,28 +1190,28 @@ class NotificationService {
           timestamp: new Date(),
           priority
         };
-        
+
         this.sendNotificationToUser(participant.id, participantPayload);
         console.log(`[🔔 NOTIFICAÇÃO] Notificação de mudança de status enviada para participante: ${participant.name}`);
       }
-      
+
       // Notificar administradores e suporte (se não for quem mudou)
       if (changedBy.role !== 'admin' && changedBy.role !== 'support' && changedBy.role !== 'manager' && changedBy.role !== 'supervisor') {
         this.sendNotificationToAdmins(payload);
         this.sendNotificationToSupport(payload);
       }
-      
+
       console.log(`Notificação enviada para mudança de status no ticket #${ticket.ticket_id}`);
     } catch (error) {
       logNotificationError(
         'Status change notification failed',
         error,
         'error',
-        { ticketId: ticket.ticket_id, ticketCode: ticket.ticket_code, oldStatus, newStatus }
+        { ticketId, oldStatus, newStatus }
       );
     }
   }
-  
+
   // Configurar ouvintes de eventos para mudanças no banco de dados
   private setupEventListeners(): void {
     // Nesta implementação inicial, os eventos serão acionados explicitamente pelas rotas
@@ -1157,7 +1219,7 @@ class NotificationService {
     // ou um sistema de eventos para acionar estas notificações automaticamente
     console.log('Serviço de notificações inicializado');
   }
-  
+
   // Obter contagem total de clientes conectados
   private getTotalClients(): number {
     let count = 0;
