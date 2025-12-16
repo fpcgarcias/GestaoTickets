@@ -28,15 +28,10 @@ export const PWAInstaller: React.FC = () => {
 
     checkIfInstalled();
 
-    // Limpar cache antigo se necessário
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then((registrations) => {
-        registrations.forEach((registration) => {
-          if (registration.scope.includes('localhost') || registration.scope.includes('127.0.0.1')) {
-            registration.unregister();
-          }
-        });
-      });
+    // Em desenvolvimento, não fazer nada com Service Workers
+    // O main.tsx já cuida disso
+    if (import.meta.env.DEV) {
+      return;
     }
 
     // Listener para o evento beforeinstallprompt - DEIXAR O NAVEGADOR FAZER O TRABALHO

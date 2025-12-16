@@ -20,9 +20,29 @@ initializeServiceWorker();
 
 /**
  * Inicializa o Service Worker para notificações push
- * Funciona em desenvolvimento E produção, mas com proteções para HMR
+ * IMPORTANTE: NÃO registra em desenvolvimento para evitar conflitos com HMR
  */
 async function initializeServiceWorker() {
+  // NÃO registrar Service Worker em desenvolvimento
+  // Isso evita conflitos com o HMR do Vite
+  if (import.meta.env.DEV) {
+    console.log('[Main] Modo desenvolvimento - Service Worker desabilitado para evitar conflitos com HMR');
+    
+    // Em desenvolvimento, desregistrar qualquer Service Worker existente
+    if ('serviceWorker' in navigator) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          console.log('[Main] Desregistrando Service Worker em desenvolvimento:', registration.scope);
+          await registration.unregister();
+        }
+      } catch (error) {
+        console.warn('[Main] Erro ao desregistrar Service Workers:', error);
+      }
+    }
+    return;
+  }
+
   try {
     const swManager = ServiceWorkerManager.getInstance();
     
@@ -32,9 +52,7 @@ async function initializeServiceWorker() {
       return;
     }
 
-    // Em desenvolvimento, aguardar mais tempo para evitar conflitos com HMR
-    const delay = process.env.NODE_ENV === 'development' ? 5000 : 2000;
-    
+    // Aguardar um pouco antes de registrar em produção
     setTimeout(async () => {
       try {
         // Verificar se já existe permissão concedida
@@ -59,7 +77,7 @@ async function initializeServiceWorker() {
       } catch (error) {
         console.error('[Main] Erro na inicialização do Service Worker:', error);
       }
-    }, delay);
+    }, 2000);
     
   } catch (error) {
     console.error('[Main] Erro ao verificar suporte do Service Worker:', error);

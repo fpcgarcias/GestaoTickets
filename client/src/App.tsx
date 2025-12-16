@@ -272,15 +272,15 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <WebSocketProvider>
-            <ThemeProvider>
-              <IntlProvider locale={locale} messages={localeMessages}>
+          <ThemeProvider>
+            <IntlProvider locale={locale} messages={localeMessages}>
+              <WebSocketProvider>
                 <Toaster />
                 <PWAInstaller />
                 <AppContent />
-              </IntlProvider>
-            </ThemeProvider>
-          </WebSocketProvider>
+              </WebSocketProvider>
+            </IntlProvider>
+          </ThemeProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

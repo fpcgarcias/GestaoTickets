@@ -4,65 +4,62 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react({
       babel: {
-        plugins: process.env.NODE_ENV === 'production' ? [
+        plugins: mode === 'production' ? [
           ['babel-plugin-react-remove-properties', { properties: ['data-testid'] }]
         ] : []
       }
     }),
     runtimeErrorOverlay(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
-      disable: false, // Manter habilitado mas com configurações específicas
-      manifest: {
-        name: 'TicketWise - Sistema de Gestão de Tickets',
-        short_name: 'TicketWise',
-        description: 'Sistema completo de gestão de tickets e atendimento ao cliente',
-        theme_color: '#8b5cf6',
-        background_color: '#ffffff',
-        display: 'standalone',
-        orientation: 'portrait-primary',
-        scope: '/',
-        start_url: '/',
-        icons: [
-          {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          }
-        ]
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        runtimeCaching: [
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|svg)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'images',
-              expiration: {
-                maxEntries: 60,
-                maxAgeSeconds: 30 * 24 * 60 * 60
+    // Incluir VitePWA apenas em produção para evitar conflitos com HMR em desenvolvimento
+    ...(mode === 'production' ? [
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
+        manifest: {
+          name: 'TicketWise - Sistema de Gestão de Tickets',
+          short_name: 'TicketWise',
+          description: 'Sistema completo de gestão de tickets e atendimento ao cliente',
+          theme_color: '#8b5cf6',
+          background_color: '#ffffff',
+          display: 'standalone',
+          orientation: 'portrait-primary',
+          scope: '/',
+          start_url: '/',
+          icons: [
+            {
+              src: 'pwa-192x192.png',
+              sizes: '192x192',
+              type: 'image/png'
+            },
+            {
+              src: 'pwa-512x512.png',
+              sizes: '512x512',
+              type: 'image/png'
+            }
+          ]
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+          runtimeCaching: [
+            {
+              urlPattern: /\.(?:png|jpg|jpeg|svg)$/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'images',
+                expiration: {
+                  maxEntries: 60,
+                  maxAgeSeconds: 30 * 24 * 60 * 60
+                }
               }
             }
-          }
-        ]
-      },
-      devOptions: {
-        enabled: true, // Habilitar em desenvolvimento para testes
-        type: 'module',
-        navigateFallback: 'index.html'
-      }
-    }),
+          ]
+        }
+      })
+    ] : []),
   ],
   resolve: {
     alias: {
@@ -182,7 +179,7 @@ export default defineConfig({
       '@aws-sdk/client-s3',
       '@aws-sdk/s3-request-presigner'
     ],
-    force: process.env.NODE_ENV === 'development', // Forçar apenas em desenvolvimento
+    force: false, // Não forçar recompilação para evitar problemas de cache
     esbuildOptions: {
       target: 'es2020',
       // Configurações específicas para React 19
@@ -203,4 +200,4 @@ export default defineConfig({
   worker: {
     format: 'es'
   }
-});
+}));

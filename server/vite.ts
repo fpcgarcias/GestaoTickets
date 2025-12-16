@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
-import viteConfig from "../vite.config";
+import viteConfigModule from "../vite.config";
 
 const viteLogger = createLogger();
 
@@ -24,6 +24,11 @@ export async function setupVite(app: Express, server: Server) {
     hmr: { server },
     allowedHosts: true as true,
   };
+
+  // Resolver a configuração do Vite (pode ser função ou objeto)
+  const viteConfig = typeof viteConfigModule === 'function' 
+    ? viteConfigModule({ mode: process.env.NODE_ENV || 'development', command: 'serve' })
+    : viteConfigModule;
 
   const vite = await createViteServer({
     ...viteConfig,
