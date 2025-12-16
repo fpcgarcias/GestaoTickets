@@ -55,6 +55,7 @@ interface PersistentNotification {
  */
 export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onClose }) => {
   const [, setLocation] = useLocation();
+  const { locale, formatMessage } = useI18n();
   // 🔥 CORREÇÃO: Usar hook useNotifications para sincronizar estado e contador
   const { 
     notifications: hookNotifications, 

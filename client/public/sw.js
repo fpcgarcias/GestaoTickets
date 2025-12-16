@@ -65,8 +65,11 @@ self.addEventListener('activate', (event) => {
       );
     }).then(() => {
       console.log('[SW] Service Worker ativado com sucesso');
-      // Toma controle de todas as abas abertas
-      return self.clients.claim();
+      // Em desenvolvimento, não tomar controle imediatamente para evitar conflitos
+      if (!isDevelopment) {
+        return self.clients.claim();
+      }
+      return Promise.resolve();
     }).catch((error) => {
       console.error('[SW] Erro durante ativação:', error);
     })
@@ -288,23 +291,13 @@ function markNotificationAsRead(notificationId) {
 
 // Event listener para fetch (cache de recursos)
 self.addEventListener('fetch', (event) => {
-  // IMPORTANTE: Em desenvolvimento, não interceptar requisições do Vite HMR
+  // IMPORTANTE: Em desenvolvimento, não interceptar NENHUMA requisição
+  // Deixar o Vite gerenciar tudo para evitar conflitos com HMR
   const url = new URL(event.request.url);
   
-  // Não interceptar requisições do Vite em desenvolvimento
-  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-    // Permitir requisições do HMR, WebSocket, e recursos do Vite
-    if (url.pathname.includes('/@vite/') || 
-        url.pathname.includes('/@fs/') ||
-        url.pathname.includes('/@id/') ||
-        url.pathname.includes('/node_modules/') ||
-        url.pathname.includes('/__vite_ping') ||
-        url.pathname.includes('/src/') ||
-        url.searchParams.has('import') ||
-        url.searchParams.has('t') || // Vite timestamp
-        event.request.headers.get('sec-fetch-dest') === 'empty') {
-      return; // Deixar o Vite gerenciar
-    }
+  // Em desenvolvimento, não interceptar NENHUMA requisição
+  if (isDevelopment) {
+    return; // Deixar o navegador/Vite gerenciar todas as requisições
   }
   
   // Apenas cachear recursos GET
@@ -317,11 +310,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Apenas em produção fazer cache agressivo
-  const isProduction = !url.hostname.includes('localhost') && !url.hostname.includes('127.0.0.1');
-  
-  if (!isProduction) {
-    // Em desenvolvimento, apenas passar a requisição sem cache
+  // Não cachear recursos do Vite mesmo em produção (se houver)
+  if (url.pathname.includes('/@vite/') || 
+      url.pathname.includes('/@fs/') ||
+      url.pathname.includes('/@id/') ||
+      url.pathname.includes('/node_modules/') ||
+      url.pathname.includes('/__vite_ping') ||
+      url.pathname.includes('/src/') ||
+      url.searchParams.has('import') ||
+      url.searchParams.has('t')) {
     return;
   }
   

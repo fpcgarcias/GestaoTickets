@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { config } from '@/lib/config';
@@ -41,6 +41,11 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  
+  // Referência para evitar múltiplas conexões simultâneas
+  const socketRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isConnectingRef = useRef<boolean>(false);
 
   // Usar hook dinâmico para horário comercial
   const isWithinAllowedHours = useBusinessHours();
@@ -131,18 +136,38 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // 🔥 CORREÇÃO: WebSocket sempre ativo quando usuário está autenticado
     // Horário comercial afeta apenas emails, não notificações em tempo real
     if (!isAuthenticated || !user) {
-      if (socket) {
-        socket.close();
-        setSocket(null);
-        setConnected(false);
+      // Limpar conexão existente
+      if (socketRef.current) {
+        socketRef.current.close(1000, 'User logged out');
+        socketRef.current = null;
       }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      setSocket(null);
+      setConnected(false);
+      isConnectingRef.current = false;
       return;
     }
 
+    // Se já existe uma conexão ativa ou está conectando, não criar nova
+    if (socketRef.current && (socketRef.current.readyState === WebSocket.OPEN || socketRef.current.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    // Se já está tentando conectar, não criar nova conexão
+    if (isConnectingRef.current) {
+      return;
+    }
+
+    isConnectingRef.current = true;
     const wsUrl = `${config.wsBaseUrl}/ws`;
     const newSocket = new WebSocket(wsUrl);
+    socketRef.current = newSocket;
 
     newSocket.onopen = () => {
+      isConnectingRef.current = false;
       setConnected(true);
       setConnectionError(null);
       if (user) {
@@ -162,17 +187,30 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     newSocket.onclose = (event) => {
+      isConnectingRef.current = false;
       setConnected(false);
       setSocket(null);
+      
+      // Limpar referência se foi fechado intencionalmente
+      if (event.code === 1000) {
+        socketRef.current = null;
+        return;
+      }
+      
       // 🔥 CORREÇÃO: Sempre tentar reconectar se usuário ainda estiver autenticado
-      if (event.code !== 1000 && isAuthenticated && user) {
-        setTimeout(() => {
-          // A reconexão será feita pelo useEffect principal
-        }, 3000);
+      if (isAuthenticated && user && socketRef.current === newSocket) {
+        socketRef.current = null;
+        // Limpar timeout anterior se existir
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
+        // Não reconectar automaticamente - deixar o React gerenciar via useEffect
+        // A reconexão acontecerá naturalmente quando o effect for re-executado
       }
     };
 
     newSocket.onerror = (error) => {
+      isConnectingRef.current = false;
       if (process.env.NODE_ENV !== 'production') {
         console.error('❌ [WEBSOCKET] Erro na conexão:', error);
       }
@@ -263,12 +301,25 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     setSocket(newSocket);
+    
+    // Cleanup function
     return () => {
-      if (newSocket.readyState === WebSocket.OPEN) {
-        newSocket.close(1000, 'Component unmounting');
+      // Limpar timeout de reconexão
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
+      
+      // Fechar socket apenas se for o socket atual
+      if (socketRef.current === newSocket) {
+        if (newSocket.readyState === WebSocket.OPEN || newSocket.readyState === WebSocket.CONNECTING) {
+          newSocket.close(1000, 'Component unmounting');
+        }
+        socketRef.current = null;
+      }
+      isConnectingRef.current = false;
     };
-  }, [isAuthenticated, user, toast]);
+  }, [isAuthenticated, user?.id]); // Removido toast, formatMessage, locale para evitar reconexões desnecessárias
 
   const markAllAsRead = () => {
     setUnreadCount(0);

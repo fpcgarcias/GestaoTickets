@@ -339,6 +339,72 @@ export class ServiceWorkerManager {
     }
     return window.btoa(binary);
   }
+
+  /**
+   * Limpa todos os caches do Service Worker
+   */
+  public async clearAllCaches(): Promise<boolean> {
+    try {
+      if (!('caches' in window)) {
+        console.warn('[SW Manager] Cache API não disponível');
+        return false;
+      }
+
+      const cacheNames = await caches.keys();
+      await Promise.all(
+        cacheNames.map((cacheName) => {
+          console.log('[SW Manager] Removendo cache:', cacheName);
+          return caches.delete(cacheName);
+        })
+      );
+
+      console.log('[SW Manager] Todos os caches foram limpos');
+      return true;
+    } catch (error) {
+      console.error('[SW Manager] Erro ao limpar caches:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Desregistra todos os Service Workers
+   */
+  public async unregisterAllServiceWorkers(): Promise<boolean> {
+    try {
+      if (!('serviceWorker' in navigator)) {
+        return false;
+      }
+
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(
+        registrations.map((registration) => {
+          console.log('[SW Manager] Desregistrando Service Worker:', registration.scope);
+          return registration.unregister();
+        })
+      );
+
+      this.registration = null;
+      console.log('[SW Manager] Todos os Service Workers foram desregistrados');
+      return true;
+    } catch (error) {
+      console.error('[SW Manager] Erro ao desregistrar Service Workers:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Limpa completamente o cache e desregistra Service Workers
+   */
+  public async clearCacheAndUnregister(): Promise<boolean> {
+    try {
+      const cacheCleared = await this.clearAllCaches();
+      const unregistered = await this.unregisterAllServiceWorkers();
+      return cacheCleared && unregistered;
+    } catch (error) {
+      console.error('[SW Manager] Erro ao limpar cache e desregistrar:', error);
+      return false;
+    }
+  }
 }
 
 export default ServiceWorkerManager;

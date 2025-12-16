@@ -12,8 +12,13 @@ vite.config.ts.*
 .env.development
 # Logs e arquivos temporários
 *.log
+logs/
 .nyc_output
 coverage/
+# Pastas de testes
+server/services/__tests__/
+server/routes/__tests__/
+client/src/__tests__/
 # Configurações IDE
 .vscode/
 .idea/
@@ -22,4 +27,3 @@ coverage/
 *.key
 *.cert
 .env
-logs/
