@@ -276,16 +276,15 @@ export default function InventoryAssignmentsPage() {
       {
         key: "id",
         header: formatMessage("inventory.assignments.table.id"),
-        render: (assignment) => `#${assignment.id}`,
+        render: (assignment) => `${assignment.id}`,
       },
       {
         key: "product",
         header: formatMessage("inventory.assignments.table.product"),
         render: (assignment) => (
           <div className="flex flex-col">
-            <span className="font-medium">#{assignment.product_id}</span>
             {assignment.product?.name && (
-              <span className="text-xs text-muted-foreground">{assignment.product.name}</span>
+              <span className="font-medium">{assignment.product.name}</span>
             )}
           </div>
         ),

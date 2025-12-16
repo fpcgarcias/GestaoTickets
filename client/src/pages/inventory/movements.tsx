@@ -324,7 +324,7 @@ export default function InventoryMovementsPage() {
       {
         key: "id",
         header: formatMessage("inventory.movements.table.id"),
-        render: (movement) => `#${movement.id}`,
+        render: (movement) => movement.id,
       },
       {
         key: "product",
@@ -337,7 +337,7 @@ export default function InventoryMovementsPage() {
                 <div className="text-xs text-muted-foreground space-y-1">
                   {movement.batchProducts.slice(0, 2).map((p, idx) => (
                     <div key={p.id}>
-                      #{p.id} - {p.name}
+                      {p.name}
                     </div>
                   ))}
                   {movement.batchProducts.length > 2 && (
@@ -349,10 +349,9 @@ export default function InventoryMovementsPage() {
           }
           return (
             <div className="flex flex-col">
-              <span className="font-medium">#{movement.product_id}</span>
-              {movement.product?.name && (
-                <span className="text-xs text-muted-foreground">{movement.product.name}</span>
-              )}
+              <span className="font-medium">
+                {movement.product?.name || formatMessage("inventory.overview.top.unknown")}
+              </span>
             </div>
           );
         },

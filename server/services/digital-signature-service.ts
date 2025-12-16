@@ -34,6 +34,7 @@ export interface SignatureStatus {
   status: 'pending' | 'signed' | 'declined' | 'cancelled';
   signedAt?: string;
   evidenceUrl?: string;
+  documentKey?: string; // Chave do documento para download via API
   signersData?: Array<{
     name: string;
     email: string;
@@ -146,26 +147,146 @@ export class ClicksignProvider implements SignatureProvider {
 
 
   /**
-   * Baixa PDF assinado da ClickSign
+   * Baixa PDF assinado da ClickSign usando URL ou document_key
+   * PRIORIDADE: URL direta do S3 (signed_file_url) - é uma URL pré-assinada que já tem o PDF assinado
+   * FALLBACK: API da Clicksign usando document_key
    */
-  async downloadSignedPdf(evidenceUrl: string): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const protocol = evidenceUrl.startsWith('https') ? https : http;
+  async downloadSignedPdf(evidenceUrl?: string, documentKey?: string): Promise<Buffer> {
+    // PRIORIDADE 1: Usar URL direta do S3 (signed_file_url) - é uma URL pré-assinada, não precisa de autenticação
+    if (evidenceUrl) {
+      console.log(`[ClickSign] ===== INICIANDO DOWNLOAD VIA URL DIRETA =====`);
+      console.log(`[ClickSign] URL completa: ${evidenceUrl}`);
+      console.log(`[ClickSign] URL (primeiros 200 chars): ${evidenceUrl.substring(0, 200)}...`);
       
-      protocol.get(evidenceUrl, async (res) => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`Failed to download signed PDF: ${res.statusCode}`));
-          return;
-        }
+      return new Promise((resolve, reject) => {
+        const protocol = evidenceUrl.startsWith('https') ? https : http;
+        
+        console.log(`[ClickSign] Fazendo requisição GET para a URL...`);
+        const req = protocol.get(evidenceUrl, (res) => {
+          console.log(`[ClickSign] Resposta recebida! Status: ${res.statusCode}`);
+          console.log(`[ClickSign] Headers:`, JSON.stringify(res.headers, null, 2));
+          
+          if (res.statusCode !== 200) {
+            console.error(`[ClickSign] ❌ Falha ao baixar da URL direta - Status: ${res.statusCode} ${res.statusMessage}`);
+            // Se falhar, tentar API como fallback
+            if (documentKey) {
+              console.log(`[ClickSign] Tentando API como fallback com documentKey: ${documentKey}`);
+              return this.downloadSignedPdfViaApi(documentKey).then(resolve).catch(reject);
+            }
+            reject(new Error(`Failed to download signed PDF from URL: ${res.statusCode} - ${res.statusMessage}`));
+            return;
+          }
 
-        const chunks: Buffer[] = [];
-        res.on('data', (chunk) => chunks.push(chunk));
-        res.on('end', () => {
-          const buffer = Buffer.concat(chunks);
-          resolve(buffer);
+          const chunks: Buffer[] = [];
+          let totalSize = 0;
+          
+          res.on('data', (chunk) => {
+            chunks.push(chunk);
+            totalSize += chunk.length;
+            if (chunks.length % 100 === 0) {
+              console.log(`[ClickSign] Recebidos ${totalSize} bytes...`);
+            }
+          });
+          
+          res.on('end', () => {
+            console.log(`[ClickSign] Download completo! Total: ${totalSize} bytes`);
+            const buffer = Buffer.concat(chunks);
+            
+            // Validar que é um PDF (deve começar com %PDF)
+            const header = buffer.slice(0, 4).toString('ascii');
+            console.log(`[ClickSign] Header do arquivo (primeiros 4 bytes): "${header}"`);
+            
+            if (buffer.length > 4 && header === '%PDF') {
+              console.log(`[ClickSign] ✅✅✅ PDF VÁLIDO BAIXADO COM SUCESSO! ✅✅✅`);
+              console.log(`[ClickSign] Tamanho final: ${buffer.length} bytes`);
+              resolve(buffer);
+            } else {
+              console.error(`[ClickSign] ❌ Resposta não é um PDF válido! Header: "${header}"`);
+              console.error(`[ClickSign] Primeiros 50 bytes (hex): ${buffer.slice(0, 50).toString('hex')}`);
+              // Se não for PDF válido, tentar API como fallback
+              if (documentKey) {
+                console.log(`[ClickSign] Tentando API como fallback com documentKey: ${documentKey}`);
+                return this.downloadSignedPdfViaApi(documentKey).then(resolve).catch(reject);
+              }
+              reject(new Error(`Resposta não é um PDF válido. Header recebido: "${header}"`));
+            }
+          });
         });
-      }).on('error', reject);
-    });
+        
+        req.on('error', (error) => {
+          console.error(`[ClickSign] ❌ Erro na requisição HTTP:`, error);
+          console.error(`[ClickSign] Erro message:`, error.message);
+          console.error(`[ClickSign] Erro stack:`, error.stack);
+          // Se falhar, tentar API como fallback
+          if (documentKey) {
+            console.log(`[ClickSign] Tentando API como fallback com documentKey: ${documentKey}`);
+            return this.downloadSignedPdfViaApi(documentKey).then(resolve).catch(reject);
+          }
+          reject(error);
+        });
+        
+        req.on('timeout', () => {
+          console.error(`[ClickSign] ❌ Timeout na requisição!`);
+          req.destroy();
+          if (documentKey) {
+            console.log(`[ClickSign] Tentando API como fallback com documentKey: ${documentKey}`);
+            return this.downloadSignedPdfViaApi(documentKey).then(resolve).catch(reject);
+          }
+          reject(new Error('Timeout ao baixar PDF'));
+        });
+        
+        // Timeout de 30 segundos
+        req.setTimeout(30000);
+      });
+    }
+    
+    // FALLBACK: Usar API da Clicksign se não tiver URL
+    if (documentKey) {
+      console.log(`[ClickSign] Usando API como fallback com document_key: ${documentKey}`);
+      return this.downloadSignedPdfViaApi(documentKey);
+    }
+    
+    throw new Error('Nenhuma URL ou document_key fornecida para download do PDF');
+  }
+
+  /**
+   * Baixa PDF assinado via API da Clicksign usando document_key
+   */
+  private async downloadSignedPdfViaApi(documentKey: string): Promise<Buffer> {
+    console.log(`[ClickSign] Baixando PDF assinado via API usando document_key: ${documentKey}`);
+    try {
+      const apiUrl = await this.getApiUrl();
+      const accessToken = await this.getAccessToken();
+      
+      // API v3: GET /api/v3/documents/{document_key}/download
+      const url = new URL(`/api/v3/documents/${documentKey}/download`, apiUrl);
+      url.searchParams.append('access_token', accessToken);
+      
+      return new Promise((resolve, reject) => {
+        https.get(url.toString(), (res) => {
+          if (res.statusCode !== 200) {
+            reject(new Error(`Failed to download signed PDF via API: ${res.statusCode} - ${res.statusMessage}`));
+            return;
+          }
+
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk) => chunks.push(chunk));
+          res.on('end', () => {
+            const buffer = Buffer.concat(chunks);
+            // Validar que é um PDF (deve começar com %PDF)
+            if (buffer.length > 4 && buffer.slice(0, 4).toString('ascii') === '%PDF') {
+              console.log(`[ClickSign] PDF baixado via API: ${buffer.length} bytes`);
+              resolve(buffer);
+            } else {
+              reject(new Error('Resposta da API não é um PDF válido'));
+            }
+          });
+        }).on('error', reject);
+      });
+    } catch (error) {
+      console.error(`[ClickSign] Erro ao baixar PDF via API:`, error);
+      throw error;
+    }
   }
 
   async sendDocument(options: {
@@ -526,7 +647,17 @@ export class ClicksignProvider implements SignatureProvider {
     const envelope = payload.envelope || {};
     const document = payload.document || {};
     
-    // 1. PRIORIDADE: URL do documento ASSINADO
+    // 1. PRIORIDADE: Capturar document_key para download via API (método mais confiável)
+    let documentKey: string | undefined;
+    if (payload.document?.key) {
+      documentKey = payload.document.key;
+    } else if (document.key) {
+      documentKey = document.key;
+    } else if (envelope.documents?.[0]?.key) {
+      documentKey = envelope.documents[0].key;
+    }
+    
+    // 2. PRIORIDADE: URL do documento ASSINADO
     // Tenta pegar do evento document_closed ou structure downloads
     let evidenceUrl: string | undefined;
 
@@ -545,6 +676,7 @@ export class ClicksignProvider implements SignatureProvider {
 
     // ⚠️ JAMAIS usar original_file_url como fallback para evidenceUrl final
     
+    console.log(`[DigitalSignature] Document Key extraído: ${documentKey}`);
     console.log(`[DigitalSignature] Evidence URL extraída: ${evidenceUrl}`);
 
     // Signed At
@@ -565,6 +697,7 @@ export class ClicksignProvider implements SignatureProvider {
       status: mappedStatus,
       signedAt,
       evidenceUrl,
+      documentKey,
       signersData,
     };
   }
@@ -753,12 +886,23 @@ class DigitalSignatureService {
     if (status.status === 'signed' && status.signedAt) {
       updates.signed_date = new Date(status.signedAt);
       
-      // Se temos evidenceUrl, baixar e salvar PDF assinado
-      if (status.evidenceUrl) {
-        console.log(`[DigitalSignature] Baixando PDF assinado de: ${status.evidenceUrl}`);
+      // Baixar e salvar PDF assinado
+      // PRIORIDADE: evidenceUrl (URL direta do S3) é mais confiável e rápida
+      if (status.evidenceUrl || status.documentKey) {
+        console.log(`[DigitalSignature] ===== INICIANDO DOWNLOAD DO PDF ASSINADO =====`);
+        console.log(`[DigitalSignature] Term ID: ${termId}`);
+        console.log(`[DigitalSignature] Evidence URL: ${status.evidenceUrl ? status.evidenceUrl.substring(0, 150) + '...' : 'NÃO FORNECIDA'}`);
+        console.log(`[DigitalSignature] Document Key: ${status.documentKey || 'NÃO FORNECIDO'}`);
+        
         try {
           const provider = this.createProvider('clicksign', companyId) as ClicksignProvider;
-          const pdfBuffer = await provider.downloadSignedPdf(status.evidenceUrl);
+          
+          // Passar evidenceUrl PRIMEIRO (prioridade), depois documentKey como fallback
+          console.log(`[DigitalSignature] Chamando downloadSignedPdf com evidenceUrl=${!!status.evidenceUrl}, documentKey=${!!status.documentKey}`);
+          const pdfBuffer = await provider.downloadSignedPdf(status.evidenceUrl, status.documentKey);
+          
+          console.log(`[DigitalSignature] PDF baixado com sucesso! Tamanho: ${pdfBuffer.length} bytes`);
+          console.log(`[DigitalSignature] Fazendo upload para S3...`);
           
           const uploadResult = await s3Service.uploadSignedTermPdf({
             buffer: pdfBuffer,
@@ -768,13 +912,21 @@ class DigitalSignatureService {
           });
           
           updates.signed_pdf_s3_key = uploadResult.s3Key;
-          console.log(`[DigitalSignature] PDF assinado salvo no S3: ${uploadResult.s3Key}`);
-        } catch (error) {
-          console.error(`[DigitalSignature] Erro ao baixar/salvar PDF assinado para termo ${termId}:`, error);
-          // Não falhar o processo se o download falhar, apenas logar
+          console.log(`[DigitalSignature] ✅✅✅ PDF ASSINADO SALVO NO S3 COM SUCESSO! ✅✅✅`);
+          console.log(`[DigitalSignature] S3 Key: ${uploadResult.s3Key}`);
+          console.log(`[DigitalSignature] ===== DOWNLOAD E SALVAMENTO CONCLUÍDOS =====`);
+        } catch (error: any) {
+          console.error(`[DigitalSignature] ❌❌❌ ERRO CRÍTICO AO BAIXAR/SALVAR PDF ASSINADO ❌❌❌`);
+          console.error(`[DigitalSignature] Term ID: ${termId}`);
+          console.error(`[DigitalSignature] Erro:`, error);
+          console.error(`[DigitalSignature] Stack:`, error?.stack);
+          // NÃO silenciar o erro - vamos relançar para que o usuário saiba que falhou
+          // Mas vamos continuar salvando o status mesmo assim
+          console.error(`[DigitalSignature] Continuando com atualização do status mesmo com falha no PDF...`);
         }
       } else {
-        console.warn('[DigitalSignature] Status é signed mas não tem evidenceUrl');
+        console.warn('[DigitalSignature] ⚠️ Status é signed mas não tem documentKey nem evidenceUrl');
+        console.warn('[DigitalSignature] Payload do webhook pode não ter as informações necessárias');
       }
     }
 

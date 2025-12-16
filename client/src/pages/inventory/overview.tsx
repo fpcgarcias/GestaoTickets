@@ -22,7 +22,7 @@ export default function InventoryOverviewPage() {
   const movementsQuery = useInventoryDashboardMovements();
   const topProductsQuery = useInventoryDashboardTopProducts();
 
-  const stats = statsQuery.data?.data;
+  const stats = statsQuery.data;
   const alerts = alertsQuery.data?.data ?? [];
   const movements = movementsQuery.data?.data ?? [];
   const topProducts = topProductsQuery.data?.data ?? [];
@@ -32,7 +32,9 @@ export default function InventoryOverviewPage() {
   const getStatusLabel = (status: string) => {
     const key = `inventory.status.${status}`;
     const translated = formatMessage(key as any);
-    return translated === key ? status : translated;
+    const label = translated === key ? status : translated;
+    // Capitalizar: primeira letra maiúscula, resto minúscula
+    return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
   };
 
   return (
@@ -77,7 +79,7 @@ export default function InventoryOverviewPage() {
           : statusCards.map((item) => (
               <Card key={item.status}>
                 <CardHeader>
-                  <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
                     {getStatusLabel(item.status)}
                   </CardTitle>
                 </CardHeader>
@@ -151,8 +153,7 @@ export default function InventoryOverviewPage() {
                     className="flex items-center justify-between rounded-lg border border-border/60 px-3 py-2"
                   >
                     <div>
-                      <p className="font-medium">#{product.productId}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-medium">
                         {product.name ?? formatMessage("inventory.overview.top.unknown")}
                       </p>
                     </div>
@@ -202,20 +203,33 @@ export default function InventoryOverviewPage() {
               {movements.slice(0, 6).map((movement: any) => (
                 <div
                   key={movement.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 px-3 py-2"
+                  className="grid grid-cols-[2fr_1fr_1fr_auto_auto] items-center gap-3 rounded-lg border border-border/60 px-3 py-2"
                 >
-                  <div>
-                    <p className="font-semibold text-sm">
-                      {formatMessage("inventory.overview.movements.product", { id: movement.product_id })}
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm truncate">
+                      {movement.product_name || formatMessage("inventory.overview.top.unknown")}
                     </p>
-                    <p className="text-xs text-muted-foreground capitalize">{movement.movement_type}</p>
                   </div>
-                  <InventoryStatusBadge status={movement.approval_status} />
-                  <p className="text-xs text-muted-foreground">
-                    {movement.movement_date
-                      ? format(new Date(movement.movement_date), locale === "en-US" ? "MM/dd/yyyy HH:mm" : "dd/MM/yyyy HH:mm")
-                      : "--"}
-                  </p>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      {formatMessage(`inventory.movements.types.${movement.movement_type}` as any)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      {movement.responsible_name || "--"}
+                    </p>
+                  </div>
+                  <div>
+                    <InventoryStatusBadge status={movement.approval_status} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground whitespace-nowrap">
+                      {movement.movement_date
+                        ? format(new Date(movement.movement_date), locale === "en-US" ? "MM/dd/yyyy HH:mm" : "dd/MM/yyyy HH:mm")
+                        : "--"}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>

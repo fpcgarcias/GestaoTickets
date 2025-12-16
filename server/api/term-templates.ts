@@ -231,9 +231,14 @@ export async function seedDefaultTermTemplate(req: Request, res: Response) {
     }
     
     .logo {
-      font-size: 18pt;
-      font-weight: bold;
       margin-bottom: 5px;
+      text-align: center;
+    }
+    
+    .logo img {
+      max-width: 150px;
+      max-height: 80px;
+      object-fit: contain;
     }
     
     .company-name {
@@ -356,7 +361,7 @@ export async function seedDefaultTermTemplate(req: Request, res: Response) {
 </head>
 <body>
   <div class="header">
-    <div class="logo">X</div>
+    <div class="logo">{{companyLogoHtml}}</div>
     <div class="company-name">{{companyName}}</div>
   </div>
   

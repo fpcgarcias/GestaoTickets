@@ -8619,6 +8619,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const allowCustomerRegistration = await getSystemSetting('allowCustomerRegistration', 'true', companyId);
 
+      
+      // Buscar logotipo da empresa
+      const [company] = await db
+        .select({ logo_base64: schema.companies.logo_base64 })
+        .from(schema.companies)
+        .where(eq(schema.companies.id, companyId))
+        .limit(1);
+
 
 
       // Montar objeto de resposta
@@ -8629,7 +8637,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         supportEmail,
 
-        allowCustomerRegistration: allowCustomerRegistration === 'true'
+        allowCustomerRegistration: allowCustomerRegistration === 'true',
+        logo_base64: company?.logo_base64 || null
 
       });
 
@@ -8649,7 +8658,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
     try {
 
-      const { companyName, supportEmail, allowCustomerRegistration } = req.body;
+      const { companyName, supportEmail, allowCustomerRegistration, logo_base64 } = req.body;
 
       const companyId = req.session.companyId;
 
@@ -8663,6 +8672,26 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       await saveSystemSetting('allowCustomerRegistration', allowCustomerRegistration.toString(), companyId);
 
+      
+      // Salvar logotipo se fornecido
+      if (logo_base64 !== undefined) {
+        // Validar se é string vazia ou base64 válido
+        if (logo_base64 && typeof logo_base64 === 'string' && logo_base64.trim() !== '') {
+          const base64Regex = /^data:image\/(jpeg|jpg|png|svg\+xml|webp);base64,/;
+          if (!base64Regex.test(logo_base64)) {
+            return res.status(400).json({ message: "Formato de logotipo inválido. Use uma imagem em base64 (data:image/...;base64,...)" });
+          }
+        }
+        
+        await db
+          .update(schema.companies)
+          .set({
+            logo_base64: logo_base64 && logo_base64.trim() !== '' ? logo_base64 : null,
+            updated_at: new Date()
+          })
+          .where(eq(schema.companies.id, companyId));
+      }
+
 
 
       res.json({
@@ -8671,7 +8700,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         supportEmail,
 
-        allowCustomerRegistration
+        allowCustomerRegistration,
+        logo_base64: logo_base64 || null
 
       });
 
@@ -10959,6 +10989,63 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
     }
 
+  });
+
+  // Upload de logotipo da empresa (recebe base64)
+  router.post("/companies/:id/logo", authRequired, adminRequired, async (req: Request, res: Response) => {
+    try {
+      const companyId = parseInt(req.params.id);
+
+      if (isNaN(companyId)) {
+        return res.status(400).json({ message: "ID da empresa inválido" });
+      }
+
+      const { logo_base64 } = req.body;
+
+      // Permitir string vazia para remover logotipo
+      if (logo_base64 === undefined || logo_base64 === null) {
+        return res.status(400).json({ message: "logo_base64 é obrigatório (pode ser string vazia para remover)" });
+      }
+
+      // Se não for string vazia, validar formato
+      if (logo_base64 && typeof logo_base64 === 'string' && logo_base64.trim() !== '') {
+        // Validar se é um base64 válido de imagem
+        const base64Regex = /^data:image\/(jpeg|jpg|png|svg\+xml|webp);base64,/;
+        if (!base64Regex.test(logo_base64)) {
+          return res.status(400).json({ message: "Formato inválido. Envie uma imagem em base64 (data:image/...;base64,...)" });
+        }
+      }
+
+      // Verificar se a empresa existe
+      const [existingCompany] = await db
+        .select()
+        .from(schema.companies)
+        .where(eq(schema.companies.id, companyId))
+        .limit(1);
+
+      if (!existingCompany) {
+        return res.status(404).json({ message: "Empresa não encontrada" });
+      }
+
+      // Atualizar empresa com o logotipo em base64 (ou null se string vazia)
+      const [updatedCompany] = await db
+        .update(schema.companies)
+        .set({
+          logo_base64: logo_base64 && logo_base64.trim() !== '' ? logo_base64 : null,
+          updated_at: new Date()
+        })
+        .where(eq(schema.companies.id, companyId))
+        .returning();
+
+      res.json({
+        success: true,
+        company: updatedCompany
+      });
+
+    } catch (error) {
+      console.error("Erro ao salvar logotipo:", error);
+      res.status(500).json({ message: "Erro interno ao salvar logotipo", error: String(error) });
+    }
   });
 
 

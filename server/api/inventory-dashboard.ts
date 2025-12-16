@@ -5,8 +5,9 @@ import {
   inventoryAlerts,
   inventoryMovements,
   ticketInventoryItems,
+  users,
 } from '@shared/schema';
-import { eq, and, desc, sql, or, inArray } from 'drizzle-orm';
+import { eq, and, desc, sql, or, inArray, getTableColumns } from 'drizzle-orm';
 import { getDepartmentFilter } from '../utils/department-filter';
 
 function resolveCompanyId(req: Request): number {
@@ -35,12 +36,15 @@ export async function getInventoryDashboardStats(req: Request, res: Response) {
       });
     }
 
-    const conditions = [
+    // Condições base: sempre filtrar por empresa e não deletados
+    const baseConditions = [
       eq(inventoryProducts.company_id, companyId),
       eq(inventoryProducts.is_deleted, false)
     ];
 
-    // Filtro por departamento
+    // Aplicar filtro de departamento apenas se necessário
+    let conditions = [...baseConditions];
+    
     if (userId && userRole) {
       const deptFilter = await getDepartmentFilter(userId, userRole);
 
@@ -48,6 +52,7 @@ export async function getInventoryDashboardStats(req: Request, res: Response) {
         return res.json({ success: true, total: 0, statuses: [] });
       }
 
+      // Se for 'DEPARTMENTS', adiciona filtro de departamento
       if (deptFilter.type === 'DEPARTMENTS') {
         conditions.push(
           or(
@@ -56,13 +61,18 @@ export async function getInventoryDashboardStats(req: Request, res: Response) {
           )
         );
       }
+      // Se for 'ALL', não adiciona filtro (admin/company_admin vê tudo)
     }
 
-    const [{ total }] = await db
-      .select({ total: sql<number>`count(*)` })
+    // Contar total
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
       .from(inventoryProducts)
       .where(and(...conditions));
 
+    const total = Number(count);
+
+    // Buscar statuses
     const statuses = await db
       .select({
         status: inventoryProducts.status,
@@ -155,8 +165,21 @@ export async function getInventoryDashboardMovements(req: Request, res: Response
     }
 
     const movements = await db
-      .select()
+      .select({
+        id: inventoryMovements.id,
+        product_id: inventoryMovements.product_id,
+        movement_type: inventoryMovements.movement_type,
+        quantity: inventoryMovements.quantity,
+        approval_status: inventoryMovements.approval_status,
+        movement_date: inventoryMovements.movement_date,
+        ticket_id: inventoryMovements.ticket_id,
+        responsible_id: inventoryMovements.responsible_id,
+        product_name: inventoryProducts.name,
+        responsible_name: sql<string | null>`${users.name}`,
+      })
       .from(inventoryMovements)
+      .innerJoin(inventoryProducts, eq(inventoryMovements.product_id, inventoryProducts.id))
+      .leftJoin(users, eq(inventoryMovements.responsible_id, users.id))
       .where(and(...conditions))
       .orderBy(desc(inventoryMovements.movement_date))
       .limit(20);
@@ -182,9 +205,13 @@ export async function getInventoryDashboardTopProducts(req: Request, res: Respon
       });
     }
 
-    const conditions = [eq(inventoryProducts.company_id, companyId)];
+    // Condições base para produtos
+    const productConditions = [
+      eq(inventoryProducts.company_id, companyId),
+      eq(inventoryProducts.is_deleted, false)
+    ];
 
-    // Filtro por departamento
+    // Aplicar filtro de departamento apenas se necessário
     if (userId && userRole) {
       const deptFilter = await getDepartmentFilter(userId, userRole);
 
@@ -192,25 +219,29 @@ export async function getInventoryDashboardTopProducts(req: Request, res: Respon
         return res.json({ success: true, data: [] });
       }
 
+      // Se for 'DEPARTMENTS', adiciona filtro de departamento
       if (deptFilter.type === 'DEPARTMENTS') {
-        conditions.push(
+        productConditions.push(
           or(
             inArray(inventoryProducts.department_id, deptFilter.departmentIds!),
             sql`${inventoryProducts.department_id} IS NULL`
           )
         );
       }
+      // Se for 'ALL', não adiciona filtro (admin/company_admin vê tudo)
     }
 
+    // Buscar top products diretamente com join
     const data = await db
       .select({
         productId: ticketInventoryItems.product_id,
-        uses: sql<number>`count(*)`,
+        name: inventoryProducts.name,
+        uses: sql<number>`count(*)::int`,
       })
       .from(ticketInventoryItems)
-      .leftJoin(inventoryProducts, eq(ticketInventoryItems.product_id, inventoryProducts.id))
-      .where(and(...conditions))
-      .groupBy(ticketInventoryItems.product_id)
+      .innerJoin(inventoryProducts, eq(ticketInventoryItems.product_id, inventoryProducts.id))
+      .where(and(...productConditions))
+      .groupBy(ticketInventoryItems.product_id, inventoryProducts.name)
       .orderBy(desc(sql`count(*)`))
       .limit(10);
 

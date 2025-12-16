@@ -87,6 +87,7 @@ export interface InventoryLocation {
 export interface InventoryMovement {
   id: number;
   product_id: number;
+  product_name?: string | null;
   movement_type: string;
   quantity: number;
   approval_status: string;
@@ -295,7 +296,7 @@ export const inventoryKeys = {
 export function useInventoryDashboardStats() {
   return useQuery({
     queryKey: inventoryKeys.dashboard.stats,
-    queryFn: () => fetchJson<InventoryPaginatedResponse<InventoryDashboardStats>>("/api/inventory/dashboard/stats"),
+    queryFn: () => fetchJson<{ success: true; total: number; statuses: { status: string; count: number }[] }>("/api/inventory/dashboard/stats"),
   });
 }
 
@@ -309,7 +310,7 @@ export function useInventoryDashboardAlerts() {
 export function useInventoryDashboardMovements() {
   return useQuery({
     queryKey: inventoryKeys.dashboard.movements,
-    queryFn: () => fetchJson<InventoryPaginatedResponse<InventoryMovement[]>>("/api/inventory/dashboard/movements"),
+    queryFn: () => fetchJson<{ success: true; data: InventoryMovement[] }>("/api/inventory/dashboard/movements"),
   });
 }
 

@@ -57,6 +57,7 @@ export const companies = pgTable("companies", {
   city: text("city"),
   ai_permission: boolean("ai_permission").notNull().default(true), // Permite que a empresa use IA
   uses_flexible_sla: boolean("uses_flexible_sla").notNull().default(false), // Flag para sistema de SLA flexível
+  logo_base64: text("logo_base64"), // Logotipo da empresa em base64
 });
 
 // Users table for authentication (ajustado para snake_case conforme banco)

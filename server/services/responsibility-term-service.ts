@@ -608,6 +608,11 @@ class ResponsibilityTermService {
     const month = today.toLocaleDateString('pt-BR', { month: 'long' });
     const year = today.getFullYear();
 
+    // Gerar HTML do logotipo
+    const companyLogoHtml = company?.logo_base64 
+      ? `<img src="${company.logo_base64}" alt="Logo da empresa" />`
+      : '<div style="font-size: 18pt; font-weight: bold;">X</div>';
+
     return {
       assignmentId: assignment.id,
       assignedDate: assignment.assigned_date?.toLocaleDateString('pt-BR') ?? '',
@@ -626,6 +631,7 @@ class ResponsibilityTermService {
       companyName: company?.name ?? 'Empresa',
       companyDocument: formatCnpj(company?.cnpj),
       companyCity: company?.city ?? 'Rio de Janeiro',
+      companyLogoHtml: companyLogoHtml,
       today: today.toLocaleDateString('pt-BR'),
       todayDay: day,
       todayMonth: month,
@@ -679,6 +685,11 @@ class ResponsibilityTermService {
     const month = today.toLocaleDateString('pt-BR', { month: 'long' });
     const year = today.getFullYear();
 
+    // Gerar HTML do logotipo
+    const companyLogoHtml = company?.logo_base64 
+      ? `<img src="${company.logo_base64}" alt="Logo da empresa" />`
+      : '<div style="font-size: 18pt; font-weight: bold;">X</div>';
+
     return {
       assignmentId: firstAssignment?.assignment.id ?? 0,
       assignedDate: firstAssignment?.assignment.assigned_date?.toLocaleDateString('pt-BR') ?? '',
@@ -697,6 +708,7 @@ class ResponsibilityTermService {
       companyName: company?.name ?? 'Empresa',
       companyDocument: formatCnpj(company?.cnpj),
       companyCity: company?.city ?? 'Rio de Janeiro',
+      companyLogoHtml: companyLogoHtml,
       today: today.toLocaleDateString('pt-BR'),
       todayDay: day,
       todayMonth: month,
@@ -725,6 +737,15 @@ class ResponsibilityTermService {
   private formatProductTable(assignments: Array<{ product?: typeof inventoryProducts.$inferSelect | null; assignment: typeof userInventoryAssignments.$inferSelect }>): string {
     if (assignments.length === 0) return '';
 
+    // Verificar se algum produto tem service tag para decidir se mostra a coluna
+    const hasServiceTag = assignments.some(item => item.product?.service_tag);
+    const hasSerial = assignments.some(item => item.product?.serial_number);
+    
+    // Mostrar ambas as colunas se houver produtos com serial E service tag
+    // Ou mostrar service tag se não tiver serial
+    const showBothColumns = hasSerial && hasServiceTag;
+    const showServiceTagColumn = !hasSerial && hasServiceTag;
+
     const rows = assignments.map((item) => {
       const product = item.product;
       // Formato do modelo: apenas nome do equipamento (pode incluir marca/modelo se necessário)
@@ -735,24 +756,73 @@ class ResponsibilityTermService {
         if (product.model) parts.push(product.model);
         equipmentName = parts.join(' - ');
       }
+      
       const serial = product?.serial_number ?? '-';
+      const serviceTag = product?.service_tag ?? '-';
 
-      return `
-        <tr>
-          <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 9pt;">${equipmentName}</td>
-          <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 9pt;">${serial}</td>
-        </tr>
-      `;
+      if (showBothColumns) {
+        // Mostrar ambas as colunas
+        return `
+          <tr>
+            <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 9pt;">${equipmentName}</td>
+            <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 9pt;">${serial}</td>
+            <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 9pt;">${serviceTag}</td>
+          </tr>
+        `;
+      } else if (showServiceTagColumn) {
+        // Mostrar apenas service tag
+        return `
+          <tr>
+            <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 9pt;">${equipmentName}</td>
+            <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 9pt;">${serviceTag}</td>
+          </tr>
+        `;
+      } else {
+        // Mostrar apenas serial (comportamento padrão)
+        return `
+          <tr>
+            <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 9pt;">${equipmentName}</td>
+            <td style="border: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 9pt;">${serial}</td>
+          </tr>
+        `;
+      }
     }).join('\n');
 
-    return `
-      <table class="equipment-table" style="width: 100%; border-collapse: collapse; margin: 12px 0; border: 1px solid #000; page-break-inside: avoid;">
+    // Gerar cabeçalho da tabela baseado nas colunas que serão mostradas
+    let tableHeader = '';
+    if (showBothColumns) {
+      tableHeader = `
+        <thead>
+          <tr>
+            <th style="border: 1px solid #000; padding: 6px 8px; text-align: left; background-color: #f5f5f5; font-weight: bold; font-size: 9pt;">EQUIPAMENTO</th>
+            <th style="border: 1px solid #000; padding: 6px 8px; text-align: left; background-color: #f5f5f5; font-weight: bold; font-size: 9pt;">SERIAL NUMBER</th>
+            <th style="border: 1px solid #000; padding: 6px 8px; text-align: left; background-color: #f5f5f5; font-weight: bold; font-size: 9pt;">SERVICE TAG</th>
+          </tr>
+        </thead>
+      `;
+    } else if (showServiceTagColumn) {
+      tableHeader = `
+        <thead>
+          <tr>
+            <th style="border: 1px solid #000; padding: 6px 8px; text-align: left; background-color: #f5f5f5; font-weight: bold; font-size: 9pt;">EQUIPAMENTO</th>
+            <th style="border: 1px solid #000; padding: 6px 8px; text-align: left; background-color: #f5f5f5; font-weight: bold; font-size: 9pt;">SERVICE TAG</th>
+          </tr>
+        </thead>
+      `;
+    } else {
+      tableHeader = `
         <thead>
           <tr>
             <th style="border: 1px solid #000; padding: 6px 8px; text-align: left; background-color: #f5f5f5; font-weight: bold; font-size: 9pt;">EQUIPAMENTO</th>
             <th style="border: 1px solid #000; padding: 6px 8px; text-align: left; background-color: #f5f5f5; font-weight: bold; font-size: 9pt;">SERIAL NUMBER</th>
           </tr>
         </thead>
+      `;
+    }
+
+    return `
+      <table class="equipment-table" style="width: 100%; border-collapse: collapse; margin: 12px 0; border: 1px solid #000; page-break-inside: avoid;">
+        ${tableHeader}
         <tbody>
           ${rows}
         </tbody>

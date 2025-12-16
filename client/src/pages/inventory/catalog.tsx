@@ -534,7 +534,7 @@ export default function InventoryCatalogPage() {
     {
       key: "code",
       header: formatMessage("inventory.catalog.table.code"),
-      render: (product) => `#${product.id}`,
+      render: (product) => product.id,
     },
     {
       key: "name",
