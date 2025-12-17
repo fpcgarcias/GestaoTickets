@@ -1893,17 +1893,873 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
 
 // SLA reports
 router.get('/sla', authRequired, async (req: Request, res: Response) => {
-  res.json({ message: 'SLA reports endpoint - to be implemented' });
+  try {
+    const { startDate, endDate, start_date, end_date, departmentId, incidentTypeId, incident_type_id, priority } = req.query;
+
+    const startDateParam = (start_date || startDate) as string | undefined;
+    const endDateParam = (end_date || endDate) as string | undefined;
+    const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
+    const priorityParam = priority as string | undefined;
+
+    // Build base query for tickets
+    let baseQuery = db.select({
+      id: schema.tickets.id,
+      ticket_id: schema.tickets.ticket_id,
+      title: schema.tickets.title,
+      status: schema.tickets.status,
+      priority: schema.tickets.priority,
+      created_at: schema.tickets.created_at,
+      first_response_at: schema.tickets.first_response_at,
+      resolved_at: schema.tickets.resolved_at,
+      sla_breached: schema.tickets.sla_breached,
+      department_id: schema.tickets.department_id,
+      company_id: schema.tickets.company_id,
+      incident_type_id: schema.tickets.incident_type_id
+    }).from(schema.tickets);
+
+    // Role-based filters (same logic as /performance)
+    const userId = req.session.userId;
+    const userRole = req.session.userRole as string;
+
+    if (!userId || !userRole) {
+      return res.status(401).json({ message: 'Usuário não autenticado' });
+    }
+
+    const roleConditions: any[] = [];
+
+    if (userRole === 'admin') {
+      // No additional filters
+    } else if (userRole === 'company_admin') {
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+      if (!user || !user.company_id) {
+        return res.status(403).json({ message: 'Usuário sem empresa definida' });
+      }
+      roleConditions.push(eq(schema.tickets.company_id, user.company_id));
+    } else if (userRole === 'manager' || userRole === 'supervisor' || userRole === 'support') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Usuário sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      roleConditions.push(inArray(schema.tickets.department_id, departmentIds));
+    } else if (userRole === 'customer') {
+      const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
+      if (!customer) {
+        return res.status(403).json({ message: 'Customer não encontrado' });
+      }
+      roleConditions.push(eq(schema.tickets.customer_id, customer.id));
+    } else {
+      return res.status(403).json({ message: 'Role não reconhecido' });
+    }
+
+    const additionalFilters: any[] = [];
+    if (startDateParam) {
+      additionalFilters.push(gte(schema.tickets.created_at, new Date(startDateParam)));
+    }
+    if (endDateParam) {
+      additionalFilters.push(lte(schema.tickets.created_at, new Date(endDateParam)));
+    }
+    if (departmentId && departmentId !== 'all') {
+      additionalFilters.push(eq(schema.tickets.department_id, parseInt(departmentId as string)));
+    }
+    if (incidentTypeParam && incidentTypeParam !== 'all') {
+      const incidentTypeIdNumber = parseInt(incidentTypeParam, 10);
+      if (!Number.isNaN(incidentTypeIdNumber)) {
+        additionalFilters.push(eq(schema.tickets.incident_type_id, incidentTypeIdNumber));
+      }
+    }
+    if (priorityParam && priorityParam !== 'all') {
+      additionalFilters.push(eq(schema.tickets.priority, priorityParam));
+    }
+
+    // Build where clause safely
+    const allConditions = [];
+    
+    if (roleConditions.length > 0) {
+      const validRoleConditions = roleConditions.filter(condition => condition !== undefined && condition !== null);
+      if (validRoleConditions.length > 0) {
+        allConditions.push(and(...validRoleConditions));
+      }
+    }
+    
+    if (additionalFilters.length > 0) {
+      const validAdditionalFilters = additionalFilters.filter(filter => filter !== undefined && filter !== null);
+      if (validAdditionalFilters.length > 0) {
+        allConditions.push(and(...validAdditionalFilters));
+      }
+    }
+    
+    const whereClause = allConditions.length > 0 ? and(...allConditions) : undefined;
+
+    // Get tickets
+    let ticketsQuery = db.select({
+      id: schema.tickets.id,
+      ticket_id: schema.tickets.ticket_id,
+      title: schema.tickets.title,
+      priority: schema.tickets.priority,
+      department_id: schema.tickets.department_id,
+      incident_type_id: schema.tickets.incident_type_id,
+      created_at: schema.tickets.created_at,
+      first_response_at: schema.tickets.first_response_at,
+      resolved_at: schema.tickets.resolved_at,
+      sla_breached: schema.tickets.sla_breached
+    }).from(schema.tickets);
+    
+    if (whereClause) {
+      ticketsQuery = ticketsQuery.where(whereClause as any) as any;
+    }
+    
+    const tickets = await ticketsQuery;
+
+    // Get company_id from user or first ticket
+    let companyId: number | undefined;
+    if (userRole === 'company_admin') {
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+      companyId = user?.company_id || undefined;
+    } else if (tickets.length > 0 && tickets[0].department_id) {
+      const [dept] = await db.select({ company_id: schema.departments.company_id })
+        .from(schema.departments)
+        .where(eq(schema.departments.id, tickets[0].department_id))
+        .limit(1);
+      companyId = dept?.company_id || undefined;
+    }
+
+    // Calculate summary
+    const totalTickets = tickets.length;
+    const breachedTickets = tickets.filter(t => t.sla_breached === true).length;
+    const complianceRate = totalTickets > 0 ? ((totalTickets - breachedTickets) / totalTickets) * 100 : 0;
+
+    // Group by priority (case-insensitive)
+    const priorityMap = new Map<string, { total: number; breached: number; originalName: string }>();
+    tickets.forEach(t => {
+      const prioRaw = t.priority || 'N/A';
+      // Usar chave normalizada (case-insensitive) para agrupar
+      const prioKey = prioRaw.toLowerCase().trim();
+      const current = priorityMap.get(prioKey) || { total: 0, breached: 0, originalName: prioRaw };
+      current.total++;
+      if (t.sla_breached) current.breached++;
+      priorityMap.set(prioKey, current);
+    });
+
+    const byPriority = Array.from(priorityMap.entries()).map(([priorityKey, data]) => ({
+      priority: normalizarPrioridade(data.originalName),
+      total_tickets: data.total,
+      breached_tickets: data.breached,
+      compliance_rate: data.total > 0 ? ((data.total - data.breached) / data.total) * 100 : 0
+    }));
+
+    // Group by department
+    const deptIds = Array.from(new Set(tickets.map(t => t.department_id).filter(Boolean))) as number[];
+    const departments = deptIds.length > 0
+      ? await db.select({ id: schema.departments.id, name: schema.departments.name })
+          .from(schema.departments)
+          .where(inArray(schema.departments.id, deptIds))
+      : [];
+
+    const departmentMap = new Map(departments.map(d => [d.id, d.name]));
+    const deptMap = new Map<number, { total: number; breached: number }>();
+    tickets.forEach(t => {
+      if (!t.department_id) return;
+      const current = deptMap.get(t.department_id) || { total: 0, breached: 0 };
+      current.total++;
+      if (t.sla_breached) current.breached++;
+      deptMap.set(t.department_id, current);
+    });
+
+    const byDepartment = Array.from(deptMap.entries()).map(([deptId, data]) => ({
+      department_id: deptId,
+      department_name: departmentMap.get(deptId) || 'N/A',
+      total_tickets: data.total,
+      breached_tickets: data.breached,
+      compliance_rate: data.total > 0 ? ((data.total - data.breached) / data.total) * 100 : 0
+    }));
+
+    // Get breached tickets list (limited to 100)
+    const breachedTicketsList = tickets
+      .filter(t => t.sla_breached)
+      .slice(0, 100)
+      .map(t => ({
+        id: t.id,
+        ticket_id: t.ticket_id,
+        title: t.title,
+        priority: normalizarPrioridade(t.priority || 'N/A'),
+        department_name: t.department_id ? (departmentMap.get(t.department_id) || 'N/A') : 'N/A',
+        created_at: t.created_at,
+        resolved_at: t.resolved_at
+      }));
+
+    return res.json({
+      summary: {
+        total_tickets: totalTickets,
+        breached_tickets: breachedTickets,
+        within_sla: totalTickets - breachedTickets,
+        compliance_rate: Math.round(complianceRate * 100) / 100
+      },
+      by_priority: byPriority,
+      by_department: byDepartment,
+      breached_tickets: breachedTicketsList
+    });
+  } catch (error) {
+    console.error('Erro ao gerar relatório de SLA:', error);
+    return res.status(500).json({ message: 'Erro ao gerar relatório de SLA' });
+  }
 });
 
 // Department reports
 router.get('/department', authRequired, async (req: Request, res: Response) => {
-  res.json({ message: 'Department reports endpoint - to be implemented' });
+  try {
+    const { startDate, endDate, start_date, end_date, incidentTypeId, incident_type_id } = req.query;
+
+    const startDateParam = (start_date || startDate) as string | undefined;
+    const endDateParam = (end_date || endDate) as string | undefined;
+    const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
+
+    // Build base query for tickets
+    let baseQuery = db.select({
+      id: schema.tickets.id,
+      ticket_id: schema.tickets.ticket_id,
+      status: schema.tickets.status,
+      priority: schema.tickets.priority,
+      created_at: schema.tickets.created_at,
+      first_response_at: schema.tickets.first_response_at,
+      resolved_at: schema.tickets.resolved_at,
+      sla_breached: schema.tickets.sla_breached,
+      department_id: schema.tickets.department_id,
+      assigned_to_id: schema.tickets.assigned_to_id,
+      company_id: schema.tickets.company_id
+    }).from(schema.tickets);
+
+    // Role-based filters (same logic as /performance)
+    const userId = req.session.userId;
+    const userRole = req.session.userRole as string;
+
+    if (!userId || !userRole) {
+      return res.status(401).json({ message: 'Usuário não autenticado' });
+    }
+
+    const roleConditions: any[] = [];
+
+    if (userRole === 'admin') {
+      // No additional filters
+    } else if (userRole === 'company_admin') {
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+      if (!user || !user.company_id) {
+        return res.status(403).json({ message: 'Usuário sem empresa definida' });
+      }
+      roleConditions.push(eq(schema.tickets.company_id, user.company_id));
+    } else if (userRole === 'manager') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Manager sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      const subordinates = await db.select().from(schema.officials)
+        .where(eq(schema.officials.manager_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(schema.tickets.assigned_to_id)
+      );
+      roleConditions.push(and(inArray(schema.tickets.department_id, departmentIds), assignmentFilter));
+    } else if (userRole === 'supervisor') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Supervisor sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      const subordinates = await db.select().from(schema.officials)
+        .where(eq(schema.officials.supervisor_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(schema.tickets.assigned_to_id)
+      );
+      roleConditions.push(and(inArray(schema.tickets.department_id, departmentIds), assignmentFilter));
+    } else if (userRole === 'support') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Support sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        isNull(schema.tickets.assigned_to_id)
+      );
+      roleConditions.push(and(inArray(schema.tickets.department_id, departmentIds), assignmentFilter));
+    } else if (userRole === 'customer') {
+      const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
+      if (!customer) {
+        return res.status(403).json({ message: 'Customer não encontrado' });
+      }
+      roleConditions.push(eq(schema.tickets.customer_id, customer.id));
+    } else {
+      return res.status(403).json({ message: 'Role não reconhecido' });
+    }
+
+    const additionalFilters: any[] = [];
+    if (startDateParam) {
+      additionalFilters.push(gte(schema.tickets.created_at, new Date(startDateParam)));
+    }
+    if (endDateParam) {
+      additionalFilters.push(lte(schema.tickets.created_at, new Date(endDateParam)));
+    }
+    if (incidentTypeParam && incidentTypeParam !== 'all') {
+      const incidentTypeIdNumber = parseInt(incidentTypeParam, 10);
+      if (!Number.isNaN(incidentTypeIdNumber)) {
+        additionalFilters.push(eq(schema.tickets.incident_type_id, incidentTypeIdNumber));
+      }
+    }
+
+    // Build where clause safely
+    const allConditions = [];
+    
+    if (roleConditions.length > 0) {
+      const validRoleConditions = roleConditions.filter(condition => condition !== undefined && condition !== null);
+      if (validRoleConditions.length > 0) {
+        allConditions.push(and(...validRoleConditions));
+      }
+    }
+    
+    if (additionalFilters.length > 0) {
+      const validAdditionalFilters = additionalFilters.filter(filter => filter !== undefined && filter !== null);
+      if (validAdditionalFilters.length > 0) {
+        allConditions.push(and(...validAdditionalFilters));
+      }
+    }
+    
+    const whereClause = allConditions.length > 0 ? and(...allConditions) : undefined;
+
+    // Get tickets
+    const selectFields = Object.fromEntries(
+      Object.entries({
+        id: schema.tickets.id,
+        department_id: schema.tickets.department_id,
+        created_at: schema.tickets.created_at,
+        first_response_at: schema.tickets.first_response_at,
+        resolved_at: schema.tickets.resolved_at
+      }).filter(([key, value]) => value !== undefined && value !== null)
+    );
+
+    let ticketsQuery = db.select(selectFields).from(schema.tickets);
+    if (whereClause) {
+      ticketsQuery = ticketsQuery.where(whereClause as any) as any;
+    }
+    
+    const tickets = await ticketsQuery;
+
+    const ticketIds = tickets.map(t => t.id);
+    const deptIds = Array.from(new Set(tickets.map(t => t.department_id).filter(Boolean))) as number[];
+
+    // Fetch departments
+    let departments: any[] = [];
+    if (deptIds.length > 0) {
+      departments = await db.select({
+        id: schema.departments.id,
+        name: schema.departments.name
+      })
+        .from(schema.departments)
+        .where(inArray(schema.departments.id, deptIds));
+    }
+
+    // Fetch satisfaction surveys
+    let surveys: any[] = [];
+    if (ticketIds.length > 0) {
+      surveys = await db.select({
+        ticket_id: schema.satisfactionSurveys.ticket_id,
+        rating: schema.satisfactionSurveys.rating,
+        responded_at: schema.satisfactionSurveys.responded_at
+      })
+        .from(schema.satisfactionSurveys)
+        .where(inArray(schema.satisfactionSurveys.ticket_id, ticketIds.filter(id => typeof id === 'number')));
+    }
+
+    // Group tickets by department
+    const departmentMap = new Map(departments.map(d => [d.id, d.name]));
+    const ticketsByDept = new Map<number, typeof tickets>();
+    tickets.forEach(t => {
+      if (!t.department_id || typeof t.department_id !== 'number') return;
+      const arr = ticketsByDept.get(t.department_id) || [];
+      (arr as any).push(t);
+      ticketsByDept.set(t.department_id, arr as any);
+    });
+
+    const surveysByTicket = new Map<number, { rating: number | null; responded_at: Date | null }[]>();
+    surveys.forEach(s => {
+      if (typeof s.ticket_id !== 'number') return;
+      const arr = surveysByTicket.get(s.ticket_id) || [];
+      arr.push({ rating: s.rating, responded_at: s.responded_at });
+      surveysByTicket.set(s.ticket_id, arr);
+    });
+
+    // Get officials count per department
+    const officialsByDept = new Map<number, number>();
+    if (deptIds.length > 0) {
+      const officials = await db.select({
+        id: schema.officials.id,
+        department_id: schema.officials.department_id
+      })
+        .from(schema.officials)
+        .where(inArray(schema.officials.department_id, deptIds.filter(id => id !== null)));
+      
+      officials.forEach(o => {
+        if (o.department_id && typeof o.department_id === 'number') {
+          const count = officialsByDept.get(o.department_id) || 0;
+          officialsByDept.set(o.department_id, count + 1);
+        }
+      });
+    }
+
+    // Calcular métricas por departamento
+    const departmentsMetrics = await Promise.all(
+      Array.from(ticketsByDept.entries()).map(async ([deptId, ts]) => {
+        if (typeof deptId !== 'number') return null;
+        const total = ts.length;
+        const resolved = ts.filter(t => t.resolved_at).length;
+        
+        // Usar as mesmas funções do dashboard para garantir consistência
+        const avgFirstResponseHours = await storage.getAverageFirstResponseTimeByUserRole(
+          userId, 
+          userRole, 
+          undefined, // officialId - usar undefined para todos os atendentes do departamento
+          startDateParam ? new Date(startDateParam) : undefined,
+          endDateParam ? new Date(endDateParam) : undefined,
+          deptId as number // departmentId específico
+        );
+        
+        const avgResolutionHours = await storage.getAverageResolutionTimeByUserRole(
+          userId, 
+          userRole, 
+          undefined, // officialId - usar undefined para todos os atendentes do departamento
+          startDateParam ? new Date(startDateParam) : undefined,
+          endDateParam ? new Date(endDateParam) : undefined,
+          deptId as number // departmentId específico
+        );
+
+        // Satisfaction average for this department
+        let ratings: number[] = [];
+        ts.forEach(t => {
+          if (typeof t.id !== 'number') return;
+          const entries = surveysByTicket.get(t.id) || [];
+          entries.forEach(e => { if (e.rating != null && e.responded_at) ratings.push(e.rating as number); });
+        });
+        const satisfactionAvg = ratings.length > 0 ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100 : null;
+
+        return {
+          department_id: deptId as number,
+          department_name: departmentMap.get(deptId as number) || 'N/A',
+          tickets: total,
+          resolved_tickets: resolved,
+          avg_first_response_time_hours: avgFirstResponseHours || null,
+          avg_resolution_time_hours: avgResolutionHours || null,
+          satisfaction_avg: satisfactionAvg,
+          officials_count: officialsByDept.get(deptId) || 0
+        };
+      })
+    );
+    
+    // Ordenar por tickets resolvidos
+    departmentsMetrics.filter(m => m !== null).sort((a, b) => (b!.resolved_tickets - a!.resolved_tickets));
+
+    // Summary
+    const totalTickets = tickets.length;
+    const resolvedTickets = tickets.filter(t => t.resolved_at !== null).length;
+    
+    const avgFirstResponseTimeHours = await storage.getAverageFirstResponseTimeByUserRole(
+      userId, 
+      userRole, 
+      undefined,
+      startDateParam ? new Date(startDateParam) : undefined,
+      endDateParam ? new Date(endDateParam) : undefined,
+      undefined
+    );
+    
+    const avgResolutionTimeHours = await storage.getAverageResolutionTimeByUserRole(
+      userId, 
+      userRole, 
+      undefined,
+      startDateParam ? new Date(startDateParam) : undefined,
+      endDateParam ? new Date(endDateParam) : undefined,
+      undefined
+    );
+    
+    const summary = {
+      total_tickets: totalTickets,
+      resolved_tickets: resolvedTickets,
+      avg_first_response_time_hours: avgFirstResponseTimeHours || null,
+      avg_resolution_time_hours: avgResolutionTimeHours || null,
+      satisfaction_avg: (() => {
+        let ratings: number[] = [];
+        tickets.forEach(t => {
+          if (typeof t.id !== 'number') return;
+          const entries = surveysByTicket.get(t.id) || [];
+          entries.forEach(e => { if (e.rating != null && e.responded_at) ratings.push(e.rating as number); });
+        });
+        return ratings.length > 0 ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100 : null;
+      })()
+    };
+
+    return res.json({
+      summary,
+      departments: departmentsMetrics.filter(m => m !== null)
+    });
+  } catch (error) {
+    console.error('Erro ao gerar relatório por departamento:', error);
+    return res.status(500).json({ message: 'Erro ao gerar relatório por departamento' });
+  }
 });
 
 // Client reports
 router.get('/clients', authRequired, async (req: Request, res: Response) => {
-  res.json({ message: 'Client reports endpoint - to be implemented' });
+  try {
+    const { startDate, endDate, start_date, end_date, departmentId, rating } = req.query;
+
+    const startDateParam = (start_date || startDate) as string | undefined;
+    const endDateParam = (end_date || endDate) as string | undefined;
+    const departmentIdParam = departmentId as string | undefined;
+    const ratingParam = rating ? parseInt(rating as string, 10) : undefined;
+
+    // Build base query for tickets
+    let baseQuery = db.select({
+      id: schema.tickets.id,
+      ticket_id: schema.tickets.ticket_id,
+      status: schema.tickets.status,
+      priority: schema.tickets.priority,
+      created_at: schema.tickets.created_at,
+      resolved_at: schema.tickets.resolved_at,
+      updated_at: schema.tickets.updated_at,
+      customer_id: schema.tickets.customer_id,
+      customer_email: schema.tickets.customer_email,
+      company_id: schema.tickets.company_id,
+      department_id: schema.tickets.department_id
+    }).from(schema.tickets);
+
+    // Role-based filters (same logic as /performance)
+    const userId = req.session.userId;
+    const userRole = req.session.userRole as string;
+
+    if (!userId || !userRole) {
+      return res.status(401).json({ message: 'Usuário não autenticado' });
+    }
+
+    const roleConditions: any[] = [];
+
+    if (userRole === 'admin') {
+      // No additional filters
+    } else if (userRole === 'company_admin') {
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+      if (!user || !user.company_id) {
+        return res.status(403).json({ message: 'Usuário sem empresa definida' });
+      }
+      roleConditions.push(eq(schema.tickets.company_id, user.company_id));
+    } else if (userRole === 'manager' || userRole === 'supervisor' || userRole === 'support') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Usuário sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      roleConditions.push(inArray(schema.tickets.department_id, departmentIds));
+    } else if (userRole === 'customer') {
+      const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
+      if (!customer) {
+        return res.status(403).json({ message: 'Customer não encontrado' });
+      }
+      roleConditions.push(eq(schema.tickets.customer_id, customer.id));
+    } else {
+      return res.status(403).json({ message: 'Role não reconhecido' });
+    }
+
+    const additionalFilters: any[] = [];
+    if (startDateParam) {
+      additionalFilters.push(gte(schema.tickets.created_at, new Date(startDateParam)));
+    }
+    if (endDateParam) {
+      additionalFilters.push(lte(schema.tickets.created_at, new Date(endDateParam)));
+    }
+    if (departmentIdParam && departmentIdParam !== 'all') {
+      additionalFilters.push(eq(schema.tickets.department_id, parseInt(departmentIdParam)));
+    }
+
+    // Build where clause safely
+    const allConditions = [];
+    
+    if (roleConditions.length > 0) {
+      const validRoleConditions = roleConditions.filter(condition => condition !== undefined && condition !== null);
+      if (validRoleConditions.length > 0) {
+        allConditions.push(and(...validRoleConditions));
+      }
+    }
+    
+    if (additionalFilters.length > 0) {
+      const validAdditionalFilters = additionalFilters.filter(filter => filter !== undefined && filter !== null);
+      if (validAdditionalFilters.length > 0) {
+        allConditions.push(and(...validAdditionalFilters));
+      }
+    }
+    
+    const whereClause = allConditions.length > 0 ? and(...allConditions) : undefined;
+
+    // Get tickets
+    let ticketsQuery = db.select({
+      id: schema.tickets.id,
+      customer_id: schema.tickets.customer_id,
+      customer_email: schema.tickets.customer_email,
+      created_at: schema.tickets.created_at,
+      resolved_at: schema.tickets.resolved_at,
+      updated_at: schema.tickets.updated_at
+    }).from(schema.tickets);
+    
+    if (whereClause) {
+      ticketsQuery = ticketsQuery.where(whereClause as any) as any;
+    }
+    
+    const tickets = await ticketsQuery;
+
+    const ticketIds = tickets.map(t => t.id);
+
+    // Fetch customers
+    const customerIds = Array.from(new Set(tickets.map(t => t.customer_id).filter(Boolean))) as number[];
+    const customerEmails = Array.from(new Set(tickets.map(t => t.customer_email).filter(Boolean))) as string[];
+    
+    let customers: any[] = [];
+    if (customerIds.length > 0) {
+      customers = await db.select({
+        id: schema.customers.id,
+        name: schema.customers.name,
+        email: schema.customers.email
+      })
+        .from(schema.customers)
+        .where(inArray(schema.customers.id, customerIds));
+    }
+
+    // Fetch satisfaction surveys
+    let surveys: any[] = [];
+    if (ticketIds.length > 0) {
+      surveys = await db.select({
+        ticket_id: schema.satisfactionSurveys.ticket_id,
+        customer_email: schema.satisfactionSurveys.customer_email,
+        rating: schema.satisfactionSurveys.rating,
+        comments: schema.satisfactionSurveys.comments,
+        responded_at: schema.satisfactionSurveys.responded_at
+      })
+        .from(schema.satisfactionSurveys)
+        .where(inArray(schema.satisfactionSurveys.ticket_id, ticketIds.filter(id => typeof id === 'number')));
+    }
+
+    // Filter by rating if specified
+    if (ratingParam && !isNaN(ratingParam)) {
+      const surveyTicketIds = surveys.filter(s => s.rating === ratingParam).map(s => s.ticket_id);
+      if (surveyTicketIds.length > 0) {
+        ticketsQuery = ticketsQuery.where(inArray(schema.tickets.id, surveyTicketIds)) as any;
+      } else {
+        // No tickets with this rating, return empty result
+        return res.json({
+          summary: {
+            total_customers: 0,
+            customers_responded: 0,
+            satisfaction_avg: null,
+            response_rate: 0
+          },
+          clients: [],
+          rating_distribution: {
+            1: 0,
+            2: 0,
+            3: 0,
+            4: 0,
+            5: 0
+          },
+          recent_comments: []
+        });
+      }
+    }
+
+    // Group tickets by customer (by customer_id if available, otherwise by email)
+    const customerMap = new Map<number | string, { id: number | null; name: string; email: string }>();
+    customers.forEach(c => {
+      if (c.id) customerMap.set(c.id, { id: c.id, name: c.name, email: c.email });
+    });
+
+    // Also map by email for customers without ID
+    tickets.forEach(t => {
+      if (t.customer_id && customerMap.has(t.customer_id)) {
+        // Already mapped by ID
+      } else if (t.customer_email && !customerMap.has(t.customer_email)) {
+        customerMap.set(t.customer_email, {
+          id: t.customer_id || null,
+          name: t.customer_email.split('@')[0],
+          email: t.customer_email
+        });
+      }
+    });
+
+    const ticketsByCustomer = new Map<number | string, typeof tickets>();
+    tickets.forEach(t => {
+      const key = t.customer_id || t.customer_email;
+      if (!key) return;
+      const arr = ticketsByCustomer.get(key) || [];
+      (arr as any).push(t);
+      ticketsByCustomer.set(key, arr as any);
+    });
+
+    const surveysByTicket = new Map<number, { rating: number | null; comments: string | null; responded_at: Date | null; customer_email: string }>();
+    surveys.forEach(s => {
+      if (typeof s.ticket_id !== 'number') return;
+      surveysByTicket.set(s.ticket_id, {
+        rating: s.rating,
+        comments: s.comments,
+        responded_at: s.responded_at,
+        customer_email: s.customer_email
+      });
+    });
+
+    // Calculate metrics per customer
+    const clientsMetrics = Array.from(ticketsByCustomer.entries()).map(([customerKey, ts]) => {
+      const customerInfo = customerMap.get(customerKey) || {
+        id: typeof customerKey === 'number' ? customerKey : null,
+        name: typeof customerKey === 'string' ? customerKey.split('@')[0] : 'N/A',
+        email: typeof customerKey === 'string' ? customerKey : ''
+      };
+
+      const totalTickets = ts.length;
+      const resolvedTickets = ts.filter(t => t.resolved_at).length;
+      
+      // Get satisfaction ratings for this customer's tickets
+      const ratings: number[] = [];
+      const comments: Array<{ rating: number; comments: string; responded_at: Date; ticket_id: number }> = [];
+      ts.forEach(t => {
+        if (typeof t.id !== 'number') return;
+        const survey = surveysByTicket.get(t.id);
+        if (survey && survey.rating !== null && survey.responded_at) {
+          ratings.push(survey.rating);
+          if (survey.comments) {
+            comments.push({
+              rating: survey.rating,
+              comments: survey.comments,
+              responded_at: survey.responded_at,
+              ticket_id: t.id
+            });
+          }
+        }
+      });
+
+      const satisfactionAvg = ratings.length > 0
+        ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100
+        : null;
+
+      // Get last interaction (most recent ticket update)
+      const lastInteraction = ts.reduce((latest, t) => {
+        const updated = t.updated_at || t.created_at;
+        return (!latest || updated > latest) ? updated : latest;
+      }, null as Date | null);
+
+      return {
+        customer_id: customerInfo.id,
+        name: customerInfo.name,
+        email: customerInfo.email,
+        total_tickets: totalTickets,
+        resolved_tickets: resolvedTickets,
+        satisfaction_avg: satisfactionAvg,
+        last_interaction: lastInteraction,
+        surveys_count: ratings.length
+      };
+    });
+
+    // Filter by rating if specified
+    const filteredClients = ratingParam && !isNaN(ratingParam)
+      ? clientsMetrics.filter(c => c.satisfaction_avg === ratingParam)
+      : clientsMetrics;
+
+    // Calculate rating distribution
+    const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    surveys.forEach(s => {
+      if (s.rating !== null && s.rating >= 1 && s.rating <= 5) {
+        ratingDistribution[s.rating as keyof typeof ratingDistribution]++;
+      }
+    });
+
+    // Get recent comments (last 10)
+    const recentComments = surveys
+      .filter(s => s.comments && s.responded_at)
+      .sort((a, b) => {
+        const dateA = a.responded_at ? new Date(a.responded_at).getTime() : 0;
+        const dateB = b.responded_at ? new Date(b.responded_at).getTime() : 0;
+        return dateB - dateA;
+      })
+      .slice(0, 10)
+      .map(s => ({
+        rating: s.rating || 0,
+        comments: s.comments || '',
+        responded_at: s.responded_at,
+        customer_email: s.customer_email
+      }));
+
+    // Summary
+    const totalCustomers = new Set(filteredClients.map(c => c.email)).size;
+    const customersResponded = new Set(
+      filteredClients.filter(c => c.satisfaction_avg !== null).map(c => c.email)
+    ).size;
+
+    const allRatings: number[] = [];
+    filteredClients.forEach(c => {
+      if (c.satisfaction_avg !== null) {
+        allRatings.push(c.satisfaction_avg);
+      }
+    });
+
+    const satisfactionAvg = allRatings.length > 0
+      ? Math.round((allRatings.reduce((a, b) => a + b, 0) / allRatings.length) * 100) / 100
+      : null;
+
+    const responseRate = totalCustomers > 0
+      ? Math.round((customersResponded / totalCustomers) * 100)
+      : 0;
+
+    return res.json({
+      summary: {
+        total_customers: totalCustomers,
+        customers_responded: customersResponded,
+        satisfaction_avg: satisfactionAvg,
+        response_rate: responseRate
+      },
+      clients: filteredClients.sort((a, b) => {
+        // Sort by last interaction (most recent first)
+        const dateA = a.last_interaction ? new Date(a.last_interaction).getTime() : 0;
+        const dateB = b.last_interaction ? new Date(b.last_interaction).getTime() : 0;
+        return dateB - dateA;
+      }),
+      rating_distribution: ratingDistribution,
+      recent_comments: recentComments
+    });
+  } catch (error) {
+    console.error('Erro ao gerar relatório de clientes:', error);
+    return res.status(500).json({ message: 'Erro ao gerar relatório de clientes' });
+  }
 });
 
 export default router;

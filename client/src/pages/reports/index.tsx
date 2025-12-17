@@ -16,7 +16,7 @@ export default function ReportsIndex() {
   };
 
   // Relatórios implementados
-  const implementedReports = ['tickets', 'performance'];
+  const implementedReports = ['tickets', 'performance', 'sla', 'department', 'clients'];
 
   const isReportImplemented = (reportType: string) => {
     return implementedReports.includes(reportType);
