@@ -35,6 +35,13 @@ function getConfig(): AppConfig {
   const currentHost = currentUrl.host;
   const currentHostname = currentUrl.hostname;
   
+  // SEMPRE detectar o protocolo da página atual para evitar Mixed Content
+  // Se a página está em HTTPS, API e WebSocket devem usar HTTPS/WSS
+  const pageProtocol = currentUrl.protocol;
+  const isHTTPS = pageProtocol === 'https:';
+  const apiProtocol = isHTTPS ? 'https:' : 'http:';
+  const wsProtocol = isHTTPS ? 'wss:' : 'ws:';
+  
   if (isDevelopment) {
     // Em desenvolvimento local (localhost/127.0.0.1), usar localhost
     if (currentHostname === 'localhost' || currentHostname === '127.0.0.1') {
@@ -45,10 +52,11 @@ function getConfig(): AppConfig {
         isProduction: false
       };
     } else {
-      // Em desenvolvimento mas acessado de máquina externa, usar o host atual
+      // Em desenvolvimento mas acessado de máquina externa (ex: servidor de teste com HTTPS)
+      // Usar o protocolo da página atual para evitar Mixed Content
       return {
-        apiBaseUrl: `http://${currentHost}`,
-        wsBaseUrl: `ws://${currentHost}`,
+        apiBaseUrl: `${apiProtocol}//${currentHost}`,
+        wsBaseUrl: `${wsProtocol}//${currentHost}`,
         isDevelopment: true,
         isProduction: false
       };
@@ -56,11 +64,6 @@ function getConfig(): AppConfig {
   } else {
     // Em produção com Cloudflare Tunnel
     // SEMPRE usar o protocolo da página atual (Cloudflare cuida do HTTPS)
-    const pageProtocol = currentUrl.protocol;
-    const isHTTPS = pageProtocol === 'https:';
-    const apiProtocol = isHTTPS ? 'https:' : 'http:';
-    const wsProtocol = isHTTPS ? 'wss:' : 'ws:';
-    
     return {
       apiBaseUrl: `${apiProtocol}//${currentHost}`,
       wsBaseUrl: `${wsProtocol}//${currentHost}`,

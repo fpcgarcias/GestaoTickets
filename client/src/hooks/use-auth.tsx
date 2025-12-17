@@ -19,7 +19,7 @@ interface User {
   id: number;
   username: string;
   email: string;
-  role: 'admin' | 'support' | 'customer' | 'manager' | 'supervisor' | 'viewer' | 'company_admin' | 'triage' | 'quality' | 'integration_bot';
+  role: 'admin' | 'support' | 'customer' | 'manager' | 'supervisor' | 'viewer' | 'company_admin' | 'triage' | 'quality' | 'integration_bot' | 'inventory_manager';
   name: string;
   avatarUrl?: string;
   initials?: string;

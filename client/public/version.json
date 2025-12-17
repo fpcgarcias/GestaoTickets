@@ -9,7 +9,8 @@
       "type": "feature",
       "changes": {
         "new": [
-          "Nova estrutura de notificações no sistema, tornando o sistema mais interativo e moderno."
+          "Nova estrutura de notificações no sistema, tornando o sistema mais interativo e moderno.",
+          "Implementação de nova tela de inventário de equipamentos, com funcionalidades de movimentação de equipamentos entre estoques."
         ]
       }
     },

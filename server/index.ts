@@ -225,7 +225,12 @@ try {
 // Exportar para uso nas rotas
 export { generalLimiter, authLimiter };
 
-app.use(express.json({ limit: '10mb' })); // Limite de payload
+app.use(express.json({ 
+  limit: '10mb',
+  verify: (req: any, res, buf) => {
+    req.rawBody = buf;
+  }
+})); // Limite de payload com rawBody salvo para webhooks
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // Inicializar serviço de notificações 

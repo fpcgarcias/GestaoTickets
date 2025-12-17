@@ -1,0 +1,917 @@
+import { and, desc, eq, ilike, isNull, or, sql, inArray, getTableColumns } from 'drizzle-orm';
+import { db } from '../db';
+import {
+  inventoryMovements,
+  inventoryProducts,
+  userInventoryAssignments,
+  ticketInventoryItems,
+  inventoryMovementItems,
+  productTypes,
+  productCategories,
+  tickets,
+  users,
+  type InventoryMovement,
+  type InventoryProduct,
+  type InsertInventoryMovement,
+  type InsertUserInventoryAssignment,
+  type InsertInventoryMovementItem,
+} from '@shared/schema';
+import { randomUUID } from 'crypto';
+import { inventoryProductService, type HydratedInventoryProduct } from './inventory-product-service';
+import { getDepartmentFilter } from '../utils/department-filter';
+
+export type MovementType =
+  | 'entry'
+  | 'withdrawal'
+  | 'return'
+  | 'write_off'
+  | 'transfer'
+  | 'maintenance'
+  | 'reservation';
+
+export interface MovementAssignmentOptions {
+  expectedReturnDate?: string;
+  notes?: string;
+}
+
+export interface RegisterMovementInput extends Omit<InsertInventoryMovement, 'notes' | 'approval_status'> {
+  movement_type: MovementType;
+  notes?: string | null;
+  requireApproval?: boolean;
+  assignment?: MovementAssignmentOptions;
+  company_id: number;
+  product_id?: number; // Opcional para movimentações em lote
+  product_ids?: number[]; // Array de produtos para movimentação em lote
+}
+
+export interface RegisterBatchMovementInput extends Omit<RegisterMovementInput, 'product_id' | 'product_ids'> {
+  product_ids: number[];
+}
+
+export interface MovementFilters {
+  companyId: number;
+  userId?: number;
+  userRole?: string;
+  productId?: number;
+  movementType?: MovementType;
+  approvalStatus?: string;
+  ticketId?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface HydratedMovement extends InventoryMovement {
+  product?: HydratedInventoryProduct | null;
+  batchProducts?: HydratedInventoryProduct[];
+  userNotes?: string | null;
+  assignment?: MovementAssignmentOptions;
+  ticket_code?: string | null;
+  responsible_name?: string | null;
+}
+
+interface MovementMetadata {
+  structured: boolean;
+  userNotes?: string | null;
+  assignment?: MovementAssignmentOptions;
+}
+
+class InventoryMovementService {
+  async listMovements(filters: MovementFilters) {
+    const page = Math.max(filters.page ?? 1, 1);
+    const limit = Math.min(filters.limit ?? 25, 100);
+    const offset = (page - 1) * limit;
+
+    const conditions = [eq(inventoryMovements.company_id, filters.companyId)];
+    
+    if (filters.productId) {
+      // Para movimentações em lote, verificar se o produto está nos itens
+      const batchMovementsWithProduct = await db
+        .select({ movement_id: inventoryMovementItems.movement_id })
+        .from(inventoryMovementItems)
+        .where(eq(inventoryMovementItems.product_id, filters.productId));
+      
+      const batchMovementIds = batchMovementsWithProduct.map(m => m.movement_id);
+      
+      if (batchMovementIds.length > 0) {
+        conditions.push(
+          or(
+            eq(inventoryMovements.product_id, filters.productId),
+            inArray(inventoryMovements.id, batchMovementIds)
+          )
+        );
+      } else {
+        conditions.push(eq(inventoryMovements.product_id, filters.productId));
+      }
+    }
+    if (filters.movementType) {
+      conditions.push(eq(inventoryMovements.movement_type, filters.movementType));
+    }
+    if (filters.approvalStatus) {
+      conditions.push(eq(inventoryMovements.approval_status, filters.approvalStatus));
+    }
+    if (filters.ticketId) {
+      conditions.push(eq(inventoryMovements.ticket_id, filters.ticketId));
+    }
+    if (filters.search) {
+      const term = `%${filters.search}%`;
+      conditions.push(
+        or(
+          ilike(inventoryMovements.reason, term),
+          ilike(inventoryMovements.notes, term)
+        )
+      );
+    }
+
+    // Filtro por departamento (via produtos)
+    if (filters.userId && filters.userRole) {
+      const deptFilter = await getDepartmentFilter(filters.userId, filters.userRole);
+
+      if (deptFilter.type === 'NONE') {
+        return {
+          data: [],
+          pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+        };
+      }
+
+      if (deptFilter.type === 'DEPARTMENTS') {
+        // Buscar apenas produtos dos departamentos do usuário
+        const allowedProducts = await db
+          .select({ id: inventoryProducts.id })
+          .from(inventoryProducts)
+          .where(
+            and(
+              eq(inventoryProducts.company_id, filters.companyId),
+              or(
+                inArray(inventoryProducts.department_id, deptFilter.departmentIds!),
+                sql`${inventoryProducts.department_id} IS NULL`
+              )
+            )
+          );
+
+        const productIds = allowedProducts.map(p => p.id);
+        
+        if (productIds.length === 0) {
+          return {
+            data: [],
+            pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false },
+          };
+        }
+
+        // Para movimentações em lote, verificar se algum produto está nos itens
+        const batchMovementsWithAllowedProducts = await db
+          .select({ movement_id: inventoryMovementItems.movement_id })
+          .from(inventoryMovementItems)
+          .where(inArray(inventoryMovementItems.product_id, productIds));
+        
+        const batchMovementIds = batchMovementsWithAllowedProducts.map(m => m.movement_id);
+        
+        if (batchMovementIds.length > 0) {
+          conditions.push(
+            or(
+              inArray(inventoryMovements.product_id, productIds),
+              inArray(inventoryMovements.id, batchMovementIds)
+            )
+          );
+        } else {
+          conditions.push(inArray(inventoryMovements.product_id, productIds));
+        }
+      }
+    }
+
+    const whereClause = and(...conditions);
+
+    const rows = await db
+      .select({
+        ...getTableColumns(inventoryMovements),
+        ticket_code: tickets.ticket_id,
+        responsible_name: users.name,
+      })
+      .from(inventoryMovements)
+      .leftJoin(tickets, eq(tickets.id, inventoryMovements.ticket_id))
+      .leftJoin(users, eq(users.id, inventoryMovements.responsible_id))
+      .where(whereClause)
+      .orderBy(desc(inventoryMovements.movement_date))
+      .limit(limit)
+      .offset(offset);
+
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(inventoryMovements)
+      .where(whereClause);
+
+    const hydrated = await Promise.all(
+      rows.map(async (row) => {
+        const movementData = {
+          ...(row as any as InventoryMovement),
+          ticket_code: row.ticket_code ?? null,
+          responsible_name: row.responsible_name ?? null,
+        };
+        return this.hydrateMovement(movementData);
+      })
+    );
+
+    const total = Number(count);
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    return {
+      data: hydrated,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
+  }
+
+  async registerMovement(input: RegisterMovementInput): Promise<HydratedMovement> {
+    // Se tem product_ids, é movimentação em lote
+    if (input.product_ids && input.product_ids.length > 0) {
+      return this.registerBatchMovement(input as RegisterBatchMovementInput);
+    }
+
+    // Movimentação única (compatibilidade com código existente)
+    if (!input.product_id) {
+      throw new Error('Produto é obrigatório para movimentação única.');
+    }
+
+    const product = await this.ensureProduct(input.product_id, input.company_id);
+
+    // Validação: se is_stock_transfer = true, responsible_id deve ser NULL
+    if (input.is_stock_transfer && input.responsible_id) {
+      throw new Error('Movimentação entre estoques não pode ter usuário responsável.');
+    }
+
+    // Validação: se is_stock_transfer = true, from_location_id e to_location_id são obrigatórios
+    if (input.is_stock_transfer) {
+      if (!input.from_location_id || !input.to_location_id) {
+        throw new Error('Movimentação entre estoques requer localização de origem e destino.');
+      }
+    }
+
+    // Validar se produto único já está alocado (apenas para withdrawal/entrega)
+    if (input.movement_type === 'withdrawal' && !input.is_stock_transfer) {
+      await this.validateProductAvailability(product, input.responsible_id);
+    }
+
+    const approvalStatus = this.shouldRequireApproval(input)
+      ? 'pending'
+      : 'approved';
+
+    const serializedNotes = this.serializeMetadata(input.notes ?? null, input.assignment);
+
+    const payload: InsertInventoryMovement = {
+      ...input,
+      product_id: input.product_id,
+      quantity: input.quantity ?? 1,
+      movement_date: input.movement_date ?? new Date(),
+      approval_status: approvalStatus,
+      notes: serializedNotes,
+      is_batch_movement: false,
+    };
+
+    const [movement] = await db
+      .insert(inventoryMovements)
+      .values(payload)
+      .returning();
+
+    if (approvalStatus === 'approved') {
+      await this.applyMovementEffects(movement, product, input.assignment);
+    }
+
+    if (movement.ticket_id) {
+      await this.linkMovementToTicket(movement);
+    }
+
+    // Buscar novamente com o join para ter o nome do responsável
+    const movementWithUser = await this.getMovement(movement.id, input.company_id);
+    return this.hydrateMovement(movementWithUser!);
+  }
+
+  async registerBatchMovement(input: RegisterBatchMovementInput): Promise<HydratedMovement> {
+    if (!input.product_ids || input.product_ids.length === 0) {
+      throw new Error('É necessário informar pelo menos um produto para movimentação em lote.');
+    }
+
+    // Validação: se is_stock_transfer = true, responsible_id deve ser NULL
+    if (input.is_stock_transfer && input.responsible_id) {
+      throw new Error('Movimentação entre estoques não pode ter usuário responsável.');
+    }
+
+    // Validação: se is_stock_transfer = true, from_location_id e to_location_id são obrigatórios
+    if (input.is_stock_transfer) {
+      if (!input.from_location_id || !input.to_location_id) {
+        throw new Error('Movimentação entre estoques requer localização de origem e destino.');
+      }
+    }
+
+    // Validar disponibilidade de todos os produtos (apenas para withdrawal/entrega)
+    if (input.movement_type === 'withdrawal' && !input.is_stock_transfer) {
+      for (const productId of input.product_ids) {
+        const product = await this.ensureProduct(productId, input.company_id);
+        await this.validateProductAvailability(product, input.responsible_id);
+      }
+    }
+
+    const approvalStatus = this.shouldRequireApproval(input)
+      ? 'pending'
+      : 'approved';
+
+    const serializedNotes = this.serializeMetadata(input.notes ?? null, input.assignment);
+    const movementGroupId = randomUUID();
+
+    // Criar movimentação principal (sem product_id)
+    const payload: InsertInventoryMovement = {
+      ...input,
+      product_id: null, // NULL para movimentação em lote
+      quantity: input.quantity ?? 1,
+      movement_date: input.movement_date ?? new Date(),
+      approval_status: approvalStatus,
+      notes: serializedNotes,
+      is_batch_movement: true,
+      movement_group_id: movementGroupId,
+    };
+
+    const [movement] = await db
+      .insert(inventoryMovements)
+      .values(payload)
+      .returning();
+
+    // Criar itens da movimentação
+    const movementItems: InsertInventoryMovementItem[] = input.product_ids.map(productId => ({
+      movement_id: movement.id,
+      product_id: productId,
+      quantity: input.quantity ?? 1,
+    }));
+
+    await db.insert(inventoryMovementItems).values(movementItems);
+
+    if (approvalStatus === 'approved') {
+      // Para withdrawals com responsible_id, usar movement_group_id como assignment_group_id
+      // Isso agrupa todos os assignments da mesma entrega
+      const assignmentGroupId = (input.movement_type === 'withdrawal' && input.responsible_id && !input.is_stock_transfer)
+        ? movementGroupId
+        : undefined;
+      await this.applyBatchMovementEffects(movement, input.product_ids, input.assignment, assignmentGroupId);
+    }
+
+    if (movement.ticket_id) {
+      await this.linkBatchMovementToTicket(movement, input.product_ids);
+    }
+
+    // Buscar novamente com o join para ter o nome do responsável
+    const movementWithUser = await this.getMovement(movement.id, input.company_id);
+    return this.hydrateMovement(movementWithUser!);
+  }
+
+  async approveMovement(id: number, companyId: number, approverId: number, notes?: string) {
+    const movement = await this.getMovement(id, companyId);
+    if (!movement) {
+      throw new Error('Movimentação não encontrada.');
+    }
+    if (movement.approval_status !== 'pending') {
+      throw new Error('Movimentação já avaliada.');
+    }
+
+    const metadata = this.parseMetadata(movement.notes);
+
+    const [updated] = await db
+      .update(inventoryMovements)
+      .set({
+        approval_status: 'approved',
+        approved_by_id: approverId,
+        approval_date: new Date(),
+        approval_notes: notes ?? null,
+      })
+      .where(eq(inventoryMovements.id, id))
+      .returning();
+
+    // Se for movimentação em lote
+    if (updated.is_batch_movement) {
+      const movementItems = await db
+        .select({ product_id: inventoryMovementItems.product_id })
+        .from(inventoryMovementItems)
+        .where(eq(inventoryMovementItems.movement_id, id));
+
+      const productIds = movementItems.map(item => item.product_id);
+      
+      // Validar disponibilidade de todos os produtos
+      if (updated.movement_type === 'withdrawal') {
+        for (const productId of productIds) {
+          const product = await this.ensureProduct(productId, companyId);
+          await this.validateProductAvailability(product, updated.responsible_id);
+        }
+      }
+
+      // Para withdrawals com responsible_id, usar movement_group_id como assignment_group_id
+      const assignmentGroupId = (updated.movement_type === 'withdrawal' && updated.responsible_id && !updated.is_stock_transfer)
+        ? updated.movement_group_id ?? undefined
+        : undefined;
+      await this.applyBatchMovementEffects(updated, productIds, metadata.assignment, assignmentGroupId);
+
+      if (updated.ticket_id) {
+        await this.linkBatchMovementToTicket(updated, productIds);
+      }
+    } else {
+      // Movimentação única
+      if (!updated.product_id) {
+        throw new Error('Movimentação única deve ter product_id.');
+      }
+      const product = await this.ensureProduct(updated.product_id, companyId);
+
+      // Validar se produto único já está alocado (apenas para withdrawal/entrega)
+      if (updated.movement_type === 'withdrawal') {
+        await this.validateProductAvailability(product, updated.responsible_id);
+      }
+
+      await this.applyMovementEffects(updated, product, metadata.assignment);
+
+      if (updated.ticket_id) {
+        await this.linkMovementToTicket(updated);
+      }
+    }
+
+    // Buscar novamente com o join para ter o nome do responsável
+    const movementWithUser = await this.getMovement(id, companyId);
+    return this.hydrateMovement(movementWithUser!);
+  }
+
+  async rejectMovement(id: number, companyId: number, approverId: number, notes?: string) {
+    const movement = await this.getMovement(id, companyId);
+    if (!movement) {
+      throw new Error('Movimentação não encontrada.');
+    }
+    if (movement.approval_status !== 'pending') {
+      throw new Error('Movimentação já avaliada.');
+    }
+
+    const [updated] = await db
+      .update(inventoryMovements)
+      .set({
+        approval_status: 'rejected',
+        approved_by_id: approverId,
+        approval_date: new Date(),
+        approval_notes: notes ?? null,
+      })
+      .where(eq(inventoryMovements.id, id))
+      .returning();
+
+    // Buscar novamente com o join para ter o nome do responsável
+    const movementWithUser = await this.getMovement(id, companyId);
+    return this.hydrateMovement(movementWithUser!);
+  }
+
+  async deleteMovement(id: number, companyId: number): Promise<void> {
+    const movement = await this.getMovement(id, companyId);
+    if (!movement) {
+      throw new Error('Movimentação não encontrada.');
+    }
+
+    // Remoção direta; ticket_inventory_items.movement_id está com ON DELETE SET NULL
+    await db
+      .delete(inventoryMovements)
+      .where(and(eq(inventoryMovements.id, id), eq(inventoryMovements.company_id, companyId)));
+  }
+
+  private async applyMovementEffects(
+    movement: InventoryMovement,
+    product: HydratedInventoryProduct,
+    assignmentOptions?: MovementAssignmentOptions
+  ) {
+    switch (movement.movement_type as MovementType) {
+      case 'entry':
+        await this.updateProductState(product.id, {
+          status: 'available',
+          location_id: movement.to_location_id ?? product.location_id,
+        }, movement.created_by_id);
+        break;
+      case 'withdrawal':
+        await this.updateProductState(product.id, {
+          status: 'in_use',
+          location_id: movement.to_location_id ?? product.location_id,
+        }, movement.created_by_id);
+        // Não criar assignment se for movimentação entre estoques
+        if (movement.responsible_id && !movement.is_stock_transfer) {
+          await this.createAssignment(product, movement, assignmentOptions);
+        }
+        break;
+      case 'return':
+        await this.updateProductState(product.id, {
+          status: 'available',
+          location_id: movement.to_location_id ?? product.location_id,
+        }, movement.created_by_id);
+        await this.closeOpenAssignment(product.id, movement.responsible_id, movement.created_by_id);
+        break;
+      case 'transfer':
+        await this.updateProductState(product.id, {
+          status: product.status,
+          location_id: movement.to_location_id ?? product.location_id,
+        }, movement.created_by_id);
+        // Movimentação entre estoques não cria assignment
+        break;
+      case 'maintenance':
+        await this.updateProductState(product.id, { status: 'maintenance' }, movement.created_by_id);
+        break;
+      case 'reservation':
+        await this.updateProductState(product.id, { status: 'reserved' }, movement.created_by_id);
+        break;
+      case 'write_off':
+        await this.updateProductState(product.id, { status: 'written_off' }, movement.created_by_id);
+        break;
+      default:
+        break;
+    }
+  }
+
+  private async applyBatchMovementEffects(
+    movement: InventoryMovement,
+    productIds: number[],
+    assignmentOptions?: MovementAssignmentOptions,
+    assignmentGroupId?: string
+  ) {
+    // Usar assignment_group_id fornecido (geralmente o movement_group_id para withdrawals)
+
+    for (const productId of productIds) {
+      const product = await this.ensureProduct(productId, movement.company_id);
+
+      switch (movement.movement_type as MovementType) {
+        case 'entry':
+          await this.updateProductState(productId, {
+            status: 'available',
+            location_id: movement.to_location_id ?? product.location_id,
+          }, movement.created_by_id);
+          break;
+        case 'withdrawal':
+          await this.updateProductState(productId, {
+            status: 'in_use',
+            location_id: movement.to_location_id ?? product.location_id,
+          }, movement.created_by_id);
+          // Não criar assignment se for movimentação entre estoques
+          if (movement.responsible_id && !movement.is_stock_transfer) {
+            await this.createAssignment(product, movement, assignmentOptions, assignmentGroupId);
+          }
+          break;
+        case 'return':
+          await this.updateProductState(productId, {
+            status: 'available',
+            location_id: movement.to_location_id ?? product.location_id,
+          }, movement.created_by_id);
+          await this.closeOpenAssignment(productId, movement.responsible_id, movement.created_by_id);
+          break;
+        case 'transfer':
+          await this.updateProductState(productId, {
+            status: product.status,
+            location_id: movement.to_location_id ?? product.location_id,
+          }, movement.created_by_id);
+          break;
+        case 'maintenance':
+          await this.updateProductState(productId, { status: 'maintenance' }, movement.created_by_id);
+          break;
+        case 'reservation':
+          await this.updateProductState(productId, { status: 'reserved' }, movement.created_by_id);
+          break;
+        case 'write_off':
+          await this.updateProductState(productId, { status: 'written_off' }, movement.created_by_id);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  private async createAssignment(
+    product: HydratedInventoryProduct,
+    movement: InventoryMovement,
+    assignment?: MovementAssignmentOptions,
+    assignmentGroupId?: string
+  ) {
+    const payload: InsertUserInventoryAssignment = {
+      user_id: movement.responsible_id!,
+      product_id: product.id,
+      company_id: movement.company_id,
+      assigned_by_id: movement.created_by_id ?? null,
+      assigned_date: new Date(),
+      expected_return_date: assignment?.expectedReturnDate
+        ? new Date(assignment.expectedReturnDate)
+        : undefined,
+      notes: assignment?.notes ?? undefined,
+      assignment_group_id: assignmentGroupId ?? undefined,
+    };
+
+    await db.insert(userInventoryAssignments).values(payload);
+  }
+
+  private async closeOpenAssignment(productId: number, responsibleId?: number | null, userId?: number | null) {
+    const conditions = [
+      eq(userInventoryAssignments.product_id, productId),
+      isNull(userInventoryAssignments.actual_return_date),
+    ];
+    if (responsibleId) {
+      conditions.push(eq(userInventoryAssignments.user_id, responsibleId));
+    }
+
+    const assignment = await db
+      .select()
+      .from(userInventoryAssignments)
+      .where(and(...conditions))
+      .orderBy(desc(userInventoryAssignments.assigned_date))
+      .limit(1);
+
+    if (assignment.length === 0) {
+      return;
+    }
+
+    await db
+      .update(userInventoryAssignments)
+      .set({
+        actual_return_date: new Date(),
+        returned_by_id: userId ?? null,
+      })
+      .where(eq(userInventoryAssignments.id, assignment[0].id));
+  }
+
+  private async updateProductState(
+    productId: number,
+    changes: Partial<InventoryProduct>,
+    userId?: number | null
+  ) {
+    await db
+      .update(inventoryProducts)
+      .set({
+        ...changes,
+        updated_at: new Date(),
+        updated_by_id: userId ?? null,
+      })
+      .where(eq(inventoryProducts.id, productId));
+  }
+
+  private async ensureProduct(productId: number, companyId: number): Promise<HydratedInventoryProduct> {
+    const product = await inventoryProductService.getProductById(productId, companyId);
+    if (!product) {
+      throw new Error('Produto não encontrado para movimentação.');
+    }
+    return product;
+  }
+
+  /**
+   * Valida se um produto pode ser entregue/alocado para um usuário.
+   * Para produtos com identificadores únicos (serial, service tag, patrimônio),
+   * verifica se já está alocado para outro usuário.
+   */
+  private async validateProductAvailability(
+    product: HydratedInventoryProduct,
+    responsibleId?: number | null
+  ): Promise<void> {
+    // Buscar informação de consumível via CATEGORIA do tipo
+    const [typeAndCategory] = await db
+      .select({
+        category_id: productTypes.category_id,
+        is_consumable: productCategories.is_consumable,
+      })
+      .from(productTypes)
+      .leftJoin(productCategories, eq(productCategories.id, productTypes.category_id))
+      .where(eq(productTypes.id, product.product_type_id))
+      .limit(1);
+
+    // Se é consumível na categoria, pode ser usado por múltiplos usuários/chamados
+    if (typeAndCategory?.is_consumable) {
+      return;
+    }
+
+    // Se NÃO tem identificadores únicos, tratar como consumível
+    const hasUniqueIdentifiers = !!(
+      product.serial_number ||
+      product.service_tag ||
+      product.asset_number
+    );
+
+    if (!hasUniqueIdentifiers) {
+      return;
+    }
+
+    // Para produtos únicos, verificar se já está alocado para outro usuário
+    const existingAssignment = await db
+      .select({
+        id: userInventoryAssignments.id,
+        user_id: userInventoryAssignments.user_id,
+        assigned_date: userInventoryAssignments.assigned_date,
+      })
+      .from(userInventoryAssignments)
+      .where(
+        and(
+          eq(userInventoryAssignments.product_id, product.id),
+          isNull(userInventoryAssignments.actual_return_date) // Ainda não foi devolvido
+        )
+      )
+      .limit(1);
+
+    if (existingAssignment.length > 0) {
+      const assignment = existingAssignment[0];
+      
+      // Se está tentando alocar para o mesmo usuário que já tem, permitir
+      if (responsibleId && assignment.user_id === responsibleId) {
+        return;
+      }
+
+      // Buscar informações do usuário que possui o equipamento
+      const [assignedUser] = await db
+        .select({
+          id: inventoryProducts.id,
+          name: inventoryProducts.name,
+          serial_number: inventoryProducts.serial_number,
+          service_tag: inventoryProducts.service_tag,
+          asset_number: inventoryProducts.asset_number,
+        })
+        .from(inventoryProducts)
+        .where(eq(inventoryProducts.id, product.id))
+        .limit(1);
+
+      const identifier = 
+        product.service_tag ? `Service Tag ${product.service_tag}` :
+        product.serial_number ? `Número de Série ${product.serial_number}` :
+        product.asset_number ? `Patrimônio ${product.asset_number}` :
+        'identificador único';
+
+      throw new Error(
+        `Este equipamento (${identifier}) já está alocado para outro usuário e não pode ser entregue novamente. ` +
+        `Para entregar este equipamento, primeiro registre a devolução do usuário atual.`
+      );
+    }
+  }
+
+  private shouldRequireApproval(input: RegisterMovementInput): boolean {
+    if (typeof input.requireApproval === 'boolean') {
+      return input.requireApproval;
+    }
+    const sensitiveMovements: MovementType[] = ['withdrawal', 'transfer', 'write_off'];
+    return sensitiveMovements.includes(input.movement_type);
+  }
+
+  private async getMovement(id: number, companyId: number) {
+    const [row] = await db
+      .select({
+        movement: inventoryMovements,
+        responsible_name: users.name,
+      })
+      .from(inventoryMovements)
+      .leftJoin(users, eq(users.id, inventoryMovements.responsible_id))
+      .where(and(eq(inventoryMovements.id, id), eq(inventoryMovements.company_id, companyId)))
+      .limit(1);
+    if (!row) return null;
+    return {
+      ...(row.movement as InventoryMovement),
+      responsible_name: row.responsible_name ?? null,
+    };
+  }
+
+  private async hydrateMovement(
+    movement: InventoryMovement & { ticket_code?: string | null; responsible_name?: string | null }
+  ): Promise<HydratedMovement> {
+    const metadata = this.parseMetadata(movement.notes);
+    
+    // Se for movimentação em lote, buscar produtos dos itens
+    let product: HydratedInventoryProduct | null = null;
+    let batchProducts: HydratedInventoryProduct[] = [];
+    
+    if (movement.is_batch_movement) {
+      // Buscar todos os produtos da movimentação em lote
+      const movementItems = await db
+        .select({ product_id: inventoryMovementItems.product_id })
+        .from(inventoryMovementItems)
+        .where(eq(inventoryMovementItems.movement_id, movement.id));
+      
+      if (movementItems.length > 0) {
+        // Buscar todos os produtos
+        const productPromises = movementItems.map(item =>
+          inventoryProductService.getProductById(item.product_id, movement.company_id)
+        );
+        const products = await Promise.all(productPromises);
+        batchProducts = products.filter((p): p is HydratedInventoryProduct => p !== null);
+        // Usar o primeiro para compatibilidade
+        product = batchProducts[0] ?? null;
+      }
+    } else if (movement.product_id) {
+      product = await inventoryProductService.getProductById(movement.product_id, movement.company_id);
+    }
+
+    const result: HydratedMovement = {
+      ...movement,
+      userNotes: metadata.userNotes ?? (metadata.structured ? null : movement.notes),
+      assignment: metadata.assignment,
+      product: product ?? null,
+      responsible_name: movement.responsible_name ?? null,
+      batchProducts: batchProducts.length > 0 ? batchProducts : undefined,
+    };
+    return result;
+  }
+
+  private serializeMetadata(note: string | null, assignment?: MovementAssignmentOptions): string | null {
+    if (!assignment) {
+      return note;
+    }
+    const metadata: MovementMetadata = {
+      structured: true,
+      userNotes: note,
+      assignment,
+    };
+    return JSON.stringify(metadata);
+  }
+
+  private parseMetadata(notes: string | null): MovementMetadata {
+    if (!notes) {
+      return { structured: false };
+    }
+    try {
+      const parsed = JSON.parse(notes);
+      if (parsed?.structured) {
+        return {
+          structured: true,
+          userNotes: parsed.userNotes ?? null,
+          assignment: parsed.assignment,
+        };
+      }
+    } catch {
+      // not JSON
+    }
+    return {
+      structured: false,
+      userNotes: notes,
+    };
+  }
+
+  private mapMovementToTicketAction(type: MovementType): string {
+    switch (type) {
+      case 'withdrawal':
+        return 'delivery';
+      case 'return':
+        return 'return';
+      case 'transfer':
+        return 'replacement';
+      case 'reservation':
+        return 'reservation';
+      case 'write_off':
+        return 'consumption';
+      default:
+        return 'delivery';
+    }
+  }
+
+  private async linkMovementToTicket(movement: InventoryMovement) {
+    if (!movement.ticket_id || !movement.product_id) return;
+
+    // evitar duplicidade
+    const existing = await db
+      .select({ id: ticketInventoryItems.id })
+      .from(ticketInventoryItems)
+      .where(and(
+        eq(ticketInventoryItems.ticket_id, movement.ticket_id),
+        eq(ticketInventoryItems.product_id, movement.product_id),
+        eq(ticketInventoryItems.movement_id, movement.id)
+      ))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return;
+    }
+
+    const metadata = this.parseMetadata(movement.notes);
+
+    await db.insert(ticketInventoryItems).values({
+      ticket_id: movement.ticket_id,
+      product_id: movement.product_id,
+      movement_id: movement.id,
+      action_type: this.mapMovementToTicketAction(movement.movement_type as MovementType),
+      quantity: movement.quantity ?? 1,
+      notes: metadata.userNotes ?? movement.reason ?? null,
+      created_by_id: movement.created_by_id ?? movement.user_id ?? null,
+      condition: null,
+    });
+  }
+
+  private async linkBatchMovementToTicket(movement: InventoryMovement, productIds: number[]) {
+    if (!movement.ticket_id) return;
+
+    const metadata = this.parseMetadata(movement.notes);
+
+    // Criar item de ticket para cada produto
+    const ticketItems = productIds.map(productId => ({
+      ticket_id: movement.ticket_id!,
+      product_id: productId,
+      movement_id: movement.id,
+      action_type: this.mapMovementToTicketAction(movement.movement_type as MovementType),
+      quantity: movement.quantity ?? 1,
+      notes: metadata.userNotes ?? movement.reason ?? null,
+      created_by_id: movement.created_by_id ?? movement.user_id ?? null,
+      condition: null,
+    }));
+
+    // Inserir todos os itens (evitar duplicidade seria complexo aqui, então confiamos na constraint única se existir)
+    await db.insert(ticketInventoryItems).values(ticketItems);
+  }
+}
+
+export const inventoryMovementService = new InventoryMovementService();
+export default inventoryMovementService;

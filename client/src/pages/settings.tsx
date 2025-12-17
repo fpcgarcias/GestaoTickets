@@ -12,7 +12,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Loader2, Mail, Settings as SettingsIcon, Brain } from "lucide-react";
+import { Plus, Loader2, Mail, Settings as SettingsIcon, Brain, FileSignature, X } from "lucide-react";
 import { useQuery, useMutation, QueryClient } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,7 @@ import NotificationSettings from "@/components/notification-settings";
 import EmailSettings from "@/components/email-settings";
 import AdvancedNotificationSettings from "@/components/advanced-notification-settings";
 import AiSettings from "@/components/ai-settings";
+import ClicksignConfigPage from "./settings/clicksign-config";
 import { PushNotificationManager } from "@/components/notifications/push-notification-manager";
 
 // A interface User local pode ser removida se a do hook global for suficiente.
@@ -43,6 +44,7 @@ interface GeneralSettings {
   companyName: string;
   supportEmail: string;
   allowCustomerRegistration: boolean;
+  logo_base64?: string | null;
 }
 
 // Interface para as empresas buscadas pela API (para o select do admin)
@@ -197,12 +199,16 @@ export default function Settings() {
   const [companyName, setCompanyName] = useState<string>("");
   const [supportEmail, setSupportEmail] = useState<string>("");
   const [allowCustomerRegistration, setAllowCustomerRegistration] = useState(true);
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (generalSettingsData) {
       setCompanyName(generalSettingsData.companyName || "");
       setSupportEmail(generalSettingsData.supportEmail || "");
       setAllowCustomerRegistration(generalSettingsData.allowCustomerRegistration === undefined ? true : generalSettingsData.allowCustomerRegistration);
+      setLogoBase64(generalSettingsData.logo_base64 || null);
+      setLogoPreview(generalSettingsData.logo_base64 || null);
     }
   }, [generalSettingsData]);
 
@@ -229,7 +235,7 @@ export default function Settings() {
     },
   });
 
-  // Mutação para salvar configurações gerais (mantida como estava)
+  // Mutação para salvar configurações gerais
   const saveGeneralSettingsMutation = useMutation<
     GeneralSettings, 
     Error,
@@ -272,7 +278,54 @@ export default function Settings() {
       companyName,
       supportEmail,
       allowCustomerRegistration,
+      logo_base64: logoBase64,
     });
+  };
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar tipo de arquivo
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/svg+xml', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: formatMessage('settings.error'),
+        description: "Por favor, selecione uma imagem (JPG, PNG, SVG ou WEBP).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar tamanho (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: formatMessage('settings.error'),
+        description: "O logotipo deve ter no máximo 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setLogoBase64(base64String);
+      setLogoPreview(base64String);
+    };
+    reader.onerror = () => {
+      toast({
+        title: formatMessage('settings.error'),
+        description: "Não foi possível ler o arquivo selecionado.",
+        variant: "destructive",
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoBase64(null);
+    setLogoPreview(null);
   };
 
   // Impedir renderização para customers
@@ -324,6 +377,14 @@ export default function Settings() {
             </TabsTrigger>
           )}
           
+          {/* Aba ClickSign - para company_admin */}
+          {user?.role === 'company_admin' && (
+            <TabsTrigger value="clicksign" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
+              <FileSignature className="mr-2 h-4 w-4" />
+              {formatMessage('clicksign.config.title')}
+            </TabsTrigger>
+          )}
+          
           {/* Aba Notificações - para todas as roles */}
           <TabsTrigger value="notifications" className="rounded-none bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none">
             {formatMessage('settings.notifications')}
@@ -358,6 +419,39 @@ export default function Settings() {
                       type="email" 
                       disabled={isLoadingGeneral || saveGeneralSettingsMutation.isPending}
                     />
+                  </div>
+                  <div>
+                    <Label htmlFor="logo">Logotipo da Empresa</Label>
+                    {logoPreview && (
+                      <div className="relative inline-block mt-2 mb-2">
+                        <img 
+                          src={logoPreview} 
+                          alt="Preview do logotipo" 
+                          className="max-w-[150px] max-h-[80px] object-contain border rounded p-2 bg-gray-50"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                          onClick={handleRemoveLogo}
+                          disabled={isLoadingGeneral || saveGeneralSettingsMutation.isPending}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                    <Input
+                      id="logo"
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/svg+xml,image/webp"
+                      onChange={handleLogoChange}
+                      className="cursor-pointer mt-2"
+                      disabled={isLoadingGeneral || saveGeneralSettingsMutation.isPending}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Formatos aceitos: JPG, PNG, SVG, WEBP (máx. 5MB)
+                    </p>
                   </div>
                 </div>
                 
@@ -426,6 +520,13 @@ export default function Settings() {
         {(user?.role === 'admin' || user?.role === 'company_admin' || user?.role === 'manager' || user?.role === 'supervisor') && (
           <TabsContent value="ai">
             <AiSettings />
+          </TabsContent>
+        )}
+        
+        {/* Conteúdo da aba ClickSign - apenas para company_admin */}
+        {user?.role === 'company_admin' && (
+          <TabsContent value="clicksign">
+            <ClicksignConfigPage />
           </TabsContent>
         )}
         

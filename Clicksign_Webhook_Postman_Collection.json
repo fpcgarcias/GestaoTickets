@@ -1,0 +1,228 @@
+{
+	"info": {
+		"_postman_id": "clicksign-webhook-test",
+		"name": "Clicksign Webhook - Teste",
+		"description": "Coleção para testar o webhook do Clicksign quando documentos são assinados",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Webhook - Documento Assinado (envelope.signed)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has success field\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('success');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				]
+			},
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "x-clicksign-signature",
+						"value": "{{clicksign_signature}}",
+						"type": "text",
+						"description": "HMAC SHA256 signature (hex). Deixe vazio se não usar webhook_secret"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"event\": \"envelope.signed\",\n  \"envelope\": {\n    \"key\": \"{{envelope_key}}\",\n    \"status\": \"signed\",\n    \"signers\": [\n      {\n        \"key\": \"signer-key-1\",\n        \"name\": \"João Silva\",\n        \"email\": \"joao@example.com\",\n        \"status\": \"signed\",\n        \"signed_at\": \"2024-01-15T10:30:00Z\"\n      }\n    ],\n    \"documents\": [\n      {\n        \"key\": \"doc-key-123\",\n        \"download_url\": \"https://clicksign.com/api/v3/documents/doc-key-123/download\"\n      }\n    ]\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/webhooks/clicksign",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"webhooks",
+						"clicksign"
+					]
+				},
+				"description": "Simula o webhook que a Clicksign envia quando um documento é assinado por um signatário.\n\n**IMPORTANTE:**\n- O `envelope.key` deve existir no banco de dados (deve estar salvo em `signature_data.requestId` de algum termo)\n- Se você configurou `webhook_secret`, precisa gerar a signature correta usando HMAC SHA256 do payload JSON"
+			},
+			"response": []
+		},
+		{
+			"name": "Webhook - Envelope Finalizado (envelope.finished)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has success field\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('success');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				]
+			},
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "x-clicksign-signature",
+						"value": "{{clicksign_signature}}",
+						"type": "text",
+						"description": "HMAC SHA256 signature (hex). Deixe vazio se não usar webhook_secret"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"event\": \"envelope.finished\",\n  \"envelope\": {\n    \"key\": \"{{envelope_key}}\",\n    \"status\": \"finished\",\n    \"signers\": [\n      {\n        \"key\": \"signer-key-1\",\n        \"name\": \"João Silva\",\n        \"email\": \"joao@example.com\",\n        \"status\": \"signed\",\n        \"signed_at\": \"2024-01-15T10:30:00Z\"\n      },\n      {\n        \"key\": \"signer-key-2\",\n        \"name\": \"Maria Santos\",\n        \"email\": \"maria@example.com\",\n        \"status\": \"signed\",\n        \"signed_at\": \"2024-01-15T10:35:00Z\"\n      }\n    ],\n    \"documents\": [\n      {\n        \"key\": \"doc-key-123\",\n        \"download_url\": \"https://clicksign.com/api/v3/documents/doc-key-123/download\"\n      }\n    ]\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/webhooks/clicksign",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"webhooks",
+						"clicksign"
+					]
+				},
+				"description": "Simula o webhook que a Clicksign envia quando todos os signatários assinaram e o envelope está finalizado.\n\n**IMPORTANTE:**\n- O `envelope.key` deve existir no banco de dados (deve estar salvo em `signature_data.requestId` de algum termo)\n- Se você configurou `webhook_secret`, precisa gerar a signature correta usando HMAC SHA256 do payload JSON"
+			},
+			"response": []
+		},
+		{
+			"name": "Webhook - Envelope Recusado (envelope.declined)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "x-clicksign-signature",
+						"value": "{{clicksign_signature}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"event\": \"envelope.declined\",\n  \"envelope\": {\n    \"key\": \"{{envelope_key}}\",\n    \"status\": \"declined\",\n    \"signers\": [\n      {\n        \"key\": \"signer-key-1\",\n        \"name\": \"João Silva\",\n        \"email\": \"joao@example.com\",\n        \"status\": \"declined\"\n      }\n    ]\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/webhooks/clicksign",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"webhooks",
+						"clicksign"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Webhook - Envelope Cancelado (envelope.cancelled)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "x-clicksign-signature",
+						"value": "{{clicksign_signature}}",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"event\": \"envelope.cancelled\",\n  \"envelope\": {\n    \"key\": \"{{envelope_key}}\",\n    \"status\": \"cancelled\",\n    \"signers\": [\n      {\n        \"key\": \"signer-key-1\",\n        \"name\": \"João Silva\",\n        \"email\": \"joao@example.com\",\n        \"status\": \"cancelled\"\n      }\n    ]\n  }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{base_url}}/api/webhooks/clicksign",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"api",
+						"webhooks",
+						"clicksign"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5173",
+			"type": "string",
+			"description": "URL base do seu sistema (ex: http://localhost:5173 para dev, ou https://seu-dominio.com para produção)"
+		},
+		{
+			"key": "envelope_key",
+			"value": "SUBSTITUA_PELA_CHAVE_DO_ENVELOPE",
+			"type": "string",
+			"description": "Chave do envelope que está salva no banco (signature_data.requestId). Deve existir um termo com essa chave."
+		},
+		{
+			"key": "clicksign_signature",
+			"value": "",
+			"type": "string",
+			"description": "Signature HMAC SHA256 (hex) do payload. Deixe vazio se não usar webhook_secret. Para gerar: crypto.createHmac('sha256', webhook_secret).update(JSON.stringify(payload)).digest('hex')"
+		}
+	]
+}
+
+

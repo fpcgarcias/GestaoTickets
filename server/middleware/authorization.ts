@@ -464,8 +464,8 @@ export async function departmentAccessRequired(req: Request, res: Response, next
 // 🔥 FASE 5.2: Função auxiliar para verificar se um usuário pode gerenciar outro usuário
 export function canManageUserRole(currentUserRole: string, targetUserRole: string): boolean {
   const roleHierarchy = {
-    'admin': ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'triage', 'customer', 'viewer', 'quality', 'integration_bot'],
-    'company_admin': ['company_admin', 'manager', 'supervisor', 'support', 'triage', 'customer', 'viewer', 'quality'],
+    'admin': ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'triage', 'customer', 'viewer', 'quality', 'integration_bot', 'inventory_manager'],
+    'company_admin': ['company_admin', 'manager', 'supervisor', 'support', 'triage', 'customer', 'viewer', 'quality', 'inventory_manager'],
     'manager': ['supervisor', 'support', 'triage', 'customer', 'viewer'],
     'supervisor': ['support', 'triage', 'customer', 'viewer'],
     'support': ['customer', 'viewer'],

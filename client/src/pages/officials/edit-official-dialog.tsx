@@ -48,6 +48,7 @@ interface FormData {
   manager_id: number | null;
   company_id: number | null;
   must_change_password: boolean;
+  cpf: string;
 }
 
 interface EditOfficialDialogProps {
@@ -85,6 +86,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
     manager_id: null,
     company_id: null,
     must_change_password: false,
+    cpf: '',
   });
 
   // Estado para o formulário de senha
@@ -97,6 +99,16 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
 
   const [submitting, setSubmitting] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
+
+  // Função para formatar CPF
+  const formatCPF = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    if (!digits) return '';
+    return digits
+      .replace(/^(\d{3})(\d)/, '$1.$2')
+      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d)/, '.$1-$2');
+  };
 
   // Buscar lista de empresas (apenas para admin)
   const { data: companies, isLoading: isLoadingCompanies } = useQuery<Company[]>({
@@ -195,6 +207,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
         manager_id: (official as any).manager_id || null,
         company_id: (official as any).company_id || null,
         must_change_password: false,
+        cpf: official.user?.cpf || '',
       });
     }
   }, [official]);
@@ -303,7 +316,8 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
       company_id: formData.company_id,
       user: {
         ...(official?.user || {}),
-        username: formData.email // Sempre usar o email como username
+        username: formData.email, // Sempre usar o email como username
+        cpf: formData.cpf || undefined
       }
     };
     
@@ -374,6 +388,20 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                 className="col-span-3"
                 placeholder={formatMessage('officials.edit_official_dialog.email_placeholder')}
                 required
+              />
+            </div>
+            
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="cpf" className="text-right">
+                {formatMessage('officials.edit_official_dialog.cpf')}
+              </Label>
+              <Input
+                id="cpf"
+                value={formData.cpf}
+                onChange={(e) => setFormData({ ...formData, cpf: formatCPF(e.target.value) })}
+                className="col-span-3"
+                placeholder={formatMessage('officials.edit_official_dialog.cpf_placeholder')}
+                maxLength={14}
               />
             </div>
             
