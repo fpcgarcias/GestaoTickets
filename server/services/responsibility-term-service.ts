@@ -844,8 +844,8 @@ class ResponsibilityTermService {
     let executablePath: string | undefined;
 
     if (process.platform === 'linux') {
-      // Linux: usar caminho do chromium-browser do sistema
-      executablePath = '/usr/bin/chromium-browser';
+      // Linux: usar caminho do .env
+      executablePath = process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
     } else if (process.platform === 'win32') {
       // Windows: tentar encontrar Chrome instalado em caminhos comuns
       const fs = await import('fs');
