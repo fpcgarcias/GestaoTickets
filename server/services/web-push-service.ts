@@ -1,7 +1,7 @@
 import webPush from 'web-push';
 import { db } from '../db';
 import { pushSubscriptions } from '../../shared/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import logger, { logNotificationError } from './logger';
 
 interface PushSubscriptionData {
@@ -19,10 +19,10 @@ interface PersistentNotification {
   title: string;
   message: string;
   priority: string;
-  ticketId?: number;
-  ticketCode?: string;
+  ticketId?: number | null;
+  ticketCode?: string | null;
   metadata?: any;
-  readAt?: Date;
+  readAt?: Date | null;
   createdAt: Date;
 }
 
@@ -75,7 +75,7 @@ class WebPushService {
           .update(pushSubscriptions)
           .set({ last_used_at: new Date() })
           .where(eq(pushSubscriptions.endpoint, subscription.endpoint));
-        
+
         logger.info(`Push subscription atualizada para usuário ${userId}`);
         return;
       }
@@ -161,6 +161,50 @@ class WebPushService {
   }
 
   /**
+   * Busca todas as subscriptions de múltiplos usuários de uma vez
+   * @param userIds Array de IDs de usuários
+   * @returns Mapa de userId para array de subscriptions
+   */
+  async getSubscriptionsBatch(userIds: number[]): Promise<Map<number, PushSubscriptionData[]>> {
+    try {
+      if (!userIds.length) return new Map();
+
+      const subs = await db
+        .select()
+        .from(pushSubscriptions)
+        .where(inArray(pushSubscriptions.user_id, userIds));
+
+      const resultMap = new Map<number, PushSubscriptionData[]>();
+
+      // Inicializar mapa para garantir que todos usuarios tenham entrada
+      userIds.forEach(id => resultMap.set(id, []));
+
+      // Popula o mapa
+      subs.forEach(sub => {
+        const userSubs = resultMap.get(sub.user_id) || [];
+        userSubs.push({
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.p256dh_key,
+            auth: sub.auth_key,
+          },
+        });
+        resultMap.set(sub.user_id, userSubs);
+      });
+
+      return resultMap;
+    } catch (error) {
+      logNotificationError(
+        'Failed to fetch push subscriptions batch',
+        error,
+        'error',
+        { userIdsCount: userIds.length }
+      );
+      return new Map();
+    }
+  }
+
+  /**
    * Envia uma notificação push para todas as subscriptions de um usuário
    * @param userId ID do usuário
    * @param notification Dados da notificação
@@ -190,21 +234,21 @@ class WebPushService {
         priority: notification.priority,
         ticketId: notification.ticketId,
         ticketCode: notification.ticketCode,
-        url: notification.ticketId 
-          ? `/tickets/${notification.ticketId}` 
+        url: notification.ticketId
+          ? `/tickets/${notification.ticketId}`
           : '/',
         timestamp: notification.createdAt.toISOString(),
         // Configurações específicas por prioridade (Requirements 9.2)
         requireInteraction: notification.priority === 'critical',
-        vibrate: notification.priority === 'critical' 
-          ? [200, 100, 200] 
-          : notification.priority === 'high' 
-            ? [100] 
+        vibrate: notification.priority === 'critical'
+          ? [200, 100, 200]
+          : notification.priority === 'high'
+            ? [100]
             : undefined,
       });
 
       // Enviar para todas as subscriptions
-      const sendPromises = subscriptions.map(sub => 
+      const sendPromises = subscriptions.map(sub =>
         this.sendToSubscription(sub, payload, notification.priority)
       );
 

@@ -4469,22 +4469,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         }
 
         // Notificar a equipe de suporte sobre o novo ticket
-        await notificationService.sendNotificationToSupport({
-          type: 'new_ticket',
-          title: 'Novo Chamado Recebido',
-          message: `Novo chamado ${ticket.ticket_id} de ${existingCustomer?.name || (req.body.customer_name as string) || ticketData.customer_email || 'Cliente'}`,
-          priority: (finalPriority === 'critical' || finalPriority === 'high') ? 'high' : 'medium',
-          ticketId: ticket.id,
-          ticketCode: ticket.ticket_id,
-          timestamp: new Date(),
-          metadata: {
-            customerName: existingCustomer?.name || (req.body.customer_name as string) || ticketData.customer_email,
-            customerEmail: ticketData.customer_email,
-            departmentId: ticket.department_id,
-            category: ticketData.category_id ? 'Categorizado' : 'Sem categoria',
-            description: ticketData.description.substring(0, 100) + (ticketData.description.length > 100 ? '...' : '')
-          }
-        });
+        // 🔥 CORREÇÃO: Usar notifyNewTicket que filtra por departamento corretamente
+        await notificationService.notifyNewTicket(ticket.id);
       } catch (notificationError) {
         console.error('Erro ao enviar notificações de novo ticket:', notificationError);
         // Não falhar a criação do ticket por erro de notificação
