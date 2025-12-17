@@ -44,7 +44,13 @@ export async function setupVite(app: Express, server: Server) {
     appType: "custom",
   });
 
-  app.use(vite.middlewares);
+  // Aplicar middleware do Vite apenas para rotas que não são API
+  app.use((req, res, next) => {
+    if (req.originalUrl.startsWith('/api/')) {
+      return next();
+    }
+    vite.middlewares(req, res, next);
+  });
   
   // Middleware para configurar headers adequados de cache em desenvolvimento
   app.use("*", async (req, res, next) => {
