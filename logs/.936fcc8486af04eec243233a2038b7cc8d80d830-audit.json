@@ -6,19 +6,14 @@
     "auditLog": "C:\\GitHub\\GestaoTickets\\logs\\.936fcc8486af04eec243233a2038b7cc8d80d830-audit.json",
     "files": [
         {
-            "date": 1764610205079,
-            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-12-01.log",
-            "hash": "a550aa2867a799d307cfc40cfce0de061e3bf6af93986e154d8c924fc42f98ab"
-        },
-        {
-            "date": 1764679698125,
-            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-12-02.log",
-            "hash": "c3e21b9c91ed3e10fd41ce9c0d0c130fe07a6d2bdfa1535f0f37f90e53319c03"
-        },
-        {
             "date": 1765591052474,
             "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-12-12.log",
             "hash": "3505245f100d52e2672c19c64c4ddf6d379da9f188131a34dd877d432946b7b1"
+        },
+        {
+            "date": 1765979303460,
+            "name": "C:\\GitHub\\GestaoTickets\\logs\\performance-2025-12-17.log",
+            "hash": "bee966939d27467da531860080193e6db352e20d225ee4c7bb2632d1a21ba0ba"
         }
     ],
     "hashType": "sha256"
