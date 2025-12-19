@@ -2113,10 +2113,11 @@ router.get('/sla', authRequired, async (req: Request, res: Response) => {
 // Department reports
 router.get('/department', authRequired, async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, start_date, end_date, incidentTypeId, incident_type_id } = req.query;
+    const { startDate, endDate, start_date, end_date, departmentId, department_id, incidentTypeId, incident_type_id } = req.query;
 
     const startDateParam = (start_date || startDate) as string | undefined;
     const endDateParam = (end_date || endDate) as string | undefined;
+    const departmentIdParam = (department_id || departmentId) as string | undefined;
     const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
 
     // Build base query for tickets
@@ -2224,6 +2225,12 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
     }
     if (endDateParam) {
       additionalFilters.push(lte(schema.tickets.created_at, new Date(endDateParam)));
+    }
+    if (departmentIdParam && departmentIdParam !== 'all') {
+      const departmentIdNumber = parseInt(departmentIdParam, 10);
+      if (!Number.isNaN(departmentIdNumber)) {
+        additionalFilters.push(eq(schema.tickets.department_id, departmentIdNumber));
+      }
     }
     if (incidentTypeParam && incidentTypeParam !== 'all') {
       const incidentTypeIdNumber = parseInt(incidentTypeParam, 10);
@@ -2433,11 +2440,12 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
 // Client reports
 router.get('/clients', authRequired, async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, start_date, end_date, departmentId, rating } = req.query;
+    const { startDate, endDate, start_date, end_date, departmentId, incidentTypeId, incident_type_id, rating } = req.query;
 
     const startDateParam = (start_date || startDate) as string | undefined;
     const endDateParam = (end_date || endDate) as string | undefined;
     const departmentIdParam = departmentId as string | undefined;
+    const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
     const ratingParam = rating ? parseInt(rating as string, 10) : undefined;
 
     // Build base query for tickets
@@ -2504,6 +2512,12 @@ router.get('/clients', authRequired, async (req: Request, res: Response) => {
     }
     if (departmentIdParam && departmentIdParam !== 'all') {
       additionalFilters.push(eq(schema.tickets.department_id, parseInt(departmentIdParam)));
+    }
+    if (incidentTypeParam && incidentTypeParam !== 'all') {
+      const incidentTypeIdNumber = parseInt(incidentTypeParam, 10);
+      if (!isNaN(incidentTypeIdNumber)) {
+        additionalFilters.push(eq(schema.tickets.incident_type_id, incidentTypeIdNumber));
+      }
     }
 
     // Build where clause safely
@@ -2704,8 +2718,12 @@ router.get('/clients', authRequired, async (req: Request, res: Response) => {
     });
 
     // Get recent comments (last 10)
-    const recentComments = surveys
-      .filter(s => s.comments && s.responded_at)
+    // Filter by rating if specified
+    let commentsToShow = surveys.filter(s => s.comments && s.responded_at);
+    if (ratingParam && !isNaN(ratingParam)) {
+      commentsToShow = commentsToShow.filter(s => s.rating === ratingParam);
+    }
+    const recentComments = commentsToShow
       .sort((a, b) => {
         const dateA = a.responded_at ? new Date(a.responded_at).getTime() : 0;
         const dateB = b.responded_at ? new Date(b.responded_at).getTime() : 0;

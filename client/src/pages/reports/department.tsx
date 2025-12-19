@@ -87,6 +87,7 @@ interface IncidentTypeOption {
 }
 
 interface DepartmentFiltersState {
+  departmentId: string;
   incidentTypeId: string;
 }
 
@@ -103,6 +104,7 @@ export default function DepartmentReports() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [filters, setFilters] = useState<DepartmentFiltersState>({
+    departmentId: searchParams.get('departmentId') || 'all',
     incidentTypeId: searchParams.get('incidentTypeId') || 'all'
   });
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -141,6 +143,7 @@ export default function DepartmentReports() {
         const endDate = toBrasiliaISOString(dateRange.to, true);
         params.append('end_date', endDate);
       }
+      if (filters.departmentId && filters.departmentId !== 'all') params.append('department_id', filters.departmentId);
       if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incident_type_id', filters.incidentTypeId);
 
       const url = `/api/reports/department?${params}`;
@@ -163,6 +166,7 @@ export default function DepartmentReports() {
   // Sincronizar filtros com URL apenas na montagem inicial
   useEffect(() => {
     const newFilters = {
+      departmentId: searchParams.get('departmentId') || 'all',
       incidentTypeId: searchParams.get('incidentTypeId') || 'all'
     };
     setFilters(newFilters);
@@ -211,11 +215,16 @@ export default function DepartmentReports() {
         return;
       }
 
+      const departmentId = filters.departmentId;
+      
       setIsIncidentTypesLoading(true);
       try {
         const params = new URLSearchParams();
         params.append('active_only', 'true');
         params.append('limit', '1000');
+        if (departmentId && departmentId !== 'all') {
+          params.append('department_id', departmentId);
+        }
 
         const response = await fetch(`/api/incident-types?${params.toString()}`);
         if (!response.ok) {
@@ -232,7 +241,17 @@ export default function DepartmentReports() {
               : [];
 
         const validTypes: IncidentTypeOption[] = rawTypes
-          .filter((type: any) => type && type.id && type.name)
+          .filter((type: any) => {
+            if (!type || !type.id || !type.name) return false;
+            // Se um departamento estiver selecionado, filtrar apenas os tipos desse departamento
+            if (departmentId && departmentId !== 'all') {
+              const departmentIdNumber = Number(departmentId);
+              if (type.department_id === null || type.department_id === undefined) return false;
+              return Number(type.department_id) === departmentIdNumber;
+            }
+            // Se nenhum departamento selecionado, mostrar todos os tipos
+            return true;
+          })
           .map((type: any) => ({
             id: type.id,
             name: type.name,
@@ -251,9 +270,10 @@ export default function DepartmentReports() {
           });
         }
       } catch (error) {
-        console.error('Erro ao buscar tipos de incidente:', error);
+        console.error('Erro ao buscar tipos de chamado:', error);
         if (isMounted) {
           setIncidentTypes([]);
+          setFilters(prev => prev.incidentTypeId === 'all' ? prev : { ...prev, incidentTypeId: 'all' });
         }
       } finally {
         if (isMounted) {
@@ -267,7 +287,7 @@ export default function DepartmentReports() {
     return () => {
       isMounted = false;
     };
-  }, [canViewDepartments]);
+  }, [filters.departmentId, canViewDepartments]);
 
   const handleBack = () => {
     setLocation('/reports');
@@ -338,7 +358,7 @@ export default function DepartmentReports() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className={`grid gap-4 ${canViewDepartments ? 'md:grid-cols-5' : 'md:grid-cols-2'}`}>
             <div className="space-y-2">
               <label className="text-sm font-medium">Período</label>
               <Popover>
@@ -378,7 +398,29 @@ export default function DepartmentReports() {
 
             {canViewDepartments && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Tipo de Incidente</label>
+                <label className="text-sm font-medium">Departamento</label>
+                <Select
+                  value={filters.departmentId}
+                  onValueChange={(value) => setFilters(prev => ({ ...prev, departmentId: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os departamentos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os departamentos</SelectItem>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id.toString()}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {canViewDepartments && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Tipo de Chamado</label>
                 <Select
                   value={filters.incidentTypeId}
                   onValueChange={(value) => setFilters(prev => ({ ...prev, incidentTypeId: value }))}

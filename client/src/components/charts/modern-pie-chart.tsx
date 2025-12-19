@@ -9,6 +9,7 @@ interface ModernPieChartProps {
     color: string;
   }>;
   isLoading?: boolean;
+  hideLegend?: boolean;
 }
 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -57,7 +58,7 @@ const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name
   );
 };
 
-export const ModernPieChart: React.FC<ModernPieChartProps> = ({ data, isLoading }) => {
+export const ModernPieChart: React.FC<ModernPieChartProps> = ({ data, isLoading, hideLegend = false }) => {
   if (isLoading) {
     return (
       <div className="w-full h-80 flex items-center justify-center">
@@ -125,28 +126,30 @@ export const ModernPieChart: React.FC<ModernPieChartProps> = ({ data, isLoading 
       </ResponsiveContainer>
       
       {/* Legenda moderna */}
-      <div className="mt-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {data.map((item, index) => {
-            const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
-            return (
-              <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/60 hover:bg-muted transition-colors duration-200">
-                <div className="flex items-center gap-3">
-                  <div 
-                    className="w-4 h-4 rounded-full shadow-sm" 
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <span className="text-sm font-medium text-muted-foreground">{item.name}</span>
+      {!hideLegend && (
+        <div className="mt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {data.map((item, index) => {
+              const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
+              return (
+                <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/60 hover:bg-muted transition-colors duration-200">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-4 h-4 rounded-full shadow-sm" 
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="text-sm font-medium text-muted-foreground">{item.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-foreground">{item.value}</div>
+                    <div className="text-xs text-muted-foreground">{percentage}%</div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-lg font-bold text-foreground">{item.value}</div>
-                  <div className="text-xs text-muted-foreground">{percentage}%</div>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

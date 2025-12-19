@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
@@ -12,7 +12,7 @@ import { Download, CalendarIcon, Filter, ChevronDown, ArrowLeft, Users, Star, Me
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/hooks/use-auth';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { ModernPieChart } from '@/components/charts/modern-pie-chart';
 
 // Utilitário para converter data local (Brasília) para UTC ISO string
 function toBrasiliaISOString(date: Date, endOfDay = false) {
@@ -73,10 +73,17 @@ interface Department {
 
 interface ClientFiltersState {
   departmentId: string;
+  incidentTypeId: string;
   rating: string;
 }
 
-const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#10b981'];
+const RATING_COLORS = {
+  1: '#ef4444', // vermelho
+  2: '#f97316', // laranja
+  3: '#eab308', // amarelo
+  4: '#22c55e', // verde claro
+  5: '#10b981'  // verde
+};
 
 export default function ClientReports() {
   const { user } = useAuth();
@@ -92,9 +99,11 @@ export default function ClientReports() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [filters, setFilters] = useState<ClientFiltersState>({
     departmentId: searchParams.get('departmentId') || 'all',
+    incidentTypeId: searchParams.get('incidentTypeId') || 'all',
     rating: searchParams.get('rating') || 'all'
   });
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [incidentTypes, setIncidentTypes] = useState<Array<{ id: number; name: string }>>([]);
   const [canViewDepartments, setCanViewDepartments] = useState(false);
 
   // Buscar dados apenas na montagem inicial
@@ -117,6 +126,7 @@ export default function ClientReports() {
         params.append('end_date', endDate);
       }
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
+      if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incidentTypeId', filters.incidentTypeId);
       if (filters.rating && filters.rating !== 'all') params.append('rating', filters.rating);
 
       const url = `/api/reports/clients?${params}`;
@@ -140,6 +150,7 @@ export default function ClientReports() {
   useEffect(() => {
     const newFilters = {
       departmentId: searchParams.get('departmentId') || 'all',
+      incidentTypeId: searchParams.get('incidentTypeId') || 'all',
       rating: searchParams.get('rating') || 'all'
     };
     setFilters(newFilters);
@@ -175,6 +186,52 @@ export default function ClientReports() {
     fetchDepartments();
   }, [user?.role]);
 
+  // Buscar tipos de chamados conforme departamento selecionado
+  useEffect(() => {
+    const fetchIncidentTypes = async () => {
+      try {
+        const params = new URLSearchParams();
+        params.append('active_only', 'true');
+        params.append('limit', '1000');
+        
+        if (filters.departmentId && filters.departmentId !== 'all') {
+          params.append('department_id', filters.departmentId);
+        }
+
+        const response = await fetch(`/api/incident-types?${params.toString()}`);
+        if (response.ok) {
+          const data = await response.json();
+          const rawTypes = Array.isArray(data?.incidentTypes)
+            ? data.incidentTypes
+            : Array.isArray(data?.data)
+              ? data.data
+              : Array.isArray(data)
+                ? data
+                : [];
+          
+          const validTypes = rawTypes
+            .filter((type: any) => type && type.id && type.name)
+            .map((type: any) => ({
+              id: type.id,
+              name: type.name
+            }));
+          
+          setIncidentTypes(validTypes);
+          
+          // Resetar filtro de tipo se não existir mais na lista
+          if (filters.incidentTypeId !== 'all' && !validTypes.some((t: any) => t.id.toString() === filters.incidentTypeId)) {
+            setFilters(prev => ({ ...prev, incidentTypeId: 'all' }));
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao buscar tipos de chamado:', error);
+        setIncidentTypes([]);
+      }
+    };
+
+    fetchIncidentTypes();
+  }, [filters.departmentId]);
+
   const handleBack = () => {
     setLocation('/reports');
   };
@@ -188,12 +245,16 @@ export default function ClientReports() {
     console.log('Exportar em', format);
   };
 
-  // Preparar dados para o gráfico de pizza
+  // Preparar dados para o gráfico de pizza no formato do ModernPieChart
   const pieData = data?.rating_distribution
-    ? Object.entries(data.rating_distribution).map(([rating, count]) => ({
-        name: `${rating} estrela${parseInt(rating) > 1 ? 's' : ''}`,
-        value: count
-      }))
+    ? Object.entries(data.rating_distribution)
+        .filter(([_, count]) => count > 0) // Filtrar apenas avaliações com contagem > 0
+        .map(([rating, count]) => ({
+          name: `${rating} estrela${parseInt(rating) > 1 ? 's' : ''}`,
+          value: count as number,
+          color: RATING_COLORS[parseInt(rating) as keyof typeof RATING_COLORS] || '#6b7280'
+        }))
+        .reverse() // Inverter para mostrar de 5 estrelas para 1 estrela
     : [];
 
   const renderStars = (rating: number | null) => {
@@ -241,16 +302,17 @@ export default function ClientReports() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="space-y-2">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="space-y-2 flex-1 min-w-[140px]">
               <label className="text-sm font-medium">Período</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-left font-normal"
+                    className="w-full justify-start text-left font-normal text-xs"
+                    size="sm"
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    <CalendarIcon className="mr-1 h-3 w-3" />
                     {dateRange?.from ? (
                       dateRange.to ? (
                         <>
@@ -261,7 +323,7 @@ export default function ClientReports() {
                         format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
                       )
                     ) : (
-                      <span>Selecione o período</span>
+                      <span className="text-xs">Selecione o período</span>
                     )}
                   </Button>
                 </PopoverTrigger>
@@ -280,11 +342,11 @@ export default function ClientReports() {
             </div>
 
             {canViewDepartments && (
-              <div className="space-y-2">
+              <div className="space-y-2 flex-1 min-w-[180px]">
                 <label className="text-sm font-medium">Departamento</label>
                 <Select
                   value={filters.departmentId}
-                  onValueChange={(value) => setFilters(prev => ({ ...prev, departmentId: value }))}
+                  onValueChange={(value) => setFilters(prev => ({ ...prev, departmentId: value, incidentTypeId: 'all' }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Todos os departamentos" />
@@ -301,13 +363,33 @@ export default function ClientReports() {
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-2 flex-1 min-w-[180px]">
+              <label className="text-sm font-medium">Tipo de Chamado</label>
+              <Select
+                value={filters.incidentTypeId}
+                onValueChange={(value) => setFilters(prev => ({ ...prev, incidentTypeId: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os tipos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  {incidentTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id.toString()}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2 flex-1 min-w-[140px]">
               <label className="text-sm font-medium">Nível de Satisfação</label>
               <Select
                 value={filters.rating}
                 onValueChange={(value) => setFilters(prev => ({ ...prev, rating: value }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -322,7 +404,7 @@ export default function ClientReports() {
             </div>
 
             <div className="flex items-end">
-              <Button onClick={handleApplyFilters} className="w-full">
+              <Button onClick={handleApplyFilters} size="sm" className="whitespace-nowrap">
                 Aplicar Filtros
               </Button>
             </div>
@@ -409,30 +491,59 @@ export default function ClientReports() {
               <CardTitle>Distribuição de Avaliações</CardTitle>
             </CardHeader>
             <CardContent>
-              {pieData.length > 0 && pieData.some(item => item.value > 0) ? (
-                <ResponsiveContainer width="100%" height={400}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={120}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+              {loading ? (
+                <div className="flex items-center justify-center h-80">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                </div>
+              ) : !pieData || pieData.length === 0 ? (
+                <div className="w-full h-80 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+                      <svg className="w-8 h-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </div>
+                    <p className="text-muted-foreground font-medium">Nenhum dado disponível</p>
+                    <p className="text-sm text-muted-foreground mt-1 opacity-80">Os dados aparecerão aqui quando houver chamados</p>
+                  </div>
+                </div>
               ) : (
-                <div className="h-64 flex items-center justify-center text-muted-foreground">
-                  Nenhuma avaliação disponível
+                <div className="flex flex-col lg:flex-row gap-6 items-center lg:items-start justify-center">
+                  {/* Gráfico centralizado */}
+                  <div className="flex-1 w-full lg:flex-1 lg:max-w-lg flex justify-center">
+                    <div className="w-full">
+                      <ModernPieChart 
+                        data={pieData} 
+                        isLoading={false}
+                        hideLegend={true}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Legenda à direita */}
+                  <div className="w-full lg:w-80 flex-shrink-0 lg:mt-0">
+                    <div className="space-y-3">
+                      {pieData.map((item) => {
+                        const total = pieData.reduce((sum, i) => sum + i.value, 0);
+                        const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
+                        return (
+                          <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/60 hover:bg-muted transition-colors duration-200">
+                            <div className="flex items-center gap-3">
+                              <div 
+                                className="w-4 h-4 rounded-full shadow-sm" 
+                                style={{ backgroundColor: item.color }}
+                              />
+                              <span className="text-sm font-medium text-muted-foreground">{item.name}</span>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-lg font-bold text-foreground">{item.value}</div>
+                              <div className="text-xs text-muted-foreground">{percentage}%</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -499,6 +610,9 @@ export default function ClientReports() {
                   <MessageSquare className="h-5 w-5" />
                   Comentários Recentes
                 </CardTitle>
+                <CardDescription>
+                  São exibidos apenas avaliações com comentários
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
