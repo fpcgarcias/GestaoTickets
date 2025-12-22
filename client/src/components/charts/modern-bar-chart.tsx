@@ -14,7 +14,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   const { formatMessage } = useI18n();
   
   if (active && payload && payload.length) {
-    const data = payload[0];
     return (
       <div className="bg-card text-card-foreground p-4 rounded-lg shadow-lg border border-border">
         <div className="flex items-center gap-2 mb-2">
@@ -22,7 +21,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           <span className="font-semibold text-foreground">{label}</span>
         </div>
         <p className="text-sm text-muted-foreground">
-          {formatMessage('dashboard.quantity')}: <span className="font-bold text-primary">{data.value}</span>
+          {formatMessage('dashboard.quantity')}: <span className="font-bold text-primary">{payload[0].value}</span>
         </p>
       </div>
     );
@@ -30,20 +29,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-const CustomBar = (props: any) => {
-  const { fill, ...rest } = props;
-  return (
-    <Bar 
-      {...rest} 
-      fill="url(#barGradient)"
-      radius={[4, 4, 0, 0]}
-      className="hover:opacity-80 transition-opacity duration-200"
-    />
-  );
-};
-
 export const ModernBarChart: React.FC<ModernBarChartProps> = ({ data, isLoading }) => {
   const { formatMessage } = useI18n();
+  
   if (isLoading) {
     return (
       <div className="w-full h-80 flex items-center justify-center">
@@ -68,8 +56,8 @@ export const ModernBarChart: React.FC<ModernBarChartProps> = ({ data, isLoading 
     );
   }
 
-  const maxValue = Math.max(...data.map(item => item.Qtde));
-  const total = data.reduce((sum, item) => sum + item.Qtde, 0);
+  const maxValue = Math.max(...data.map(item => item.Qtde || 0), 0);
+  const total = data.reduce((sum, item) => sum + (item.Qtde || 0), 0);
 
   return (
     <div className="w-full">
@@ -111,8 +99,16 @@ export const ModernBarChart: React.FC<ModernBarChartProps> = ({ data, isLoading 
             tickLine={false}
             tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))', fontWeight: 500 }}
             dx={-10}
+            domain={[0, 'auto']}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsla(var(--primary), 0.12)' }} />
+          <Tooltip 
+            content={<CustomTooltip />} 
+            cursor={{ 
+              fill: 'rgba(128, 128, 128, 0.08)',
+              stroke: 'rgba(128, 128, 128, 0.2)',
+              strokeWidth: 1
+            }} 
+          />
           <Bar 
             dataKey="Qtde" 
             fill="url(#barGradient)"
@@ -125,15 +121,16 @@ export const ModernBarChart: React.FC<ModernBarChartProps> = ({ data, isLoading 
       </ResponsiveContainer>
       
       {/* Estatísticas resumidas */}
-      <div className="mt-6">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
-          {data.map((item, index) => {
-            const percentage = total > 0 ? ((item.Qtde / total) * 100).toFixed(1) : '0';
-            const isHighest = item.Qtde === maxValue;
+      <div className="mt-6 flex justify-center">
+        <div className="flex flex-wrap justify-center gap-2 sm:gap-3" style={{ maxWidth: '100%' }}>
+          {data.map((item) => {
+            const qtdeValue = item.Qtde || 0;
+            const percentage = total > 0 ? ((qtdeValue / total) * 100).toFixed(1) : '0';
+            const isHighest = qtdeValue === maxValue;
             return (
               <div 
                 key={item.name} 
-                className={`p-2 sm:p-3 rounded-lg transition-all duration-200 ${
+                className={`p-2 sm:p-3 rounded-lg transition-all duration-200 min-w-[120px] ${
                   isHighest 
                     ? 'bg-primary/15 border border-primary/40 shadow-sm' 
                     : 'bg-muted/60 hover:bg-muted'
@@ -163,11 +160,7 @@ export const ModernBarChart: React.FC<ModernBarChartProps> = ({ data, isLoading 
             );
           })}
         </div>
-        
-
       </div>
     </div>
   );
 };
-
-

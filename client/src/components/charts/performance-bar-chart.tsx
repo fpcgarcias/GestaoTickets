@@ -16,18 +16,18 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     const satisfacaoData = payload.find((p: any) => p.dataKey === 'satisfacao');
     
     return (
-      <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-200">
+      <div className="bg-card text-card-foreground p-4 rounded-lg shadow-lg border border-border">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-3 h-3 rounded-full bg-gradient-to-r from-green-500 to-green-600" />
-          <span className="font-semibold text-gray-900">{label}</span>
+          <span className="font-semibold text-foreground">{label}</span>
         </div>
         {ticketsData && (
-          <p className="text-sm text-gray-600 mb-1">
+          <p className="text-sm text-muted-foreground mb-1">
             Tickets Resolvidos: <span className="font-bold text-green-600">{ticketsData.value}</span>
           </p>
         )}
         {satisfacaoData && (
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Satisfação: <span className="font-bold text-blue-600">{satisfacaoData.value.toFixed(1)}</span>
           </p>
         )}
@@ -111,14 +111,14 @@ export const PerformanceBarChart: React.FC<PerformanceBarChartProps> = ({ data, 
           </defs>
           <CartesianGrid 
             strokeDasharray="3 3" 
-            stroke="#E5E7EB" 
-            strokeOpacity={0.5}
+            stroke="hsl(var(--border))" 
+            strokeOpacity={0.35}
           />
           <XAxis 
             dataKey="name" 
             axisLine={false}
             tickLine={false}
-            tick={{ fontSize: 11, fill: '#6B7280', fontWeight: 500 }}
+            tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))', fontWeight: 500 }}
             dy={10}
             angle={-45}
             textAnchor="end"
@@ -129,7 +129,7 @@ export const PerformanceBarChart: React.FC<PerformanceBarChartProps> = ({ data, 
             orientation="left"
             axisLine={false}
             tickLine={false}
-            tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 500 }}
+            tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))', fontWeight: 500 }}
             dx={-10}
           />
           <YAxis 
@@ -137,11 +137,18 @@ export const PerformanceBarChart: React.FC<PerformanceBarChartProps> = ({ data, 
             orientation="right"
             axisLine={false}
             tickLine={false}
-            tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 500 }}
+            tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))', fontWeight: 500 }}
             dx={10}
-            domain={[0, 5]}
+            domain={[0, 100]}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }} />
+          <Tooltip 
+            content={<CustomTooltip />} 
+            cursor={{ 
+              fill: 'rgba(128, 128, 128, 0.08)',
+              stroke: 'rgba(128, 128, 128, 0.2)',
+              strokeWidth: 1
+            }} 
+          />
           <Legend 
             wrapperStyle={{ paddingTop: '20px' }}
             formatter={(value) => {

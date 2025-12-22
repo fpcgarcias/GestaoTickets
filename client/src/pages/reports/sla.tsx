@@ -85,6 +85,7 @@ interface IncidentTypeOption {
 interface SLAFiltersState {
   departmentId: string;
   incidentTypeId: string;
+  assignedToId: string;
   priority: string;
 }
 
@@ -103,10 +104,13 @@ export default function SLAReports() {
   const [filters, setFilters] = useState<SLAFiltersState>({
     departmentId: searchParams.get('departmentId') || 'all',
     incidentTypeId: searchParams.get('incidentTypeId') || 'all',
+    assignedToId: searchParams.get('assignedToId') || 'all',
     priority: searchParams.get('priority') || 'all'
   });
   const [departments, setDepartments] = useState<Department[]>([]);
   const [incidentTypes, setIncidentTypes] = useState<IncidentTypeOption[]>([]);
+  const [officials, setOfficials] = useState<any[]>([]);
+  const [priorities, setPriorities] = useState<Array<{ value: string; label: string }>>([]);
   const [isIncidentTypesLoading, setIsIncidentTypesLoading] = useState(false);
   const [canViewDepartments, setCanViewDepartments] = useState(false);
 
@@ -131,6 +135,7 @@ export default function SLAReports() {
       }
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
       if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incident_type_id', filters.incidentTypeId);
+      if (filters.assignedToId && filters.assignedToId !== 'all') params.append('assigned_to_id', filters.assignedToId);
       if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
 
       const url = `/api/reports/sla?${params}`;
@@ -155,6 +160,7 @@ export default function SLAReports() {
     const newFilters = {
       departmentId: searchParams.get('departmentId') || 'all',
       incidentTypeId: searchParams.get('incidentTypeId') || 'all',
+      assignedToId: searchParams.get('assignedToId') || 'all',
       priority: searchParams.get('priority') || 'all'
     };
     setFilters(newFilters);
@@ -276,6 +282,78 @@ export default function SLAReports() {
     };
   }, [filters.departmentId, canViewDepartments]);
 
+  // Buscar atendentes
+  useEffect(() => {
+    const fetchOfficials = async () => {
+      try {
+        const params = new URLSearchParams();
+        params.append('limit', '1000');
+        if (filters.departmentId && filters.departmentId !== 'all') {
+          params.append('department_id', filters.departmentId);
+        }
+        const response = await fetch(`/api/officials?${params.toString()}`);
+        if (response.ok) {
+          const data = await response.json();
+          const officialsList = (data.officials || data.data || [])
+            .filter((official: any) => official.is_active)
+            .sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR'));
+          setOfficials(officialsList);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar atendentes:', error);
+      }
+    };
+
+    fetchOfficials();
+  }, [filters.departmentId]);
+
+  // Buscar todas as prioridades da empresa e agrupar case-insensitive
+  useEffect(() => {
+    const fetchPriorities = async () => {
+      try {
+        const response = await fetch('/api/department-priorities');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && Array.isArray(data.data)) {
+            // Agrupar prioridades por nome case-insensitive
+            const priorityMap = new Map<string, string>();
+            
+            data.data.forEach((p: any) => {
+              if (p.name && p.name.trim() !== '') {
+                const normalizedName = p.name.trim().toLowerCase();
+                // Manter o primeiro nome encontrado (com a capitalização original)
+                if (!priorityMap.has(normalizedName)) {
+                  priorityMap.set(normalizedName, p.name.trim());
+                }
+              }
+            });
+            
+            // Converter para array e ordenar alfabeticamente
+            const uniquePriorities = Array.from(priorityMap.entries())
+              .map(([normalized, original]) => ({
+                value: original,
+                label: original
+              }))
+              .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+            
+            setPriorities(uniquePriorities);
+          } else {
+            setPriorities([]);
+          }
+        } else {
+          setPriorities([]);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar prioridades:', error);
+        setPriorities([]);
+      }
+    };
+
+    if (canViewDepartments || user?.role === 'admin' || user?.role === 'company_admin') {
+      fetchPriorities();
+    }
+  }, [canViewDepartments, user?.role]);
+
   const handleBack = () => {
     setLocation('/reports');
   };
@@ -289,13 +367,14 @@ export default function SLAReports() {
     console.log('Exportar em', format);
   };
 
-  // Preparar dados para o gráfico
+  // Preparar dados para o gráfico (formato PerformanceBarChart: { name, ticketsResolvidos, satisfacao })
   const chartData = (data?.by_priority || [])
     .map(prio => ({
-      name: prio.priority,
-      ticketsResolvidos: prio.total_tickets - prio.breached_tickets,
-      satisfacao: prio.compliance_rate
-    }));
+      name: prio.priority || '',
+      ticketsResolvidos: Number(prio.total_tickets || 0) - Number(prio.breached_tickets || 0),
+      satisfacao: Number(prio.compliance_rate || 0)
+    }))
+    .filter(item => item.name !== '');
 
   return (
     <div className="p-6">
@@ -337,14 +416,14 @@ export default function SLAReports() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-5">
-            <div className="space-y-2">
+          <div className="grid gap-4 md:grid-cols-6">
+            <div className="space-y-2 md:col-span-1">
               <label className="text-sm font-medium">Período</label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className="w-full justify-start text-left font-normal"
+                    className="w-full justify-start text-left font-normal text-xs"
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dateRange?.from ? (
@@ -404,7 +483,7 @@ export default function SLAReports() {
                     onValueChange={(value) => setFilters(prev => ({ ...prev, incidentTypeId: value }))}
                     disabled={filters.departmentId === 'all' || isIncidentTypesLoading}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="text-xs">
                       <SelectValue placeholder="Todos os tipos" />
                     </SelectTrigger>
                     <SelectContent>
@@ -421,26 +500,47 @@ export default function SLAReports() {
             )}
 
             <div className="space-y-2">
+              <label className="text-sm font-medium">Atendente</label>
+              <Select
+                value={filters.assignedToId}
+                onValueChange={(value) => setFilters(prev => ({ ...prev, assignedToId: value }))}
+              >
+                <SelectTrigger className="text-xs">
+                  <SelectValue placeholder="Todos os atendentes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os atendentes</SelectItem>
+                  {officials.map((official) => (
+                    <SelectItem key={official.id} value={official.id.toString()}>
+                      {official.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-medium">Prioridade</label>
               <Select
                 value={filters.priority}
                 onValueChange={(value) => setFilters(prev => ({ ...prev, priority: value }))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="text-xs">
                   <SelectValue placeholder="Todas" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="CRÍTICA">Crítica</SelectItem>
-                  <SelectItem value="ALTA">Alta</SelectItem>
-                  <SelectItem value="MÉDIA">Média</SelectItem>
-                  <SelectItem value="BAIXA">Baixa</SelectItem>
+                  {priorities.map((priority) => (
+                    <SelectItem key={priority.value} value={priority.value}>
+                      {priority.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="flex items-end">
-              <Button onClick={handleApplyFilters} className="w-full">
+              <Button onClick={handleApplyFilters} className="w-full text-xs py-2">
                 Aplicar Filtros
               </Button>
             </div>
@@ -525,16 +625,14 @@ export default function SLAReports() {
           </div>
 
           {/* Gráfico por Prioridade */}
-          {chartData.length > 0 && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Cumprimento SLA por Prioridade</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <PerformanceBarChart data={chartData} isLoading={loading} />
-              </CardContent>
-            </Card>
-          )}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Cumprimento SLA por Prioridade</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PerformanceBarChart data={chartData} isLoading={loading} />
+            </CardContent>
+          </Card>
 
           {/* Tabela por Departamento */}
           <Card className="mb-6">

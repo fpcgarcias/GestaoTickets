@@ -1894,11 +1894,12 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
 // SLA reports
 router.get('/sla', authRequired, async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, start_date, end_date, departmentId, incidentTypeId, incident_type_id, priority } = req.query;
+    const { startDate, endDate, start_date, end_date, departmentId, incidentTypeId, incident_type_id, assigned_to_id, priority } = req.query;
 
     const startDateParam = (start_date || startDate) as string | undefined;
     const endDateParam = (end_date || endDate) as string | undefined;
     const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
+    const assignedToParam = assigned_to_id as string | undefined;
     const priorityParam = priority as string | undefined;
 
     // Build base query for tickets
@@ -1973,8 +1974,19 @@ router.get('/sla', authRequired, async (req: Request, res: Response) => {
         additionalFilters.push(eq(schema.tickets.incident_type_id, incidentTypeIdNumber));
       }
     }
+    if (assignedToParam && assignedToParam !== 'all') {
+      const assignedToIdNumber = parseInt(assignedToParam, 10);
+      if (!Number.isNaN(assignedToIdNumber)) {
+        additionalFilters.push(eq(schema.tickets.assigned_to_id, assignedToIdNumber));
+      }
+    }
     if (priorityParam && priorityParam !== 'all') {
-      additionalFilters.push(eq(schema.tickets.priority, priorityParam));
+      // Filtro case-insensitive usando LOWER() do SQL
+      // Normalizar o valor para comparação case-insensitive e escapar para SQL
+      const normalizedPriority = priorityParam.trim().toLowerCase().replace(/'/g, "''");
+      additionalFilters.push(
+        sql`LOWER(TRIM(${schema.tickets.priority})) = LOWER(${sql.raw(`'${normalizedPriority}'`)})`
+      );
     }
 
     // Build where clause safely
@@ -2339,6 +2351,8 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
     }
 
     // Calcular métricas por departamento
+    const incidentTypeIdForDept = incidentTypeParam && incidentTypeParam !== 'all' ? parseInt(incidentTypeParam, 10) : undefined;
+    
     const departmentsMetrics = await Promise.all(
       Array.from(ticketsByDept.entries()).map(async ([deptId, ts]) => {
         if (typeof deptId !== 'number') return null;
@@ -2352,7 +2366,8 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
           undefined, // officialId - usar undefined para todos os atendentes do departamento
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
-          deptId as number // departmentId específico
+          deptId as number, // departmentId específico
+          incidentTypeIdForDept
         );
         
         const avgResolutionHours = await storage.getAverageResolutionTimeByUserRole(
@@ -2361,7 +2376,8 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
           undefined, // officialId - usar undefined para todos os atendentes do departamento
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
-          deptId as number // departmentId específico
+          deptId as number, // departmentId específico
+          incidentTypeIdForDept
         );
 
         // Satisfaction average for this department
@@ -2393,13 +2409,17 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
     const totalTickets = tickets.length;
     const resolvedTickets = tickets.filter(t => t.resolved_at !== null).length;
     
+    const departmentIdForSummary = departmentIdParam && departmentIdParam !== 'all' ? parseInt(departmentIdParam, 10) : undefined;
+    const incidentTypeIdForSummary = incidentTypeParam && incidentTypeParam !== 'all' ? parseInt(incidentTypeParam, 10) : undefined;
+    
     const avgFirstResponseTimeHours = await storage.getAverageFirstResponseTimeByUserRole(
       userId, 
       userRole, 
       undefined,
       startDateParam ? new Date(startDateParam) : undefined,
       endDateParam ? new Date(endDateParam) : undefined,
-      undefined
+      departmentIdForSummary,
+      incidentTypeIdForSummary
     );
     
     const avgResolutionTimeHours = await storage.getAverageResolutionTimeByUserRole(
@@ -2408,7 +2428,8 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
       undefined,
       startDateParam ? new Date(startDateParam) : undefined,
       endDateParam ? new Date(endDateParam) : undefined,
-      undefined
+      departmentIdForSummary,
+      incidentTypeIdForSummary
     );
     
     const summary = {

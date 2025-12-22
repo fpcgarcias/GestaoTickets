@@ -12,7 +12,7 @@ import { Download, CalendarIcon, Filter, ChevronDown, ArrowLeft, Building2 } fro
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/hooks/use-auth';
-import { PerformanceBarChart } from '@/components/charts/performance-bar-chart';
+import { ModernBarChart } from '@/components/charts/modern-bar-chart';
 
 // Função utilitária para formatar tempo igual ao dashboard (TimeMetricCard)
 function formatTime(hours: number): string {
@@ -297,18 +297,26 @@ export default function DepartmentReports() {
     fetchReportsWithCurrentFilters();
   };
 
-  // Preparar dados para o gráfico
+  // Preparar dados para o gráfico (formato ModernBarChart)
+  // O gráfico sempre mostra tickets resolvidos, mas a ordenação pode variar
   const chartData = data?.departments
     .map(dept => ({
       name: dept.department_name,
-      ticketsResolvidos: dept.resolved_tickets,
-      satisfacao: dept.satisfaction_avg || 0
+      Qtde: dept.resolved_tickets
     }))
     .sort((a, b) => {
-      if (sortBy === 'tickets_desc') return b.ticketsResolvidos - a.ticketsResolvidos;
-      if (sortBy === 'tickets_asc') return a.ticketsResolvidos - b.ticketsResolvidos;
-      if (sortBy === 'satisfaction_desc') return b.satisfacao - a.satisfacao;
-      if (sortBy === 'satisfaction_asc') return a.satisfacao - b.satisfacao;
+      if (sortBy === 'tickets_desc') return b.Qtde - a.Qtde;
+      if (sortBy === 'tickets_asc') return a.Qtde - b.Qtde;
+      if (sortBy === 'satisfaction_desc') {
+        const aDept = data.departments.find(d => d.department_name === a.name);
+        const bDept = data.departments.find(d => d.department_name === b.name);
+        return (bDept?.satisfaction_avg || 0) - (aDept?.satisfaction_avg || 0);
+      }
+      if (sortBy === 'satisfaction_asc') {
+        const aDept = data.departments.find(d => d.department_name === a.name);
+        const bDept = data.departments.find(d => d.department_name === b.name);
+        return (aDept?.satisfaction_avg || 0) - (bDept?.satisfaction_avg || 0);
+      }
       if (sortBy === 'name') return a.name.localeCompare(b.name);
       return 0;
     }) || [];
@@ -549,7 +557,7 @@ export default function DepartmentReports() {
               </div>
             </CardHeader>
             <CardContent>
-              <PerformanceBarChart data={chartData} isLoading={loading} />
+              <ModernBarChart data={chartData} isLoading={loading} />
             </CardContent>
           </Card>
 
