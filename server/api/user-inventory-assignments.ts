@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from '../db';
 import { userInventoryAssignments, inventoryProducts, users, inventoryResponsibilityTerms } from '@shared/schema';
-import { and, eq, isNull, or, inArray, sql, getTableColumns, desc } from 'drizzle-orm';
+import { and, eq, isNull, or, inArray, sql, getTableColumns, desc, ilike } from 'drizzle-orm';
 import { getDepartmentFilter } from '../utils/department-filter';
 
 function resolveCompanyId(req: Request): number {
@@ -22,6 +22,11 @@ export async function listAssignments(req: Request, res: Response) {
     const userId = req.session?.userId;
     const userRole = req.session?.userRole;
     const onlyOpen = req.query.open === 'true';
+    const search = req.query.search as string | undefined;
+    const statusFilter = req.query.status as string | undefined;
+    const page = req.query.page ? Math.max(1, parseInt(req.query.page as string, 10)) : 1;
+    const limit = req.query.limit ? Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10))) : 20;
+    const offset = (page - 1) * limit;
 
     // Bloquear customers
     if (userRole === 'customer') {
@@ -37,12 +42,62 @@ export async function listAssignments(req: Request, res: Response) {
       conditions.push(isNull(userInventoryAssignments.actual_return_date));
     }
 
+    // Filtro de status
+    // Frontend espera: "pending", "active", "completed"
+    if (statusFilter && statusFilter.trim()) {
+      if (statusFilter === 'completed') {
+        // completed = tem actual_return_date
+        conditions.push(sql`${userInventoryAssignments.actual_return_date} IS NOT NULL`);
+      } else if (statusFilter === 'active') {
+        // active = não tem actual_return_date E signature_status === 'signed'
+        conditions.push(
+          and(
+            isNull(userInventoryAssignments.actual_return_date),
+            eq(userInventoryAssignments.signature_status, 'signed')
+          )
+        );
+      } else if (statusFilter === 'pending') {
+        // pending = não tem actual_return_date E signature_status != 'signed'
+        conditions.push(
+          and(
+            isNull(userInventoryAssignments.actual_return_date),
+            sql`${userInventoryAssignments.signature_status} IS DISTINCT FROM 'signed'`
+          )
+        );
+      }
+    }
+
+    // Filtro de busca
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(inventoryProducts.service_tag, searchTerm),
+          ilike(inventoryProducts.asset_number, searchTerm),
+          ilike(inventoryProducts.serial_number, searchTerm),
+          ilike(inventoryProducts.name, searchTerm),
+          ilike(users.name, searchTerm)
+        )
+      );
+    }
+
     // Filtro por departamento (via produtos)
     if (userId && userRole) {
       const deptFilter = await getDepartmentFilter(userId, userRole);
 
       if (deptFilter.type === 'NONE') {
-        return res.json({ success: true, data: [] });
+        return res.json({ 
+          success: true, 
+          data: [], 
+          pagination: { 
+            page, 
+            limit, 
+            total: 0, 
+            totalPages: 0, 
+            hasNext: false, 
+            hasPrev: false 
+          } 
+        });
       }
 
       if (deptFilter.type === 'DEPARTMENTS') {
@@ -62,18 +117,45 @@ export async function listAssignments(req: Request, res: Response) {
         const productIds = allowedProducts.map(p => p.id);
 
         if (productIds.length === 0) {
-          return res.json({ success: true, data: [] });
+          return res.json({ 
+            success: true, 
+            data: [], 
+            pagination: { 
+              page, 
+              limit, 
+              total: 0, 
+              totalPages: 0, 
+              hasNext: false, 
+              hasPrev: false 
+            } 
+          });
         }
 
         conditions.push(inArray(userInventoryAssignments.product_id, productIds));
       }
     }
 
+    // Buscar total de registros (antes da paginação)
+    const totalRows = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(userInventoryAssignments)
+      .leftJoin(inventoryProducts, eq(userInventoryAssignments.product_id, inventoryProducts.id))
+      .leftJoin(users, eq(userInventoryAssignments.user_id, users.id))
+      .leftJoin(inventoryResponsibilityTerms, eq(userInventoryAssignments.responsibility_term_id, inventoryResponsibilityTerms.id))
+      .where(and(...conditions));
+
+    const total = Number(totalRows[0]?.count ?? 0);
+    const totalPages = Math.ceil(total / limit);
+
+    // Buscar dados paginados
     const rows = await db
       .select({
         ...getTableColumns(userInventoryAssignments),
         product_id: inventoryProducts.id,
         product_name: inventoryProducts.name,
+        product_service_tag: inventoryProducts.service_tag,
+        product_asset_number: inventoryProducts.asset_number,
+        product_serial_number: inventoryProducts.serial_number,
         user_name: users.name,
         term_signature_method: inventoryResponsibilityTerms.signature_method,
         term_status: inventoryResponsibilityTerms.status,
@@ -83,20 +165,19 @@ export async function listAssignments(req: Request, res: Response) {
       .leftJoin(users, eq(userInventoryAssignments.user_id, users.id))
       .leftJoin(inventoryResponsibilityTerms, eq(userInventoryAssignments.responsibility_term_id, inventoryResponsibilityTerms.id))
       .where(and(...conditions))
-      .orderBy(desc(userInventoryAssignments.assigned_date));
+      .orderBy(desc(userInventoryAssignments.assigned_date))
+      .limit(limit)
+      .offset(offset);
 
     // Formatar resposta para o frontend
     const assignments = rows.map(row => {
       // Calcular status baseado em actual_return_date e signature_status
-      let status = 'active';
+      // Frontend espera: "pending", "active", "completed"
+      let status: 'pending' | 'active' | 'completed' = 'pending';
       if (row.actual_return_date) {
-        status = 'returned';
+        status = 'completed';
       } else if (row.signature_status === 'signed') {
-        status = 'signed';
-      } else if (row.signature_status === 'sent') {
-        status = 'pending_signature';
-      } else if (row.signature_status === 'expired') {
-        status = 'expired';
+        status = 'active';
       } else {
         status = 'pending';
       }
@@ -104,12 +185,6 @@ export async function listAssignments(req: Request, res: Response) {
       // Calcular term_status baseado no termo real
       let term_status = null;
       if (row.responsibility_term_id) {
-        console.log(`[DEBUG BACKEND] Assignment #${row.id}:`, {
-          responsibility_term_id: row.responsibility_term_id,
-          term_signature_method: row.term_signature_method,
-          term_status_db: row.term_status,
-        });
-        
         // Se tem signature_method, significa que foi enviado para assinatura digital
         if (row.term_signature_method) {
           if (row.term_status === 'signed') {
@@ -121,8 +196,6 @@ export async function listAssignments(req: Request, res: Response) {
           // Se não tem signature_method, apenas foi gerado
           term_status = 'generated';
         }
-        
-        console.log(`[DEBUG BACKEND] Calculated term_status: "${term_status}"`);
       }
 
       return {
@@ -139,7 +212,18 @@ export async function listAssignments(req: Request, res: Response) {
       };
     });
 
-    res.json({ success: true, data: assignments });
+    res.json({ 
+      success: true, 
+      data: assignments,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      }
+    });
   } catch (error) {
     console.error('Erro ao listar alocações:', error);
     res.status(500).json({ success: false, message: String(error) });
