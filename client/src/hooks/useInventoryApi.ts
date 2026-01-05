@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { config } from "@/lib/config";
 import { DateRange } from "react-day-picker";
 
@@ -322,9 +323,13 @@ export function useInventoryDashboardTopProducts() {
 }
 
 export function useInventoryProducts(filters: InventoryProductsFilters) {
+  const { user } = useAuth();
+  const canAccessInventory = user?.role !== 'customer';
+  
   return useQuery({
     queryKey: inventoryKeys.products.list(filters),
     queryFn: () => fetchJson<InventoryPaginatedResponse<InventoryProduct[]>>("/api/inventory/products", filters),
+    enabled: canAccessInventory,
     keepPreviousData: true,
   });
 }
@@ -360,9 +365,13 @@ export function useInventorySuppliers(options?: { includeInactive?: boolean }) {
 }
 
 export function useInventoryLocations() {
+  const { user } = useAuth();
+  const canAccessInventory = user?.role !== 'customer';
+  
   return useQuery({
     queryKey: inventoryKeys.locations.list,
     queryFn: () => fetchJson<InventoryPaginatedResponse<InventoryLocation[]>>("/api/inventory/locations"),
+    enabled: canAccessInventory,
   });
 }
 

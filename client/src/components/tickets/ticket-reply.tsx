@@ -34,7 +34,6 @@ import { useAuth } from '@/hooks/use-auth';
 import { getStatusConfig, type TicketStatus } from '@shared/ticket-utils';
 import { TicketTransferDialog } from './TicketTransferDialog';
 import { useI18n } from '@/i18n';
-import { useInventoryProducts, useInventoryLocations } from '@/hooks/useInventoryApi';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
@@ -163,24 +162,54 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     return undefined;
   };
   
-  const inventoryProductsQueryOut = useInventoryProducts({ 
-    page: 1, 
-    limit: 100,
-    search: searchOut || undefined,
-    status: getStatusFilterOut(),
+  // Verificar se o usuário tem acesso ao inventário (customer não tem acesso)
+  const canAccessInventory = user?.role !== 'customer';
+  
+  const inventoryProductsQueryOut = useQuery<{ success: boolean; data: any[] }>({
+    queryKey: ["inventory", "products", { page: 1, limit: 100, search: searchOut || undefined, status: getStatusFilterOut() }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('page', '1');
+      params.append('limit', '100');
+      if (searchOut) params.append('search', searchOut);
+      const status = getStatusFilterOut();
+      if (status) params.append('status', status);
+      const res = await fetch(`/api/inventory/products?${params.toString()}`);
+      if (!res.ok) throw new Error('Erro ao carregar produtos');
+      return res.json();
+    },
+    enabled: canAccessInventory,
   });
-  const inventoryProductsQueryIn = useInventoryProducts({ 
-    page: 1, 
-    limit: 100,
-    search: searchIn || undefined,
-    status: getStatusFilterIn(),
+  
+  const inventoryProductsQueryIn = useQuery<{ success: boolean; data: any[] }>({
+    queryKey: ["inventory", "products", { page: 1, limit: 100, search: searchIn || undefined, status: getStatusFilterIn() }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append('page', '1');
+      params.append('limit', '100');
+      if (searchIn) params.append('search', searchIn);
+      const status = getStatusFilterIn();
+      if (status) params.append('status', status);
+      const res = await fetch(`/api/inventory/products?${params.toString()}`);
+      if (!res.ok) throw new Error('Erro ao carregar produtos');
+      return res.json();
+    },
+    enabled: canAccessInventory,
   });
   
   const productsOut = inventoryProductsQueryOut.data?.data ?? [];
   const productsIn = inventoryProductsQueryIn.data?.data ?? [];
   
   // Buscar localizações disponíveis
-  const locationsQuery = useInventoryLocations();
+  const locationsQuery = useQuery<{ success: boolean; data: any[] }>({
+    queryKey: ["inventory", "locations"],
+    queryFn: async () => {
+      const res = await fetch('/api/inventory/locations');
+      if (!res.ok) throw new Error('Erro ao carregar localizações');
+      return res.json();
+    },
+    enabled: canAccessInventory,
+  });
   const locations = locationsQuery.data?.data ?? [];
   
   const selectedProductOut = productsOut.find((p: any) => String(p.id) === productOutId);
