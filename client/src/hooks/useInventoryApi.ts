@@ -295,23 +295,35 @@ export const inventoryKeys = {
 };
 
 export function useInventoryDashboardStats() {
+  const { user } = useAuth();
+  const canAccessInventory = !!user && user.role !== 'customer';
+  
   return useQuery({
     queryKey: inventoryKeys.dashboard.stats,
     queryFn: () => fetchJson<{ success: true; total: number; statuses: { status: string; count: number }[] }>("/api/inventory/dashboard/stats"),
+    enabled: canAccessInventory,
   });
 }
 
 export function useInventoryDashboardAlerts() {
+  const { user } = useAuth();
+  const canAccessInventory = !!user && user.role !== 'customer';
+  
   return useQuery({
     queryKey: inventoryKeys.dashboard.alerts,
     queryFn: () => fetchJson<InventoryPaginatedResponse<any[]>>("/api/inventory/dashboard/alerts"),
+    enabled: canAccessInventory,
   });
 }
 
 export function useInventoryDashboardMovements() {
+  const { user } = useAuth();
+  const canAccessInventory = !!user && user.role !== 'customer';
+  
   return useQuery({
     queryKey: inventoryKeys.dashboard.movements,
     queryFn: () => fetchJson<{ success: true; data: InventoryMovement[] }>("/api/inventory/dashboard/movements"),
+    enabled: canAccessInventory,
   });
 }
 
@@ -324,7 +336,7 @@ export function useInventoryDashboardTopProducts() {
 
 export function useInventoryProducts(filters: InventoryProductsFilters) {
   const { user } = useAuth();
-  const canAccessInventory = user?.role !== 'customer';
+  const canAccessInventory = !!user && user.role !== 'customer';
   
   return useQuery({
     queryKey: inventoryKeys.products.list(filters),
@@ -366,7 +378,7 @@ export function useInventorySuppliers(options?: { includeInactive?: boolean }) {
 
 export function useInventoryLocations() {
   const { user } = useAuth();
-  const canAccessInventory = user?.role !== 'customer';
+  const canAccessInventory = !!user && user.role !== 'customer';
   
   return useQuery({
     queryKey: inventoryKeys.locations.list,

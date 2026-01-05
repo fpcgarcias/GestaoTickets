@@ -163,7 +163,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   };
   
   // Verificar se o usuário tem acesso ao inventário (customer não tem acesso)
-  const canAccessInventory = user?.role !== 'customer';
+  const canAccessInventory = !!user && user.role !== 'customer';
   
   const inventoryProductsQueryOut = useQuery<{ success: boolean; data: any[] }>({
     queryKey: ["inventory", "products", { page: 1, limit: 100, search: searchOut || undefined, status: getStatusFilterOut() }],
