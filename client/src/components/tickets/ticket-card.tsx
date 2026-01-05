@@ -126,6 +126,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
   const participants = participantsResponse?.data || [];
 
   // Buscar prestadores do ticket (apenas para atendentes e se o departamento usar prestadores)
+  const canAccessServiceProviders = !!user && user.role !== 'customer';
   const { data: serviceProvidersData = [] } = useQuery({
     queryKey: [`/api/tickets/${id}/service-providers`],
     queryFn: async () => {
@@ -139,7 +140,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
       return response.json();
     },
     staleTime: 2 * 60 * 1000,
-    enabled: !isCustomerForThisTicket && !!departmentId,
+    enabled: canAccessServiceProviders && !isCustomerForThisTicket && !!departmentId,
   });
 
   const serviceProviders = Array.isArray(serviceProvidersData) ? serviceProvidersData : [];

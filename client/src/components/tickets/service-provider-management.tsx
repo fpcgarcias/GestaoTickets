@@ -31,6 +31,7 @@ export const ServiceProviderManagement: React.FC<ServiceProviderManagementProps>
   const [selectedProviders, setSelectedProviders] = useState<ServiceProvider[]>([]);
 
   // Buscar prestadores do ticket
+  const canAccessServiceProviders = !!user && user.role !== 'customer';
   const { data: providersData = [], isLoading: isLoadingProviders } = useQuery<ServiceProvider[]>({
     queryKey: [`/api/tickets/${ticketId}/service-providers`],
     queryFn: async () => {
@@ -44,6 +45,7 @@ export const ServiceProviderManagement: React.FC<ServiceProviderManagementProps>
       return response.json();
     },
     staleTime: 2 * 60 * 1000,
+    enabled: canAccessServiceProviders,
   });
 
   // Verificar se o usuário pode gerenciar prestadores

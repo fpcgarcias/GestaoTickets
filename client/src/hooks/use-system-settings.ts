@@ -12,6 +12,9 @@ export function useSystemSettings() {
   const { user } = useAuth();
   const { companyName } = useTheme();
   
+  // Customers não precisam acessar configurações gerais
+  const canAccessSettings = !!user && user.role !== 'customer';
+  
   const { data, isLoading, error } = useQuery<SystemSettings>({
     queryKey: ['/api/settings/general'],
     queryFn: () => fetch('/api/settings/general').then(res => {
@@ -34,8 +37,8 @@ export function useSystemSettings() {
     throwOnError: false,
     // Tempo de cache mais longo para configurações
     staleTime: 5 * 60 * 1000, // 5 minutos
-    // Só executar quando o usuário estiver autenticado
-    enabled: !!user,
+    // Só executar quando o usuário estiver autenticado E não for customer
+    enabled: canAccessSettings,
   });
 
   // Mesclar configurações carregadas com valores padrão
