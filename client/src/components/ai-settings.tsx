@@ -36,7 +36,8 @@ import {
   Server,
   Edit3,
   Target,
-  RotateCcw
+  RotateCcw,
+  Search
 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -1216,17 +1217,6 @@ function DepartmentAiConfiguration() {
                 />
               </div>
               <div>
-                <Label htmlFor="max_tokens">{formatMessage('ai.max_tokens')}</Label>
-                <Input
-                  id="max_tokens"
-                  type="number"
-                  min="1"
-                  max="4000"
-                  value={formData.max_tokens}
-                  onChange={(e) => setFormData(prev => ({ ...prev, max_tokens: parseInt(e.target.value) || 100 }))}
-                />
-              </div>
-              <div>
                 <Label htmlFor="timeout_seconds">{formatMessage('ai.timeout_seconds')}</Label>
                 <Input
                   id="timeout_seconds"
@@ -1447,6 +1437,9 @@ function AdminAiConfiguration() {
   const [deletingProvider, setDeletingProvider] = useState<AiProvider | null>(null);
   const [testProviderResult, setTestProviderResult] = useState<TestProviderResult | null>(null);
   const [showToken, setShowToken] = useState<Record<string, boolean>>({});
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [modelSearchTerm, setModelSearchTerm] = useState('');
   const [providerFormData, setProviderFormData] = useState({
     name: '',
     model: '',
@@ -1767,6 +1760,56 @@ function AdminAiConfiguration() {
       endpoint: '',
       token: ''
     });
+    setAvailableModels([]);
+    setModelSearchTerm('');
+  };
+
+  // Buscar modelos disponíveis de um provedor dinamicamente
+  const fetchProviderModels = async (providerName: string, endpoint?: string, token?: string) => {
+    if (!providerName) {
+      setAvailableModels([]);
+      return;
+    }
+
+    // Se for OpenAI e tiver token, buscar da API
+    if (providerName === 'openai' && token && token.trim().length > 0) {
+      setIsLoadingModels(true);
+      try {
+        const params = new URLSearchParams();
+        const finalEndpoint = endpoint || getDefaultEndpoint(providerName);
+        if (finalEndpoint) params.append('endpoint', finalEndpoint);
+        if (token) params.append('token', token);
+        
+        const response = await apiRequest('GET', `/api/ai-configurations/models/${providerName}?${params.toString()}`);
+        if (response.ok) {
+          const data = await response.json();
+          const apiModels = (data.models || []).filter((m: string) => m && m.trim().length > 0);
+          // Se a API retornar modelos, usar eles, senão usar hardcoded
+          if (apiModels.length > 0) {
+            setAvailableModels(apiModels);
+          } else {
+            // Se não retornou modelos, usar lista hardcoded como fallback
+            const hardcodedProvider = HARDCODED_AI_PROVIDERS.find(p => p.key === providerName);
+            setAvailableModels(hardcodedProvider?.models?.filter(m => m && m.trim().length > 0) || []);
+          }
+        } else {
+          // Se falhar, usar lista hardcoded como fallback
+          const hardcodedProvider = HARDCODED_AI_PROVIDERS.find(p => p.key === providerName);
+          setAvailableModels(hardcodedProvider?.models?.filter(m => m && m.trim().length > 0) || []);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar modelos:', error);
+        // Em caso de erro, usar lista hardcoded como fallback
+        const hardcodedProvider = HARDCODED_AI_PROVIDERS.find(p => p.key === providerName);
+        setAvailableModels(hardcodedProvider?.models || []);
+      } finally {
+        setIsLoadingModels(false);
+      }
+    } else {
+      // Para outros provedores ou quando não há token, usar lista hardcoded
+      const hardcodedProvider = HARDCODED_AI_PROVIDERS.find(p => p.key === providerName);
+      setAvailableModels(hardcodedProvider?.models?.filter(m => m && m.trim().length > 0) || []);
+    }
   };
 
   const handleAddProvider = () => {
@@ -1843,6 +1886,8 @@ function AdminAiConfiguration() {
       token: provider.token
     });
     setEditingProvider(provider);
+    // Buscar modelos quando abrir o dialog de edição
+    fetchProviderModels(provider.name, provider.endpoint, provider.token);
   };
 
   const toggleTokenVisibility = (providerName: string) => {
@@ -2499,6 +2544,7 @@ function AdminAiConfiguration() {
           setShowAddProviderDialog(false);
           setEditingProvider(null);
           resetProviderForm();
+          setModelSearchTerm('');
         }
       }}>
         <DialogContent className="max-w-2xl">
@@ -2519,14 +2565,16 @@ function AdminAiConfiguration() {
                 <Select
                   value={providerFormData.name}
                   onValueChange={(value) => {
+                    const endpoint = getDefaultEndpoint(value);
                     setProviderFormData(prev => ({ 
                       ...prev, 
                       name: value,
-                      model: (providers.length > 0
-                        ? getAvailableModels(value, providers)[0]
-                        : HARDCODED_AI_PROVIDERS.find(p => p.key === value)?.models[0]) || '',
-                      endpoint: getDefaultEndpoint(value)
+                      model: '',
+                      endpoint: endpoint
                     }));
+                    setModelSearchTerm('');
+                    // Buscar modelos quando o provedor for selecionado
+                    fetchProviderModels(value, endpoint, providerFormData.token);
                   }}
                 >
                   <SelectTrigger>
@@ -2549,27 +2597,70 @@ function AdminAiConfiguration() {
                 <Select
                   value={providerFormData.model}
                   onValueChange={(value) => setProviderFormData(prev => ({ ...prev, model: value }))}
-                  disabled={!providerFormData.name || (providers.length > 0
-                    ? getAvailableModels(providerFormData.name, providers).length === 0
-                    : (HARDCODED_AI_PROVIDERS.find(p => p.key === providerFormData.name)?.models.length ?? 0) === 0
-                  )}
+                  disabled={!providerFormData.name || isLoadingModels || availableModels.length === 0}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione um modelo" />
+                    <SelectValue placeholder={isLoadingModels ? "Carregando modelos..." : availableModels.length === 0 ? "Nenhum modelo disponível" : "Selecione um modelo"} />
                   </SelectTrigger>
-                  <SelectContent>
-                    {(providers.length > 0
-                      ? getAvailableModels(providerFormData.name, providers)
-                      : (HARDCODED_AI_PROVIDERS.find(p => p.key === providerFormData.name)?.models || [])
-                    )
-                      .filter(model => !!model)
-                      .map((model) => (
-                        <SelectItem key={model} value={model}>
-                          {model}
-                        </SelectItem>
-                      ))}
+                  <SelectContent className="max-h-[300px]">
+                    {/* Campo de busca */}
+                    {!isLoadingModels && availableModels.length > 0 && (
+                      <div className="sticky top-0 z-10 bg-popover border-b px-2 py-1.5">
+                        <div className="relative">
+                          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Buscar modelo..."
+                            value={modelSearchTerm}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              setModelSearchTerm(e.target.value);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            className="pl-8 h-8 text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <div className="overflow-y-auto max-h-[250px]">
+                      {isLoadingModels ? (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          Carregando modelos...
+                        </div>
+                      ) : availableModels.length === 0 ? (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          {providerFormData.name === 'openai' && !providerFormData.token 
+                            ? "Preencha o token para ver os modelos disponíveis"
+                            : "Nenhum modelo disponível"}
+                        </div>
+                      ) : (() => {
+                        const filteredModels = availableModels
+                          .filter(model => model && model.trim().length > 0)
+                          .filter(model => 
+                            modelSearchTerm === '' || 
+                            model.toLowerCase().includes(modelSearchTerm.toLowerCase())
+                          );
+                        
+                        return filteredModels.length === 0 ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                            Nenhum modelo encontrado para "{modelSearchTerm}"
+                          </div>
+                        ) : (
+                          filteredModels.map((model) => (
+                            <SelectItem key={model} value={model}>
+                              {model}
+                            </SelectItem>
+                          ))
+                        );
+                      })()}
+                    </div>
                   </SelectContent>
                 </Select>
+                {providerFormData.name === 'openai' && !providerFormData.token && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Preencha o token para ver os modelos disponíveis da API
+                  </p>
+                )}
               </div>
             </div>
             
@@ -2578,7 +2669,13 @@ function AdminAiConfiguration() {
               <Input
                 id="provider-endpoint"
                 value={providerFormData.endpoint}
-                onChange={(e) => setProviderFormData(prev => ({ ...prev, endpoint: e.target.value }))}
+                onChange={(e) => {
+                  setProviderFormData(prev => ({ ...prev, endpoint: e.target.value }));
+                  // Se for OpenAI e tiver token, buscar modelos novamente quando endpoint mudar
+                  if (providerFormData.name === 'openai' && providerFormData.token) {
+                    fetchProviderModels(providerFormData.name, e.target.value, providerFormData.token);
+                  }
+                }}
                 placeholder={getDefaultEndpoint(providerFormData.name) || "https://api.exemplo.com"}
               />
               <p className="text-xs text-muted-foreground mt-1">
@@ -2593,7 +2690,13 @@ function AdminAiConfiguration() {
                   id="provider-token"
                   type={showToken[providerFormData.name] ? "text" : "password"}
                   value={providerFormData.token}
-                  onChange={(e) => setProviderFormData(prev => ({ ...prev, token: e.target.value }))}
+                  onChange={(e) => {
+                    setProviderFormData(prev => ({ ...prev, token: e.target.value }));
+                    // Se for OpenAI e já tiver nome do provedor, buscar modelos quando token for preenchido
+                    if (providerFormData.name === 'openai' && e.target.value) {
+                      fetchProviderModels(providerFormData.name, providerFormData.endpoint, e.target.value);
+                    }
+                  }}
                   placeholder="sk-... ou chave de API"
                 />
                 <Button
@@ -2804,17 +2907,6 @@ function ConfigurationForm({
           />
         </div>
         
-        <div>
-          <Label htmlFor="max-tokens">{formatMessage('ai.max_tokens')}</Label>
-          <Input
-            id="max-tokens"
-            type="number"
-            min="10"
-            max="4000"
-            value={formData.max_tokens}
-            onChange={(e) => setFormData(prev => ({ ...prev, max_tokens: parseInt(e.target.value) || 100 }))}
-          />
-        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -3068,7 +3160,6 @@ function ConfigurationCard({
             <span className="font-medium">Temperatura:</span> {config.temperature}
           </div>
           <div>
-            <span className="font-medium">Max Tokens:</span> {config.max_tokens}
           </div>
           <div>
             <span className="font-medium">Timeout:</span> {config.timeout_seconds}s

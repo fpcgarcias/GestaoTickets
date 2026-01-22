@@ -1686,6 +1686,8 @@
     "title": "New Ticket",
     "create_new_ticket": "Create New Ticket",
     "add_new_support_ticket": "Add a new support ticket",
+    "company": "Company",
+    "select_company": "Select a company",
     "customer": "Customer",
     "search_customer": "Search customer...",
     "customer_email": "Customer Email",

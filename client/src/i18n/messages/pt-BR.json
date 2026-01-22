@@ -1686,6 +1686,8 @@
     "title": "Novo Chamado",
     "create_new_ticket": "Criar Novo Chamado",
     "add_new_support_ticket": "Adicione um novo chamado de suporte",
+    "company": "Empresa",
+    "select_company": "Selecione uma empresa",
     "customer": "Cliente",
     "search_customer": "Buscar cliente...",
     "customer_email": "Email do Cliente",

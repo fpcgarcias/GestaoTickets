@@ -26,6 +26,23 @@ export class OpenAiProvider implements AiProviderInterface {
       // Configurar o endpoint
       const endpoint = config.api_endpoint || 'https://api.openai.com/v1/chat/completions';
       
+      // Preparar o body da requisição
+      const requestBody: any = {
+        model: config.model,
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt
+          },
+          {
+            role: 'user',
+            content: userPrompt
+          }
+        ],
+        temperature: parseFloat(config.temperature || '0.7'),
+        max_completion_tokens: config.max_tokens || 1000,
+      };
+      
       // Fazer a requisição para a OpenAI
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -33,21 +50,7 @@ export class OpenAiProvider implements AiProviderInterface {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiToken}`,
         },
-        body: JSON.stringify({
-          model: config.model,
-          messages: [
-            {
-              role: 'system',
-              content: systemPrompt
-            },
-            {
-              role: 'user',
-              content: userPrompt
-            }
-          ],
-          temperature: parseFloat(config.temperature || '0.7'),
-          max_tokens: config.max_tokens || 1000,
-        }),
+        body: JSON.stringify(requestBody),
         signal: AbortSignal.timeout((config.timeout_seconds || 30) * 1000)
       });
 
@@ -59,9 +62,23 @@ export class OpenAiProvider implements AiProviderInterface {
       }
 
       const data = await response.json();
+      return this.processResponse(data, config, startTime);
+    } catch (error: any) {
+      console.error('Erro no provedor OpenAI:', error);
       
+      // Se for timeout, marcar como tal
+      if (error.name === 'TimeoutError') {
+        throw new Error('OpenAI analysis timeout');
+      }
+      
+      throw error;
+    }
+  }
 
-      
+  /**
+   * Processa a resposta da API da OpenAI
+   */
+  private processResponse(data: any, config: AiConfiguration, startTime: number): AiAnalysisResult {
       // Extrair a resposta
       const aiResponse = data.choices[0]?.message?.content?.trim() || '';
       
@@ -148,17 +165,6 @@ export class OpenAiProvider implements AiProviderInterface {
         },
         rawResponse: data
       };
-
-    } catch (error: any) {
-      console.error('Erro no provedor OpenAI:', error);
-      
-      // Se for timeout, marcar como tal
-      if (error.name === 'TimeoutError') {
-        throw new Error('OpenAI analysis timeout');
-      }
-      
-      throw error;
-    }
   }
 
   /**

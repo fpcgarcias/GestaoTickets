@@ -31,13 +31,15 @@ interface CustomerSearchProps {
   onValueChange: (customerId: number, customer: Customer) => void;
   placeholder?: string;
   disabled?: boolean;
+  companyId?: number; // Para filtrar clientes por empresa (admin)
 }
 
 export function CustomerSearch({ 
   value, 
   onValueChange, 
   placeholder = "Buscar cliente...",
-  disabled = false 
+  disabled = false,
+  companyId
 }: CustomerSearchProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -46,9 +48,14 @@ export function CustomerSearch({
 
     // Query para buscar TODOS os clientes da empresa
   const { data: allCustomers = [], isLoading, error } = useQuery<Customer[]>({
-    queryKey: ["/api/customers/search"],
+    queryKey: ["/api/customers/search", companyId],
     queryFn: async () => {
-      const response = await fetch('/api/customers?limit=1000&includeInactive=false');
+      const params = new URLSearchParams({ limit: '1000', includeInactive: 'false' });
+      // Se companyId for fornecido (admin), adicionar ao filtro
+      if (companyId) {
+        params.append('company_id', companyId.toString());
+      }
+      const response = await fetch(`/api/customers?${params.toString()}`);
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(`Falha ao buscar clientes: ${response.status} - ${errorText}`);

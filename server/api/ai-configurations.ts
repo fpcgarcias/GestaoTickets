@@ -669,6 +669,75 @@ export async function updateAiCompanyPermission(req: Request, res: Response) {
   }
 }
 
+// GET /api/ai-configurations/models/:provider - Buscar modelos disponíveis de um provedor
+export async function getAiProviderModels(req: Request, res: Response) {
+  try {
+    const { provider } = req.params;
+    const { endpoint, token } = req.query;
+
+    if (!provider) {
+      return res.status(400).json({ message: "Provedor não especificado" });
+    }
+
+    // Para OpenAI, buscar modelos da API
+    if (provider === 'openai') {
+      const apiEndpoint = (endpoint as string) || 'https://api.openai.com/v1';
+      const apiToken = token as string;
+
+      if (!apiToken) {
+        return res.status(400).json({ 
+          message: "Token de API necessário para buscar modelos",
+          models: [] 
+        });
+      }
+
+      try {
+        const response = await fetch(`${apiEndpoint}/models`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${apiToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(
+            `OpenAI API error: ${response.status} - ${errorData.error?.message || response.statusText}`
+          );
+        }
+
+        const data = await response.json();
+        
+        // Filtrar apenas modelos de chat/completions (excluir embeddings, tts, etc se necessário)
+        // Ou retornar todos os modelos disponíveis
+        const models = data.data
+          ?.map((model: any) => model.id)
+          .filter((id: string) => {
+            // Filtrar apenas modelos de chat/completions relevantes
+            return id.includes('gpt') || id.includes('o1') || id.includes('o3') || id.includes('o4');
+          })
+          .sort() || [];
+
+        return res.json({ models });
+      } catch (error: any) {
+        console.error('Erro ao buscar modelos da OpenAI:', error);
+        return res.status(500).json({ 
+          message: "Erro ao buscar modelos da API",
+          error: error.message,
+          models: []
+        });
+      }
+    }
+
+    // Para outros provedores, retornar lista vazia ou implementar conforme necessário
+    res.json({ models: [] });
+  } catch (error) {
+    console.error('Erro ao buscar modelos do provedor:', error);
+    res.status(500).json({ message: "Falha ao buscar modelos", error: String(error), models: [] });
+  }
+}
+
 // Função auxiliar para salvar configurações do sistema
 async function saveSystemSetting(key: string, value: string): Promise<void> {
   const [existing] = await db

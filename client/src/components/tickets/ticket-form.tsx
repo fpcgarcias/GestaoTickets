@@ -101,6 +101,13 @@ interface User {
   company_id?: number;
 }
 
+interface Company {
+  id: number;
+  name: string;
+  email: string;
+  active: boolean;
+}
+
 // Tipos para o modal de feedback
 type CreationStep = 'idle' | 'creating' | 'analyzing' | 'complete' | 'error';
 
@@ -125,6 +132,9 @@ export const TicketForm = () => {
   
   // Estado para gerenciar participantes selecionados
   const [selectedParticipants, setSelectedParticipants] = useState<User[]>([]);
+
+  // Estado para empresa selecionada (apenas para admin)
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>(undefined);
 
   // Estados para o modal de feedback
   const [showCreationModal, setShowCreationModal] = useState(false);
@@ -419,15 +429,35 @@ export const TicketForm = () => {
     createTicketMutation.mutate(ticketDataToSend);
   };
 
+  // Buscar empresas (apenas para admin)
+  const isAdmin = user?.role === 'admin';
+  const { data: companies = [] } = useQuery<Company[]>({
+    queryKey: ['/api/companies'],
+    queryFn: async () => {
+      const res = await fetch('/api/companies');
+      if (!res.ok) throw new Error('Erro ao carregar empresas');
+      return res.json();
+    },
+    enabled: isAdmin,
+  });
+
+  // Determinar company_id efetivo: se admin, usar selectedCompanyId; senão, usar company da sessão
+  const effectiveCompanyId = isAdmin ? selectedCompanyId : (company?.id || user?.companyId);
+
   // Buscar dados de departamentos (contexto criação de ticket): todos ativos da empresa
   const { data: departmentsData } = useQuery<{departments: Department[], pagination: any}>({
-    queryKey: ["/api/departments", { active_only: true, context: 'create_ticket' }],
+    queryKey: ["/api/departments", { active_only: true, context: 'create_ticket', company_id: effectiveCompanyId }],
     queryFn: async () => {
       const params = new URLSearchParams({ active_only: 'true', context: 'create_ticket' });
+      // Se for admin, adicionar company_id
+      if (isAdmin && effectiveCompanyId) {
+        params.append('company_id', effectiveCompanyId.toString());
+      }
       const res = await fetch(`/api/departments?${params.toString()}`);
       if (!res.ok) throw new Error('Erro ao carregar departamentos');
       return res.json();
     },
+    enabled: !isAdmin || !!effectiveCompanyId, // Para admin, só buscar se tiver empresa selecionada
   });
 
   // Garantir que departments é um array
@@ -435,12 +465,18 @@ export const TicketForm = () => {
 
   // Buscar dados de tipos de incidentes
   const { data: incidentTypesData } = useQuery<{incidentTypes: IncidentType[], pagination: any}>({
-    queryKey: ["/api/incident-types", { active_only: true }],
+    queryKey: ["/api/incident-types", { active_only: true, company_id: effectiveCompanyId }],
     queryFn: async () => {
-      const res = await fetch('/api/incident-types?active_only=true');
+      const params = new URLSearchParams({ active_only: 'true' });
+      // Se for admin, adicionar company_id
+      if (isAdmin && effectiveCompanyId) {
+        params.append('company_id', effectiveCompanyId.toString());
+      }
+      const res = await fetch(`/api/incident-types?${params.toString()}`);
       if (!res.ok) throw new Error('Erro ao carregar tipos de incidente');
       return res.json();
     },
+    enabled: !isAdmin || !!effectiveCompanyId, // Para admin, só buscar se tiver empresa selecionada
   });
 
   // Garantir que incidentTypes é um array
@@ -455,7 +491,7 @@ export const TicketForm = () => {
 // Buscar categorias baseadas no tipo de incidente selecionado
   const selectedIncidentTypeId = form.watch('incident_type_id');
   const { data: categoriesData } = useQuery<{categories: Category[], pagination: any}>({
-    queryKey: ["/api/categories", { incident_type_id: selectedIncidentTypeId, active_only: true, context: 'create_ticket' }],
+    queryKey: ["/api/categories", { incident_type_id: selectedIncidentTypeId, active_only: true, context: 'create_ticket', company_id: effectiveCompanyId }],
     queryFn: async () => {
       if (!selectedIncidentTypeId) return { categories: [], pagination: null };
       
@@ -465,13 +501,18 @@ export const TicketForm = () => {
         context: 'create_ticket'
       });
       
+      // Se for admin, adicionar company_id
+      if (isAdmin && effectiveCompanyId) {
+        params.append('company_id', effectiveCompanyId.toString());
+      }
+      
       const response = await apiRequest('GET', `/api/categories?${params}`);
       if (!response.ok) {
         throw new Error('Erro ao carregar categorias');
       }
       return response.json();
     },
-    enabled: !!selectedIncidentTypeId,
+    enabled: !!selectedIncidentTypeId && (!isAdmin || !!effectiveCompanyId), // Para admin, só buscar se tiver empresa selecionada
   });
 
   // Garantir que categories é um array
@@ -495,6 +536,19 @@ export const TicketForm = () => {
     return categories.length > 0; // só exigir se existem categorias ativas para o tipo
   })();
 
+  // Efeito para limpar campos dependentes quando empresa mudar (admin)
+  useEffect(() => {
+    if (isAdmin) {
+      // Limpar campos dependentes quando empresa mudar
+      form.setValue('department_id', undefined);
+      form.setValue('type', '');
+      form.setValue('incident_type_id', undefined);
+      form.setValue('category_id', undefined);
+      form.setValue('priority', '');
+      setSelectedParticipants([]);
+    }
+  }, [selectedCompanyId, isAdmin, form]);
+
   // Efeito para pré-selecionar o cliente quando o usuário for customer
   useEffect(() => {
     if (user && (user.role as any) === 'customer') {
@@ -510,8 +564,34 @@ export const TicketForm = () => {
     <>
       <Card>
         <CardContent className="p-6">
-          <h2 className="text-lg font-medium mb-2">{formatMessage('new_ticket.create_new_ticket')}</h2>
-          <p className="text-muted-foreground mb-6">{formatMessage('new_ticket.add_new_support_ticket')}</p>
+          <div className="flex items-start justify-between mb-6">
+            <div>
+              <h2 className="text-lg font-medium mb-2">{formatMessage('new_ticket.create_new_ticket')}</h2>
+              <p className="text-muted-foreground">{formatMessage('new_ticket.add_new_support_ticket')}</p>
+            </div>
+            {/* Filtro de empresa para admin - discreto no canto superior direito */}
+            {isAdmin && (
+              <div className="w-56">
+                <Select
+                  value={selectedCompanyId?.toString() || ""}
+                  onValueChange={(value) => {
+                    setSelectedCompanyId(value ? parseInt(value) : undefined);
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-sm border-muted">
+                    <SelectValue placeholder={formatMessage('new_ticket.select_company')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map((comp: Company) => (
+                      <SelectItem key={comp.id} value={comp.id.toString()}>
+                        {comp.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
           
           <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
@@ -539,7 +619,8 @@ export const TicketForm = () => {
                           form.setValue('customer_email', customer.email);
                         }}
                         placeholder={formatMessage('new_ticket.search_customer')}
-                        disabled={false}
+                        disabled={isAdmin && !effectiveCompanyId}
+                        companyId={isAdmin ? effectiveCompanyId : undefined}
                       />
                     )}
                     <FormMessage />
@@ -586,6 +667,7 @@ export const TicketForm = () => {
                         placeholder={formatMessage('new_ticket.add_participants')}
                         disabled={false}
                         maxParticipants={10}
+                        ticketCompanyId={isAdmin ? effectiveCompanyId : undefined}
                       />
                     </FormControl>
                     <FormMessage />
@@ -613,6 +695,7 @@ export const TicketForm = () => {
                         form.setValue('category_id', undefined);
                       }} 
                       value={field.value?.toString() || ""}
+                      disabled={isAdmin && !effectiveCompanyId}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -659,7 +742,7 @@ export const TicketForm = () => {
                         }
                       }} 
                       value={field.value || ""}
-                      disabled={!selectedDepartmentId}
+                      disabled={!selectedDepartmentId || (isAdmin && !effectiveCompanyId)}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -689,8 +772,8 @@ export const TicketForm = () => {
                     </FormLabel>
                     <Select 
                       onValueChange={(value) => field.onChange(parseInt(value))} 
-                      value={field.value?.toString()}
-                      disabled={!selectedIncidentTypeId || categories.length === 0}
+                      value={field.value?.toString() || ""}
+                      disabled={!selectedIncidentTypeId || categories.length === 0 || (isAdmin && !effectiveCompanyId)}
                     >
                       <FormControl>
                         <SelectTrigger className={mustRequireCategory && !field.value ? 'border-red-500' : ''}>
@@ -734,7 +817,7 @@ export const TicketForm = () => {
                     <Select 
                       onValueChange={field.onChange} 
                       value={field.value || ""}
-                      disabled={prioritiesLoading}
+                      disabled={prioritiesLoading || (isAdmin && !effectiveCompanyId)}
                     >
                       <FormControl>
                         <SelectTrigger>

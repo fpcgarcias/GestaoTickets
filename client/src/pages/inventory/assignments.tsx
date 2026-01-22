@@ -384,28 +384,32 @@ export default function InventoryAssignmentsPage() {
       {
         key: "actions",
         header: formatMessage("inventory.assignments.table.actions"),
-        render: (assignment) => (
-          <div className="flex items-center gap-2">
-            {!assignment.actual_return_date && (
+        render: (assignment) => {
+          const isTermSigned = assignment.term_status === 'signed';
+          return (
+            <div className="flex items-center gap-2">
+              {!assignment.actual_return_date && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="whitespace-nowrap"
+                  onClick={() => handleReturn(assignment.id)}
+                >
+                  {formatMessage("inventory.assignments.table.return")}
+                </Button>
+              )}
               <Button 
-                variant="outline" 
+                variant="default" 
                 size="sm"
                 className="whitespace-nowrap"
-                onClick={() => handleReturn(assignment.id)}
+                onClick={() => handleGenerateTerm(assignment.id)}
+                disabled={isTermSigned}
               >
-                {formatMessage("inventory.assignments.table.return")}
+                {formatMessage("inventory.assignments.table.generate_term")}
               </Button>
-            )}
-            <Button 
-              variant="default" 
-              size="sm"
-              className="whitespace-nowrap"
-              onClick={() => handleGenerateTerm(assignment.id)}
-            >
-              {formatMessage("inventory.assignments.table.generate_term")}
-            </Button>
-          </div>
-        ),
+            </div>
+          );
+        },
       },
     ],
     [formatDateValue, formatMessage, requestSignature.isPending, sendToClicksign]

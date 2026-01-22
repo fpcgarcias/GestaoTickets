@@ -10,13 +10,20 @@ import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge, PriorityBadge } from '@/components/tickets/status-badge';
-import { getStatusConfig, type TicketStatus } from '@shared/ticket-utils';
+import { getStatusConfig, type TicketStatus, STATUS_CONFIG } from '@shared/ticket-utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from '@/components/ui/command';
 import { Download, CalendarIcon, Filter, ChevronDown, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -97,7 +104,7 @@ interface IncidentTypeOption {
 }
 
 interface FiltersState {
-  status: string;
+  status: string[];
   priority: string;
   departmentId: string;
   incidentTypeId: string;
@@ -117,7 +124,7 @@ export default function TicketReports() {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [filters, setFilters] = useState<FiltersState>({
-    status: searchParams.get('status') || 'all',
+    status: searchParams.get('status') ? searchParams.get('status')!.split(',') : [],
     priority: searchParams.get('priority') || 'all',
     departmentId: searchParams.get('departmentId') || 'all',
     incidentTypeId: searchParams.get('incidentTypeId') || 'all',
@@ -152,7 +159,9 @@ export default function TicketReports() {
         const endDate = toBrasiliaISOString(dateRange.to, true);
         params.append('end_date', endDate);
       }
-      if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+      if (filters.status && filters.status.length > 0) {
+        params.append('status', filters.status.join(','));
+      }
       if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
       if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incident_type_id', filters.incidentTypeId);
@@ -193,7 +202,7 @@ export default function TicketReports() {
   // Sincronizar filtros com URL apenas na montagem inicial
   useEffect(() => {
     const newFilters = {
-      status: searchParams.get('status') || 'all',
+      status: searchParams.get('status') ? searchParams.get('status')!.split(',') : [],
       priority: searchParams.get('priority') || 'all',
       departmentId: searchParams.get('departmentId') || 'all',
       incidentTypeId: searchParams.get('incidentTypeId') || 'all',
@@ -379,7 +388,7 @@ export default function TicketReports() {
     };
   }, [filters.departmentId, canViewDepartments]);
 
-  const handleFilterChange = (key: string, value: string | boolean) => {
+  const handleFilterChange = (key: string, value: string | boolean | string[]) => {
     // Atualizar os filtros locais primeiro
     setFilters(prev => {
       const newFilters = { ...prev, [key]: value };
@@ -396,6 +405,16 @@ export default function TicketReports() {
     // Atualizar URL apenas quando o usuário clicar em "Aplicar Filtros"
   };
 
+  const handleStatusToggle = (statusValue: string) => {
+    setFilters(prev => {
+      const currentStatus = prev.status || [];
+      const newStatus = currentStatus.includes(statusValue)
+        ? currentStatus.filter(s => s !== statusValue)
+        : [...currentStatus, statusValue];
+      return { ...prev, status: newStatus };
+    });
+  };
+
   const handleExport = async (format: 'pdf' | 'excel') => {
     try {
       const params = new URLSearchParams();
@@ -403,7 +422,9 @@ export default function TicketReports() {
       // Usar a mesma lógica de datas do dashboard para consistência
       if (dateRange?.from) params.append('start_date', toBrasiliaISOString(dateRange.from, false));
       if (dateRange?.to) params.append('end_date', toBrasiliaISOString(dateRange.to, true));
-      if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+      if (filters.status && filters.status.length > 0) {
+        params.append('status', filters.status.join(','));
+      }
       if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
       if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incident_type_id', filters.incidentTypeId);
@@ -520,26 +541,40 @@ export default function TicketReports() {
 
             <div>
               <label className="text-sm font-medium mb-2 block">Status</label>
-              <Select value={filters.status} onValueChange={(value) => handleFilterChange('status', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos os status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="new">Novo</SelectItem>
-                  <SelectItem value="open">Aberto</SelectItem>
-                  <SelectItem value="ongoing">Em Andamento</SelectItem>
-                  <SelectItem value="in_progress">Em Progresso</SelectItem>
-                  <SelectItem value="suspended">Suspenso</SelectItem>
-                  <SelectItem value="waiting_customer">Aguardando Cliente</SelectItem>
-                  <SelectItem value="escalated">Escalado</SelectItem>
-                  <SelectItem value="in_analysis">Em Análise</SelectItem>
-                  <SelectItem value="pending_deployment">Aguardando Deploy</SelectItem>
-                  <SelectItem value="reopened">Reaberto</SelectItem>
-                  <SelectItem value="resolved">Resolvido</SelectItem>
-                  <SelectItem value="closed">Fechado</SelectItem>
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between">
+                    <span className="truncate">
+                      {filters.status.length === 0
+                        ? 'Todos os status'
+                        : filters.status.length > 2
+                        ? `${filters.status.length} status selecionados`
+                        : filters.status.map(s => STATUS_CONFIG[s as TicketStatus]?.label || s).join(', ')}
+                    </span>
+                    <Filter className="ml-2 h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-60 p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Buscar status..." />
+                    <CommandEmpty>Nenhum status encontrado.</CommandEmpty>
+                    <CommandGroup>
+                      {Object.entries(STATUS_CONFIG).map(([value, config]) => {
+                        const checked = filters.status.includes(value);
+                        return (
+                          <CommandItem
+                            key={value}
+                            onSelect={() => handleStatusToggle(value)}
+                          >
+                            <Checkbox checked={checked} className="mr-2" />
+                            <span>{config.label}</span>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <div>
@@ -633,7 +668,9 @@ export default function TicketReports() {
               // Usar a mesma lógica de datas do dashboard para consistência
               if (dateRange?.from) newParams.set('start_date', toBrasiliaISOString(dateRange.from, false));
               if (dateRange?.to) newParams.set('end_date', toBrasiliaISOString(dateRange.to, true));
-              if (filters.status && filters.status !== 'all') newParams.set('status', filters.status);
+              if (filters.status && filters.status.length > 0) {
+                newParams.set('status', filters.status.join(','));
+              }
               if (filters.priority && filters.priority !== 'all') newParams.set('priority', filters.priority);
               if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
               if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);

@@ -159,7 +159,9 @@ import {
 
   getAiCompanies,
 
-  updateAiCompanyPermission
+  updateAiCompanyPermission,
+
+  getAiProviderModels
 
 } from './api/ai-configurations';
 
@@ -19489,6 +19491,9 @@ Obrigado por nos ajudar a melhorar continuamente.
   // Buscar provedores e modelos disponíveis
 
   router.get("/ai-configurations/providers", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), getAiProviders);
+
+  // Buscar modelos disponíveis de um provedor específico
+  router.get("/ai-configurations/models/:provider", authRequired, authorize(['admin']), getAiProviderModels);
 
 
 

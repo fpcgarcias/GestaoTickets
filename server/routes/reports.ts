@@ -404,7 +404,15 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
     }
 
     if (status && status !== 'all') {
-      additionalFilters.push(eq(schema.tickets.status, status as any));
+      // Aceitar múltiplos status separados por vírgula
+      const statusArray = typeof status === 'string' ? status.split(',').filter(s => s.trim() !== '') : [];
+      if (statusArray.length > 0) {
+        if (statusArray.length === 1) {
+          additionalFilters.push(eq(schema.tickets.status, statusArray[0] as any));
+        } else {
+          additionalFilters.push(inArray(schema.tickets.status, statusArray as any[]));
+        }
+      }
     }
 
     if (priority && priority !== 'all') {
@@ -713,7 +721,15 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
     }
 
     if (status && status !== 'all') {
-      additionalFilters.push(eq(schema.tickets.status, status as any));
+      // Aceitar múltiplos status separados por vírgula
+      const statusArray = typeof status === 'string' ? status.split(',').filter(s => s.trim() !== '') : [];
+      if (statusArray.length > 0) {
+        if (statusArray.length === 1) {
+          additionalFilters.push(eq(schema.tickets.status, statusArray[0] as any));
+        } else {
+          additionalFilters.push(inArray(schema.tickets.status, statusArray as any[]));
+        }
+      }
     }
 
     if (priority && priority !== 'all') {

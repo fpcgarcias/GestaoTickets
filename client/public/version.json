@@ -1,7 +1,22 @@
 {
-  "current": "1.2.0",
-  "releaseDate": "2025-12-15",
+  "current": "1.2.1",
+  "releaseDate": "2026-01-22",
   "versions": [
+    {
+      "version": "1.2.1",
+      "date": "2026-01-22",
+      "title": "Implementação de novas funcionalidades.",
+      "type": "update",
+      "changes": {
+        "improved": [
+          "Implementada a seleção de multiplos status no filtro do relatório de chamados."
+        ],
+        "fixed": [
+          "Desabilitado o botão de gerar termo de resposabilidade quando o termo já foi assinado.",
+          "Correções menores de bugs."
+        ]
+      }
+    },
     {
       "version": "1.2.0",
       "date": "2025-12-15",
@@ -21,7 +36,7 @@
       "type": "update",
       "changes": {
         "improved": [
-          "implementação dos filtros de tipos de chamados e categorias na tela de tickets."
+          "Implementação dos filtros de tipos de chamados e categorias na tela de tickets."
         ],
         "fixed": [
           "Correção nas cores de algumas funcionalidades nos temas personalizados."
