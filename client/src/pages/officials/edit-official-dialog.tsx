@@ -342,6 +342,9 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
         ...updatedData.user,
         password: passwordData.password
       };
+
+      // Incluir flag de troca de senha no próximo login apenas quando houver alteração de senha
+      updatedData.must_change_password = formData.must_change_password;
     }
     
     // Atualização com os dados corretos

@@ -577,25 +577,6 @@ export default function TicketReports() {
               </Popover>
             </div>
 
-            <div>
-              <label className="text-sm font-medium mb-2 block">Prioridade</label>
-              <Select value={filters.priority} onValueChange={(value) => handleFilterChange('priority', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas as prioridades" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  {priorities.map((priority) => (
-                    priority.value && priority.value.trim() !== '' && (
-                      <SelectItem key={priority.value} value={priority.value}>
-                        {priority.label}
-                      </SelectItem>
-                    )
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
             {canViewDepartments && (
               <>
                 <div>
@@ -642,6 +623,25 @@ export default function TicketReports() {
                 </div>
               </>
             )}
+
+            <div>
+              <label className="text-sm font-medium mb-2 block">Prioridade</label>
+              <Select value={filters.priority} onValueChange={(value) => handleFilterChange('priority', value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todas as prioridades" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {priorities.map((priority) => (
+                    priority.value && priority.value.trim() !== '' && (
+                      <SelectItem key={priority.value} value={priority.value}>
+                        {priority.label}
+                      </SelectItem>
+                    )
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="mt-4">

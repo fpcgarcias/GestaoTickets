@@ -32,6 +32,7 @@ export async function createSupportUserEndpoint(
       supervisorId = null,
       managerId = null,
       company_id = null,
+      must_change_password,
       linkExistingUser // Novo campo para indicar se deve vincular usuário existente
     } = req.body;
     
@@ -151,6 +152,7 @@ export async function createSupportUserEndpoint(
           avatar_url: avatarUrl,
           active: true,
           company_id: effectiveCompanyId,
+          must_change_password: must_change_password ?? false,
         };
         
         user = await storage.createUser(userData);

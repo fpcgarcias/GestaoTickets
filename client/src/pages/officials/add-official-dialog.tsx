@@ -290,6 +290,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       supervisor_id: formData.supervisor_id,
       manager_id: formData.manager_id,
       company_id: formData.company_id,
+      must_change_password: formData.must_change_password,
       linkExistingUser: linkingUser,
     });
   };
