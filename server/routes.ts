@@ -3048,6 +3048,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         }
 
         // Notificar equipe de suporte sobre a mudança
+        // 🔥 CORREÇÃO MULTI-TENANT: Adicionar company_id do ticket
         await notificationService.sendNotificationToSupport({
           type: 'ticket_assignment_updated',
           ticketId: ticket.id,
@@ -3062,7 +3063,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             previousAssignedToId,
             newAssignedToId: updateData.assigned_to_id
           }
-        });
+        }, ticket.company_id);
 
 
       } catch (notificationError) {

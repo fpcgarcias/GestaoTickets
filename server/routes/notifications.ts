@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { db } from '../db';
-import { notifications } from '@shared/schema';
-import { eq, and, desc, sql, gte, lte, or, ilike } from 'drizzle-orm';
+import { notifications, users, tickets } from '@shared/schema';
+import { eq, and, desc, sql, gte, lte, or, ilike, isNull } from 'drizzle-orm';
 import { authRequired } from '../middleware/authorization';
 import { webPushService } from '../services/web-push-service';
 import { notificationService } from '../services/notification-service';
@@ -45,6 +45,20 @@ router.get('/', authRequired, async (req: Request, res: Response) => {
     if (!userId) {
       return res.status(401).json({ message: 'Não autenticado' });
     }
+
+    // 🔥 CORREÇÃO MULTI-TENANT: Buscar company_id do usuário
+    const [currentUser] = await db
+      .select({ company_id: users.company_id })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!currentUser) {
+      return res.status(401).json({ message: 'Usuário não encontrado' });
+    }
+
+    const userCompanyId = currentUser.company_id;
+    console.log(`[🔔 API NOTIFICATIONS] [MULTI-TENANT] Usuário ${userId} da empresa company_id=${userCompanyId}`);
 
     // Extrair parâmetros de query
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -94,6 +108,24 @@ router.get('/', authRequired, async (req: Request, res: Response) => {
       );
     }
 
+    // 🔥 CORREÇÃO MULTI-TENANT: Adicionar filtro de company_id via LEFT JOIN com tickets
+    // Notificações válidas são aquelas onde:
+    // 1. ticket_id IS NULL (notificações sem ticket, como manutenção do sistema), OU
+    // 2. O ticket pertence à mesma empresa do usuário
+    if (userCompanyId !== null && userCompanyId !== undefined) {
+      conditions.push(
+        or(
+          isNull(notifications.ticket_id),
+          sql`EXISTS (
+            SELECT 1 FROM ${tickets} 
+            WHERE ${tickets.id} = ${notifications.ticket_id} 
+            AND ${tickets.company_id} = ${userCompanyId}
+          )`
+        )
+      );
+      console.log(`[🔔 API NOTIFICATIONS] [MULTI-TENANT] Aplicando filtro de isolamento multi-tenant para company_id=${userCompanyId}`);
+    }
+
     // Combinar todas as condições com AND (Requirement 8.5)
     const whereClause = and(...conditions);
 
@@ -104,13 +136,29 @@ router.get('/', authRequired, async (req: Request, res: Response) => {
       .where(whereClause);
 
     // Contar notificações não lidas
+    // 🔥 CORREÇÃO MULTI-TENANT: Aplicar mesmo filtro no contador de não lidas
+    const unreadConditions: any[] = [
+      eq(notifications.user_id, userId),
+      sql`${notifications.read_at} IS NULL`
+    ];
+    
+    if (userCompanyId !== null && userCompanyId !== undefined) {
+      unreadConditions.push(
+        or(
+          isNull(notifications.ticket_id),
+          sql`EXISTS (
+            SELECT 1 FROM ${tickets} 
+            WHERE ${tickets.id} = ${notifications.ticket_id} 
+            AND ${tickets.company_id} = ${userCompanyId}
+          )`
+        )
+      );
+    }
+
     const [{ count: unreadCount }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(notifications)
-      .where(and(
-        eq(notifications.user_id, userId),
-        sql`${notifications.read_at} IS NULL`
-      ));
+      .where(and(...unreadConditions));
 
     // Configurar ordenação (Requirement 9.4)
     let orderByClause;
@@ -179,14 +227,44 @@ router.get('/unread-count', authRequired, async (req: Request, res: Response) =>
       return res.status(401).json({ message: 'Não autenticado' });
     }
 
+    // 🔥 CORREÇÃO MULTI-TENANT: Buscar company_id do usuário
+    const [currentUser] = await db
+      .select({ company_id: users.company_id })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!currentUser) {
+      return res.status(401).json({ message: 'Usuário não encontrado' });
+    }
+
+    const userCompanyId = currentUser.company_id;
+
     // Contar notificações não lidas (Requirement 6.1)
+    // 🔥 CORREÇÃO MULTI-TENANT: Filtrar apenas notificações da mesma empresa
+    const conditions: any[] = [
+      eq(notifications.user_id, userId),
+      sql`${notifications.read_at} IS NULL`
+    ];
+
+    if (userCompanyId !== null && userCompanyId !== undefined) {
+      conditions.push(
+        or(
+          isNull(notifications.ticket_id),
+          sql`EXISTS (
+            SELECT 1 FROM ${tickets} 
+            WHERE ${tickets.id} = ${notifications.ticket_id} 
+            AND ${tickets.company_id} = ${userCompanyId}
+          )`
+        )
+      );
+      console.log(`[🔔 API UNREAD COUNT] [MULTI-TENANT] Filtrando por company_id=${userCompanyId}`);
+    }
+
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(notifications)
-      .where(and(
-        eq(notifications.user_id, userId),
-        sql`${notifications.read_at} IS NULL`
-      ));
+      .where(and(...conditions));
 
     res.json({ count });
   } catch (error) {
@@ -220,6 +298,19 @@ router.patch('/:id/read', authRequired, async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'ID de notificação inválido' });
     }
 
+    // 🔥 CORREÇÃO MULTI-TENANT: Buscar company_id do usuário
+    const [currentUser] = await db
+      .select({ company_id: users.company_id })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!currentUser) {
+      return res.status(401).json({ message: 'Usuário não encontrado' });
+    }
+
+    const userCompanyId = currentUser.company_id;
+
     // Verificar se a notificação pertence ao usuário (Requirement 6.1 - autorização)
     const [notification] = await db
       .select()
@@ -232,6 +323,20 @@ router.patch('/:id/read', authRequired, async (req: Request, res: Response) => {
 
     if (!notification) {
       return res.status(404).json({ message: 'Notificação não encontrada' });
+    }
+
+    // 🔥 CORREÇÃO MULTI-TENANT: Verificar se o ticket da notificação pertence à mesma empresa
+    if (notification.ticket_id && userCompanyId !== null && userCompanyId !== undefined) {
+      const [ticket] = await db
+        .select({ company_id: tickets.company_id })
+        .from(tickets)
+        .where(eq(tickets.id, notification.ticket_id))
+        .limit(1);
+
+      if (!ticket || ticket.company_id !== userCompanyId) {
+        console.warn(`[🔔 API MARK READ] [MULTI-TENANT] ⚠️ TENTATIVA DE ACESSO: Usuário ${userId} (empresa ${userCompanyId}) tentou marcar notificação ${notificationId} de outra empresa`);
+        return res.status(404).json({ message: 'Notificação não encontrada' });
+      }
     }
 
     // Marcar como lida (Requirement 2.1, 2.2)
@@ -326,6 +431,19 @@ router.delete('/:id', authRequired, async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'ID de notificação inválido' });
     }
 
+    // 🔥 CORREÇÃO MULTI-TENANT: Buscar company_id do usuário
+    const [currentUser] = await db
+      .select({ company_id: users.company_id })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!currentUser) {
+      return res.status(401).json({ message: 'Usuário não encontrado' });
+    }
+
+    const userCompanyId = currentUser.company_id;
+
     // Verificar se a notificação pertence ao usuário (Requirement 6.1 - autorização)
     const [notification] = await db
       .select()
@@ -338,6 +456,20 @@ router.delete('/:id', authRequired, async (req: Request, res: Response) => {
 
     if (!notification) {
       return res.status(404).json({ message: 'Notificação não encontrada' });
+    }
+
+    // 🔥 CORREÇÃO MULTI-TENANT: Verificar se o ticket da notificação pertence à mesma empresa
+    if (notification.ticket_id && userCompanyId !== null && userCompanyId !== undefined) {
+      const [ticket] = await db
+        .select({ company_id: tickets.company_id })
+        .from(tickets)
+        .where(eq(tickets.id, notification.ticket_id))
+        .limit(1);
+
+      if (!ticket || ticket.company_id !== userCompanyId) {
+        console.warn(`[🔔 API DELETE] [MULTI-TENANT] ⚠️ TENTATIVA DE ACESSO: Usuário ${userId} (empresa ${userCompanyId}) tentou deletar notificação ${notificationId} de outra empresa`);
+        return res.status(404).json({ message: 'Notificação não encontrada' });
+      }
     }
 
     // Excluir notificação (Requirement 2.4)

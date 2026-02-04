@@ -232,6 +232,59 @@ class NotificationService {
   }
 
   /**
+   * 🔥 OTIMIZAÇÃO: Envia contador para múltiplos usuários em uma única query
+   * Resolve N+1 issue em sendNotificationToUsers
+   */
+  private async sendUnreadCountUpdateBatch(userIds: number[]): Promise<void> {
+    if (!userIds.length) return;
+
+    try {
+      // Buscar contadores de todos os usuários em UMA query
+      const counts = await db
+        .select({
+          user_id: notifications.user_id,
+          count: sql<number>`count(*)::int`
+        })
+        .from(notifications)
+        .where(and(
+          inArray(notifications.user_id, userIds),
+          isNull(notifications.read_at)
+        ))
+        .groupBy(notifications.user_id);
+
+      // Criar mapa de user_id -> count
+      const countMap = new Map<number, number>();
+      counts.forEach(c => countMap.set(c.user_id, c.count));
+
+      // Enviar para cada usuário via WebSocket
+      for (const userId of userIds) {
+        if (!this.isUserOnline(userId)) continue;
+
+        const unreadCount = countMap.get(userId) || 0;
+        const userClients = this.clients.get(userId)!;
+        
+        for (const client of userClients) {
+          if (client.readyState === WebSocket.OPEN) {
+            const message = {
+              type: 'unread_count_update',
+              unreadCount
+            };
+            client.send(JSON.stringify(message));
+            console.log(`[🔔 CONTADOR BATCH] ✅ Contador atualizado para usuário ${userId}: ${unreadCount}`);
+          }
+        }
+      }
+    } catch (error) {
+      logNotificationError(
+        'Batch counter update via WebSocket failed',
+        error,
+        'warning',
+        { userIds }
+      );
+    }
+  }
+
+  /**
    * Persiste notificações para múltiplos usuários de uma vez
    * Resolve N+1 query issue em broadcast
    */
@@ -307,6 +360,7 @@ class NotificationService {
 
     // 2. Websocket e coleta de offline users
     const offlineUserIds: number[] = [];
+    const onlineUserIds: number[] = [];
 
     for (const userId of uniqueUserIds) {
       try {
@@ -325,12 +379,7 @@ class NotificationService {
           }
 
           if (sent) {
-            // Atualizar contador - infelizmente ainda precisa ser um por um via websocket, 
-            // mas o gargalo principal (DB insert) já foi resolvido.
-            // Poderíamos otimizar sendUnreadCountUpdate para aceitar múltiplos users também, mas
-            // o custo principal lá é o SELECT count(*) para cada user.
-            // TODO: Otimizar count update no futuro se necessário.
-            this.sendUnreadCountUpdate(userId);
+            onlineUserIds.push(userId);
           }
         } else {
           offlineUserIds.push(userId);
@@ -340,44 +389,26 @@ class NotificationService {
       }
     }
 
+    // 🔥 OTIMIZAÇÃO: Atualizar contadores em BATCH ao invés de N queries
+    if (onlineUserIds.length > 0) {
+      await this.sendUnreadCountUpdateBatch(onlineUserIds);
+    }
+
     // 3. Web Push para usuários offline (em lote)
+    // 🔥 OTIMIZAÇÃO N+1: Buscar subscriptions em batch e enviar usando método otimizado
     if (offlineUserIds.length > 0) {
       console.log(`[📱 WEB PUSH BULK] Processando ${offlineUserIds.length} usuários offline`);
       try {
         const subscriptionsMap = await webPushService.getSubscriptionsBatch(offlineUserIds);
 
-        // Loop para enviar (envio HTTP ainda é individual, mas busca de subs foi em lote)
+        // Enviar usando subscriptions já buscadas (evita N+1)
         for (const userId of offlineUserIds) {
           const subs = subscriptionsMap.get(userId);
           const notification = notificationMap.get(userId);
 
           if (subs && subs.length > 0 && notification) {
-            // WebPushService.sendPushNotification espera que busquemos subs de novo, 
-            // então vamos chamar um método interno ou simular o envio direto aqui para aproveitar as subs buscadas
-            // Para não quebrar encapsulamento, vamos iterar e usar uma versão modificada ou confiar na otimização que fizemos
-
-            // Como webPushService.sendPushNotification busca subs de novo, idealmente deveríamos ter refatorado ele também
-            // para aceitar subs injetadas. Mas para evitar mudar muito o WebPushService agora,
-            // vamos apenas chamar sendPushNotification.
-            // ESPERA: Se chamarmos sendPushNotification, ele vai fazer SELECT de novo!
-            // Então minha otimização getSubscriptionsBatch foi inútil se eu usar o método existente.
-            // VOU IMPLEMENTAR o envio direto aqui iterando nas subs que já busquei.
-
-            // ... Na verdade, o WebPushService tem métodos privados. Melhor chamar o método público antigo
-            // mesmo que faça SELECT, OU adicionar um método 'sendToUserWithSubscriptions'.
-            // Vou aceitar o SELECT extra por enquanto para WebPush (que é feature secundária)
-            // O ganho principal foi no INSERT das notificações (tabela principal).
-
-            // MENTIRA: O user pediu pra arrumar N+1. WebPush fazendo N selects é N+1.
-            // Vou usar o webPushService para enviar, mas preciso passar as subs.
-            // WebPushService não tem método público que aceite subs.
-            // Vou apenas invocar o método existente sendPushNotification para cada offline user.
-            // Sim, isso vai fazer N selects na tabela push_subscriptions.
-            // SE houver muitos usuários offline com push habilitado.
-            // Para corrigir 100%, eu deveria adicionar sendPushNotificationWithSubs no WebPushService.
-            // Mas vou deixar assim por agora focado no NotificationService principal.
-
-            await webPushService.sendPushNotification(userId, notification);
+            // ✅ Usar método otimizado que aceita subscriptions já buscadas
+            await webPushService.sendPushNotificationWithSubscriptions(userId, notification, subs);
           }
         }
       } catch (wpError) {
@@ -759,17 +790,28 @@ class NotificationService {
   }
 
   // Enviar notificação para todos os administradores
-  public async sendNotificationToAdmins(payload: NotificationPayload): Promise<void> {
-    // Buscar todos os usuários admin
-    const admins = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(and(
-        inArray(users.role, ['admin', 'company_admin']),
-        eq(users.active, true)
-      ));
+  public async sendNotificationToAdmins(payload: NotificationPayload, companyId?: number | null): Promise<void> {
+    // 🔥 CORREÇÃO MULTI-TENANT: Filtrar por company_id
+    const conditions: any[] = [
+      inArray(users.role, ['admin', 'company_admin']),
+      eq(users.active, true)
+    ];
 
-    console.log(`[🔔 NOTIFICAÇÃO] Enviando para ${admins.length} administradores`);
+    // Se company_id for fornecido, filtrar apenas usuários dessa empresa
+    if (companyId !== undefined && companyId !== null) {
+      conditions.push(eq(users.company_id, companyId));
+      console.log(`[🔔 NOTIFICAÇÃO] [MULTI-TENANT] Filtrando admins por company_id=${companyId}`);
+    } else {
+      console.warn(`[🔔 NOTIFICAÇÃO] [MULTI-TENANT] ⚠️ AVISO: sendNotificationToAdmins chamado sem company_id!`);
+    }
+
+    // Buscar todos os usuários admin da empresa
+    const admins = await db
+      .select({ id: users.id, company_id: users.company_id })
+      .from(users)
+      .where(and(...conditions));
+
+    console.log(`[🔔 NOTIFICAÇÃO] Enviando para ${admins.length} administradores${companyId ? ` da empresa ${companyId}` : ''}`);
 
     // Enviar notificação em lote
     const adminIds = admins.map(a => a.id);
@@ -777,18 +819,29 @@ class NotificationService {
   }
 
   // Enviar notificação para todos os agentes de suporte
-  public async sendNotificationToSupport(payload: NotificationPayload): Promise<void> {
-    // Buscar todos os usuários de suporte no banco (support, manager, supervisor)
+  public async sendNotificationToSupport(payload: NotificationPayload, companyId?: number | null): Promise<void> {
+    // 🔥 CORREÇÃO MULTI-TENANT: Filtrar por company_id
     const supportRoles = ['support', 'manager', 'supervisor'];
-    const supportUsers = await db
-      .select({ id: users.id, role: users.role })
-      .from(users)
-      .where(and(
-        eq(users.active, true),
-        inArray(users.role, supportRoles as any[])
-      ));
+    const conditions: any[] = [
+      eq(users.active, true),
+      inArray(users.role, supportRoles as any[])
+    ];
 
-    console.log(`[🔔 NOTIFICAÇÃO] Enviando para ${supportUsers.length} agentes de suporte`);
+    // Se company_id for fornecido, filtrar apenas usuários dessa empresa
+    if (companyId !== undefined && companyId !== null) {
+      conditions.push(eq(users.company_id, companyId));
+      console.log(`[🔔 NOTIFICAÇÃO] [MULTI-TENANT] Filtrando suporte por company_id=${companyId}`);
+    } else {
+      console.warn(`[🔔 NOTIFICAÇÃO] [MULTI-TENANT] ⚠️ AVISO: sendNotificationToSupport chamado sem company_id!`);
+    }
+
+    // Buscar todos os usuários de suporte no banco (support, manager, supervisor)
+    const supportUsers = await db
+      .select({ id: users.id, role: users.role, company_id: users.company_id })
+      .from(users)
+      .where(and(...conditions));
+
+    console.log(`[🔔 NOTIFICAÇÃO] Enviando para ${supportUsers.length} agentes de suporte${companyId ? ` da empresa ${companyId}` : ''}`);
 
     // Enviar notificação em lote
     const supportIds = supportUsers.map(s => s.id);
@@ -796,23 +849,34 @@ class NotificationService {
   }
 
   // Notificar todos do departamento específico (Support, Manager, Supervisor)
-  public async sendNotificationToDepartment(departmentId: number, payload: NotificationPayload): Promise<void> {
+  public async sendNotificationToDepartment(departmentId: number, payload: NotificationPayload, companyId?: number | null): Promise<void> {
     const roles = ['support', 'manager', 'supervisor'];
+
+    // 🔥 CORREÇÃO MULTI-TENANT: Adicionar filtro por company_id
+    const conditions: any[] = [
+      eq(officialDepartments.department_id, departmentId),
+      eq(users.active, true),
+      eq(officials.is_active, true),
+      inArray(users.role, roles as any[])
+    ];
+
+    // Se company_id for fornecido, filtrar apenas usuários dessa empresa
+    if (companyId !== undefined && companyId !== null) {
+      conditions.push(eq(users.company_id, companyId));
+      console.log(`[🔔 NOTIFICAÇÃO] [MULTI-TENANT] Filtrando departamento ${departmentId} por company_id=${companyId}`);
+    } else {
+      console.warn(`[🔔 NOTIFICAÇÃO] [MULTI-TENANT] ⚠️ AVISO: sendNotificationToDepartment chamado sem company_id para departamento ${departmentId}!`);
+    }
 
     // Buscar usuários do departamento com as roles corretas
     const departmentUsers = await db
-      .select({ id: users.id })
+      .select({ id: users.id, company_id: users.company_id })
       .from(users)
       .innerJoin(officials, eq(users.id, officials.user_id))
       .innerJoin(officialDepartments, eq(officials.id, officialDepartments.official_id))
-      .where(and(
-        eq(officialDepartments.department_id, departmentId),
-        eq(users.active, true),
-        eq(officials.is_active, true),
-        inArray(users.role, roles as any[])
-      ));
+      .where(and(...conditions));
 
-    console.log(`[🔔 NOTIFICAÇÃO] Buscando usuários do departamento ${departmentId} com roles: ${roles.join(', ')}`);
+    console.log(`[🔔 NOTIFICAÇÃO] Buscando usuários do departamento ${departmentId}${companyId ? ` da empresa ${companyId}` : ''} com roles: ${roles.join(', ')}`);
     console.log(`[🔔 NOTIFICAÇÃO] Encontrados ${departmentUsers.length} usuários do departamento ${departmentId}`);
 
     if (departmentUsers.length > 0) {
@@ -820,7 +884,7 @@ class NotificationService {
       console.log(`[🔔 NOTIFICAÇÃO] IDs alvo departamento: ${userIds.join(', ')}`);
       await this.sendNotificationToUsers(userIds, payload);
     } else {
-      console.warn(`[🔔 NOTIFICAÇÃO] ⚠️ NENHUM usuário encontrado para departamento ${departmentId} com roles appropriados`);
+      console.warn(`[🔔 NOTIFICAÇÃO] ⚠️ NENHUM usuário encontrado para departamento ${departmentId}${companyId ? ` da empresa ${companyId}` : ''} com roles appropriados`);
     }
   }
 
@@ -835,6 +899,7 @@ class NotificationService {
       if (!ticket) return;
 
       console.log(`[🔔 NEW TICKET] 🎫 Iniciando notificação para novo ticket #${ticket.ticket_id}`);
+      console.log(`[🔔 NEW TICKET] [MULTI-TENANT] Ticket da empresa company_id=${ticket.company_id}`);
 
       // Notificar administradores e agentes de suporte
       const payload: NotificationPayload = {
@@ -847,17 +912,18 @@ class NotificationService {
         priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
       };
 
-      console.log(`[🔔 NEW TICKET] 📢 Enviando para administradores...`);
-      await this.sendNotificationToAdmins(payload);
+      // 🔥 CORREÇÃO MULTI-TENANT: Passar company_id do ticket
+      console.log(`[🔔 NEW TICKET] 📢 Enviando para administradores da empresa ${ticket.company_id}...`);
+      await this.sendNotificationToAdmins(payload, ticket.company_id);
 
       // Se o ticket tem departamento, notificar apenas os atendentes daquele departamento
       if (ticket.department_id) {
-        console.log(`[🔔 NEW TICKET] 📢 Enviando para departamento ${ticket.department_id}...`);
-        await this.sendNotificationToDepartment(ticket.department_id, payload);
+        console.log(`[🔔 NEW TICKET] 📢 Enviando para departamento ${ticket.department_id} da empresa ${ticket.company_id}...`);
+        await this.sendNotificationToDepartment(ticket.department_id, payload, ticket.company_id);
       } else {
         // Fallback: Se não tem departamento, notificar todos (comportamento antigo)
-        console.log(`[🔔 NEW TICKET] 📢 Enviando para agentes de suporte (sem departamento)...`);
-        await this.sendNotificationToSupport(payload);
+        console.log(`[🔔 NEW TICKET] 📢 Enviando para agentes de suporte da empresa ${ticket.company_id} (sem departamento)...`);
+        await this.sendNotificationToSupport(payload, ticket.company_id);
       }
 
       console.log(`[🔔 NEW TICKET] ✅ Notificação enviada para novo ticket #${ticket.ticket_id}`);
@@ -884,6 +950,8 @@ class NotificationService {
       // Obter os detalhes do ticket
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
       if (!ticket) return;
+
+      console.log(`[🔔 STATUS UPDATE] [MULTI-TENANT] Ticket da empresa company_id=${ticket.company_id}`);
 
       // 🔥 CORREÇÃO: Usar STATUS_CONFIG para traduzir status
       const oldStatusName = this.translateStatus(oldStatus);
@@ -923,8 +991,9 @@ class NotificationService {
         priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
       };
 
-      this.sendNotificationToAdmins(adminPayload);
-      this.sendNotificationToSupport(adminPayload);
+      // 🔥 CORREÇÃO MULTI-TENANT: Passar company_id do ticket
+      this.sendNotificationToAdmins(adminPayload, ticket.company_id);
+      this.sendNotificationToSupport(adminPayload, ticket.company_id);
 
       console.log(`Notificação enviada para atualização de status do ticket #${ticket.ticket_id}`);
     } catch (error) {
@@ -943,6 +1012,8 @@ class NotificationService {
       // Obter os detalhes do ticket
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
       if (!ticket) return;
+
+      console.log(`[🔔 NEW REPLY] [MULTI-TENANT] Ticket da empresa company_id=${ticket.company_id}`);
 
       // Obter detalhes do usuário que respondeu
       const [replyUser] = await db.select().from(users).where(eq(users.id, replyUserId));
@@ -983,8 +1054,9 @@ class NotificationService {
           priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
         };
 
-        this.sendNotificationToAdmins(payload);
-        this.sendNotificationToSupport(payload);
+        // 🔥 CORREÇÃO MULTI-TENANT: Passar company_id do ticket
+        this.sendNotificationToAdmins(payload, ticket.company_id);
+        this.sendNotificationToSupport(payload, ticket.company_id);
 
         // 🔥 FASE 4.1: Notificar participantes
         const participantIds = participants.map(p => p.id);
@@ -1058,6 +1130,8 @@ class NotificationService {
       const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!user) return;
 
+      console.log(`[🔔 NEW USER] [MULTI-TENANT] Novo usuário da empresa company_id=${user.company_id}`);
+
       let createdByName = 'Sistema';
       if (createdByUserId) {
         const [admin] = await db.select().from(users).where(eq(users.id, createdByUserId));
@@ -1072,8 +1146,9 @@ class NotificationService {
         priority: 'medium'
       };
 
-      await this.sendNotificationToAdmins(payload);
-      console.log(`[🔔 NOTIFICAÇÃO] Notificação de novo usuário enviada para admins`);
+      // 🔥 CORREÇÃO MULTI-TENANT: Passar company_id do usuário
+      await this.sendNotificationToAdmins(payload, user.company_id);
+      console.log(`[🔔 NOTIFICAÇÃO] Notificação de novo usuário enviada para admins da empresa ${user.company_id}`);
     } catch (error) {
       logNotificationError(
         'New user notification failed',
@@ -1085,7 +1160,7 @@ class NotificationService {
   }
 
   // Notificar todos os usuários sobre manutenção
-  public async notifySystemMaintenance(message: string, scheduledFor: Date): Promise<void> {
+  public async notifySystemMaintenance(message: string, scheduledFor: Date, companyId?: number | null): Promise<void> {
     try {
       const payload: NotificationPayload = {
         type: 'system_maintenance',
@@ -1096,10 +1171,23 @@ class NotificationService {
         metadata: { scheduledFor }
       };
 
-      // Notificar todos os usuários ativos
-      const allUsers = await db.select({ id: users.id }).from(users).where(eq(users.active, true));
+      // 🔥 CORREÇÃO MULTI-TENANT: Filtrar por company_id se fornecido
+      const conditions: any[] = [eq(users.active, true)];
+      
+      if (companyId !== undefined && companyId !== null) {
+        conditions.push(eq(users.company_id, companyId));
+        console.log(`[🔔 NOTIFICAÇÃO] [MULTI-TENANT] Filtrando manutenção por company_id=${companyId}`);
+      } else {
+        console.log(`[🔔 NOTIFICAÇÃO] [MULTI-TENANT] Manutenção GLOBAL - notificando todas as empresas`);
+      }
 
-      console.log(`[🔔 NOTIFICAÇÃO] Enviando aviso de manutenção para ${allUsers.length} usuários`);
+      // Notificar todos os usuários ativos (com filtro de empresa se fornecido)
+      const allUsers = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(...conditions));
+
+      console.log(`[🔔 NOTIFICAÇÃO] Enviando aviso de manutenção para ${allUsers.length} usuários${companyId ? ` da empresa ${companyId}` : ' (todas as empresas)'}`);
 
       const allUserIds = allUsers.map(u => u.id);
       await this.sendNotificationToUsers(allUserIds, payload);
@@ -1195,9 +1283,9 @@ class NotificationService {
           priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
         };
 
-        // Notificar suporte e admin
-        await this.sendNotificationToSupport(departmentPayload);
-        await this.sendNotificationToAdmins(departmentPayload);
+        // 🔥 CORREÇÃO MULTI-TENANT: Passar company_id do ticket
+        await this.sendNotificationToSupport(departmentPayload, ticket.company_id);
+        await this.sendNotificationToAdmins(departmentPayload, ticket.company_id);
       }
 
       console.log(`[🔔 WEBSOCKET] ✅ Notificação de participante adicionado concluída`);
@@ -1293,9 +1381,9 @@ class NotificationService {
           priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
         };
 
-        // Notificar suporte e admin
-        await this.sendNotificationToSupport(departmentPayload);
-        await this.sendNotificationToAdmins(departmentPayload);
+        // 🔥 CORREÇÃO MULTI-TENANT: Passar company_id do ticket
+        await this.sendNotificationToSupport(departmentPayload, ticket.company_id);
+        await this.sendNotificationToAdmins(departmentPayload, ticket.company_id);
       }
 
       console.log(`[🔔 WEBSOCKET] ✅ Notificação de participante removido concluída`);
@@ -1439,8 +1527,9 @@ class NotificationService {
 
       // Notificar administradores e suporte (se não for quem mudou)
       if (changedBy.role !== 'admin' && changedBy.role !== 'support' && changedBy.role !== 'manager' && changedBy.role !== 'supervisor') {
-        this.sendNotificationToAdmins(payload);
-        this.sendNotificationToSupport(payload);
+        // 🔥 CORREÇÃO MULTI-TENANT: Passar company_id do ticket
+        this.sendNotificationToAdmins(payload, ticket.company_id);
+        this.sendNotificationToSupport(payload, ticket.company_id);
       }
 
       console.log(`Notificação enviada para mudança de status no ticket #${ticket.ticket_id}`);
@@ -1595,9 +1684,9 @@ class NotificationService {
         }
       }
 
-      // Notificar administradores e suporte
-      await this.sendNotificationToAdmins(payload);
-      await this.sendNotificationToSupport(payload);
+      // 🔥 CORREÇÃO MULTI-TENANT: Passar company_id do ticket
+      await this.sendNotificationToAdmins(payload, ticket.company_id);
+      await this.sendNotificationToSupport(payload, ticket.company_id);
 
       // Notificar participantes
       const participants = await db

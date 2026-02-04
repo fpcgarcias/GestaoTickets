@@ -271,6 +271,72 @@ class WebPushService {
   }
 
   /**
+   * 🔥 OTIMIZAÇÃO N+1: Envia notificação usando subscriptions já buscadas
+   * @param userId ID do usuário
+   * @param notification Dados da notificação
+   * @param subscriptions Subscriptions já buscadas em batch
+   */
+  async sendPushNotificationWithSubscriptions(
+    userId: number,
+    notification: PersistentNotification,
+    subscriptions: PushSubscriptionData[]
+  ): Promise<void> {
+    try {
+      // Verificar se VAPID está configurado
+      if (!this.vapidPublicKey || !this.vapidPrivateKey) {
+        return;
+      }
+
+      if (subscriptions.length === 0) {
+        return;
+      }
+
+      // Preparar payload da notificação com configurações baseadas na prioridade
+      const payload = JSON.stringify({
+        id: notification.id,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
+        priority: notification.priority,
+        ticketId: notification.ticketId,
+        ticketCode: notification.ticketCode,
+        url: notification.ticketId
+          ? `/tickets/${notification.ticketId}`
+          : '/',
+        timestamp: notification.createdAt.toISOString(),
+        // Configurações específicas por prioridade (Requirements 9.2)
+        requireInteraction: notification.priority === 'critical',
+        vibrate: notification.priority === 'critical'
+          ? [200, 100, 200]
+          : notification.priority === 'high'
+            ? [100]
+            : undefined,
+      });
+
+      // Enviar para todas as subscriptions
+      const sendPromises = subscriptions.map(sub =>
+        this.sendToSubscription(sub, payload, notification.priority)
+      );
+
+      const results = await Promise.allSettled(sendPromises);
+
+      // Contar sucessos e falhas
+      const successful = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+
+      logger.info(`[BATCH] Web Push enviado para usuário ${userId}: ${successful} sucesso, ${failed} falhas`);
+    } catch (error) {
+      logNotificationError(
+        'Push notification with subscriptions failed',
+        error,
+        'error',
+        { userId, notificationId: notification.id }
+      );
+      // Não propagar erro - falha de Web Push não deve quebrar o fluxo
+    }
+  }
+
+  /**
    * Envia notificação para uma subscription específica com retry logic
    * @param subscription Dados da subscription
    * @param payload Payload JSON da notificação
