@@ -1,6 +1,7 @@
 import { db } from '../db';
-import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, slaDefinitions, companies, ticketParticipants, systemSettings, ticketStatusHistory, departments, satisfactionSurveys } from '@shared/schema';
-import { eq, and, isNull, inArray, not, ne, or, gte, gt } from 'drizzle-orm';
+import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, slaDefinitions, companies, ticketParticipants, systemSettings, ticketStatusHistory, departments, satisfactionSurveys, ticketReplies } from '@shared/schema';
+import { eq, and, isNull, inArray, not, ne, or, gte, gt, desc } from 'drizzle-orm';
+import { storage } from '../storage';
 import { emailConfigService } from './email-config-service';
 import nodemailer from 'nodemailer';
 import { PriorityService } from "./priority-service";
@@ -1392,6 +1393,46 @@ export class EmailNotificationService {
 
     } catch (error) {
       console.error('Erro ao enviar notificação de resposta:', error);
+    }
+  }
+
+  /**
+   * Envia o alerta de 48h (ticket será encerrado em 24h por falta de interação).
+   * Disparo obrigatório: não verifica preferências de notificação do cliente.
+   */
+  async sendWaitingCustomerClosureAlert(ticketId: number): Promise<{ success: boolean; error?: string }> {
+    try {
+      const [ticketRow] = await db
+        .select()
+        .from(tickets)
+        .where(eq(tickets.id, ticketId))
+        .limit(1);
+      if (!ticketRow || !ticketRow.company_id) {
+        return { success: false, error: 'Ticket não encontrado ou sem empresa' };
+      }
+      let customer = null;
+      if (ticketRow.customer_id) {
+        [customer] = await db
+          .select()
+          .from(customers)
+          .where(eq(customers.id, ticketRow.customer_id))
+          .limit(1);
+      }
+      const context: EmailNotificationContext = {
+        ticket: await this.mapTicketFields(ticketRow),
+        customer: customer || { name: 'Cliente', email: ticketRow.customer_email },
+        system: {}
+      };
+      return await this.sendEmailNotification(
+        'waiting_customer_closure_alert',
+        ticketRow.customer_email,
+        context,
+        ticketRow.company_id,
+        'customer'
+      );
+    } catch (error) {
+      console.error('[📧 EMAIL PROD] Erro ao enviar alerta de encerramento por falta de interação:', error);
+      return { success: false, error: String(error) };
     }
   }
 
@@ -3676,6 +3717,128 @@ export class EmailNotificationService {
     } catch (error) {
       console.error('[SATISFACTION] Error while sending survey reminder:', error);
       return false;
+    }
+  }
+
+  /**
+   * Automação: tickets em aguardando cliente sem resposta do cliente (elegível).
+   * 48h desde entered_at → enviar alerta; 24h após alerta → encerrar.
+   * Elegível = nenhuma resposta do cliente desde que entrou em waiting_customer.
+   */
+  async checkWaitingCustomerAutoClose(companyFilter?: string): Promise<void> {
+    try {
+      const now = new Date();
+      const filterValue = companyFilter && companyFilter.trim().length > 0 ? companyFilter.trim() : '*';
+
+      const parseFilter = (filter: string): ((companyId: number | null) => boolean) => {
+        if (!filter || filter === '*') return () => true;
+        if (filter.startsWith('<>')) {
+          const excludedId = parseInt(filter.substring(2), 10);
+          return (companyId: number | null) => companyId != null && companyId !== excludedId;
+        }
+        if (filter.includes(',')) {
+          const allowedIds = filter.split(',').map((id) => parseInt(id.trim(), 10)).filter((id) => !Number.isNaN(id));
+          return (companyId: number | null) => companyId != null && allowedIds.includes(companyId);
+        }
+        const specificId = parseInt(filter, 10);
+        if (Number.isNaN(specificId)) return () => true;
+        return (companyId: number | null) => companyId === specificId;
+      };
+
+      const companyFilterFn = parseFilter(filterValue);
+
+      const candidates = await db
+        .select({
+          id: tickets.id,
+          ticket_id: tickets.ticket_id,
+          company_id: tickets.company_id,
+          customer_id: tickets.customer_id,
+          customer_email: tickets.customer_email,
+          waiting_customer_alert_sent_at: tickets.waiting_customer_alert_sent_at,
+        })
+        .from(tickets)
+        .innerJoin(departments, eq(tickets.department_id, departments.id))
+        .where(
+          and(
+            eq(tickets.status, 'waiting_customer'),
+            eq(departments.auto_close_waiting_customer, true),
+            not(isNull(tickets.department_id))
+          )
+        );
+
+      const MS_48H = 48 * 60 * 60 * 1000;
+      const MS_24H = 24 * 60 * 60 * 1000;
+
+      for (const row of candidates) {
+        if (row.company_id == null || !companyFilterFn(row.company_id)) continue;
+
+        const [enteredRow] = await db
+          .select({ created_at: ticketStatusHistory.created_at })
+          .from(ticketStatusHistory)
+          .where(
+            and(
+              eq(ticketStatusHistory.ticket_id, row.id),
+              eq(ticketStatusHistory.change_type, 'status'),
+              eq(ticketStatusHistory.new_status, 'waiting_customer')
+            )
+          )
+          .orderBy(desc(ticketStatusHistory.created_at))
+          .limit(1);
+
+        const entered_at = enteredRow?.created_at ? new Date(enteredRow.created_at) : null;
+        if (!entered_at) continue;
+
+        let customer_user_id: number | null = null;
+        if (row.customer_id) {
+          const [c] = await db.select({ user_id: customers.user_id }).from(customers).where(eq(customers.id, row.customer_id)).limit(1);
+          customer_user_id = c?.user_id ?? null;
+        }
+
+        const lastReply = customer_user_id
+          ? await db
+              .select({ created_at: ticketReplies.created_at })
+              .from(ticketReplies)
+              .where(and(eq(ticketReplies.ticket_id, row.id), eq(ticketReplies.user_id, customer_user_id)))
+              .orderBy(desc(ticketReplies.created_at))
+              .limit(1)
+          : [];
+        const last_customer_reply_at = lastReply[0]?.created_at ? new Date(lastReply[0].created_at) : null;
+
+        const eligible = last_customer_reply_at == null || last_customer_reply_at.getTime() < entered_at.getTime();
+        if (!eligible) continue;
+
+        const alert_sent_at = row.waiting_customer_alert_sent_at ? new Date(row.waiting_customer_alert_sent_at) : null;
+
+        if (now.getTime() - entered_at.getTime() >= MS_48H && !alert_sent_at) {
+          const result = await this.sendWaitingCustomerClosureAlert(row.id);
+          if (result.success) {
+            await db.update(tickets).set({ waiting_customer_alert_sent_at: now }).where(eq(tickets.id, row.id));
+            console.log('[AUTO_CLOSE] Alerta 48h enviado para ticket ' + row.ticket_id);
+          }
+          continue;
+        }
+
+        if (
+          alert_sent_at &&
+          now.getTime() - alert_sent_at.getTime() >= MS_24H &&
+          (last_customer_reply_at == null || last_customer_reply_at.getTime() <= alert_sent_at.getTime())
+        ) {
+          try {
+            await storage.createTicketReply({
+              ticket_id: row.id,
+              message: 'Ticket encerrado por falta de interação',
+              status: 'resolved',
+              user_id: undefined,
+            });
+            await this.notifyStatusChanged(row.id, 'waiting_customer', 'resolved', undefined);
+            console.log('[AUTO_CLOSE] Ticket ' + row.ticket_id + ' encerrado por falta de interação');
+          } catch (closeErr) {
+            console.error('[AUTO_CLOSE] Erro ao encerrar ticket ' + row.ticket_id + ':', closeErr);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[AUTO_CLOSE] Erro em checkWaitingCustomerAutoClose:', error);
     }
   }
 

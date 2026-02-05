@@ -106,7 +106,8 @@ const EMAIL_TEMPLATE_TYPES = [
   { value: 'ticket_participant_added', labelKey: 'email.template_type.ticket_participant_added' },
   { value: 'ticket_participant_removed', labelKey: 'email.template_type.ticket_participant_removed' },
   { value: 'satisfaction_survey', labelKey: 'email.template_type.satisfaction_survey' },
-  { value: 'satisfaction_survey_reminder', labelKey: 'email.template_type.satisfaction_survey_reminder' }
+  { value: 'satisfaction_survey_reminder', labelKey: 'email.template_type.satisfaction_survey_reminder' },
+  { value: 'waiting_customer_closure_alert', labelKey: 'email.template_type.waiting_customer_closure_alert' }
 ];
 
 const PROVIDERS = [

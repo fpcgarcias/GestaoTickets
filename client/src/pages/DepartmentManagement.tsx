@@ -28,6 +28,7 @@ interface DepartmentFormData {
   satisfaction_survey_enabled?: boolean;
   use_service_providers?: boolean;
   use_inventory_control?: boolean;
+  auto_close_waiting_customer?: boolean;
 }
 
 const DepartmentManagement: React.FC = () => {
@@ -54,6 +55,7 @@ const DepartmentManagement: React.FC = () => {
     satisfaction_survey_enabled: false,
     use_service_providers: false,
     use_inventory_control: false,
+    auto_close_waiting_customer: false,
   });
   const [isEditing, setIsEditing] = useState(false);
 
@@ -160,6 +162,7 @@ const DepartmentManagement: React.FC = () => {
         satisfaction_survey_enabled: data.satisfaction_survey_enabled || false,
         use_service_providers: data.use_service_providers || false,
         use_inventory_control: data.use_inventory_control || false,
+        auto_close_waiting_customer: data.auto_close_waiting_customer || false,
       });
       
       if (!response.ok) {
@@ -205,6 +208,7 @@ const DepartmentManagement: React.FC = () => {
         satisfaction_survey_enabled: data.satisfaction_survey_enabled || false,
         use_service_providers: data.use_service_providers || false,
         use_inventory_control: data.use_inventory_control || false,
+        auto_close_waiting_customer: data.auto_close_waiting_customer || false,
       });
       
       if (!response.ok) {
@@ -294,6 +298,7 @@ const DepartmentManagement: React.FC = () => {
       satisfaction_survey_enabled: false,
       use_service_providers: false,
       use_inventory_control: false,
+      auto_close_waiting_customer: false,
     });
     setIsEditing(false);
   };
@@ -316,6 +321,7 @@ const DepartmentManagement: React.FC = () => {
       satisfaction_survey_enabled: (department as any).satisfaction_survey_enabled || false,
       use_service_providers: (department as any).use_service_providers || false,
       use_inventory_control: (department as any).use_inventory_control || false,
+      auto_close_waiting_customer: (department as any).auto_close_waiting_customer || false,
     });
     setIsEditing(true);
     setIsDialogOpen(true);
@@ -718,6 +724,28 @@ const DepartmentManagement: React.FC = () => {
                   setCurrentDepartment((prev) => ({
                     ...prev,
                     use_inventory_control: checked,
+                  }))
+                }
+              />
+            </div>
+
+            {/* Toggle: Fechamento automático por falta de interação (aguardando cliente) */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-1">
+                <Label htmlFor="auto_close_waiting_customer" className="font-medium">
+                  {formatMessage('departments.add_department_dialog.auto_close_waiting_customer')}
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {formatMessage('departments.add_department_dialog.auto_close_waiting_customer_desc')}
+                </p>
+              </div>
+              <Switch
+                id="auto_close_waiting_customer"
+                checked={currentDepartment.auto_close_waiting_customer || false}
+                onCheckedChange={(checked) =>
+                  setCurrentDepartment((prev) => ({
+                    ...prev,
+                    auto_close_waiting_customer: checked,
                   }))
                 }
               />

@@ -180,6 +180,7 @@ export class SchedulerService {
     try {
       await emailNotificationService.checkTicketsDueSoon(companyFilter);
       await emailNotificationService.checkSatisfactionSurveyReminders(companyFilter);
+      await emailNotificationService.checkWaitingCustomerAutoClose(companyFilter);
     } catch (error) {
       console.error('[Scheduler] Erro na verificação de tickets:', error);
     }

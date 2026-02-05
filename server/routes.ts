@@ -10030,7 +10030,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       try {
 
-        const { name, description, is_active, company_id: company_id_from_body, sla_mode, satisfaction_survey_enabled, use_service_providers, use_inventory_control } = req.body;
+        const { name, description, is_active, company_id: company_id_from_body, sla_mode, satisfaction_survey_enabled, use_service_providers, use_inventory_control, auto_close_waiting_customer } = req.body;
 
         const userRole = req.session.userRole as string;
 
@@ -10169,6 +10169,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             satisfaction_survey_enabled: satisfaction_survey_enabled !== undefined ? satisfaction_survey_enabled : false,
             use_service_providers: use_service_providers !== undefined ? use_service_providers : false,
             use_inventory_control: use_inventory_control !== undefined ? use_inventory_control : false,
+            auto_close_waiting_customer: auto_close_waiting_customer !== undefined ? auto_close_waiting_customer : false,
 
             created_at: new Date(),
 
@@ -10230,7 +10231,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-        const { name, description, is_active, company_id: new_company_id, sla_mode, satisfaction_survey_enabled, use_service_providers, use_inventory_control } = req.body; // Captura company_id, sla_mode, satisfaction_survey_enabled e use_service_providers do corpo
+        const { name, description, is_active, company_id: new_company_id, sla_mode, satisfaction_survey_enabled, use_service_providers, use_inventory_control, auto_close_waiting_customer } = req.body; // Captura company_id, sla_mode, satisfaction_survey_enabled, use_service_providers, auto_close_waiting_customer do corpo
 
         const userRole = req.session.userRole as string;
 
@@ -10263,6 +10264,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         if (satisfaction_survey_enabled !== undefined) updatePayload.satisfaction_survey_enabled = satisfaction_survey_enabled;
         if (use_service_providers !== undefined) updatePayload.use_service_providers = use_service_providers;
         if (use_inventory_control !== undefined) updatePayload.use_inventory_control = use_inventory_control;
+        if (auto_close_waiting_customer !== undefined) updatePayload.auto_close_waiting_customer = auto_close_waiting_customer;
 
 
 
@@ -15835,6 +15837,28 @@ View Ticket: {{ticket.link}}`,
               is_active: true,
               is_default: true,
               available_variables: JSON.stringify(['customer.name', 'ticket.ticket_id', 'ticket.title', 'ticket.assigned_official_name', 'ticket.resolved_at_formatted', 'survey.link', 'survey.days_until_expiration', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
+            },
+            {
+              name: 'Waiting Customer Closure Alert',
+              type: 'waiting_customer_closure_alert',
+              description: 'Alert sent 48h after ticket is in waiting_customer with no client reply - ticket will be closed in 24h',
+              subject_template: 'Ticket {{ticket.ticket_id}} will be closed in 24h - no response received',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Ticket closure alert</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Ticket will be closed in 24 hours</h2><p style="font-size:16px;margin:0;">Hello {{customer.name}},</p><p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">Your ticket <strong>{{ticket.ticket_id}}</strong> has been waiting for your response for 48 hours. If we do not receive a reply within 24 hours, the ticket will be closed automatically due to lack of interaction.</p></td></tr>
+<tr><td style="padding:0 40px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;"><tr><td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Title:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td></tr></table></td></tr>
+<tr><td align="center" style="padding:0 40px 32px 40px;"><a href="{{ticket.link}}" style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;">View ticket</a></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `Hello {{customer.name}},\n\nYour ticket {{ticket.ticket_id}} has been waiting for your response for 48 hours. If we do not receive a reply within 24 hours, the ticket will be closed automatically.\n\nView ticket: {{ticket.link}}\n\nBest regards,\n{{system.from_name}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'ticket.link', 'customer.name', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             }
           ];
         } else {
@@ -18831,6 +18855,34 @@ Obrigado por nos ajudar a melhorar continuamente.
 
               available_variables: JSON.stringify(['customer.name', 'ticket.ticket_id', 'ticket.title', 'ticket.assigned_official_name', 'ticket.resolved_at_formatted', 'survey.link', 'survey.days_until_expiration', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
 
+            },
+
+            {
+
+              name: 'Alerta de encerramento por falta de interação',
+
+              type: 'waiting_customer_closure_alert',
+
+              description: 'Alerta enviado 48h após o ticket estar em aguardando cliente sem resposta do cliente - ticket será encerrado em 24h',
+
+              subject_template: 'O ticket {{ticket.ticket_id}} será encerrado em 24h - nenhuma resposta recebida',
+
+              html_template: `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Alerta de encerramento</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">O ticket será encerrado em 24 horas</h2><p style="font-size:16px;margin:0;">Olá {{customer.name}},</p><p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">Seu ticket <strong>{{ticket.ticket_id}}</strong> está aguardando sua resposta há 48 horas. Caso não recebamos uma resposta em até 24 horas, o ticket será encerrado automaticamente por falta de interação.</p></td></tr>
+<tr><td style="padding:0 40px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;"><tr><td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Título:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td></tr></table></td></tr>
+<tr><td align="center" style="padding:0 40px 32px 40px;"><a href="{{ticket.link}}" style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;">Ver ticket</a></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">Esta é uma mensagem automática.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `Olá {{customer.name}},\n\nSeu ticket {{ticket.ticket_id}} está aguardando sua resposta há 48 horas. Caso não recebamos uma resposta em até 24 horas, o ticket será encerrado automaticamente.\n\nVer ticket: {{ticket.link}}\n\nAtenciosamente,\n{{system.from_name}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'ticket.link', 'customer.name', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             }
 
           ];

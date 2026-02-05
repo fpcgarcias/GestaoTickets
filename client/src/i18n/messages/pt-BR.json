@@ -1234,6 +1234,8 @@
       "satisfaction_survey_desc": "Enviar automaticamente pesquisa de satisfação quando tickets deste departamento forem resolvidos",
       "inventory_control": "Usar controle de inventário",
       "inventory_control_desc": "Habilita o módulo de estoque integrado para este departamento",
+      "auto_close_waiting_customer": "Fechamento automático por falta de interação",
+      "auto_close_waiting_customer_desc": "Encerrar automaticamente tickets em aguardando cliente após 48h sem resposta do cliente (alerta em 48h, encerramento em 72h)",
       "cancel": "Cancelar",
       "creating": "Criando...",
       "create": "Criar Departamento",
@@ -1257,6 +1259,8 @@
       "satisfaction_survey_desc": "Enviar automaticamente pesquisa de satisfação quando tickets deste departamento forem resolvidos",
       "inventory_control": "Usar controle de inventário",
       "inventory_control_desc": "Habilita o módulo de estoque integrado para este departamento",
+      "auto_close_waiting_customer": "Fechamento automático por falta de interação",
+      "auto_close_waiting_customer_desc": "Encerrar automaticamente tickets em aguardando cliente após 48h sem resposta do cliente (alerta em 48h, encerramento em 72h)",
       "cancel": "Cancelar",
       "saving": "Salvando...",
       "save": "Salvar Alterações",
@@ -2353,7 +2357,8 @@
       "ticket_participant_added": "Participante Adicionado",
       "ticket_participant_removed": "Participante Removido",
       "satisfaction_survey": "Pesquisa de Satisfação",
-      "satisfaction_survey_reminder": "Lembrete Pesquisa de Satisfação"
+      "satisfaction_survey_reminder": "Lembrete Pesquisa de Satisfação",
+      "waiting_customer_closure_alert": "Alerta de encerramento por falta de interação"
     }
   },
   "notifications": {

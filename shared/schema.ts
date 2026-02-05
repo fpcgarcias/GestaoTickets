@@ -105,6 +105,7 @@ export const departments = pgTable("departments", {
   satisfaction_survey_enabled: boolean("satisfaction_survey_enabled").default(false).notNull(),
   use_service_providers: boolean("use_service_providers").default(false).notNull(),
   use_inventory_control: boolean("use_inventory_control").default(false).notNull(),
+  auto_close_waiting_customer: boolean("auto_close_waiting_customer").default(false).notNull(),
 });
 
 // Support staff table (ajustado para usar department_id ao invés de enum)
@@ -164,6 +165,7 @@ export const tickets = pgTable("tickets", {
   first_response_at: timestamp("first_response_at"),
   resolved_at: timestamp("resolved_at"),
   sla_breached: boolean("sla_breached").default(false),
+  waiting_customer_alert_sent_at: timestamp("waiting_customer_alert_sent_at"),
 });
 
 // Ticket replies (ajustado para snake_case, removido company_id que não existe no banco)
@@ -371,6 +373,7 @@ export const emailTemplateTypeEnum = pgEnum('email_template_type', [
   'ticket_participant_removed',  // Participante removido do ticket
   'satisfaction_survey',         // Pesquisa de satisfação
   'satisfaction_survey_reminder', // Lembrete da pesquisa de satisfação
+  'waiting_customer_closure_alert', // Alerta 48h - ticket será encerrado em 24h por falta de interação
 ]);
 
 // Tabela para templates de email

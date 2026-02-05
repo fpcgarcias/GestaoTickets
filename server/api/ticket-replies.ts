@@ -195,6 +195,11 @@ export async function POST(req: Request, res: Response) {
       .values(replyData)
       .returning();
 
+    // Se a resposta é do cliente, zerar flag de alerta de encerramento por falta de interação
+    if (ticket.customer_user_id != null && ticket.customer_user_id === sessionUserId) {
+      await db.update(tickets).set({ waiting_customer_alert_sent_at: null }).where(eq(tickets.id, ticketId));
+    }
+
     // Verificar se o status do ticket mudou
     let statusChanged = ticket.status !== validatedData.status;
     // Se IA decidir reabrir, forçar mudança de status para 'reopened'

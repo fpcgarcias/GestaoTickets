@@ -1234,6 +1234,8 @@
       "satisfaction_survey_desc": "Automatically send satisfaction survey when tickets from this department are resolved",
       "inventory_control": "Use inventory control",
       "inventory_control_desc": "Enable the integrated inventory module for this department",
+      "auto_close_waiting_customer": "Auto-close for lack of interaction",
+      "auto_close_waiting_customer_desc": "Automatically close tickets in waiting for customer after 48h with no client reply (alert at 48h, closure at 72h)",
       "cancel": "Cancel",
       "creating": "Creating...",
       "create": "Create Department",
@@ -1257,6 +1259,8 @@
       "satisfaction_survey_desc": "Automatically send satisfaction survey when tickets from this department are resolved",
       "inventory_control": "Use inventory control",
       "inventory_control_desc": "Enable the integrated inventory module for this department",
+      "auto_close_waiting_customer": "Auto-close for lack of interaction",
+      "auto_close_waiting_customer_desc": "Automatically close tickets in waiting for customer after 48h with no client reply (alert at 48h, closure at 72h)",
       "cancel": "Cancel",
       "saving": "Saving...",
       "save": "Save Changes",
@@ -2353,7 +2357,8 @@
       "ticket_participant_added": "Participant Added",
       "ticket_participant_removed": "Participant Removed",
       "satisfaction_survey": "Satisfaction Survey",
-      "satisfaction_survey_reminder": "Satisfaction Survey Reminder"
+      "satisfaction_survey_reminder": "Satisfaction Survey Reminder",
+      "waiting_customer_closure_alert": "Waiting customer closure alert"
     }
   },
   "notifications": {
