@@ -1496,6 +1496,7 @@ export class EmailNotificationService {
         'pending_deployment': 'Aguardando Deploy',
         'reopened': 'Reaberto',
         'resolved': 'Resolvido',
+        'closed': 'Encerrado',
         'undefined': 'Não Definido',
         'null': 'Não Definido',
         '': 'Não Definido'
@@ -1558,7 +1559,7 @@ export class EmailNotificationService {
         }
         // Notificar cliente normalmente
         if (customer) {
-          const shouldNotify = await this.shouldSendEmailToUser(customer.id, newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed');
+          const shouldNotify = await this.shouldSendEmailToUser(customer.id, (newStatus === 'resolved' || newStatus === 'closed') ? 'ticket_resolved' : 'status_changed');
           if (shouldNotify) {
             // 🔥 CORREÇÃO: Criar contexto personalizado para o cliente
             const customerContext: EmailNotificationContext = {
@@ -1571,8 +1572,16 @@ export class EmailNotificationService {
               }
             };
             
+            // Determinar o template correto baseado no status
+            let templateType = 'status_changed';
+            if (newStatus === 'resolved') {
+              templateType = 'ticket_resolved';
+            } else if (newStatus === 'closed') {
+              templateType = 'ticket_closed';
+            }
+            
             await this.sendEmailNotification(
-              newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed',
+              templateType,
               customer.email,
               customerContext,
               ticket.company_id!,
@@ -1615,7 +1624,7 @@ export class EmailNotificationService {
 
         // 🔥 NOVA LÓGICA: Por padrão cliente recebe, só não envia se explicitamente desativado
         const shouldNotify = customerUser
-          ? await this.shouldSendEmailToUser(customerUser.id, newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed')
+          ? await this.shouldSendEmailToUser(customerUser.id, (newStatus === 'resolved' || newStatus === 'closed') ? 'ticket_resolved' : 'status_changed')
           : true; // Se não é usuário registrado, sempre envia
 
         if (shouldNotify) {
@@ -1630,8 +1639,16 @@ export class EmailNotificationService {
             }
           };
           
+          // Determinar o template correto baseado no status
+          let templateType = 'status_changed';
+          if (newStatus === 'resolved') {
+            templateType = 'ticket_resolved';
+          } else if (newStatus === 'closed') {
+            templateType = 'ticket_closed';
+          }
+          
           const result = await this.sendEmailNotification(
-            newStatus === 'resolved' ? 'ticket_resolved' : 'status_changed',
+            templateType,
             ticket.customer_email,
             customerContext,
             ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
@@ -1767,8 +1784,8 @@ export class EmailNotificationService {
     // 🎯 PESQUISA DE SATISFAÇÃO EXECUTADA FORA DO TRY/CATCH PARA GARANTIR QUE SEMPRE FUNCIONE
     try {
       console.log(`[📧 SATISFACTION] 🔍 Verificando se deve enviar pesquisa: newStatus=${newStatus}, ticketId=${ticketId}`);
-      if (newStatus === 'resolved') {
-        console.log(`[📧 SATISFACTION] 🎯 Ticket resolvido, iniciando envio de pesquisa de satisfação (FORA DO TRY/CATCH)`);
+      if (newStatus === 'resolved' || newStatus === 'closed') {
+        console.log(`[📧 SATISFACTION] 🎯 Ticket finalizado (${newStatus}), iniciando envio de pesquisa de satisfação (FORA DO TRY/CATCH)`);
         
         // Enviar pesquisa de satisfação de forma assíncrona (não bloquear o fluxo principal)
         this.sendSatisfactionSurvey(ticketId).catch((surveyError) => {
@@ -1776,7 +1793,7 @@ export class EmailNotificationService {
           console.error(`[📧 SATISFACTION] ❌ Stack trace:`, (surveyError as any)?.stack);
         });
       } else {
-        console.log(`[📧 SATISFACTION] ⏭️ Status não é 'resolved', pulando pesquisa de satisfação`);
+        console.log(`[📧 SATISFACTION] ⏭️ Status não é 'resolved' ou 'closed', pulando pesquisa de satisfação`);
       }
     } catch (satisfactionError) {
       console.error(`[📧 SATISFACTION] ❌ Erro crítico na pesquisa de satisfação:`, satisfactionError);
@@ -3311,7 +3328,7 @@ export class EmailNotificationService {
     }
   }
 
-  // Enviar pesquisa de satisfação quando ticket é resolvido
+  // Enviar pesquisa de satisfação quando ticket é resolvido ou encerrado
   async sendSatisfactionSurvey(ticketId: number): Promise<void> {
     try {
       console.log(`[📧 SATISFACTION] 🔍 Iniciando envio de pesquisa de satisfação para ticket ${ticketId}`);
@@ -3827,10 +3844,10 @@ export class EmailNotificationService {
             await storage.createTicketReply({
               ticket_id: row.id,
               message: 'Ticket encerrado por falta de interação',
-              status: 'resolved',
+              status: 'closed',
               user_id: undefined,
             });
-            await this.notifyStatusChanged(row.id, 'waiting_customer', 'resolved', undefined);
+            await this.notifyStatusChanged(row.id, 'waiting_customer', 'closed', undefined);
             console.log('[AUTO_CLOSE] Ticket ' + row.ticket_id + ' encerrado por falta de interação');
           } catch (closeErr) {
             console.error('[AUTO_CLOSE] Erro ao encerrar ticket ' + row.ticket_id + ':', closeErr);

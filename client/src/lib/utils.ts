@@ -55,7 +55,8 @@ export const TICKET_STATUS = {
   IN_ANALYSIS: 'in_analysis',
   PENDING_DEPLOYMENT: 'pending_deployment',
   REOPENED: 'reopened',
-  RESOLVED: 'resolved'
+  RESOLVED: 'resolved',
+  CLOSED: 'closed'
 };
 
 export const PRIORITY_LEVELS = {
@@ -81,7 +82,8 @@ export const STATUS_COLORS = {
   [TICKET_STATUS.IN_ANALYSIS]: 'bg-indigo-100 text-indigo-800',
   [TICKET_STATUS.PENDING_DEPLOYMENT]: 'bg-cyan-100 text-cyan-800',
   [TICKET_STATUS.REOPENED]: 'bg-pink-100 text-pink-800',
-  [TICKET_STATUS.RESOLVED]: 'bg-green-100 text-green-800'
+  [TICKET_STATUS.RESOLVED]: 'bg-green-100 text-green-800',
+  [TICKET_STATUS.CLOSED]: 'bg-gray-100 text-gray-800'
 };
 
 export const TICKET_TYPES = [
@@ -116,6 +118,7 @@ export function translateTicketStatus(status: string): string {
     'pending_deployment': 'Aguardando Deploy',
     'reopened': 'Reaberto',
     'resolved': 'Resolvido',
+    'closed': 'Encerrado',
     // Valores especiais
     'undefined': 'Não Definido',
     'null': 'Não Definido',

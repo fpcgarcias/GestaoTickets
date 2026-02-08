@@ -27,6 +27,7 @@ interface TicketStats {
     new: number;
     ongoing: number;
     resolved: number;
+    closed: number;
     [key: string]: number; // Para outros status que possam existir
   };
   byPriority: {
@@ -410,7 +411,7 @@ export default function Dashboard() {
   // Adaptar os dados para o formato esperado
   const ticketStats = dashboardData?.stats || { 
     total: 0, 
-    byStatus: { new: 0, ongoing: 0, resolved: 0 }, 
+    byStatus: { new: 0, ongoing: 0, resolved: 0, closed: 0 }, 
     byPriority: { low: 0, medium: 0, high: 0, critical: 0 } 
   };
   const avgFirstResponseData = { averageTime: dashboardData?.averageFirstResponseTime || 0 };
@@ -422,9 +423,9 @@ export default function Dashboard() {
   const previousAvgFirstResponseTime = dashboardData?.previousAverageFirstResponseTime || null;
   const previousAvgResolutionTime = dashboardData?.previousAverageResolutionTime || null;
 
-  // Calcular chamados com outros status (qualquer status que não seja new, ongoing ou resolved)
+  // Calcular chamados com outros status (qualquer status que não seja new, ongoing, resolved ou closed)
   const otherStatusCount = Object.entries(ticketStats.byStatus)
-    .filter(([status]) => !['new', 'ongoing', 'resolved'].includes(status))
+    .filter(([status]) => !['new', 'ongoing', 'resolved', 'closed'].includes(status))
     .reduce((sum, [_, count]) => sum + (count as number), 0);
 
   // Calcular valores anteriores para comparação (removido previousOtherStatusCount - não é mais usado)
@@ -434,6 +435,7 @@ export default function Dashboard() {
     { name: locale === 'en-US' ? 'New' : 'Novos', value: ticketStats.byStatus.new, color: '#F59E0B' },
     { name: locale === 'en-US' ? 'Ongoing' : 'Em Andamento', value: ticketStats.byStatus.ongoing, color: '#3B82F6' },
     { name: locale === 'en-US' ? 'Resolved' : 'Resolvidos', value: ticketStats.byStatus.resolved, color: '#10B981' },
+    { name: locale === 'en-US' ? 'Closed' : 'Encerrados', value: ticketStats.byStatus.closed, color: '#6B7280' },
     { name: locale === 'en-US' ? 'Other Status' : 'Outros Status', value: otherStatusCount, color: '#8B5CF6' },
   ];
 
@@ -606,7 +608,7 @@ export default function Dashboard() {
       
 
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 lg:gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 lg:gap-6 mb-6">
         <StatCard 
           title={formatMessage('dashboard.total_tickets')} 
           value={ticketStats.total}
@@ -632,6 +634,13 @@ export default function Dashboard() {
           previousValue={previousTicketStats?.byStatus.resolved}
           isLoading={isDashboardLoading}
           status={TICKET_STATUS.RESOLVED as 'resolved'}
+        />
+        <StatCard 
+          title={formatMessage('dashboard.closed_tickets')} 
+          value={ticketStats.byStatus.closed}
+          previousValue={previousTicketStats?.byStatus.closed}
+          isLoading={isDashboardLoading}
+          status={TICKET_STATUS.CLOSED as 'closed'}
         />
         <StatCard 
           title={formatMessage('dashboard.other_status')} 
@@ -736,7 +745,7 @@ interface StatCardProps {
   value: number;
   previousValue?: number; // Valor anterior para comparação
   isLoading: boolean;
-  status?: 'new' | 'ongoing' | 'resolved'; // Tipo mais específico para status
+  status?: 'new' | 'ongoing' | 'resolved' | 'closed'; // Tipo mais específico para status
   icon?: string; // Adicionar suporte para ícone customizado
 }
 

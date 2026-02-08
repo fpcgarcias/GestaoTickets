@@ -3249,7 +3249,16 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       if (priority !== undefined) updateData.priority = priority;
 
-      if (assigned_to_id !== undefined) updateData.assigned_to_id = assigned_to_id;
+      if (assigned_to_id !== undefined) {
+        // 🔥 VALIDAÇÃO: Não permitir alteração de atendente em tickets finalizados
+        if ((existingTicket.status === 'resolved' || existingTicket.status === 'closed') && assigned_to_id !== existingTicket.assigned_to_id) {
+          return res.status(403).json({
+            message: "Operação não permitida",
+            details: "Não é possível alterar o atendente de tickets finalizados."
+          });
+        }
+        updateData.assigned_to_id = assigned_to_id;
+      }
 
       if (department_id !== undefined) updateData.department_id = department_id;
 
@@ -3316,6 +3325,22 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         if (status === 'resolved' && existingTicket.status !== 'resolved') {
 
           updateData.resolved_at = new Date();
+
+        }
+
+        if (status === 'closed' && existingTicket.status !== 'closed') {
+
+          updateData.resolved_at = new Date();
+
+        }
+
+        // Limpar resolved_at quando sair de status finalizado
+
+        if ((existingTicket.status === 'resolved' || existingTicket.status === 'closed') && 
+
+            (status !== 'resolved' && status !== 'closed')) {
+
+          updateData.resolved_at = null;
 
         }
 
@@ -15639,7 +15664,30 @@ View Ticket: {{ticket.link}}`,
               is_default: true,
               available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'ticket.link', 'user.name', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
             },
-            // 6. Ticket Escalated
+            // 6. Ticket Closed
+            {
+              name: 'Ticket Closed',
+              type: 'ticket_closed',
+              description: 'Notification sent when a ticket is closed due to lack of customer interaction',
+              subject_template: 'Ticket {{ticket.ticket_id}} has been closed',
+              html_template: `<!DOCTYPE html>
+<html lang="en-US">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Ticket Closed</title></head>
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+<tr><td align="center" style="background:{{system.colors.primary}};padding:24px;"><h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1></td></tr>
+<tr><td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};"><h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Ticket Closed</h2><p style="font-size:16px;margin:0;">Hello {{user.name}},</p><p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">Your ticket has been automatically closed due to lack of interaction. We waited for your response for 72 hours, but did not receive a reply.</p><p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">If the issue persists or you need to reopen this ticket, simply reply to this email or access the system.</p></td></tr>
+<tr><td style="padding:0 40px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;"><tr><td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td></tr><tr><td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Title:</td><td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td></tr></table></td></tr>
+<tr><td align="center" style="padding:0 40px 32px 40px;"><a href="{{ticket.link}}" style="background:{{system.colors.primary}};color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;box-shadow:0 2px 4px rgba(0,0,0,0.1);">View Ticket</a></td></tr>
+<tr><td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;"><p style="margin:0;">Best regards,<br><strong>{{system.from_name}}</strong></p><p style="margin:8px 0 0 0;font-style:italic;color:#888888;">This is an automatic message — please do not reply to this email.</p></td></tr>
+</table></td></tr></table></body></html>`,
+              text_template: `Ticket {{ticket.ticket_id}} has been closed\n\nYour ticket has been automatically closed due to lack of interaction. We waited for your response for 72 hours, but did not receive a reply.\n\nIf the issue persists or you need to reopen this ticket, simply reply to this email or access the system.\n\nView Ticket: {{ticket.link}}`,
+              is_active: true,
+              is_default: true,
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'ticket.link', 'user.name', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
+            },
+            // 7. Ticket Escalated
             {
               name: 'Ticket Escalated',
               type: 'ticket_escalated',
@@ -15799,7 +15847,7 @@ View Ticket: {{ticket.link}}`,
             {
               name: 'Satisfaction Survey',
               type: 'satisfaction_survey',
-              description: 'Satisfaction survey sent when a ticket is resolved',
+              description: 'Satisfaction survey sent when a ticket is resolved or closed',
               subject_template: 'How was your support experience? Ticket {{ticket.ticket_id}}',
               html_template: `<!DOCTYPE html>
 <html lang="en-US">
@@ -16928,6 +16976,198 @@ Ver Ticket: {{ticket.link}}`,
               is_default: true,
 
               available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'ticket.resolved_at_formatted', 'user.name', 'ticket.link', 'system.company_name', 'system.support_email', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
+
+            },
+
+            {
+
+              name: 'Ticket Encerrado',
+
+              type: 'ticket_closed',
+
+              description: 'Notificação enviada quando um ticket é encerrado por falta de interação do cliente',
+
+              subject_template: 'Ticket {{ticket.ticket_id}} foi encerrado',
+
+              html_template: `<!DOCTYPE html>
+
+<html lang="pt-BR">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Ticket Encerrado</title>
+
+</head>
+
+
+
+<body style="margin:0;padding:0;background:{{system.colors.background}};">
+
+  <!-- 100% wrapper -->
+
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:{{system.colors.background}};">
+
+    <tr>
+
+      <td align="center" style="padding:24px 12px;">
+
+
+
+        <!-- CARD / CONTAINER -->
+
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+
+               style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+
+
+
+          <!-- HEADER -->
+
+          <tr>
+
+            <td align="center" style="background:{{system.colors.primary}};padding:24px;">
+
+              <h1 style="color:#ffffff;font-size:22px;margin:0;font-weight:600;">{{system.company_name}}</h1>
+
+            </td>
+
+          </tr>
+
+
+
+          <!-- HERO -->
+
+          <tr>
+
+            <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
+
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Ticket Encerrado</h2>
+
+              <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
+
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+
+                Seu ticket foi encerrado automaticamente por falta de interação. Aguardamos sua resposta por 72 horas, mas não recebemos retorno.
+
+              </p>
+
+              <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
+
+                Se o problema persistir ou você precisar reabrir este ticket, basta responder a este e-mail ou acessar o sistema.
+
+              </p>
+
+            </td>
+
+          </tr>
+
+
+
+          <!-- DETALHES -->
+
+          <tr>
+
+            <td style="padding:0 40px;">
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+
+                     style="font-size:15px;border-collapse:collapse;margin:0 0 24px 0;background:{{system.colors.secondary}};border-radius:6px;overflow:hidden;">
+
+                <tr>
+
+                  <td style="padding:12px 16px;font-weight:600;width:120px;background:{{system.colors.accent}};color:{{system.colors.text}};">Ticket:</td>
+
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.ticket_id}}</td>
+
+                </tr>
+
+                <tr>
+
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Título:</td>
+
+                  <td style="padding:12px 16px;color:{{system.colors.text}};">{{ticket.title}}</td>
+
+                </tr>
+
+              </table>
+
+            </td>
+
+          </tr>
+
+
+
+          <!-- CTA -->
+
+          <tr>
+
+            <td align="center" style="padding:0 40px 32px 40px;">
+
+              <a href="{{ticket.link}}"
+
+                 style="background:{{system.colors.primary}};color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:600;display:inline-block;font-size:14px;">
+
+                Ver Ticket
+
+              </a>
+
+            </td>
+
+          </tr>
+
+
+
+          <!-- FOOTER -->
+
+          <tr>
+
+            <td align="center" style="background:{{system.colors.secondary}};padding:24px;font-size:13px;color:#666666;">
+
+              <p style="margin:0;">Atenciosamente,<br><strong>{{system.from_name}}</strong></p>
+
+              <p style="margin:8px 0 0 0;font-style:italic;color:#888888;">
+
+                Esta é uma mensagem automática — por favor, não responda a este e-mail.
+
+              </p>
+
+            </td>
+
+          </tr>
+
+        </table>
+
+      </td>
+
+    </tr>
+
+  </table>
+
+</body>
+
+</html>`,
+
+              text_template: `Ticket Encerrado
+
+Ticket: {{ticket.ticket_id}}
+
+Título: {{ticket.title}}
+
+Seu ticket foi encerrado automaticamente por falta de interação. Aguardamos sua resposta por 72 horas, mas não recebemos retorno.
+
+Se o problema persistir ou você precisar reabrir este ticket, basta responder a este e-mail ou acessar o sistema.
+
+Ver Ticket: {{ticket.link}}`,
+
+              is_active: true,
+
+              is_default: true,
+
+              available_variables: JSON.stringify(['ticket.ticket_id', 'ticket.title', 'ticket.link', 'user.name', 'system.company_name', 'system.from_name', 'system.colors.primary', 'system.colors.secondary', 'system.colors.accent', 'system.colors.background', 'system.colors.text'])
 
             },
 
@@ -18403,7 +18643,7 @@ Atenciosamente,
 
               type: 'satisfaction_survey',
 
-              description: 'Pesquisa de satisfação enviada quando um ticket é resolvido',
+              description: 'Pesquisa de satisfação enviada quando um ticket é resolvido ou encerrado',
 
               subject_template: 'Como foi seu atendimento? Avalie o ticket {{ticket.ticket_id}}',
 

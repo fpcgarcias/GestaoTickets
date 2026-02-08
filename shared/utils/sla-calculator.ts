@@ -272,8 +272,8 @@ export function calculateEffectiveBusinessTime(
     const periodStart = new Date(period.startTime);
     const periodEnd = new Date(period.endTime);
     
-    // Se o status NÃO pausa o SLA, contar o tempo
-    if (!isSlaPaused(period.status)) {
+    // Se o status NÃO pausa o SLA E NÃO finaliza o SLA, contar o tempo
+    if (!isSlaPaused(period.status) && !isSlaFinished(period.status)) {
       // Garantir que começamos do fim do último período ativo ou criação do ticket
       const effectiveStart = periodStart > lastActiveEnd ? periodStart : lastActiveEnd;
       
@@ -295,8 +295,8 @@ export function calculateEffectiveBusinessTime(
     // Se há um gap entre o último período e o tempo atual, 
     // assumir que continua com o último status
     if (lastPeriodEnd < currentTime) {
-      // Se o último status não pausa o SLA, adicionar o tempo restante
-      if (!isSlaPaused(lastPeriod.status)) {
+      // Se o último status não pausa o SLA E não finaliza o SLA, adicionar o tempo restante
+      if (!isSlaPaused(lastPeriod.status) && !isSlaFinished(lastPeriod.status)) {
         const finalPeriodTime = calculateBusinessTimeMs(lastPeriodEnd, currentTime, businessHours);
         totalEffectiveTime += finalPeriodTime;
       }

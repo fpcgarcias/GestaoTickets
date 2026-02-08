@@ -678,10 +678,20 @@ export class MemStorage implements IStorage {
       updatedTicket.firstResponseAt = now;
     }
     
-    // If status changed to resolved, set resolvedAt
-    if (ticketData.status === 'resolved' && ticket.status !== 'resolved') {
-      console.log(`[SLA] ✅ TICKET RESOLVIDO: Definindo resolvedAt para ticket ${id}`);
+    // Se o status está sendo alterado para 'resolved' ou 'closed', marcamos a data de resolução
+    if (ticketData.status && 
+        (ticketData.status === 'resolved' || ticketData.status === 'closed') && 
+        (ticket.status !== 'resolved' && ticket.status !== 'closed')) {
+      console.log(`[SLA] ✅ TICKET FINALIZADO: Definindo resolvedAt para ticket ${id} (status: ${ticketData.status})`);
       updatedTicket.resolvedAt = now;
+    }
+    
+    // Se o status está saindo de 'resolved' ou 'closed' para outro status, limpamos resolvedAt
+    if (ticketData.status &&
+        (ticket.status === 'resolved' || ticket.status === 'closed') &&
+        (ticketData.status !== 'resolved' && ticketData.status !== 'closed')) {
+      console.log(`[SLA] 🔄 TICKET REABERTO: Limpando resolvedAt para ticket ${id} (${ticket.status} → ${ticketData.status})`);
+      updatedTicket.resolvedAt = null;
     }
     
     this.tickets.set(id, updatedTicket);
@@ -916,7 +926,7 @@ export class MemStorage implements IStorage {
     }
 
     if (filters.hide_resolved) {
-      userTickets = userTickets.filter(ticket => ticket.status !== 'resolved');
+      userTickets = userTickets.filter(ticket => ticket.status !== 'resolved' && ticket.status !== 'closed');
     }
 
     if (filters.time_filter === 'first_response') {
