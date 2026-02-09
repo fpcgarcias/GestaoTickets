@@ -10,6 +10,8 @@ import { departments as departmentsSchema } from '@shared/schema';
 import * as schema from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import { storage } from '../storage';
+import { parse as csvParse } from 'csv-parse/sync';
+import { logger } from '../services/logger';
 
 /**
  * GET /api/sla-configurations
@@ -183,7 +185,7 @@ export async function createSLAConfiguration(req: Request, res: Response) {
   try {
     const input = req.body;
     
-    console.log('📋 [SLA CREATE] Dados recebidos:', JSON.stringify(input, null, 2));
+    logger.debug('[SLA CREATE]', { departmentId: input.departmentId, companyId: input.companyId });
 
     // Validação rápida por modo do departamento (reforço no endpoint)
     if (!input || !input.departmentId) {
@@ -624,17 +626,34 @@ export async function importSLAConfigurationsCSV(req: Request, res: Response) {
       });
     }
 
-    // Parse CSV
-    const lines = csvData.split('\n').filter(line => line.trim());
-    
-    if (lines.length < 2) {
+    // Normalizar CRLF para LF
+    const normalizedCsv = csvData.replace(/\r\n/g, '\n');
+
+    // Parse CSV usando csv-parse
+    let records: any[];
+    try {
+      records = csvParse(normalizedCsv, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+        relax_quotes: true,
+      });
+    } catch (parseError) {
       return res.status(400).json({
         success: false,
-        error: 'Arquivo CSV deve conter pelo menos cabeçalho e uma linha de dados'
+        error: 'Erro ao parsear CSV',
+        message: parseError instanceof Error ? parseError.message : 'Formato CSV inválido'
       });
     }
 
-    const headers = lines[0].split(',').map(h => h.trim());
+    if (records.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Arquivo CSV deve conter pelo menos uma linha de dados'
+      });
+    }
+
+    // Validar cabeçalhos esperados
     const expectedHeaders = [
       'empresa_id',
       'empresa_nome', 
@@ -649,8 +668,8 @@ export async function importSLAConfigurationsCSV(req: Request, res: Response) {
       'ativo'
     ];
 
-    // Validar cabeçalhos
-    const missingHeaders = expectedHeaders.filter(h => !headers.includes(h));
+    const firstRecord = records[0];
+    const missingHeaders = expectedHeaders.filter(h => !(h in firstRecord));
     if (missingHeaders.length > 0) {
       return res.status(400).json({
         success: false,
@@ -668,31 +687,40 @@ export async function importSLAConfigurationsCSV(req: Request, res: Response) {
       duplicates: []
     };
 
-    // Processar cada linha
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
-      
-      if (values.length !== headers.length) {
-        results.errors.push({
-          line: i + 1,
-          error: 'Número de colunas não confere com o cabeçalho'
-        });
-        continue;
+    // Coletar todos os departamentos únicos para carregar configurações existentes em lote
+    const departmentIds = new Set<number>();
+    records.forEach(record => {
+      const deptId = parseInt(record.departamento_id);
+      if (!isNaN(deptId)) {
+        departmentIds.add(deptId);
       }
+    });
+
+    // Carregar todas as configurações existentes dos departamentos em uma única consulta
+    const existingConfigsMap = new Map<string, any>();
+    for (const deptId of departmentIds) {
+      const configs = await slaConfigurationService.getSLAConfigurations({
+        departmentId: deptId
+      });
+      configs.forEach(config => {
+        const key = `${config.company_id}-${config.department_id}-${config.incident_type_id}-${config.priority_id || 'null'}`;
+        existingConfigsMap.set(key, config);
+      });
+    }
+
+    // Processar cada linha
+    for (let i = 0; i < records.length; i++) {
+      const rowData = records[i];
+      const lineNumber = i + 2; // +2 porque linha 1 é cabeçalho e arrays começam em 0
 
       try {
-        const rowData: any = {};
-        headers.forEach((header, index) => {
-          rowData[header] = values[index];
-        });
-
         // Validar dados obrigatórios
         const requiredFields = ['empresa_id', 'departamento_id', 'tipo_incidente_id', 'tempo_resposta_horas', 'tempo_resolucao_horas'];
         const missingFields = requiredFields.filter(field => !rowData[field] || rowData[field] === '');
         
         if (missingFields.length > 0) {
           results.errors.push({
-            line: i + 1,
+            line: lineNumber,
             error: `Campos obrigatórios ausentes: ${missingFields.join(', ')}`
           });
           continue;
@@ -711,7 +739,7 @@ export async function importSLAConfigurationsCSV(req: Request, res: Response) {
         if (isNaN(companyId) || isNaN(departmentId) || isNaN(incidentTypeId) || 
             isNaN(responseTimeHours) || isNaN(resolutionTimeHours)) {
           results.errors.push({
-            line: i + 1,
+            line: lineNumber,
             error: 'IDs e tempos devem ser números válidos'
           });
           continue;
@@ -720,24 +748,20 @@ export async function importSLAConfigurationsCSV(req: Request, res: Response) {
         // Validar lógica de negócio
         if (responseTimeHours >= resolutionTimeHours) {
           results.errors.push({
-            line: i + 1,
+            line: lineNumber,
             error: 'Tempo de resposta deve ser menor que tempo de resolução'
           });
           continue;
         }
 
-        // Verificar se já existe configuração similar
-        const existingConfig = await slaConfigurationService.getSLAConfigurations({
-          companyId,
-          departmentId,
-          incidentTypeId,
-          priorityId
-        });
+        // Verificar duplicidade usando o mapa carregado em lote
+        const configKey = `${companyId}-${departmentId}-${incidentTypeId}-${priorityId || 'null'}`;
+        const existingConfig = existingConfigsMap.get(configKey);
 
-        if (existingConfig.length > 0) {
+        if (existingConfig) {
           results.duplicates.push({
-            line: i + 1,
-            message: `Configuração similar já existe (ID: ${existingConfig[0].id})`
+            line: lineNumber,
+            message: `Configuração similar já existe (ID: ${existingConfig.id})`
           });
           continue;
         }
@@ -753,15 +777,18 @@ export async function importSLAConfigurationsCSV(req: Request, res: Response) {
           isActive
         });
 
+        // Adicionar ao mapa para evitar duplicatas dentro do mesmo CSV
+        existingConfigsMap.set(configKey, newConfig);
+
         results.success.push({
-          line: i + 1,
+          line: lineNumber,
           id: newConfig.id,
           message: 'Configuração criada com sucesso'
         });
 
       } catch (error) {
         results.errors.push({
-          line: i + 1,
+          line: lineNumber,
           error: error instanceof Error ? error.message : 'Erro desconhecido'
         });
       }
@@ -770,7 +797,7 @@ export async function importSLAConfigurationsCSV(req: Request, res: Response) {
     res.json({
       success: true,
       data: {
-        processed: lines.length - 1,
+        processed: records.length,
         successful: results.success.length,
         errors: results.errors.length,
         duplicates: results.duplicates.length,

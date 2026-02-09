@@ -16,7 +16,7 @@ export async function testPriorityFallback(): Promise<{
   try {
     const priorityService = new PriorityService();
     
-    // Testar empresa inexistente (deve usar fallback)
+    // Testar empresa inexistente (deve retornar lista vazia)
     const nonExistentCompany = 99999;
     const nonExistentDepartment = 99999;
     
@@ -25,35 +25,22 @@ export async function testPriorityFallback(): Promise<{
       nonExistentDepartment
     );
     
-    // Verificar se retornou prioridades padrão
-    if (!result.isDefault || result.source !== 'default') {
+    // Verificar se retornou lista vazia com source: 'none'
+    if (!result.isDefault || result.source !== 'none') {
       return {
         success: false,
-        message: 'Fallback não funcionou para empresa inexistente',
+        message: 'Fallback não funcionou para empresa inexistente - esperado source: "none"',
         details: result
       };
     }
     
-    // Verificar se tem as 4 prioridades padrão
-    if (result.priorities.length !== 4) {
+    // Verificar se a lista está vazia
+    if (result.priorities.length !== 0) {
       return {
         success: false,
-        message: `Esperado 4 prioridades padrão, recebido ${result.priorities.length}`,
+        message: `Esperado lista vazia, recebido ${result.priorities.length} prioridades`,
         details: result
       };
-    }
-    
-    // Verificar se as prioridades estão ordenadas por peso
-    let previousWeight = 0;
-    for (const priority of result.priorities) {
-      if (priority.weight <= previousWeight) {
-        return {
-          success: false,
-          message: 'Prioridades não estão ordenadas por peso',
-          details: result
-        };
-      }
-      previousWeight = priority.weight;
     }
     
     return {

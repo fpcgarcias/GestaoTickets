@@ -3747,22 +3747,9 @@ export class EmailNotificationService {
       const now = new Date();
       const filterValue = companyFilter && companyFilter.trim().length > 0 ? companyFilter.trim() : '*';
 
-      const parseFilter = (filter: string): ((companyId: number | null) => boolean) => {
-        if (!filter || filter === '*') return () => true;
-        if (filter.startsWith('<>')) {
-          const excludedId = parseInt(filter.substring(2), 10);
-          return (companyId: number | null) => companyId != null && companyId !== excludedId;
-        }
-        if (filter.includes(',')) {
-          const allowedIds = filter.split(',').map((id) => parseInt(id.trim(), 10)).filter((id) => !Number.isNaN(id));
-          return (companyId: number | null) => companyId != null && allowedIds.includes(companyId);
-        }
-        const specificId = parseInt(filter, 10);
-        if (Number.isNaN(specificId)) return () => true;
-        return (companyId: number | null) => companyId === specificId;
-      };
-
-      const companyFilterFn = parseFilter(filterValue);
+      // Importar parseCompanyFilter do helper compartilhado
+      const { parseCompanyFilter } = await import('../utils/company-filter');
+      const companyFilterFn = parseCompanyFilter(filterValue);
 
       const candidates = await db
         .select({
@@ -3825,8 +3812,14 @@ export class EmailNotificationService {
         if (!eligible) continue;
 
         const alert_sent_at = row.waiting_customer_alert_sent_at ? new Date(row.waiting_customer_alert_sent_at) : null;
+        
+        // Calcular effectiveAlertSentAt: se alert_sent_at < entered_at, tratar como null
+        // (pertence a um ciclo anterior de waiting_customer)
+        const effectiveAlertSentAt = (alert_sent_at && alert_sent_at.getTime() >= entered_at.getTime())
+          ? alert_sent_at
+          : null;
 
-        if (now.getTime() - entered_at.getTime() >= MS_48H && !alert_sent_at) {
+        if (now.getTime() - entered_at.getTime() >= MS_48H && !effectiveAlertSentAt) {
           const result = await this.sendWaitingCustomerClosureAlert(row.id);
           if (result.success) {
             await db.update(tickets).set({ waiting_customer_alert_sent_at: now }).where(eq(tickets.id, row.id));
@@ -3836,9 +3829,9 @@ export class EmailNotificationService {
         }
 
         if (
-          alert_sent_at &&
-          now.getTime() - alert_sent_at.getTime() >= MS_24H &&
-          (last_customer_reply_at == null || last_customer_reply_at.getTime() <= alert_sent_at.getTime())
+          effectiveAlertSentAt &&
+          now.getTime() - effectiveAlertSentAt.getTime() >= MS_24H &&
+          (last_customer_reply_at == null || last_customer_reply_at.getTime() <= effectiveAlertSentAt.getTime())
         ) {
           try {
             await storage.createTicketReply({

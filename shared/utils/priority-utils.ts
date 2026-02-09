@@ -47,19 +47,10 @@ export function getDepartmentPriorities(
   allPriorities?: DepartmentPriority[]
 ): PriorityResult {
   
-  console.log(`=== DEBUG getDepartmentPriorities (utils) ===`);
-  console.log(`Params: companyId=${companyId}, departmentId=${departmentId}`);
-  console.log(`AllPriorities length: ${allPriorities?.length || 0}`);
-  
   // Se não foi fornecida a lista, retorna estrutura para ser buscada no banco
   if (!allPriorities) {
     throw new Error('getDepartmentPriorities: allPriorities parameter is required');
   }
-
-  // Log das prioridades recebidas
-  allPriorities.forEach(p => {
-    console.log(`  Priority: ID=${p.id}, CompanyId=${p.company_id}, DeptId=${p.department_id}, Weight=${p.weight}, Active=${p.is_active}`);
-  });
 
   // Buscar prioridades customizadas para este departamento
   const customPriorities = allPriorities.filter(p => 
@@ -68,14 +59,8 @@ export function getDepartmentPriorities(
     p.is_active
   );
 
-  console.log(`Prioridades filtradas para dept ${departmentId}: ${customPriorities.length}`);
-  customPriorities.forEach(p => {
-    console.log(`  Filtered: ID=${p.id}, Weight=${p.weight}, Name=${p.name}`);
-  });
-
   // Se encontrou prioridades customizadas, retornar elas
   if (customPriorities.length > 0) {
-    console.log('Retornando prioridades customizadas');
     return {
       priorities: customPriorities.sort((a, b) => a.weight - b.weight),
       isDefault: false,
@@ -83,7 +68,6 @@ export function getDepartmentPriorities(
     };
   }
 
-  console.log('Nenhuma prioridade customizada encontrada, retornando lista vazia');
   // NÃO criar prioridades padrão hardcoded - retornar lista vazia
   return {
     priorities: [],

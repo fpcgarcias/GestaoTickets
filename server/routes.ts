@@ -3362,6 +3362,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         }
 
+        // Reset do campo waiting_customer_alert_sent_at ao entrar em waiting_customer
+
+        if (status === 'waiting_customer') {
+
+          updateData.waiting_customer_alert_sent_at = null;
+
+        }
+
       }
 
 

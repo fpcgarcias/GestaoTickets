@@ -258,10 +258,8 @@ export async function updatePriority(req: Request, res: Response) {
       });
     }
 
-    // Buscar prioridade existente para verificar permissões
-    const companyIdToSearch = userRole === 'admin' ? 0 : userCompanyId!;
-    const existingPriorities = await priorityService.getAllCompanyPriorities(companyIdToSearch);
-    const existingPriority = existingPriorities.find(p => p.id === priorityId);
+    // Buscar prioridade diretamente pelo ID
+    const existingPriority = await priorityService.getPriorityById(priorityId);
 
     if (!existingPriority) {
       return res.status(404).json({ 
@@ -270,7 +268,7 @@ export async function updatePriority(req: Request, res: Response) {
       });
     }
 
-    // Verificar permissões
+    // Verificar permissões usando company_id do registro retornado
     if (userRole === 'admin') {
       // Admin pode editar qualquer prioridade
     } else if (['company_admin', 'manager', 'supervisor'].includes(userRole)) {
@@ -369,10 +367,8 @@ export async function deletePriority(req: Request, res: Response) {
       });
     }
 
-    // Buscar prioridade existente para verificar permissões
-    const companyIdToSearch = userRole === 'admin' ? 0 : userCompanyId!;
-    const existingPriorities = await priorityService.getAllCompanyPriorities(companyIdToSearch);
-    const existingPriority = existingPriorities.find(p => p.id === priorityId);
+    // Buscar prioridade diretamente pelo ID
+    const existingPriority = await priorityService.getPriorityById(priorityId);
 
     if (!existingPriority) {
       return res.status(404).json({ 
@@ -381,7 +377,7 @@ export async function deletePriority(req: Request, res: Response) {
       });
     }
 
-    // Verificar permissões
+    // Verificar permissões usando company_id do registro retornado
     if (userRole === 'admin') {
       // Admin pode deletar qualquer prioridade
     } else if (['company_admin', 'manager', 'supervisor'].includes(userRole)) {

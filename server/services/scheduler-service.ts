@@ -1,30 +1,15 @@
 import { emailNotificationService } from './email-notification-service';
+import { expandCompanyFilter } from '../utils/company-filter';
+import { isWithinAllowedWindow } from '../utils/scheduler-window';
+import { db } from '../db';
+import { companies } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 export class SchedulerService {
   private intervalId: NodeJS.Timeout | null = null;
   private dailyDigestIntervalId: NodeJS.Timeout | null = null;
   private weeklyDigestIntervalId: NodeJS.Timeout | null = null;
   private isRunning = false;
-
-  // Função para interpretar o filtro de empresas
-  private parseCompanyFilter(filter: string): (companyId: number) => boolean {
-    if (!filter || filter === '*') {
-      return () => true; // Todas as empresas
-    }
-    
-    if (filter.startsWith('<>')) {
-      const excludedId = parseInt(filter.substring(2));
-      return (companyId: number) => companyId !== excludedId;
-    }
-    
-    if (filter.includes(',')) {
-      const allowedIds = filter.split(',').map(id => parseInt(id.trim()));
-      return (companyId: number) => allowedIds.includes(companyId);
-    }
-    
-    const specificId = parseInt(filter);
-    return (companyId: number) => companyId === specificId;
-  }
 
   // Iniciar o agendador (rodar a cada hora)
   start(): void {
@@ -73,8 +58,8 @@ export class SchedulerService {
       const hour = now.getHours();
       const minute = now.getMinutes();
       
-      // Respeitar horário de hibernação: não executar entre 21h e 6h
-      if ((hour >= 21) || (hour < 6)) {
+      // Respeitar janela de horário permitida
+      if (!isWithinAllowedWindow(now)) {
         return;
       }
       
@@ -89,7 +74,7 @@ export class SchedulerService {
     
     // Executar imediatamente se for 8h e estiver no horário permitido
     const now = new Date();
-    if (now.getHours() === 8 && now.getMinutes() === 0 && now.getHours() >= 6 && now.getHours() < 21) {
+    if (now.getHours() === 8 && now.getMinutes() === 0 && isWithinAllowedWindow(now)) {
       this.generateDailyDigest();
     }
   }
@@ -102,8 +87,8 @@ export class SchedulerService {
       const hour = now.getHours();
       const minute = now.getMinutes();
       
-      // Respeitar horário de hibernação: não executar entre 21h e 6h
-      if ((hour >= 21) || (hour < 6)) {
+      // Respeitar janela de horário permitida
+      if (!isWithinAllowedWindow(now)) {
         return;
       }
       
@@ -118,7 +103,7 @@ export class SchedulerService {
     
     // Executar imediatamente se for domingo às 9h e estiver no horário permitido
     const now = new Date();
-    if (now.getDay() === 0 && now.getHours() === 9 && now.getMinutes() === 0 && now.getHours() >= 6 && now.getHours() < 21) {
+    if (now.getDay() === 0 && now.getHours() === 9 && now.getMinutes() === 0 && isWithinAllowedWindow(now)) {
       this.generateWeeklyDigest();
     }
   }
@@ -128,15 +113,20 @@ export class SchedulerService {
     const companyFilter = process.env.SCHEDULER_COMPANY_FILTER || '*';
 
     try {
-      if (companyFilter === '*') {
-        // Para todas as empresas
-        await emailNotificationService.generateDailyDigestForParticipants();
-      } else {
-        // Para empresas específicas
-        const companyIds = companyFilter.split(',').map(id => parseInt(id.trim()));
-        for (const companyId of companyIds) {
-          await emailNotificationService.generateDailyDigestForParticipants(companyId);
-        }
+      // Buscar todas as empresas ativas
+      const allCompanies = await db
+        .select({ id: companies.id })
+        .from(companies)
+        .where(eq(companies.active, true));
+      
+      const allCompanyIds = allCompanies.map(c => c.id);
+      
+      // Expandir o filtro para obter a lista de IDs a processar
+      const companyIds = expandCompanyFilter(companyFilter, allCompanyIds);
+      
+      // Processar cada empresa
+      for (const companyId of companyIds) {
+        await emailNotificationService.generateDailyDigestForParticipants(companyId);
       }
     } catch (error) {
       console.error('[Scheduler] Erro ao gerar digest diário:', error);
@@ -148,15 +138,20 @@ export class SchedulerService {
     const companyFilter = process.env.SCHEDULER_COMPANY_FILTER || '*';
 
     try {
-      if (companyFilter === '*') {
-        // Para todas as empresas
-        await emailNotificationService.generateWeeklyDigestForParticipants();
-      } else {
-        // Para empresas específicas
-        const companyIds = companyFilter.split(',').map(id => parseInt(id.trim()));
-        for (const companyId of companyIds) {
-          await emailNotificationService.generateWeeklyDigestForParticipants(companyId);
-        }
+      // Buscar todas as empresas ativas
+      const allCompanies = await db
+        .select({ id: companies.id })
+        .from(companies)
+        .where(eq(companies.active, true));
+      
+      const allCompanyIds = allCompanies.map(c => c.id);
+      
+      // Expandir o filtro para obter a lista de IDs a processar
+      const companyIds = expandCompanyFilter(companyFilter, allCompanyIds);
+      
+      // Processar cada empresa
+      for (const companyId of companyIds) {
+        await emailNotificationService.generateWeeklyDigestForParticipants(companyId);
       }
     } catch (error) {
       console.error('[Scheduler] Erro ao gerar digest semanal:', error);
@@ -165,12 +160,8 @@ export class SchedulerService {
 
   // Verificar tickets e enviar notificações
   private async checkTickets(): Promise<void> {
-    // Adiciona restrição de horário: só executa entre 06:01 e 21:59
-    const now = new Date();
-    const hour = now.getHours();
-    const minute = now.getMinutes();
-    // Fora do intervalo permitido: antes de 6h, ou depois de 21h, ou exatamente 6:00 ou 22:00+
-    if ((hour < 6) || (hour > 21) || (hour === 6 && minute === 0)) {
+    // Verificar se está dentro da janela de horário permitida
+    if (!isWithinAllowedWindow()) {
       return;
     }
 

@@ -23,6 +23,7 @@ import {
   type PriorityResult,
   type PriorityConfig
 } from '@shared/utils/priority-utils';
+import { logger } from './logger';
 
 export class PriorityService {
   
@@ -31,8 +32,7 @@ export class PriorityService {
    */
   async getAllCompanyPriorities(companyId: number): Promise<DepartmentPriority[]> {
     try {
-      console.log(`=== DEBUG getAllCompanyPriorities ===`);
-      console.log(`Buscando prioridades para companyId: ${companyId}`);
+      logger.debug('getAllCompanyPriorities', { companyId });
       
       const priorities = await db
         .select()
@@ -43,15 +43,35 @@ export class PriorityService {
         ))
         .orderBy(departmentPriorities.department_id, departmentPriorities.weight);
 
-      console.log(`Query retornou ${priorities.length} prioridades`);
-      priorities.forEach(p => {
-        console.log(`  ID: ${p.id}, Dept: ${p.department_id}, Weight: ${p.weight}, Name: ${p.name}, Active: ${p.is_active}`);
+      logger.debug('getAllCompanyPriorities result', { 
+        companyId, 
+        count: priorities.length,
+        priorities: priorities.map(p => ({ id: p.id, dept: p.department_id, weight: p.weight, name: p.name, active: p.is_active }))
       });
 
       return priorities;
     } catch (error) {
-      console.error('Erro ao buscar prioridades da empresa:', error);
+      logger.error('Erro ao buscar prioridades da empresa', { companyId, error });
       throw new Error('Falha ao buscar prioridades da empresa');
+    }
+  }
+
+  /**
+   * Busca uma prioridade específica pelo ID
+   * Usado para operações de update/delete que precisam verificar permissões
+   */
+  async getPriorityById(id: number): Promise<DepartmentPriority | null> {
+    try {
+      const [priority] = await db
+        .select()
+        .from(departmentPriorities)
+        .where(eq(departmentPriorities.id, id))
+        .limit(1);
+
+      return priority || null;
+    } catch (error) {
+      logger.error('Erro ao buscar prioridade por ID', { id, error });
+      throw new Error('Falha ao buscar prioridade');
     }
   }
 
@@ -63,8 +83,7 @@ export class PriorityService {
     departmentId: number
   ): Promise<PriorityResult> {
     try {
-      console.log(`=== DEBUG getDepartmentPriorities ===`);
-      console.log(`CompanyId: ${companyId}, DepartmentId: ${departmentId}`);
+      logger.debug('getDepartmentPriorities', { companyId, departmentId });
       
       // Buscar empresa para verificar se usa sistema flexível
       const [company] = await db
@@ -73,28 +92,37 @@ export class PriorityService {
         .where(eq(companies.id, companyId))
         .limit(1);
 
-      console.log(`Company uses flexible SLA: ${company?.uses_flexible_sla}`);
+      logger.debug('Company flexible SLA status', { companyId, usesFlexibleSla: company?.uses_flexible_sla });
 
       // Se empresa não usa sistema flexível, retornar prioridades padrão
       if (!usesFlexibleSLA(company)) {
-        console.log('Usando sistema legado');
+        logger.debug('Using legacy system', { companyId });
         return await this.getLegacyPriorities(companyId, departmentId);
       }
 
       // Buscar todas as prioridades da empresa para eficiência
       const allPriorities = await this.getAllCompanyPriorities(companyId);
-      console.log(`Total prioridades da empresa: ${allPriorities.length}`);
-      console.log(`Prioridades encontradas:`, allPriorities.map(p => ({ id: p.id, dept: p.department_id, weight: p.weight, name: p.name })));
+      logger.debug('All company priorities fetched', { 
+        companyId, 
+        count: allPriorities.length,
+        priorities: allPriorities.map(p => ({ id: p.id, dept: p.department_id, weight: p.weight, name: p.name }))
+      });
       
       // Usar utilitário para determinar prioridades com fallback
       const result = getDepartmentPriorities(companyId, departmentId, allPriorities);
-      console.log(`Resultado final - isDefault: ${result.isDefault}, source: ${result.source}, count: ${result.priorities.length}`);
-      console.log(`Prioridades retornadas:`, result.priorities.map(p => ({ id: p.id, weight: p.weight, name: p.name })));
+      logger.debug('getDepartmentPriorities result', { 
+        companyId, 
+        departmentId,
+        isDefault: result.isDefault, 
+        source: result.source, 
+        count: result.priorities.length,
+        priorities: result.priorities.map(p => ({ id: p.id, weight: p.weight, name: p.name }))
+      });
       
       return result;
       
     } catch (error) {
-      console.error('Erro ao buscar prioridades do departamento:', error);
+      logger.error('Erro ao buscar prioridades do departamento', { companyId, departmentId, error });
       throw new Error('Falha ao buscar prioridades do departamento');
     }
   }
@@ -117,7 +145,11 @@ export class PriorityService {
 
     // Se existem prioridades reais, retornar elas
     if (existingPriorities.length > 0) {
-      console.log(`Encontradas ${existingPriorities.length} prioridades reais para departamento ${departmentId}`);
+      logger.debug('Found real priorities for legacy system', { 
+        companyId, 
+        departmentId, 
+        count: existingPriorities.length 
+      });
       return {
         priorities: existingPriorities,
         isDefault: false,
@@ -127,7 +159,7 @@ export class PriorityService {
 
     // Se não existem prioridades reais, retornar lista VAZIA
     // Isso permite que o frontend mostre apenas o botão "Criar Padrão"
-    console.log(`Nenhuma prioridade real encontrada, retornando lista vazia para departamento ${departmentId}`);
+    logger.debug('No real priorities found, returning empty list', { companyId, departmentId });
     return {
       priorities: [],
       isDefault: true,
@@ -168,7 +200,7 @@ export class PriorityService {
       return createdPriorities;
       
     } catch (error) {
-      console.error('Erro ao criar prioridades padrão:', error);
+      logger.error('Erro ao criar prioridades padrão', { companyId, departmentId, error });
       throw new Error('Falha ao criar prioridades padrão');
     }
   }
@@ -233,7 +265,7 @@ export class PriorityService {
       return createdPriority;
       
     } catch (error) {
-      console.error('Erro ao criar prioridade personalizada:', error);
+      logger.error('Erro ao criar prioridade personalizada', { priorityData, error });
       if (error instanceof Error) {
         throw error;
       }
@@ -306,7 +338,7 @@ export class PriorityService {
       return updatedPriority;
       
     } catch (error) {
-      console.error('Erro ao atualizar prioridade:', error);
+      logger.error('Erro ao atualizar prioridade', { priorityId, updateData, error });
       if (error instanceof Error) {
         throw error;
       }
@@ -343,7 +375,7 @@ export class PriorityService {
         .where(eq(departmentPriorities.id, priorityId));
         
     } catch (error) {
-      console.error('Erro ao remover prioridade:', error);
+      logger.error('Erro ao remover prioridade', { priorityId, error });
       if (error instanceof Error) {
         throw error;
       }
@@ -385,14 +417,18 @@ export class PriorityService {
         throw new Error('Pesos duplicados na reordenação');
       }
 
-      console.log('🔄 TODAS para temporário primeiro, depois TODAS para final!');
+      logger.debug('Reordering priorities - moving all to temporary weights first', { 
+        companyId, 
+        departmentId, 
+        count: priorityOrders.length 
+      });
       
       // Buscar o maior peso atual para usar como base para temporários
       const maxWeight = Math.max(...existingPriorities.map(p => p.weight));
-      console.log(`📊 Maior peso atual: ${maxWeight}`);
+      logger.debug('Max weight found', { maxWeight });
 
       // PASSO 1: TODAS as prioridades que serão alteradas vão para temporários únicos
-      console.log('📝 PASSO 1: Movendo TODAS para temporários...');
+      logger.debug('Step 1: Moving all to temporary weights');
       for (let i = 0; i < priorityOrders.length; i++) {
         const { id } = priorityOrders[i];
         const tempWeight = maxWeight + 100 + i; // Temporários únicos bem altos
@@ -405,11 +441,11 @@ export class PriorityService {
           })
           .where(eq(departmentPriorities.id, id));
         
-        console.log(`  ✓ Prioridade ${id} → temporário ${tempWeight}`);
+        logger.debug('Moved to temporary weight', { priorityId: id, tempWeight });
       }
 
       // PASSO 2: TODAS para os pesos finais desejados
-      console.log('🎯 PASSO 2: Aplicando pesos finais...');
+      logger.debug('Step 2: Applying final weights');
       const updatedPriorities: DepartmentPriority[] = [];
       
       for (const { id, weight } of priorityOrders) {
@@ -423,14 +459,18 @@ export class PriorityService {
           .returning();
         
         updatedPriorities.push(updated);
-        console.log(`  ✅ Prioridade ${id} → peso final ${weight}`);
+        logger.debug('Applied final weight', { priorityId: id, finalWeight: weight });
       }
 
-      console.log('✅ Reordenação concluída com sucesso!');
+      logger.debug('Reordering completed successfully', { 
+        companyId, 
+        departmentId, 
+        count: updatedPriorities.length 
+      });
       return updatedPriorities.sort((a, b) => a.weight - b.weight);
       
     } catch (error) {
-      console.error('❌ Erro ao reordenar prioridades:', error);
+      logger.error('Erro ao reordenar prioridades', { companyId, departmentId, priorityOrders, error });
       if (error instanceof Error) {
         throw error;
       }
@@ -452,7 +492,7 @@ export class PriorityService {
         .where(eq(companies.id, companyId));
         
     } catch (error) {
-      console.error('Erro ao ativar sistema flexível:', error);
+      logger.error('Erro ao ativar sistema flexível', { companyId, error });
       throw new Error('Falha ao ativar sistema flexível de SLA');
     }
   }
@@ -469,7 +509,7 @@ export class PriorityService {
       return validatePriorityWeights(result.priorities);
       
     } catch (error) {
-      console.error('Erro ao validar prioridades:', error);
+      logger.error('Erro ao validar prioridades', { companyId, departmentId, error });
       return {
         isValid: false,
         errors: ['Erro ao buscar prioridades para validação'],
