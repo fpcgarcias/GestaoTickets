@@ -41,6 +41,29 @@
   "dashboard": {
     "title": "Dashboard"
   },
+  "waiting_customer_modal": {
+    "title": "You have tickets waiting for your response",
+    "description": "Reply so we can continue the support.",
+    "department": "Department",
+    "auto_close_warning": "This ticket may be closed automatically due to lack of response.",
+    "reply_label": "Your reply (required)",
+    "reply_placeholder": "Type your message to continue the support...",
+    "reply_chars": "{count} characters (min. {min})",
+    "attachments_label": "Attachments (optional)",
+    "respond_later": "Reply later",
+    "skip": "Skip",
+    "send_reply": "Send reply",
+    "sending": "Sending...",
+    "reply_too_short": "Reply too short",
+    "reply_min_chars": "Type at least {min} characters to send your reply.",
+    "reply_sent": "Reply sent",
+    "reply_sent_desc": "Your reply was recorded. Support will follow up on the ticket.",
+    "reply_error": "Could not send your reply",
+    "attachment_added": "File attached",
+    "attachment_added_desc": "The file was attached to the ticket.",
+    "counter": "{current} of {total}",
+    "last_attendant_message": "Last message from support"
+  },
   "tickets": {
     "title": "Tickets"
   },
@@ -1996,6 +2019,7 @@
     "select_department": "Select a department",
     "select_type": "Select a type",
     "select_category": "Select a category",
+    "search_category": "Search category...",
     "no_categories_for_type": "No categories for this type",
     "found": "found",
     "default_all_priorities": "Default (all priorities)",
@@ -2046,7 +2070,12 @@
     "default_all": "Default (all)",
     "choose_company_to_view_matrix": "Choose a company to view the SLA matrix",
     "no_sla_configurations_found": "No SLA configurations found",
-    "create_sla_configs_to_view_matrix": "Create SLA configurations in the \"Configurations\" tab to view the matrix"
+    "create_sla_configs_to_view_matrix": "Create SLA configurations in the \"Configurations\" tab to view the matrix",
+    "error_duplicate_configuration": "An SLA configuration already exists for this combination of company, department, incident type and priority.",
+    "error_validation_failed": "Invalid data. Please check the fields and try again.",
+    "error_create_failed": "Error creating SLA configuration",
+    "error_update_failed": "Error updating SLA configuration",
+    "error_delete_failed": "Error deleting SLA configuration"
   },
   "satisfaction_dashboard": {
     "title": "Satisfaction Dashboard",

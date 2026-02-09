@@ -41,6 +41,29 @@
   "dashboard": {
     "title": "Painel de Controle"
   },
+  "waiting_customer_modal": {
+    "title": "Você tem tickets aguardando sua resposta",
+    "description": "Responda para que possamos continuar o atendimento.",
+    "department": "Departamento",
+    "auto_close_warning": "Este ticket pode ser fechado automaticamente por falta de resposta.",
+    "reply_label": "Sua resposta (obrigatório)",
+    "reply_placeholder": "Digite sua mensagem para dar sequência ao atendimento...",
+    "reply_chars": "{count} caracteres (mín. {min})",
+    "attachments_label": "Anexos (opcional)",
+    "respond_later": "Responder depois",
+    "skip": "Pular",
+    "send_reply": "Enviar resposta",
+    "sending": "Enviando...",
+    "reply_too_short": "Resposta muito curta",
+    "reply_min_chars": "Digite pelo menos {min} caracteres para enviar sua resposta.",
+    "reply_sent": "Resposta enviada",
+    "reply_sent_desc": "Sua resposta foi registrada. O atendimento dará sequência ao chamado.",
+    "reply_error": "Não foi possível enviar sua resposta",
+    "attachment_added": "Arquivo anexado",
+    "attachment_added_desc": "O arquivo foi anexado ao ticket.",
+    "counter": "{current} de {total}",
+    "last_attendant_message": "Última mensagem do atendente"
+  },
   "tickets": {
     "title": "Chamados"
   },
@@ -1996,6 +2019,7 @@
     "select_department": "Selecione um departamento",
     "select_type": "Selecione um tipo",
     "select_category": "Selecione uma categoria",
+    "search_category": "Buscar categoria...",
     "no_categories_for_type": "Sem categorias para este tipo",
     "found": "encontradas",
     "default_all_priorities": "Padrão (todas as prioridades)",
@@ -2046,7 +2070,12 @@
     "default_all": "Padrão (todas)",
     "choose_company_to_view_matrix": "Escolha uma empresa para visualizar a matriz SLA",
     "no_sla_configurations_found": "Nenhuma configuração SLA encontrada",
-    "create_sla_configs_to_view_matrix": "Crie configurações SLA na aba \"Configurações\" para visualizar a matriz"
+    "create_sla_configs_to_view_matrix": "Crie configurações SLA na aba \"Configurações\" para visualizar a matriz",
+    "error_duplicate_configuration": "Já existe uma configuração SLA para esta combinação de empresa, departamento, tipo de incidente e prioridade.",
+    "error_validation_failed": "Dados inválidos. Verifique os campos e tente novamente.",
+    "error_create_failed": "Erro ao criar configuração SLA",
+    "error_update_failed": "Erro ao atualizar configuração SLA",
+    "error_delete_failed": "Erro ao excluir configuração SLA"
   },
   "satisfaction_dashboard": {
     "title": "Dashboard de Satisfação",

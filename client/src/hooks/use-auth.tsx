@@ -1,7 +1,7 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest, queryClient, setSessionExpiredCallback } from '@/lib/queryClient';
-import { SATISFACTION_SURVEY_MODAL_SESSION_KEY } from '@/constants/satisfaction';
+import { SATISFACTION_SURVEY_MODAL_SESSION_KEY, WAITING_CUSTOMER_MODAL_SESSION_KEY } from '@/constants/satisfaction';
 import { useLocation } from 'wouter';
 
 interface Company {
@@ -62,6 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.setQueryData(['/api/auth/me'], null);
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem(SATISFACTION_SURVEY_MODAL_SESSION_KEY);
+      sessionStorage.removeItem(WAITING_CUSTOMER_MODAL_SESSION_KEY);
     }
     setLocation('/auth');
   };
@@ -149,6 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(userData);
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem(SATISFACTION_SURVEY_MODAL_SESSION_KEY);
+        sessionStorage.removeItem(WAITING_CUSTOMER_MODAL_SESSION_KEY);
       }
       if (userData.company) {
         setCompany(userData.company);

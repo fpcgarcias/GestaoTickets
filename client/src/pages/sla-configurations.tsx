@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,8 +28,11 @@ import {
   Loader2,
   Filter,
   RefreshCw,
-  FileText
+  FileText,
+  Check,
+  ChevronsUpDown
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
@@ -113,6 +118,9 @@ export default function SLAConfigurations() {
   const [editingSLA, setEditingSLA] = useState<SLAConfiguration | null>(null);
   // Unidade de tempo do formulário (apenas para UI). Mantemos o estado interno sempre em horas
   const [timeUnit, setTimeUnit] = useState<'hours' | 'days'>('hours');
+  // Estado do combobox de categoria (busca + rolagem, igual ao modal de clientes/atendentes)
+  const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
   
   // Estado para importação
   const [importResults, setImportResults] = useState<{
@@ -365,6 +373,20 @@ export default function SLAConfigurations() {
     enabled: !!selectedCompanyId,
   });
 
+  // Helper: monta mensagem de erro a partir da resposta da API (suporta i18n e códigos conhecidos)
+  type APIErrorBody = { code?: string; message?: string; error?: string; errors?: Array<{ message?: string; code?: string }> };
+  const getSLAErrorMessage = (
+    body: APIErrorBody,
+    fallbackKey: 'error_create_failed' | 'error_update_failed' | 'error_delete_failed'
+  ): string => {
+    if (body?.code === 'DUPLICATE_CONFIGURATION') {
+      return formatMessage('sla_config.error_duplicate_configuration');
+    }
+    if (body?.message && typeof body.message === 'string') return body.message;
+    if (Array.isArray(body?.errors) && body.errors[0]?.message) return body.errors[0].message;
+    return formatMessage(`sla_config.${fallbackKey}`);
+  };
+
   // Mutation para criar configuração SLA
   const createSLAMutation = useMutation({
     mutationFn: async (data: SLAConfigurationForm) => {
@@ -377,22 +399,27 @@ export default function SLAConfigurations() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      
+
       if (!res.ok) {
-        const error = await res.json();
-        if (process.env.NODE_ENV !== 'production') {
-          console.error('❌ [FRONTEND] Erro da API:', error);
+        let body: Record<string, unknown> = {};
+        try {
+          body = await res.json();
+        } catch {
+          // Resposta não é JSON (ex.: HTML de erro)
         }
-        throw new Error(error.error || error.message || 'Erro ao criar configuração SLA');
+        if (process.env.NODE_ENV !== 'production') {
+          console.error('❌ [FRONTEND] Erro da API:', body);
+        }
+        const message = getSLAErrorMessage(body as APIErrorBody, 'error_create_failed');
+        throw new Error(message);
       }
       return res.json();
     },
     onSuccess: async () => {
       toast({ title: formatMessage('sla_config.success'), description: formatMessage('sla_config.sla_configuration_created') });
-      
-      // Usar função auxiliar para invalidar cache
+
       await invalidateSLACache();
-      
+
       setIsAddDialogOpen(false);
       resetForm();
     },
@@ -414,10 +441,16 @@ export default function SLAConfigurations() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      
+
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || 'Erro ao atualizar configuração SLA');
+        let body: Record<string, unknown> = {};
+        try {
+          body = await res.json();
+        } catch {
+          //
+        }
+        const message = getSLAErrorMessage(body as APIErrorBody, 'error_update_failed');
+        throw new Error(message);
       }
       return res.json();
     },
@@ -445,10 +478,16 @@ export default function SLAConfigurations() {
       const res = await fetch(`/api/sla-configurations/${id}`, {
         method: 'DELETE',
       });
-      
+
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || 'Erro ao deletar configuração SLA');
+        let body: Record<string, unknown> = {};
+        try {
+          body = await res.json();
+        } catch {
+          //
+        }
+        const message = getSLAErrorMessage(body as APIErrorBody, 'error_delete_failed');
+        throw new Error(message);
       }
       return res.json();
     },
@@ -506,6 +545,7 @@ export default function SLAConfigurations() {
       companyId: selectedCompanyId || 1,
       departmentId: 1,
       incidentTypeId: 1,
+      categoryId: null,
       priorityId: null,
       responseTimeHours: 1,
       resolutionTimeHours: 8,
@@ -1398,6 +1438,8 @@ export default function SLAConfigurations() {
           setIsAddDialogOpen(false);
           setIsEditDialogOpen(false);
           setEditingSLA(null);
+          setCategoryPopoverOpen(false);
+          setCategorySearch('');
           resetForm();
         }
       }}>
@@ -1496,33 +1538,70 @@ export default function SLAConfigurations() {
                   </Select>
                 </div>
 
-                {/* Seletor de Categoria (apenas quando modo = category) */}
+                {/* Seletor de Categoria (apenas quando modo = category) - com barra de busca e rolagem, igual ao modal de clientes */}
                 {departmentSlaMode === 'category' && (
                   <div className="space-y-2">
                     <Label>{formatMessage('sla_config.category')} *</Label>
-                    <Select 
-                      value={formData.categoryId?.toString() || ''} 
-                      onValueChange={(value) => setFormData(prev => ({ 
-                        ...prev, 
-                        categoryId: value ? parseInt(value) : null 
-                      }))}
-                      disabled={!(formCategories && formCategories.length > 0)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={(formCategories && formCategories.length > 0) ? formatMessage('sla_config.select_category') : formatMessage('sla_config.no_categories_for_type')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {formCategories
-                          ?.filter((cat: any) => (cat?.is_active ?? cat?.active ?? true))
-                          .slice()
-                          .sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base', numeric: true }))
-                          .map((cat: any) => (
-                          <SelectItem key={cat.id} value={cat.id.toString()}>
-                            {cat.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={categoryPopoverOpen}
+                          disabled={!(formCategories && formCategories.length > 0)}
+                          className="w-full justify-between font-normal"
+                        >
+                          {formData.categoryId && formCategories?.length
+                            ? (formCategories.find((c: any) => c.id === formData.categoryId) as any)?.name ?? formatMessage('sla_config.select_category')
+                            : (formCategories && formCategories.length > 0) ? formatMessage('sla_config.select_category') : formatMessage('sla_config.no_categories_for_type')}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-full p-0" align="start">
+                        <Command className="max-h-[300px]">
+                          <CommandInput
+                            placeholder={formatMessage('sla_config.search_category')}
+                            value={categorySearch}
+                            onValueChange={setCategorySearch}
+                          />
+                          <CommandList className="max-h-[200px] overflow-y-auto">
+                            <CommandEmpty>
+                              <div className="py-6 text-center text-sm text-muted-foreground">
+                                {formatMessage('sla_config.no_categories_for_type')}
+                              </div>
+                            </CommandEmpty>
+                            <CommandGroup>
+                              {formCategories
+                                ?.filter((cat: any) => (cat?.is_active ?? cat?.active ?? true))
+                                .slice()
+                                .sort((a: any, b: any) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base', numeric: true }))
+                                .map((cat: any) => (
+                                  <CommandItem
+                                    key={cat.id}
+                                    value={cat.name}
+                                    onSelect={() => {
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        categoryId: cat.id,
+                                      }));
+                                      setCategoryPopoverOpen(false);
+                                      setCategorySearch('');
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        formData.categoryId === cat.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {cat.name}
+                                  </CommandItem>
+                                ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 )}
 
@@ -1649,6 +1728,8 @@ export default function SLAConfigurations() {
                 setIsAddDialogOpen(false);
                 setIsEditDialogOpen(false);
                 setEditingSLA(null);
+                setCategoryPopoverOpen(false);
+                setCategorySearch('');
                 resetForm();
               }}
             >

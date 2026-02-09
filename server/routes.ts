@@ -424,6 +424,8 @@ import {
 
 import { slaApi } from './api/sla-dashboard';
 
+import { getWaitingCustomerPending } from './api/waiting-customer-pending';
+
 
 
 // Schemas Zod para validação de Departamentos (definidos aqui temporariamente)
@@ -2041,6 +2043,10 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
     }
 
   });
+
+
+
+  router.get("/tickets/waiting-customer-pending", authRequired, getWaitingCustomerPending);
 
 
 

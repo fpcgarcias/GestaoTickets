@@ -229,9 +229,14 @@ export async function createSLAConfiguration(req: Request, res: Response) {
     });
     
     if (!validation.isValid) {
+      const firstError = validation.errors[0];
+      const message = firstError?.message ?? 'Dados inválidos';
+      const errorCode = firstError?.code;
       return res.status(400).json({
         success: false,
         error: 'Dados inválidos',
+        message,
+        code: errorCode,
         errors: validation.errors,
         warnings: validation.warnings
       });

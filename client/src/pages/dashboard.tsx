@@ -19,6 +19,7 @@ import { ModernPieChart } from '@/components/charts/modern-pie-chart';
 import { ModernBarChart } from '@/components/charts/modern-bar-chart';
 import { ComparisonArrow } from '@/components/ui/comparison-arrow';
 import { PendingSatisfactionSurveys } from '@/components/satisfaction/pending-survey-modal';
+import { PendingWaitingCustomerTickets } from '@/components/tickets/pending-waiting-customer-modal';
 
 // Definir tipos para os dados das consultas
 interface TicketStats {
@@ -105,8 +106,11 @@ export default function Dashboard() {
   const { formatMessage, locale } = useI18n();
   const isChangingFromIncidentType = useRef(false);
   const [selectedCompany, setSelectedCompany] = useState<string>("all");
-  const shouldShowSatisfactionPrompt = user?.role === 'customer';
-  
+  const isCustomer = user?.role === 'customer';
+  const [waitingCustomerDone, setWaitingCustomerDone] = useState(false);
+  const shouldShowWaitingCustomer = isCustomer;
+  const shouldShowSatisfactionPrompt = isCustomer && waitingCustomerDone;
+
   // Novo filtro de datas igual ao index.tsx
   const [timeFilter, setTimeFilter] = useState('this-month');
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
@@ -456,6 +460,12 @@ export default function Dashboard() {
 
   return (
     <div>
+      {shouldShowWaitingCustomer && (
+        <PendingWaitingCustomerTickets
+          enabled={shouldShowWaitingCustomer}
+          onDone={() => setWaitingCustomerDone(true)}
+        />
+      )}
       {shouldShowSatisfactionPrompt && (
         <PendingSatisfactionSurveys enabled={shouldShowSatisfactionPrompt} />
       )}
