@@ -268,6 +268,7 @@ export default function SLAConfigurations() {
       const params = new URLSearchParams();
       params.append('incident_type_id', formData.incidentTypeId.toString());
       params.append('active_only', 'true');
+      params.append('limit', '1000'); // Garantir lista completa (API usa limit=50 por padrão)
       const res = await fetch(`/api/categories?${params.toString()}`);
       if (!res.ok) return [];
       const response = await res.json();
@@ -346,6 +347,8 @@ export default function SLAConfigurations() {
   });
 
   // Buscar TODAS as categorias da empresa (para listar nomes em tabela/matriz)
+  // Usar limit alto para evitar paginação: em produção pode haver >50 categorias,
+  // e a API retorna apenas 50 por padrão, causando fallback para #id na tabela
   const { data: allCategories } = useQuery<any[]>({
     queryKey: ['/api/categories/all', selectedCompanyId],
     queryFn: async () => {
@@ -353,6 +356,7 @@ export default function SLAConfigurations() {
       const params = new URLSearchParams();
       params.append('company_id', String(selectedCompanyId));
       params.append('active_only', 'true');
+      params.append('limit', '5000'); // Buscar todas para exibir nomes corretos (API usa limit=50 por padrão)
       const res = await fetch(`/api/categories?${params.toString()}`);
       if (!res.ok) return [];
       const response = await res.json();
