@@ -13,7 +13,8 @@ async function canUserReplyToTicket(
   userId: number, 
   userRole: string, 
   ticketId: number, 
-  userCompanyId?: number
+  userCompanyId?: number,
+  isInternal?: boolean
 ): Promise<{ canReply: boolean; reason?: string }> {
   try {
     // Buscar o ticket com customer em uma única query (JOIN otimizado)
@@ -35,9 +36,14 @@ async function canUserReplyToTicket(
       return { canReply: false, reason: "Ticket não encontrado" };
     }
 
-    // Verificar se o ticket está resolvido
-    if (ticket.status === 'resolved') {
-      return { canReply: false, reason: "Não é possível responder a tickets resolvidos" };
+    // Verificar se o ticket está resolvido ou encerrado
+    if (ticket.status === 'resolved' || ticket.status === 'closed') {
+      // Permitir respostas internas de atendentes em tickets finalizados
+      const isStaffRole = userRole === 'admin' || userRole === 'support' || userRole === 'manager' || userRole === 'supervisor' || userRole === 'company_admin';
+      if (isStaffRole && isInternal) {
+        return { canReply: true };
+      }
+      return { canReply: false, reason: "Não é possível responder a tickets finalizados" };
     }
 
     // 🔥 OTIMIZAÇÃO: Verificar se o usuário é participante usando EXISTS (muito mais rápido)
@@ -139,7 +145,7 @@ export async function POST(req: Request, res: Response) {
       isUserParticipant = false;
     }
 
-    const permissionCheck = await canUserReplyToTicket(sessionUserId, userRole, ticketId, userCompanyId);
+    const permissionCheck = await canUserReplyToTicket(sessionUserId, userRole, ticketId, userCompanyId, validatedData.is_internal);
     if (!permissionCheck.canReply) {
       return res.status(403).json({ 
         error: "Acesso negado", 
@@ -264,6 +270,14 @@ export async function POST(req: Request, res: Response) {
       };
       if (validatedData.status === 'resolved' && ticket.status !== 'resolved') {
         updateData.resolved_at = new Date();
+      }
+      if (validatedData.status === 'closed' && ticket.status !== 'closed') {
+        updateData.resolved_at = new Date();
+      }
+      // Limpar resolved_at quando sair de status finalizado
+      if ((ticket.status === 'resolved' || ticket.status === 'closed') && 
+          (validatedData.status !== 'resolved' && validatedData.status !== 'closed')) {
+        updateData.resolved_at = null;
       }
       if (validatedData.status === 'ongoing' && !ticket.first_response_at) {
         updateData.first_response_at = new Date();

@@ -27,6 +27,7 @@ function translateTicketStatus(status: string): string {
     'pending_deployment': 'Aguardando Deploy',
     'reopened': 'Reaberto',
     'resolved': 'Resolvido',
+    'closed': 'Encerrado',
     // Valores especiais
     'undefined': 'Não Definido',
     'null': 'Não Definido',
@@ -534,7 +535,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
     const openTickets = processedTickets.filter(t => ['new', 'open'].includes(t.status)).length;
     const inProgressTickets = processedTickets.filter(t => ['in_progress', 'ongoing'].includes(t.status)).length;
     const resolvedTickets = processedTickets.filter(t => t.status === 'resolved').length;
-    const closedTickets = processedTickets.filter(t => t.status === 'resolved').length; // usando resolved como closed
+    const closedTickets = processedTickets.filter(t => t.status === 'closed').length;
 
     res.json({
       tickets: processedTickets,

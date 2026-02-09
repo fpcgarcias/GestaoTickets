@@ -418,6 +418,9 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                           <SelectItem value={TICKET_STATUS.RESOLVED}>
                             {getStatusConfig('resolved').icon} {formatMessage('tickets.resolved')}
                           </SelectItem>
+                          <SelectItem value={TICKET_STATUS.CLOSED}>
+                            {getStatusConfig('closed').icon} {formatMessage('tickets.closed')}
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     )}

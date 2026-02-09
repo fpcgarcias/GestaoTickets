@@ -1158,6 +1158,7 @@
     "new_tickets": "Chamados Novos",
     "ongoing_tickets": "Chamados em Andamento",
     "resolved_tickets": "Chamados Resolvidos",
+    "closed_tickets": "Chamados Encerrados",
     "other_status": "Outros Status",
     "avg_first_response": "Tempo Médio de Início de Atendimento",
     "avg_first_response_desc": "Tempo médio entre a criação e início de atendimento dos chamados",
@@ -1619,6 +1620,7 @@
     "pending_deployment": "Aguardando Deploy",
     "reopened": "Reaberto",
     "resolved": "Resolvido",
+    "closed": "Encerrado",
     "assigned_to": "Atendente",
     "all_officials": "Todos os Atendentes",
     "unassigned": "Não Atribuídos",
@@ -1631,7 +1633,8 @@
       "suspended": "⏸️ Suspensos",
       "waiting_customer": "⏳ Aguardando Cliente",
       "escalated": "🚨 Escalados",
-      "resolved": "✅ Resolvidos"
+      "resolved": "✅ Resolvidos",
+      "closed": "🔒 Encerrados"
     },
     "no_tickets": "Nenhum chamado encontrado",
     "no_tickets_search": "Tente ajustar seus termos de busca",
@@ -1670,6 +1673,7 @@
     "open": "Abrir",
     "sla": {
       "resolved": "Resolvido",
+      "closed": "Encerrado",
       "loading": "Carregando SLA...",
       "not_configured": "Sem SLA configurado",
       "paused": "SLA pausado",
@@ -2371,6 +2375,8 @@
       "status_changed_message": "O status do ticket #{ticketCode}: \"{title}\" foi alterado de \"{oldStatus}\" para \"{newStatus}\" por {changedBy}.",
       "ticket_resolved_title": "Ticket Resolvido",
       "ticket_resolved_message": "O ticket #{ticketCode}: \"{title}\" foi resolvido por {resolvedBy}.",
+      "ticket_closed_title": "Ticket Encerrado",
+      "ticket_closed_message": "O ticket #{ticketCode}: \"{title}\" foi encerrado por {changedBy}.",
       "new_reply_customer_title": "Nova Resposta no Seu Ticket",
       "new_reply_customer_message": "Há uma nova resposta no seu ticket \"{title}\".",
       "new_reply_client_title": "Nova Resposta de Cliente",

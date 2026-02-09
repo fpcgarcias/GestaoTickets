@@ -687,7 +687,10 @@ export class DatabaseStorage implements IStorage {
         if (periodEnd) monthBranch.push(lte(tickets.created_at, periodEnd));
         // Toggle hide_resolved deve atuar apenas no mês atual
         if (filters.hide_resolved) {
-          monthBranch.push(ne(tickets.status, 'resolved'));
+          monthBranch.push(and(
+            ne(tickets.status, 'resolved'),
+            ne(tickets.status, 'closed')
+          ));
         }
 
         const monthBranchCondition = monthBranch.length > 0 ? and(...monthBranch) : undefined;
@@ -698,13 +701,19 @@ export class DatabaseStorage implements IStorage {
       } else {
         // Se não conseguimos determinar período, cair no comportamento padrão abaixo
         if (filters.hide_resolved) {
-          whereClauses.push(ne(tickets.status, 'resolved'));
+          whereClauses.push(and(
+            ne(tickets.status, 'resolved'),
+            ne(tickets.status, 'closed')
+          ));
         }
       }
     } else {
       // Comportamento padrão existente para filtros de data e hide_resolved
       if (filters.hide_resolved) {
-        whereClauses.push(ne(tickets.status, 'resolved'));
+        whereClauses.push(and(
+          ne(tickets.status, 'resolved'),
+          ne(tickets.status, 'closed')
+        ));
       }
       // USAR MESMA LÓGICA DO DASHBOARD - start_date e end_date têm prioridade
       if (filters.start_date || filters.end_date) {
@@ -1177,10 +1186,18 @@ export class DatabaseStorage implements IStorage {
           ticketData.first_response_at = new Date();
         }
         
-        // Se o status está sendo alterado para 'resolved', marcamos a data de resolução
-        if (ticketData.status === 'resolved' && currentTicket.status !== 'resolved') {
-          console.log(`[SLA] ✅ TICKET RESOLVIDO: Definindo resolved_at para ticket ${id}`);
+        // Se o status está sendo alterado para 'resolved' ou 'closed', marcamos a data de resolução
+        if ((ticketData.status === 'resolved' || ticketData.status === 'closed') && 
+            (currentTicket.status !== 'resolved' && currentTicket.status !== 'closed')) {
+          console.log(`[SLA] ✅ TICKET FINALIZADO: Definindo resolved_at para ticket ${id} (status: ${ticketData.status})`);
           ticketData.resolved_at = new Date();
+        }
+        
+        // Se o status está saindo de 'resolved' ou 'closed' para outro status, limpamos resolved_at
+        if ((currentTicket.status === 'resolved' || currentTicket.status === 'closed') &&
+            (ticketData.status !== 'resolved' && ticketData.status !== 'closed')) {
+          console.log(`[SLA] 🔄 TICKET REABERTO: Limpando resolved_at para ticket ${id} (${currentTicket.status} → ${ticketData.status})`);
+          ticketData.resolved_at = null;
         }
       }
     }
@@ -1277,10 +1294,8 @@ export class DatabaseStorage implements IStorage {
       if (ticket && ticket.status !== status) {
         ticketUpdates.status = status;
         
-        // Se o status estiver sendo alterado para 'resolved', marcamos a data de resolução
-        if (status === 'resolved') {
-          ticketUpdates.resolved_at = new Date();
-        }
+        // Nota: A lógica de resolved_at é tratada no updateTicket
+        // Não precisamos duplicar aqui pois updateTicket já cuida disso
       }
     }
     

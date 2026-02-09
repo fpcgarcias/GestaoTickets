@@ -9,7 +9,8 @@ export type TicketStatus =
   | 'in_analysis'
   | 'pending_deployment'
   | 'reopened'
-  | 'resolved';
+  | 'resolved'
+  | 'closed';
 
 /**
  * ⏰ IMPORTANTE: Qualquer mudança de status de "new" para qualquer outro 
@@ -37,7 +38,8 @@ export const SLA_ACTIVE_STATUSES: TicketStatus[] = [
 
 // Status final (SLA finalizado)
 export const SLA_FINISHED_STATUSES: TicketStatus[] = [
-  'resolved'     // Resolvido
+  'resolved',    // Resolvido
+  'closed'       // Encerrado
 ];
 
 // Status que reiniciam o SLA quando aplicados
@@ -119,6 +121,13 @@ export const STATUS_CONFIG = {
     bgColor: 'bg-gray-100',
     textColor: 'text-gray-800',
     icon: '✅'
+  },
+  closed: {
+    label: 'Encerrado',
+    color: 'gray',
+    bgColor: 'bg-gray-100',
+    textColor: 'text-gray-800',
+    icon: '🔒'
   }
 } as const;
 

@@ -13,6 +13,38 @@ interface TranslationResult {
 }
 
 /**
+ * Traduz um status de ticket do português para o idioma atual
+ */
+function translateStatus(ptStatus: string, locale: SupportedLocale): string {
+  // Mapeamento de status em português para chaves de tradução
+  const statusMap: Record<string, string> = {
+    'Novo': 'tickets.new',
+    'Em Andamento': 'tickets.ongoing',
+    'Suspenso': 'tickets.suspended',
+    'Aguardando Cliente': 'tickets.waiting_customer',
+    'Escalado': 'tickets.escalated',
+    'Em Análise': 'tickets.in_analysis',
+    'Aguardando Deploy': 'tickets.pending_deployment',
+    'Reaberto': 'tickets.reopened',
+    'Resolvido': 'tickets.resolved',
+    'Encerrado': 'tickets.closed'
+  };
+
+  const key = statusMap[ptStatus];
+  if (key) {
+    try {
+      const intlInstance = createIntlInstance(locale);
+      return intlInstance.formatMessage({ id: key });
+    } catch (error) {
+      console.warn('Erro ao traduzir status:', error);
+      return ptStatus;
+    }
+  }
+
+  return ptStatus;
+}
+
+/**
  * Extrai variáveis de uma mensagem em português
  */
 function extractVariables(ptMessage: string): Record<string, string> {
@@ -122,6 +154,7 @@ function mapToTranslationKey(ptTitle: string, ptMessage: string): { key: string;
     'Status do Ticket Atualizado': 'notifications.messages.status_updated_title',
     'Status do Ticket Alterado': 'notifications.messages.status_changed_title',
     'Ticket Resolvido': 'notifications.messages.ticket_resolved_title',
+    'Ticket Encerrado': 'notifications.messages.ticket_closed_title',
     'Nova Resposta no Seu Ticket': 'notifications.messages.new_reply_customer_title',
     'Nova Resposta de Cliente': 'notifications.messages.new_reply_client_title',
     'Nova Resposta de Atendente': 'notifications.messages.new_reply_support_title',
@@ -150,6 +183,8 @@ function mapToTranslationKey(ptTitle: string, ptMessage: string): { key: string;
       messageKey = 'notifications.messages.status_changed_message';
     } else if (ptTitle === 'Ticket Resolvido') {
       messageKey = 'notifications.messages.ticket_resolved_message';
+    } else if (ptTitle === 'Ticket Encerrado') {
+      messageKey = 'notifications.messages.ticket_closed_message';
     } else if (ptTitle === 'Nova Resposta no Seu Ticket') {
       messageKey = 'notifications.messages.new_reply_customer_message';
     } else if (ptTitle === 'Nova Resposta de Cliente') {
@@ -235,6 +270,7 @@ export function translateNotification(
       'Status do Ticket Atualizado': 'notifications.messages.status_updated_title',
       'Status do Ticket Alterado': 'notifications.messages.status_changed_title',
       'Ticket Resolvido': 'notifications.messages.ticket_resolved_title',
+      'Ticket Encerrado': 'notifications.messages.ticket_closed_title',
       'Nova Resposta no Seu Ticket': 'notifications.messages.new_reply_customer_title',
       'Nova Resposta de Cliente': 'notifications.messages.new_reply_client_title',
       'Nova Resposta de Atendente': 'notifications.messages.new_reply_support_title',
@@ -259,6 +295,14 @@ export function translateNotification(
     
     if (mapping.key) {
       const messageVars = { ...mapping.vars };
+      
+      // 🔥 TRADUZIR STATUS: Se a mensagem contém status, traduzi-los para o idioma atual
+      if (messageVars.oldStatus) {
+        messageVars.oldStatus = translateStatus(messageVars.oldStatus, currentLocale);
+      }
+      if (messageVars.newStatus) {
+        messageVars.newStatus = translateStatus(messageVars.newStatus, currentLocale);
+      }
       
       // Para ticket_escalated_message, construir o texto "por {escalatedBy}" se necessário
       if (mapping.key === 'notifications.messages.ticket_escalated_message') {

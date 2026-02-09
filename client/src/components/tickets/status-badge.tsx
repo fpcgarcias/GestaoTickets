@@ -37,7 +37,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, className }) =
       'in_analysis': formatMessage('tickets.in_analysis'),
       'pending_deployment': formatMessage('tickets.pending_deployment'),
       'reopened': formatMessage('tickets.reopened'),
-      'resolved': formatMessage('tickets.resolved')
+      'resolved': formatMessage('tickets.resolved'),
+      'closed': formatMessage('tickets.closed')
     };
     return statusMap[status] || config.label;
   };
@@ -71,7 +72,8 @@ export const StatusIcon: React.FC<StatusIconProps> = ({ status, className }) => 
       'in_analysis': formatMessage('tickets.in_analysis'),
       'pending_deployment': formatMessage('tickets.pending_deployment'),
       'reopened': formatMessage('tickets.reopened'),
-      'resolved': formatMessage('tickets.resolved')
+      'resolved': formatMessage('tickets.resolved'),
+      'closed': formatMessage('tickets.closed')
     };
     return statusMap[status] || config.label;
   };

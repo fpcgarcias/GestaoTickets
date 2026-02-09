@@ -535,6 +535,7 @@ export default function TicketsIndex() {
               <SelectItem value="pending_deployment">{formatMessage('tickets.pending_deployment')}</SelectItem>
               <SelectItem value="reopened">{formatMessage('tickets.reopened')}</SelectItem>
               <SelectItem value="resolved">{formatMessage('tickets.resolved')}</SelectItem>
+              <SelectItem value="closed">{formatMessage('tickets.closed')}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -625,6 +626,9 @@ export default function TicketsIndex() {
           </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.RESOLVED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
             {formatMessage('tickets.tabs.resolved')}
+          </TabsTrigger>
+          <TabsTrigger value={TICKET_STATUS.CLOSED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
+            {formatMessage('tickets.tabs.closed')}
           </TabsTrigger>
         </TabsList>
       </Tabs>

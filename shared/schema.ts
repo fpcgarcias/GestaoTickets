@@ -13,7 +13,8 @@ export const ticketStatusEnum = pgEnum('ticket_status', [
   'in_analysis',
   'pending_deployment',
   'reopened',
-  'resolved'
+  'resolved',
+  'closed'
 ]);
 // Enum para modo de SLA por departamento
 export const slaModeEnum = pgEnum('sla_mode', [
@@ -364,6 +365,7 @@ export const emailTemplateTypeEnum = pgEnum('email_template_type', [
   'ticket_reply',         // Nova resposta
   'status_changed',       // Status alterado
   'ticket_resolved',      // Ticket resolvido
+  'ticket_closed',        // Ticket encerrado
   'ticket_escalated',     // Ticket escalado
   'ticket_due_soon',      // Vencimento próximo
   'customer_registered',  // Novo cliente registrado
@@ -624,7 +626,7 @@ export const insertTicketSchema = z.object({
 export const insertTicketReplySchema = z.object({
   ticket_id: z.number(),
   message: z.string().min(1, "A mensagem é obrigatória"),
-  status: z.enum(['new', 'ongoing', 'suspended', 'waiting_customer', 'escalated', 'in_analysis', 'pending_deployment', 'reopened', 'resolved']),
+  status: z.enum(['new', 'ongoing', 'suspended', 'waiting_customer', 'escalated', 'in_analysis', 'pending_deployment', 'reopened', 'resolved', 'closed']),
   type: z.string().optional(),
   is_internal: z.boolean().default(false),
   assigned_to_id: z.number().optional(),

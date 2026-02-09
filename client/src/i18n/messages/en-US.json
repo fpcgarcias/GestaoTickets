@@ -1158,6 +1158,7 @@
     "new_tickets": "New Tickets",
     "ongoing_tickets": "Ongoing Tickets",
     "resolved_tickets": "Resolved Tickets",
+    "closed_tickets": "Closed Tickets",
     "other_status": "Other Status",
     "avg_first_response": "Average First Response Time",
     "avg_first_response_desc": "Average time between ticket creation and first response",
@@ -1619,6 +1620,7 @@
     "pending_deployment": "Pending Deployment",
     "reopened": "Reopened",
     "resolved": "Resolved",
+    "closed": "Closed",
     "assigned_to": "Assigned To",
     "all_officials": "All Officials",
     "unassigned": "Unassigned",
@@ -1631,7 +1633,8 @@
       "suspended": "⏸️ Suspended",
       "waiting_customer": "⏳ Waiting Customer",
       "escalated": "🚨 Escalated",
-      "resolved": "✅ Resolved"
+      "resolved": "✅ Resolved",
+      "closed": "🔒 Closed"
     },
     "no_tickets": "No tickets found",
     "no_tickets_search": "Try adjusting your search terms",
@@ -1670,6 +1673,7 @@
     "open": "Open",
     "sla": {
       "resolved": "Resolved",
+      "closed": "Closed",
       "loading": "Loading SLA...",
       "not_configured": "No SLA configured",
       "paused": "SLA paused",
@@ -2371,6 +2375,8 @@
       "status_changed_message": "The status of ticket #{ticketCode}: \"{title}\" was changed from \"{oldStatus}\" to \"{newStatus}\" by {changedBy}.",
       "ticket_resolved_title": "Ticket Resolved",
       "ticket_resolved_message": "Ticket #{ticketCode}: \"{title}\" was resolved by {resolvedBy}.",
+      "ticket_closed_title": "Ticket Closed",
+      "ticket_closed_message": "Ticket #{ticketCode}: \"{title}\" was closed by {changedBy}.",
       "new_reply_customer_title": "New Reply on Your Ticket",
       "new_reply_customer_message": "There is a new reply on your ticket \"{title}\".",
       "new_reply_client_title": "New Reply from Customer",
