@@ -1,4 +1,4 @@
-# Plano de Implementação: Correções do Scan Estático
+ # Plano de Implementação: Correções do Scan Estático
 
 ## Visão Geral
 
@@ -115,32 +115,32 @@ Implementação incremental das correções dos 12 achados do relatório de aná
     - Gerar registros com vírgulas, aspas e quebras de linha; serializar e parsear
     - **Validates: Requirements 6.1, 6.2, 6.3**
 
-- [ ] 8. Checkpoint — Verificar correções de alto impacto
+- [x] 8. Checkpoint — Verificar correções de alto impacto
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Remoção do @ts-nocheck e correção de tipos (Médio)
-  - [ ] 9.1 Remover `// @ts-nocheck` de `server/storage.ts` e corrigir erros de tipagem
+- [x] 9. Remoção do @ts-nocheck e correção de tipos (Médio)
+  - [x] 9.1 Remover `// @ts-nocheck` de `server/storage.ts` e corrigir erros de tipagem
     - Remover a diretiva da linha 1
     - Remover importação de `ticketPriorityEnum` se enum não existir no schema
     - Corrigir demais erros de tipo identificados por `getDiagnostics`
     - _Requirements: 8.1, 8.2_
 
-- [ ] 10. Consolidar APIs de prioridades duplicadas (Médio)
-  - [ ] 10.1 Migrar funções de `server/api/priorities.ts` para `server/api/department-priorities.ts`
+- [x] 10. Consolidar APIs de prioridades duplicadas (Médio)
+  - [x] 10.1 Migrar funções de `server/api/priorities.ts` para `server/api/department-priorities.ts`
     - Mover `getDepartmentPriorities` e `createDefaultPriorities` para `department-priorities.ts`
     - Resolver conflitos de nomes (funções já existem em ambos os arquivos)
     - _Requirements: 9.1_
 
-  - [ ] 10.2 Atualizar `server/routes.ts` para importar de `department-priorities.ts`
+  - [x] 10.2 Atualizar `server/routes.ts` para importar de `department-priorities.ts`
     - Alterar imports que apontam para `./api/priorities` para `./api/department-priorities`
     - _Requirements: 9.2_
 
-  - [ ] 10.3 Remover `server/api/priorities.ts`
+  - [x] 10.3 Remover `server/api/priorities.ts`
     - Deletar o arquivo após confirmar que todas as referências foram migradas
     - _Requirements: 9.3_
 
-- [ ] 11. Token seguro para pesquisa de satisfação (Médio)
-  - [ ] 11.1 Refatorar `generateSurveyToken()` em `server/services/email-notification-service.ts`
+- [x] 11. Token seguro para pesquisa de satisfação (Médio)
+  - [x] 11.1 Refatorar `generateSurveyToken()` em `server/services/email-notification-service.ts`
     - Importar `crypto` do Node.js
     - Substituir `Math.random()` por `crypto.randomBytes(16).toString('hex')`
     - Formato: `survey_${hex32chars}`
@@ -151,7 +151,7 @@ Implementação incremental das correções dos 12 achados do relatório de aná
     - Gerar múltiplos tokens e verificar formato, comprimento e unicidade
     - **Validates: Requirements 10.1, 10.2, 10.3**
 
-- [ ] 12. Checkpoint final — Verificar todas as correções
+- [x] 12. Checkpoint final — Verificar todas as correções
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notas

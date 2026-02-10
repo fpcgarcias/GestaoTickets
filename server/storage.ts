@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { 
   User, 
   InsertUser, 
@@ -15,7 +14,8 @@ import {
   OfficialDepartment,
   InsertOfficialDepartment,
   Company,
-  ticketStatusEnum, ticketPriorityEnum, userRoleEnum
+  ticketStatusEnum,
+  userRoleEnum
 } from "@shared/schema";
 import { generateTicketId } from "@shared/utils";
 

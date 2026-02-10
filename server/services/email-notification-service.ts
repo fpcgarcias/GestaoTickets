@@ -4,6 +4,7 @@ import { eq, and, isNull, inArray, not, ne, or, gte, gt, desc } from 'drizzle-or
 import { storage } from '../storage';
 import { emailConfigService } from './email-config-service';
 import nodemailer from 'nodemailer';
+import crypto from 'crypto';
 import { PriorityService } from "./priority-service";
 import { slaService } from './sla-service';
 import { 
@@ -3853,9 +3854,7 @@ export class EmailNotificationService {
   }
 
   private generateSurveyToken(): string {
-    const timestamp = Date.now().toString(36);
-    const randomPart = Math.random().toString(36).substring(2, 15);
-    return `survey_${timestamp}_${randomPart}`;
+    return `survey_${crypto.randomBytes(16).toString('hex')}`;
   }
 
 }

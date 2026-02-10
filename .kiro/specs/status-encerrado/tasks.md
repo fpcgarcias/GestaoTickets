@@ -243,58 +243,155 @@ Este plano detalha as tarefas necessárias para implementar o novo status "Encer
     - **Property 13: Histórico de Mudanças de Status**
     - **Valida: Requisitos 15.1, 15.2, 15.3, 15.4**
 
-- [ ] 20. Checkpoint - Testes de integração
-  - Executar todos os testes unitários e de propriedades
-  - Testar fluxo completo de auto-close
-  - Testar fluxo de reabertura de ticket encerrado
-  - Testar filtros em todas as telas
-  - Testar relatórios com tickets encerrados
-  - Verificar notificações in-app
-  - Perguntar ao usuário se há dúvidas
+- [ ] 20. Checkpoint - Testes de integração e validação
+  - [ ] 20.1 Executar suite de testes automatizados
+    - Rodar todos os testes unitários existentes
+    - Rodar testes de propriedades (se implementados)
+    - Verificar que não há erros de TypeScript
+    - Verificar que não há warnings no console
+    - _Requisitos: Todos_
+  
+  - [ ] 20.2 Testar fluxo completo de auto-close
+    - Criar ticket de teste via interface
+    - Alterar status para 'waiting_customer'
+    - Simular passagem de 72h (ajustar timestamp no banco ou aguardar)
+    - Executar auto-close job manualmente ou aguardar execução
+    - Verificar que status mudou para 'closed'
+    - Verificar que e-mail "Ticket Encerrado" foi enviado
+    - Verificar que pesquisa de satisfação foi criada
+    - Verificar que resolved_at está preenchido
+    - Verificar que histórico de status foi criado
+    - _Requisitos: 3.1, 3.2, 3.3, 3.4, 3.5, 14.2, 15.1_
+  
+  - [ ] 20.3 Testar fluxo de reabertura de ticket encerrado
+    - Usar ticket encerrado do teste anterior
+    - Como atendente, alterar status para 'reopened'
+    - Verificar que mudança foi permitida
+    - Verificar que resolved_at foi limpo (null)
+    - Verificar que histórico foi registrado
+    - Verificar que notificações foram criadas
+    - _Requisitos: 9.4, 14.3, 15.2_
+  
+  - [ ] 20.4 Testar restrições em tickets encerrados
+    - Usar ticket com status 'closed'
+    - Tentar adicionar resposta como cliente (deve falhar)
+    - Tentar alterar atendente responsável (deve falhar)
+    - Adicionar resposta interna como atendente (deve funcionar)
+    - Verificar mensagens de erro apropriadas
+    - _Requisitos: 9.1, 9.2, 9.3_
+  
+  - [ ] 20.5 Testar filtros em todas as telas
+    - **Página de Tickets**: Ativar filtro "Ocultar Resolvidos" e verificar que tickets 'closed' e 'resolved' não aparecem
+    - **Dashboard**: Verificar que contadores incluem tickets 'closed'
+    - **Relatórios**: Filtrar por status 'closed' e verificar resultados
+    - **Auditoria de IA**: Verificar que filtro de status inclui 'closed'
+    - _Requisitos: 6.1, 6.2, 7.1, 7.3, 7.4, 7.5_
+  
+  - [ ] 20.6 Testar visualizações e badges
+    - Verificar que badge de status 'closed' exibe "Encerrado" (pt-BR) ou "Closed" (en-US)
+    - Verificar que cores estão corretas (cinza)
+    - Verificar que ícone 🔒 aparece
+    - Testar em ambos os idiomas
+    - _Requisitos: 8.1, 8.2, 8.3, 13.3_
+  
+  - [ ] 20.7 Testar dropdowns de status
+    - Verificar que opção "Encerrado" aparece em dropdown de filtro (página de tickets)
+    - Verificar que opção "Encerrado" aparece em dropdown de mudança de status (resposta)
+    - Verificar que opção "Encerrado" aparece em filtros de relatórios
+    - Verificar traduções corretas em ambos os idiomas
+    - _Requisitos: 7.1, 7.2, 7.3_
+  
+  - [ ] 20.8 Testar notificações in-app
+    - Alterar status de um ticket para 'closed'
+    - Verificar que cliente recebeu notificação
+    - Verificar que atendente responsável recebeu notificação
+    - Verificar que texto da notificação está traduzido corretamente
+    - _Requisitos: 12.1, 12.2, 12.3_
+  
+  - [ ] 20.9 Testar SLA para status encerrado
+    - Criar ticket e iniciar SLA
+    - Alterar status para 'closed'
+    - Verificar que SLA parou de contar
+    - Verificar que SLA está marcado como finalizado
+    - Alterar status para 'ongoing'
+    - Verificar que SLA reiniciou (se aplicável)
+    - _Requisitos: 10.1, 10.2, 10.3_
 
-- [ ] 21. Atualizar documentação do banco de dados
-  - [ ] 21.1 Atualizar DOCUMENTACAO_ESTRUTURA_BD.md
-    - Documentar adição de 'closed' ao enum ticket_status
-    - Documentar adição de 'ticket_closed' ao enum email_template_type
-    - Incluir descrição do novo status
-    - Incluir descrição do novo template
+- [x] 21. Atualizar documentação do banco de dados
+  - [x] 21.1 Atualizar DOCUMENTACAO_ESTRUTURA_BD.md
+    - Abrir arquivo DOCUMENTACAO_ESTRUTURA_BD.md
+    - Localizar seção de enum ticket_status
+    - Adicionar 'closed' à lista de valores possíveis com descrição: "Ticket encerrado sem resolução efetiva (por timeout, abandono, etc)"
+    - Localizar seção de enum email_template_type
+    - Adicionar 'ticket_closed' à lista de valores possíveis com descrição: "Template enviado quando ticket é encerrado automaticamente"
+    - Adicionar nota sobre comportamento do campo resolved_at para status 'closed'
+    - Salvar e commitar alterações
     - _Requisitos: Todos (documentação)_
 
-- [ ] 22. Testes finais e validação
-  - [ ] 22.1 Testes manuais completos
-    - Criar ticket e deixar em waiting_customer
-    - Aguardar auto-close (ou simular)
-    - Verificar que status muda para 'closed'
-    - Verificar que e-mail "Ticket Encerrado" é enviado
-    - Verificar que pesquisa de satisfação é enviada
-    - Verificar que resolved_at está preenchido
-    - Verificar que histórico foi criado
-    - Verificar que notificações foram criadas
-    - Verificar que SLA está finalizado
-    - Verificar que filtros funcionam corretamente
-    - Verificar que relatórios incluem tickets encerrados
-    - Verificar que badges exibem corretamente
-    - Verificar que não é possível adicionar respostas
-    - Verificar que é possível reabrir o ticket
-    - Testar em ambos os idiomas (pt-BR e en-US)
+- [ ] 22. Revisão final de código e qualidade
+  - [ ] 22.1 Revisão de internacionalização
+    - Buscar por strings hardcoded relacionadas a status no código
+    - Verificar que todas as strings visíveis usam formatMessage() ou equivalente
+    - Verificar que chaves de tradução existem em pt-BR.json E en-US.json
+    - Verificar consistência de nomenclatura entre arquivos de tradução
+    - _Requisitos: 13.1, 13.2, 13.3, 13.4_
   
-  - [ ] 22.2 Revisão de código
-    - Verificar que todas as strings estão internacionalizadas
-    - Verificar que não há código duplicado
-    - Verificar que tratamento de erros está adequado
-    - Verificar que logs estão apropriados
+  - [ ] 22.2 Revisão de tratamento de erros
+    - Verificar que mudanças de status têm try/catch apropriados
+    - Verificar que erros de validação retornam mensagens claras
+    - Verificar que erros de permissão retornam 403 Forbidden
+    - Verificar que falhas em envio de e-mail não bloqueiam mudança de status
+    - Verificar que erros são logados apropriadamente
+    - _Requisitos: Todos (qualidade)_
   
-  - [ ] 22.3 Verificação de performance
-    - Verificar que queries não são N+1
-    - Verificar que índices do banco estão adequados
-    - Verificar que não há vazamentos de memória
+  - [ ] 22.3 Revisão de performance e queries
+    - Verificar que filtros de tickets não geram queries N+1
+    - Verificar que índices do banco incluem coluna status
+    - Verificar que queries de relatórios são otimizadas
+    - Verificar que não há vazamentos de memória em loops
+    - _Requisitos: Todos (performance)_
+  
+  - [ ] 22.4 Revisão de consistência visual
+    - Verificar que cores do status 'closed' são consistentes em todas as telas
+    - Verificar que ícone 🔒 aparece em todos os lugares apropriados
+    - Verificar que ordenação de status em dropdowns é consistente
+    - Verificar que layout de badges é consistente
+    - _Requisitos: 2.2, 2.3, 2.4, 8.2, 8.3_
 
-- [ ] 23. Checkpoint final
-  - Executar suite completa de testes
-  - Verificar cobertura de testes (meta: >80% linhas, >75% branches)
-  - Confirmar que todas as tarefas foram completadas
-  - Confirmar que documentação está atualizada
-  - Perguntar ao usuário se está pronto para deploy
+- [ ] 23. Checkpoint final e preparação para produção
+  - [ ] 23.1 Executar suite completa de testes
+    - Rodar todos os testes unitários
+    - Rodar todos os testes de propriedades (se implementados)
+    - Rodar testes de integração
+    - Verificar cobertura de testes (meta: >80% linhas, >75% branches)
+    - Corrigir quaisquer falhas encontradas
+    - _Requisitos: Todos_
+  
+  - [ ] 23.2 Validação de migração de banco de dados
+    - Verificar que migração é idempotente (pode rodar múltiplas vezes)
+    - Testar migração em banco de dados limpo
+    - Testar migração em banco de dados com dados existentes
+    - Verificar que rollback funciona (se aplicável)
+    - Documentar passos de migração para produção
+    - _Requisitos: 1.1, 1.2_
+  
+  - [ ] 23.3 Checklist de pré-deploy
+    - [ ] Todas as tarefas anteriores estão completas
+    - [ ] Todos os testes estão passando
+    - [ ] Documentação está atualizada (DOCUMENTACAO_ESTRUTURA_BD.md)
+    - [ ] Não há erros de TypeScript
+    - [ ] Não há warnings no console
+    - [ ] Código foi revisado
+    - [ ] Migrações foram testadas
+    - [ ] Templates de e-mail foram testados
+    - [ ] Traduções foram verificadas em ambos os idiomas
+    - [ ] Performance foi validada
+  
+  - [ ] 23.4 Perguntar ao usuário se está pronto para deploy
+    - Apresentar resumo de todas as mudanças implementadas
+    - Confirmar que todos os testes foram executados
+    - Confirmar que documentação está completa
+    - Aguardar aprovação final do usuário
 
 ## Notas
 

@@ -15,7 +15,11 @@
         "fixed": [
           "Correção da busca pelas categorias no banco de dados que estavam limitadas a 50, causando erro em telas que exibiam mais de 50 categorias.",
           "Correção do erro 400 que era ebixido ao tentar inserir uma configuração de SLA que já existia.",
-          "Correção do modal de categorias que ficava cortado ao exibir o limite da tela."
+          "Correção do modal de categorias que ficava cortado ao exibir o limite da tela.",
+          "Correção de tickets que podiam ser fechados antes do prazo ao retornar para \"aguardando cliente\".",
+          "Correção dos resumos por e-mail que podiam não ser enviados para as empresas corretas.",
+          "Correção que impedia administradores de editar ou excluir prioridades.",
+          "Correção na importação de arquivos CSV de SLA que podia falhar com certos formatos."
         ]
       }
     },

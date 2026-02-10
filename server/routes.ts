@@ -14750,7 +14750,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
     try {
 
-      const { getDepartmentPriorities } = await import('./api/priorities');
+      const { getDepartmentPriorities } = await import('./api/department-priorities');
 
       await getDepartmentPriorities(req, res);
 
@@ -14890,7 +14890,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
     try {
 
-      const { createDefaultPriorities } = await import('./api/priorities');
+      const { createDefaultPriorities } = await import('./api/department-priorities');
 
       await createDefaultPriorities(req, res);
 

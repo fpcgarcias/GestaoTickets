@@ -27,6 +27,7 @@ export async function getDepartmentPriorities(req: Request, res: Response) {
     const departmentId = parseInt(req.params.departmentId);
     const userCompanyId = req.session.companyId;
     const userRole = req.session.userRole;
+    const context = (req.query.context as string) || '';
 
     if (isNaN(departmentId)) {
       return res.status(400).json({ 
@@ -35,20 +36,9 @@ export async function getDepartmentPriorities(req: Request, res: Response) {
       });
     }
 
-    if (!userRole) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Usuário não autenticado' 
-      });
-    }
-
-    // Verificar se departamento existe e pertence à empresa do usuário
+    // Verificar se departamento existe
     const [department] = await db
-      .select({
-        id: departments.id,
-        company_id: departments.company_id,
-        name: departments.name
-      })
+      .select()
       .from(departments)
       .where(eq(departments.id, departmentId))
       .limit(1);
@@ -60,34 +50,115 @@ export async function getDepartmentPriorities(req: Request, res: Response) {
       });
     }
 
-    // Verificar permissões de acesso
+    // Verificar permissões
     let accessCompanyId = department.company_id;
+    const userId = req.session.userId;
     
-    if (userRole === 'admin') {
-      // Admin pode acessar qualquer empresa
+    if (!userRole || !userId) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Usuário não autenticado' 
+      });
+    }
+
+    // Para customers, permitir acesso se for da mesma empresa
+    if (userRole === 'customer') {
+      // Customers podem acessar qualquer departamento da empresa (para criar tickets)
       accessCompanyId = department.company_id;
     } else {
-      // Outros roles só podem acessar sua própria empresa
-      if (!userCompanyId || department.company_id !== userCompanyId) {
+      // Para outros roles, verificar se tem companyId e se é da mesma empresa
+      if (!userCompanyId) {
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Usuário não tem empresa associada' 
+        });
+      }
+
+      if (userRole !== 'admin' && department.company_id !== userCompanyId) {
         return res.status(403).json({ 
           success: false, 
           message: 'Sem permissão para acessar este departamento' 
         });
       }
-      accessCompanyId = userCompanyId;
+      
+      if (userRole !== 'admin') {
+        accessCompanyId = userCompanyId;
+      }
     }
 
-    // Verificar se accessCompanyId é válido
+    // 🆕 Para support/supervisor: verificar se tem acesso ao departamento específico
+    // EXCETO quando estiver no contexto de criação de ticket (context=create_ticket),
+    // onde devem visualizar prioridades de qualquer departamento da empresa
+    if ((userRole === 'support' || userRole === 'supervisor') && context !== 'create_ticket') {
+      const { officials, officialDepartments } = await import('@shared/schema');
+      
+      // Buscar o official do usuário
+      const [official] = await db
+        .select()
+        .from(officials)
+        .where(eq(officials.user_id, userId))
+        .limit(1);
+
+      if (!official) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Usuário não é um atendente' 
+        });
+      }
+
+      // Buscar departamentos do usuário
+      const userDepartments = await db
+        .select({ department_id: officialDepartments.department_id })
+        .from(officialDepartments)
+        .where(eq(officialDepartments.official_id, official.id));
+
+      let allowedDepartmentIds = userDepartments.map(d => d.department_id).filter(id => id !== null);
+
+      // Se for supervisor, incluir departamentos dos subordinados
+      if (userRole === 'supervisor') {
+        const subordinates = await db
+          .select({ id: officials.id })
+          .from(officials)
+          .where(eq(officials.supervisor_id, official.id));
+
+        for (const subordinate of subordinates) {
+          const subordinateDepartments = await db
+            .select({ department_id: officialDepartments.department_id })
+            .from(officialDepartments)
+            .where(eq(officialDepartments.official_id, subordinate.id));
+          
+          subordinateDepartments.forEach(dept => {
+            if (dept.department_id && !allowedDepartmentIds.includes(dept.department_id)) {
+              allowedDepartmentIds.push(dept.department_id);
+            }
+          });
+        }
+      }
+
+      // Verificar se o departamento está na lista permitida
+      const hasAccess = allowedDepartmentIds.includes(departmentId);
+      if (!hasAccess) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'Sem permissão para acessar prioridades deste departamento' 
+        });
+      }
+    }
+
+    if (userRole !== 'admin') {
+      accessCompanyId = userCompanyId || null;
+    }
+
     if (!accessCompanyId) {
-      return res.status(400).json({
-        success: false,
-        message: 'ID da empresa é obrigatório'
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID da empresa não encontrado' 
       });
     }
 
     // Buscar prioridades com fallback
     const result = await priorityService.getDepartmentPriorities(
-      accessCompanyId, 
+      accessCompanyId || department.company_id || 0, 
       departmentId
     );
 
@@ -641,7 +712,7 @@ export async function createDefaultPriorities(req: Request, res: Response) {
       });
     }
 
-    // Verificar se departamento existe e permissões
+    // Verificar se departamento existe
     const [department] = await db
       .select()
       .from(departments)
@@ -657,17 +728,81 @@ export async function createDefaultPriorities(req: Request, res: Response) {
 
     // Verificar permissões
     let targetCompanyId = department.company_id;
+    const userId = req.session.userId;
+    
+    if (!userRole || !userCompanyId || !userId) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Usuário não autenticado' 
+      });
+    }
     
     if (userRole === 'admin') {
       targetCompanyId = department.company_id;
-    } else if (['company_admin', 'manager', 'supervisor'].includes(userRole || '')) {
+    } else if (['company_admin', 'manager', 'supervisor'].includes(userRole)) {
       if (department.company_id !== userCompanyId) {
         return res.status(403).json({ 
           success: false, 
           message: 'Sem permissão para criar prioridades neste departamento' 
         });
       }
-      targetCompanyId = userCompanyId!;
+
+      // 🆕 Para supervisor: verificar se tem acesso ao departamento específico  
+      if (userRole === 'supervisor') {
+        const { officials, officialDepartments } = await import('@shared/schema');
+        
+        // Buscar o official do usuário
+        const [official] = await db
+          .select()
+          .from(officials)
+          .where(eq(officials.user_id, userId))
+          .limit(1);
+
+        if (!official) {
+          return res.status(403).json({ 
+            success: false, 
+            message: 'Usuário não é um atendente' 
+          });
+        }
+
+        // Buscar departamentos do usuário
+        const userDepartments = await db
+          .select()
+          .from(officialDepartments)
+          .where(eq(officialDepartments.official_id, official.id));
+
+        let allowedDepartmentIds = userDepartments.map(d => d.department_id).filter(id => id !== null);
+
+        // Incluir departamentos dos subordinados
+        const subordinates = await db
+          .select()
+          .from(officials)
+          .where(eq(officials.supervisor_id, official.id));
+
+        for (const subordinate of subordinates) {
+          const subordinateDepartments = await db
+            .select({ department_id: officialDepartments.department_id })
+            .from(officialDepartments)
+            .where(eq(officialDepartments.official_id, subordinate.id));
+          
+          subordinateDepartments.forEach(dept => {
+            if (dept.department_id && !allowedDepartmentIds.includes(dept.department_id)) {
+              allowedDepartmentIds.push(dept.department_id);
+            }
+          });
+        }
+
+        // Verificar se o departamento está na lista permitida
+        const hasAccess = allowedDepartmentIds.includes(departmentId);
+        if (!hasAccess) {
+          return res.status(403).json({ 
+            success: false, 
+            message: 'Sem permissão para criar prioridades neste departamento' 
+          });
+        }
+      }
+
+      targetCompanyId = userCompanyId;
     } else {
       return res.status(403).json({ 
         success: false, 
@@ -675,9 +810,16 @@ export async function createDefaultPriorities(req: Request, res: Response) {
       });
     }
 
-    // Criar prioridades padrão usando o serviço
+    if (!targetCompanyId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'ID da empresa não encontrado' 
+      });
+    }
+
+    // Criar prioridades padrão
     const createdPriorities = await priorityService.createDefaultPrioritiesForDepartment(
-      targetCompanyId || 0,
+      targetCompanyId,
       departmentId
     );
 
