@@ -273,7 +273,17 @@ export class EmailNotificationService {
       const statusMap: Record<string, string> = {
         'new': 'Novo',
         'ongoing': 'Em Andamento',
-        'resolved': 'Resolvido'
+        'suspended': 'Suspenso',
+        'waiting_customer': 'Aguardando Cliente',
+        'escalated': 'Escalado',
+        'in_analysis': 'Em Análise',
+        'pending_deployment': 'Aguardando Deploy',
+        'reopened': 'Reaberto',
+        'resolved': 'Resolvido',
+        'closed': 'Encerrado',
+        'undefined': 'Não Definido',
+        'null': 'Não Definido',
+        '': 'Não Definido'
       };
       return statusMap[status] || status;
     };
@@ -1503,6 +1513,9 @@ export class EmailNotificationService {
         '': 'Não Definido'
       };
 
+      const oldStatusText = statusTranslations[oldStatus] || oldStatus;
+      const newStatusText = statusTranslations[newStatus] || newStatus;
+
       // Obter URL base para a empresa
       const baseUrl = await this.getBaseUrlForCompany(ticket.company_id !== null && ticket.company_id !== undefined ? ticket.company_id : undefined);
       console.log(`[📧 EMAIL PROD] ✅ URL base obtida: ${baseUrl}`);
@@ -1512,8 +1525,8 @@ export class EmailNotificationService {
         customer: customer || { name: 'Cliente', email: ticket.customer_email },
         user: changedByUser,
         status_change: {
-          old_status: statusTranslations[oldStatus] || oldStatus,
-          new_status: statusTranslations[newStatus] || newStatus,
+          old_status: oldStatusText,
+          new_status: newStatusText,
           created_at: new Date(),
           changed_by: changedByUser
         },
@@ -1597,7 +1610,7 @@ export class EmailNotificationService {
             participants,
             'status_changed',
             context,
-            `O status do ticket #${ticket.ticket_id}: "${ticket.title}" foi alterado de "${oldStatus}" para "${newStatus}".`
+            `O status do ticket #${ticket.ticket_id}: "${ticket.title}" foi alterado de "${oldStatusText}" para "${newStatusText}".`
           );
         }
         return;
@@ -1761,7 +1774,7 @@ export class EmailNotificationService {
           participants,
           'status_changed',
           context,
-          `O status do ticket #${ticket.ticket_id}: "${ticket.title}" foi alterado de "${oldStatus}" para "${newStatus}".`
+          `O status do ticket #${ticket.ticket_id}: "${ticket.title}" foi alterado de "${oldStatusText}" para "${newStatusText}".`
         );
         console.log(`[📧 EMAIL PROD] 📊 PARTICIPANTES: ${participantResult.sent} enviados, ${participantResult.failed} falharam, ${participantResult.skipped} ignorados`);
       }

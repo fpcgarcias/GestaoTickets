@@ -11,11 +11,8 @@
         "fixed": [
           "Padronização do componente de filtro de período (DateRangeFilter) em todas as telas do sistema.",
           "Centralização dos itens de navegação em fonte única (Nav Config) para Sidebar e Header.",
-          "Substituição de cores hardcoded por tokens de tema em spinners, gráficos e página 404.",
-          "Padronização do componente LoadingSpinner com suporte a tema claro/escuro.",
-          "Internacionalização completa do Header e página 404 (PT-BR e EN-US).",
-          "Remoção de código duplicado e arquivos não utilizados (sidebar.tsx, mapeamentos de cores).",
-          "Correção de inconsistências visuais em componentes de gráficos e estados vazios."
+          "Correção de inconsistências visuais em componentes de gráficos e estados vazios.",
+          "Correção de tradução de status de tickets que chegavam incorretamente nos e-mails de notificação."
         ]
       }
     },
