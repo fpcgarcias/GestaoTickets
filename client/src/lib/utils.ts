@@ -66,26 +66,6 @@ export const PRIORITY_LEVELS = {
   CRITICAL: 'critical'
 };
 
-export const PRIORITY_COLORS = {
-  [PRIORITY_LEVELS.LOW]: 'bg-blue-200 text-blue-800',
-  [PRIORITY_LEVELS.MEDIUM]: 'bg-yellow-200 text-yellow-800',
-  [PRIORITY_LEVELS.HIGH]: 'bg-red-500 text-white',
-  [PRIORITY_LEVELS.CRITICAL]: 'bg-red-800 text-white'
-};
-
-export const STATUS_COLORS = {
-  [TICKET_STATUS.NEW]: 'bg-blue-100 text-blue-800',
-  [TICKET_STATUS.ONGOING]: 'bg-yellow-100 text-yellow-800',
-  [TICKET_STATUS.SUSPENDED]: 'bg-orange-100 text-orange-800',
-  [TICKET_STATUS.WAITING_CUSTOMER]: 'bg-purple-100 text-purple-800',
-  [TICKET_STATUS.ESCALATED]: 'bg-red-100 text-red-800',
-  [TICKET_STATUS.IN_ANALYSIS]: 'bg-indigo-100 text-indigo-800',
-  [TICKET_STATUS.PENDING_DEPLOYMENT]: 'bg-cyan-100 text-cyan-800',
-  [TICKET_STATUS.REOPENED]: 'bg-pink-100 text-pink-800',
-  [TICKET_STATUS.RESOLVED]: 'bg-green-100 text-green-800',
-  [TICKET_STATUS.CLOSED]: 'bg-gray-100 text-gray-800'
-};
-
 export const TICKET_TYPES = [
   { value: 'technical', label: 'Problema Técnico', departmentId: 1 },
   { value: 'billing', label: 'Dúvida de Faturamento', departmentId: 2 },

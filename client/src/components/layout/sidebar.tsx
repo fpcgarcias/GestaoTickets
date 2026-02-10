@@ -6,42 +6,16 @@ import { useTheme } from '@/contexts/theme-context';
 import { useI18n } from '@/i18n';
 import { Link } from 'wouter';
 import { 
-  LayoutDashboard, 
-  TicketIcon, 
-  Users, 
-  UserCog, 
-  Settings,
-  Building2,
-  FolderIcon,
-  TagIcon,
-  Tag,
   Menu,
   LogOut,
-  Shield,
-  Palette,
-  Clock,
-  BarChart3,
-  Grid3X3,
-  FileText,
-  Brain,
-  PieChart,
-  Star,
-  Briefcase,
   Boxes,
   ChevronDown,
   ChevronRight,
-  Package,
-  ArrowLeftRight,
-  ClipboardList,
-  Handshake,
-  MapPin,
-  FileSpreadsheet,
-  Layers,
-  Network,
 } from "lucide-react";
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { NAV_ITEMS, INVENTORY_ITEMS, INVENTORY_ROLES, filterNavItems } from '@/lib/nav-config';
 
 interface SidebarProps {
   currentPath: string;
@@ -79,22 +53,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
   // Usar o tema do contexto (executa apenas uma vez)
   const { companyName, companyLogo } = useTheme();
   
-  const inventoryRoles = ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'inventory_manager'];
-  const canAccessInventory = !!user && inventoryRoles.includes(user.role);
+  const canAccessInventory = !!user && INVENTORY_ROLES.includes(user.role);
 
-  const inventoryMenuItems = useMemo(() => [
-    { href: "/inventory", icon: <LayoutDashboard size={18} />, label: formatMessage('sidebar.inventory_overview') },
-    { href: "/inventory/catalog", icon: <Boxes size={18} />, label: formatMessage('sidebar.inventory_catalog') },
-    { href: "/inventory/movements", icon: <ArrowLeftRight size={18} />, label: formatMessage('sidebar.inventory_movements') },
-    { href: "/inventory/assignments", icon: <ClipboardList size={18} />, label: formatMessage('sidebar.inventory_assignments') },
-    { href: "/inventory/suppliers", icon: <Handshake size={18} />, label: formatMessage('sidebar.inventory_suppliers') },
-    { href: "/inventory/product-types", icon: <Layers size={18} />, label: formatMessage('sidebar.inventory_product_types') },
-    { href: "/inventory/product-categories", icon: <Tag size={18} />, label: formatMessage('sidebar.inventory_product_categories') },
-    { href: "/inventory/locations", icon: <MapPin size={18} />, label: formatMessage('sidebar.inventory_locations') },
-    { href: "/inventory/reports", icon: <FileSpreadsheet size={18} />, label: formatMessage('sidebar.inventory_reports') },
-    { href: "/inventory/webhooks", icon: <Network size={18} />, label: formatMessage('sidebar.inventory_webhooks') },
-    { href: "/inventory/term-templates", icon: <FileText size={18} />, label: formatMessage('sidebar.inventory_term_templates') },
-  ], [formatMessage]);
+  const inventoryMenuItems = useMemo(() => 
+    INVENTORY_ITEMS.map(item => ({
+      href: item.href,
+      icon: <item.icon size={18} />,
+      label: formatMessage(item.labelKey)
+    })),
+    [formatMessage]
+  );
+  
   const [isInventoryOpen, setIsInventoryOpen] = useState(currentPath.startsWith("/inventory"));
 
   useEffect(() => {
@@ -103,45 +72,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
     }
   }, [currentPath]);
   
-  // Definir itens de navegação com base no papel do usuário
-  const navItems = [
-    { href: "/", icon: <LayoutDashboard size={20} />, label: formatMessage('sidebar.dashboard'), roles: ['admin', 'support', 'customer', 'company_admin', 'manager', 'supervisor', 'viewer'] },
-    { href: "/tickets", icon: <TicketIcon size={20} />, label: formatMessage('sidebar.tickets'), roles: ['admin', 'support', 'customer', 'company_admin', 'manager', 'supervisor', 'viewer'] },
-    { href: "/clients", icon: <Users size={20} />, label: formatMessage('sidebar.clients'), roles: ['admin', 'support', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/users", icon: <Users size={20} />, label: formatMessage('sidebar.users'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/officials", icon: <UserCog size={20} />, label: formatMessage('sidebar.officials'), roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support'] },
-    { href: "/reports", icon: <PieChart size={20} />, label: formatMessage('sidebar.reports'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/companies", icon: <Building2 size={20} />, label: formatMessage('sidebar.companies'), roles: ['admin'] },
-    { href: "/permissions", icon: <Shield size={20} />, label: formatMessage('sidebar.permissions'), roles: ['admin'] },
-    { href: "/departments", icon: <FolderIcon size={20} />, label: formatMessage('sidebar.departments'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/service-providers", icon: <Briefcase size={20} />, label: formatMessage('sidebar.service_providers'), roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support'] },
-    { href: "/ticket-types", icon: <TagIcon size={20} />, label: formatMessage('sidebar.ticket_types'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/categories", icon: <Grid3X3 size={20} />, label: formatMessage('sidebar.categories'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/priority-settings", icon: <Palette size={20} />, label: formatMessage('sidebar.priorities'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/sla-configurations", icon: <Clock size={20} />, label: formatMessage('sidebar.sla_configurations'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/sla-dashboard", icon: <BarChart3 size={20} />, label: formatMessage('sidebar.sla_dashboard'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/satisfaction-dashboard", icon: <Star size={20} />, label: formatMessage('sidebar.satisfaction_dashboard'), roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
-    { href: "/performance-dashboard", icon: <BarChart3 size={20} />, label: formatMessage('sidebar.performance_dashboard'), roles: ['admin'] },
-    { href: "/ai-audit", icon: <Brain size={20} />, label: formatMessage('sidebar.ai_audit'), roles: ['admin', 'company_admin'] },
-    { href: "/logs", icon: <FileText size={20} />, label: formatMessage('sidebar.logs'), roles: ['admin'] },
-    { href: "/settings", icon: <Settings size={20} />, label: formatMessage('sidebar.settings'), roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'viewer'] },
-  ];
-  
   // Filtrar itens de navegação com base no papel do usuário atual
-  const filteredNavItems = navItems.filter(item => {
-    if (!user || !item.roles) return false;
-    return item.roles.includes(user.role);
-  });
+  const filteredNavItems = useMemo(() => {
+    if (!user) return [];
+    return filterNavItems(NAV_ITEMS, user.role).map(item => ({
+      href: item.href,
+      icon: <item.icon size={20} />,
+      label: formatMessage(item.labelKey),
+      roles: item.roles
+    }));
+  }, [user, formatMessage]);
 
-  const mobileNavItems = filteredNavItems.flatMap((item) => {
-    if (canAccessInventory && item.href === "/tickets") {
-      return [
-        item,
-        { href: "/inventory", icon: <Boxes size={20} />, label: formatMessage('sidebar.inventory'), roles: inventoryRoles },
-      ];
-    }
-    return [item];
-  });
+  const mobileNavItems = useMemo(() => {
+    return filteredNavItems.flatMap((item) => {
+      if (canAccessInventory && item.href === "/tickets") {
+        return [
+          item,
+          { href: "/inventory", icon: <Boxes size={20} />, label: formatMessage('sidebar.inventory'), roles: INVENTORY_ROLES },
+        ];
+      }
+      return [item];
+    });
+  }, [filteredNavItems, canAccessInventory, formatMessage]);
 
   return (
     <>

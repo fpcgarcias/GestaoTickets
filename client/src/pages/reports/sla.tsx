@@ -3,17 +3,16 @@ import { useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { DateRange } from 'react-day-picker';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Download, CalendarIcon, Filter, ChevronDown, ArrowLeft, Target, Clock, AlertTriangle } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { Download, Filter, ChevronDown, ArrowLeft, Target, Clock, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { PerformanceBarChart } from '@/components/charts/performance-bar-chart';
 import { PriorityBadge } from '@/components/tickets/status-badge';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 // Utilitário para converter data local (Brasília) para UTC ISO string
 function toBrasiliaISOString(date: Date, endOfDay = false) {
@@ -100,7 +99,12 @@ export default function SLAReports() {
   
   const [data, setData] = useState<SLAResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [timeFilter, setTimeFilter] = useState<string>('this-week');
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined
+  });
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [filters, setFilters] = useState<SLAFiltersState>({
     departmentId: searchParams.get('departmentId') || 'all',
     incidentTypeId: searchParams.get('incidentTypeId') || 'all',
@@ -114,10 +118,20 @@ export default function SLAReports() {
   const [isIncidentTypesLoading, setIsIncidentTypesLoading] = useState(false);
   const [canViewDepartments, setCanViewDepartments] = useState(false);
 
-  // Buscar dados apenas na montagem inicial
+  // Buscar dados quando filtros mudarem
   useEffect(() => {
     fetchReportsWithCurrentFilters();
-  }, []);
+    
+    // Atualizar URL com os filtros atuais
+    const newParams = new URLSearchParams();
+    if (dateRange?.from) newParams.set('start_date', toBrasiliaISOString(dateRange.from, false));
+    if (dateRange?.to) newParams.set('end_date', toBrasiliaISOString(dateRange.to, true));
+    if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
+    if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);
+    if (filters.assignedToId && filters.assignedToId !== 'all') newParams.set('assignedToId', filters.assignedToId);
+    if (filters.priority && filters.priority !== 'all') newParams.set('priority', filters.priority);
+    setSearchParams(newParams);
+  }, [dateRange, filters.departmentId, filters.incidentTypeId, filters.assignedToId, filters.priority, timeFilter]);
 
   // Função para buscar relatórios com filtros atuais
   const fetchReportsWithCurrentFilters = async () => {
@@ -358,10 +372,6 @@ export default function SLAReports() {
     setLocation('/reports');
   };
 
-  const handleApplyFilters = () => {
-    fetchReportsWithCurrentFilters();
-  };
-
   const handleExport = (format: 'csv' | 'excel') => {
     // TODO: Implementar exportação
     console.log('Exportar em', format);
@@ -419,39 +429,14 @@ export default function SLAReports() {
           <div className="grid gap-4 md:grid-cols-6">
             <div className="space-y-2 md:col-span-1">
               <label className="text-sm font-medium">Período</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal text-xs"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange?.from ? (
-                      dateRange.to ? (
-                        <>
-                          {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
-                          {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
-                        </>
-                      ) : (
-                        format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
-                      )
-                    ) : (
-                      <span>Selecione o período</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateRange?.from}
-                    selected={dateRange}
-                    onSelect={setDateRange}
-                    numberOfMonths={2}
-                    locale={ptBR}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DateRangeFilter
+                timeFilter={timeFilter}
+                setTimeFilter={setTimeFilter}
+                dateRange={dateRange}
+                setDateRange={setDateRange}
+                calendarOpen={calendarOpen}
+                setCalendarOpen={setCalendarOpen}
+              />
             </div>
 
             {canViewDepartments && (
@@ -538,19 +523,13 @@ export default function SLAReports() {
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="flex items-end">
-              <Button onClick={handleApplyFilters} className="w-full text-xs py-2">
-                Aplicar Filtros
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <LoadingSpinner size="lg" />
         </div>
       ) : !data ? (
         <Card>

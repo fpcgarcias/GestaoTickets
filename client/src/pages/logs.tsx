@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { 
   FileText, 
   Download, 
@@ -29,6 +30,7 @@ import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { formatBytes, formatDate } from '@/lib/utils';
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, format as formatDateFns } from 'date-fns';
 
 interface LogFile {
   name: string;
@@ -81,9 +83,42 @@ export default function LogsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [levelFilter, setLevelFilter] = useState<string>('all');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
+  const [timeFilter, setTimeFilter] = useState<string>('this-week');
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: startOfWeek(new Date(), { weekStartsOn: 0 }),
+    to: endOfWeek(new Date(), { weekStartsOn: 0 })
+  });
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [orderDirection, setOrderDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Atualizar dateRange quando timeFilter mudar
+  useEffect(() => {
+    const now = new Date();
+    switch (timeFilter) {
+      case 'this-week':
+        setDateRange({
+          from: startOfWeek(now, { weekStartsOn: 0 }),
+          to: endOfWeek(now, { weekStartsOn: 0 })
+        });
+        break;
+      case 'last-week':
+        const lastWeek = subWeeks(now, 1);
+        setDateRange({
+          from: startOfWeek(lastWeek, { weekStartsOn: 0 }),
+          to: endOfWeek(lastWeek, { weekStartsOn: 0 })
+        });
+        break;
+      case 'this-month':
+        setDateRange({
+          from: startOfMonth(now),
+          to: endOfMonth(now)
+        });
+        break;
+      case 'custom':
+        // Não alterar dateRange para custom, usuário escolhe manualmente
+        break;
+    }
+  }, [timeFilter]);
 
   // Redirecionar se não for admin
   useEffect(() => {
@@ -137,7 +172,7 @@ export default function LogsPage() {
     isLoading: isLoadingContent,
     refetch: refetchContent 
   } = useQuery<LogContent>({
-    queryKey: ['logs', 'content', selectedFile, currentPage, searchTerm, levelFilter, startDate, endDate],
+    queryKey: ['logs', 'content', selectedFile, currentPage, searchTerm, levelFilter, dateRange.from, dateRange.to],
     queryFn: async () => {
       if (!selectedFile) throw new Error('Nenhum arquivo selecionado');
       
@@ -146,8 +181,8 @@ export default function LogsPage() {
         limit: '1000',
         ...(searchTerm && { search: searchTerm }),
         ...(levelFilter && levelFilter !== 'all' && { level: levelFilter }),
-        ...(startDate && { startDate }),
-        ...(endDate && { endDate }),
+        ...(dateRange.from && { startDate: formatDateFns(dateRange.from, 'yyyy-MM-dd') }),
+        ...(dateRange.to && { endDate: formatDateFns(dateRange.to, 'yyyy-MM-dd') }),
       });
 
       const response = await apiRequest("GET", `/api/logs/${selectedFile}?${params}`);
@@ -356,7 +391,7 @@ export default function LogsPage() {
                   <CardContent className="space-y-4">
                     {/* Filtros */}
                     <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <Label htmlFor="search">Buscar</Label>
                           <Input
@@ -382,21 +417,14 @@ export default function LogsPage() {
                           </Select>
                         </div>
                         <div>
-                          <Label htmlFor="startDate">Data Início</Label>
-                          <Input
-                            id="startDate"
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="endDate">Data Fim</Label>
-                          <Input
-                            id="endDate"
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
+                          <Label htmlFor="period">Período</Label>
+                          <DateRangeFilter
+                            timeFilter={timeFilter}
+                            setTimeFilter={setTimeFilter}
+                            dateRange={dateRange}
+                            setDateRange={setDateRange}
+                            calendarOpen={calendarOpen}
+                            setCalendarOpen={setCalendarOpen}
                           />
                         </div>
                       </div>
@@ -409,8 +437,11 @@ export default function LogsPage() {
                           onClick={() => {
                             setSearchTerm('');
                             setLevelFilter('all');
-                            setStartDate('');
-                            setEndDate('');
+                            setTimeFilter('this-week');
+                            setDateRange({
+                              from: startOfWeek(new Date(), { weekStartsOn: 0 }),
+                              to: endOfWeek(new Date(), { weekStartsOn: 0 })
+                            });
                             setCurrentPage(1);
                           }}
                         >
@@ -448,7 +479,7 @@ export default function LogsPage() {
                             </p>
                             
                             {/* Indicador de filtros ativos */}
-                            {(searchTerm || levelFilter !== 'all' || startDate || endDate) && (
+                            {(searchTerm || levelFilter !== 'all' || dateRange.from || dateRange.to) && (
                               <div className="flex items-center gap-2">
                                 <Badge variant="secondary" className="text-xs">
                                   <Filter className="h-3 w-3 mr-1" />
@@ -464,12 +495,17 @@ export default function LogsPage() {
                                     Nível: {levelFilter}
                                   </Badge>
                                 )}
-                                {(startDate || endDate) && (
+                                {(dateRange.from || dateRange.to) && (
                                   <Badge variant="outline" className="text-xs">
-                                    {startDate && endDate ? `${startDate} → ${endDate}` : startDate || endDate}
-                                    <span className="ml-1 text-gray-500">
-                                      ({startDate && endDate ? 'Período' : startDate ? 'A partir de' : 'Até'})
-                                    </span>
+                                    {dateRange.from && dateRange.to ? (
+                                      <>
+                                        {formatDateFns(dateRange.from, 'dd/MM/yyyy')} → {formatDateFns(dateRange.to, 'dd/MM/yyyy')}
+                                      </>
+                                    ) : dateRange.from ? (
+                                      <>A partir de {formatDateFns(dateRange.from, 'dd/MM/yyyy')}</>
+                                    ) : (
+                                      <>Até {formatDateFns(dateRange.to!, 'dd/MM/yyyy')}</>
+                                    )}
                                   </Badge>
                                 )}
                               </div>

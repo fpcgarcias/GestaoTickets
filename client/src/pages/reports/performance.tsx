@@ -6,12 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Calendar } from '@/components/ui/calendar';
-import { DateRange } from 'react-day-picker';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Download, CalendarIcon, Filter, ChevronDown, ArrowLeft } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { Download, Filter, ChevronDown, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { PerformanceBarChart } from '@/components/charts/performance-bar-chart';
 
@@ -125,7 +122,12 @@ export default function PerformanceReports() {
   
   const [data, setData] = useState<PerformanceResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [timeFilter, setTimeFilter] = useState<string>('this-week');
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined
+  });
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [filters, setFilters] = useState<PerformanceFiltersState>({
     departmentId: searchParams.get('departmentId') || 'all',
     incidentTypeId: searchParams.get('incidentTypeId') || 'all',
@@ -148,10 +150,19 @@ export default function PerformanceReports() {
     { value: 'name', label: 'Nome (A-Z)' }
   ];
 
-  // Buscar dados apenas na montagem inicial
+  // Buscar dados quando filtros mudarem
   useEffect(() => {
     fetchReportsWithCurrentFilters();
-  }, []); // Executar apenas uma vez na montagem
+    
+    // Atualizar URL com os filtros atuais
+    const newParams = new URLSearchParams();
+    if (dateRange?.from) newParams.set('start_date', toBrasiliaISOString(dateRange.from, false));
+    if (dateRange?.to) newParams.set('end_date', toBrasiliaISOString(dateRange.to, true));
+    if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
+    if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);
+    newParams.set('showInactiveOfficials', filters.showInactiveOfficials ? 'true' : 'false');
+    setSearchParams(newParams);
+  }, [dateRange, filters.departmentId, filters.incidentTypeId, filters.showInactiveOfficials, timeFilter]);
 
   // Função para buscar relatórios com filtros atuais
   const fetchReportsWithCurrentFilters = async () => {
@@ -461,36 +472,14 @@ export default function PerformanceReports() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Período</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange?.from ? (
-                      dateRange?.to ? (
-                        <>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>
-                      ) : (
-                        format(dateRange.from, "dd/MM/yyyy")
-                      )
-                    ) : (
-                      <span>Selecione o período</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateRange?.from}
-                    selected={dateRange}
-                    onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
-                    numberOfMonths={2}
-                    locale={ptBR}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DateRangeFilter
+                timeFilter={timeFilter}
+                setTimeFilter={setTimeFilter}
+                dateRange={dateRange}
+                setDateRange={setDateRange}
+                calendarOpen={calendarOpen}
+                setCalendarOpen={setCalendarOpen}
+              />
             </div>
 
             {canViewDepartments && (
@@ -541,39 +530,18 @@ export default function PerformanceReports() {
 
           </div>
 
-          <div className="mt-4">
-            <div className="flex items-center space-x-2 mb-4">
-              <Checkbox
-                id="showInactiveOfficials"
-                checked={filters.showInactiveOfficials}
-                onCheckedChange={(checked) => handleFilterChange('showInactiveOfficials', checked === true)}
-              />
-              <label
-                htmlFor="showInactiveOfficials"
-                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-              >
-                Incluir atendentes inativos
-              </label>
-            </div>
-            
-            <Button onClick={() => {
-              // Atualizar URL com os filtros atuais
-              const newParams = new URLSearchParams();
-              
-              // Usar a mesma lógica de datas do dashboard para consistência
-              if (dateRange?.from) newParams.set('start_date', toBrasiliaISOString(dateRange.from, false));
-              if (dateRange?.to) newParams.set('end_date', toBrasiliaISOString(dateRange.to, true));
-              if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
-              if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);
-              newParams.set('showInactiveOfficials', filters.showInactiveOfficials ? 'true' : 'false');
-              
-              setSearchParams(newParams);
-              
-              // Buscar os dados
-              fetchReportsWithCurrentFilters();
-            }} disabled={loading}>
-              {loading ? 'Carregando...' : 'Aplicar Filtros'}
-            </Button>
+          <div className="mt-4 flex items-center space-x-2">
+            <Checkbox
+              id="showInactiveOfficials"
+              checked={filters.showInactiveOfficials}
+              onCheckedChange={(checked) => handleFilterChange('showInactiveOfficials', checked === true)}
+            />
+            <label
+              htmlFor="showInactiveOfficials"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              Incluir atendentes inativos
+            </label>
           </div>
         </CardContent>
       </Card>

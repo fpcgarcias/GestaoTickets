@@ -15,16 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
-import { ptBR, enUS } from 'date-fns/locale';
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { useI18n } from '@/i18n';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { DateRange } from 'react-day-picker';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { TicketCard } from '@/components/tickets/ticket-card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -346,71 +339,19 @@ export default function TicketsIndex() {
             />
           </div>
 
-          {timeFilter === 'custom' ? (
-            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-[280px] justify-start text-left font-normal"
-                >
-                  <Calendar className="mr-2 h-4 w-4" />
-                  {dateRange.from ? (
-                    dateRange.to ? (
-                      <>
-                        {format(dateRange.from, locale === 'en-US' ? "MM/dd/yyyy" : "dd/MM/yyyy", { locale: locale === 'en-US' ? enUS : ptBR })} {' - '} 
-                        {format(dateRange.to, locale === 'en-US' ? "MM/dd/yyyy" : "dd/MM/yyyy", { locale: locale === 'en-US' ? enUS : ptBR })}
-                      </>
-                    ) : (
-                      format(dateRange.from, locale === 'en-US' ? "MM/dd/yyyy" : "dd/MM/yyyy", { locale: locale === 'en-US' ? enUS : ptBR })
-                    )
-                  ) : (
-                    <span>{formatMessage('tickets.custom_period')}</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <CalendarComponent
-                  mode="range"
-                  selected={{
-                    from: dateRange.from,
-                    to: dateRange.to
-                  }}
-                  onSelect={(range: DateRange | undefined) => {
-                    setDateRange({ 
-                      from: range?.from,
-                      to: range?.to
-                    });
-                    setCurrentPage(1); // Reset to first page when date range changes
-                    if (range?.from && range?.to) {
-                      setTimeout(() => setCalendarOpen(false), 500);
-                    }
-                  }}
-                  locale={locale === 'en-US' ? enUS : ptBR}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          ) : (
-            <Select
-              value={timeFilter}
-              onValueChange={(value) => {
-                handleFilterChange(setTimeFilter)(value);
-                if (value === 'custom') {
-                  setTimeout(() => setCalendarOpen(true), 100);
-                }
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder={formatMessage('tickets.period')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="this-week">{formatMessage('tickets.this_week')}</SelectItem>
-                <SelectItem value="last-week">{formatMessage('tickets.last_week')}</SelectItem>
-                <SelectItem value="this-month">{formatMessage('tickets.this_month')}</SelectItem>
-                <SelectItem value="custom">{formatMessage('tickets.custom_period')}</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
+          <DateRangeFilter
+            timeFilter={timeFilter}
+            setTimeFilter={(value) => {
+              handleFilterChange(setTimeFilter)(value);
+            }}
+            dateRange={dateRange}
+            setDateRange={(range) => {
+              setDateRange(range);
+              setCurrentPage(1); // Reset to first page when date range changes
+            }}
+            calendarOpen={calendarOpen}
+            setCalendarOpen={setCalendarOpen}
+          />
         </div>
 
         {/* Segunda linha: Filtros de Departamento, Tipo de Chamado, Categoria, Prioridade, Status e Atendente */}

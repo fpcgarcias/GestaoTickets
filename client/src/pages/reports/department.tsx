@@ -4,15 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
-import { DateRange } from 'react-day-picker';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Download, CalendarIcon, Filter, ChevronDown, ArrowLeft, Building2 } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { Download, Filter, ChevronDown, ArrowLeft, Building2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { ModernBarChart } from '@/components/charts/modern-bar-chart';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 // Função utilitária para formatar tempo igual ao dashboard (TimeMetricCard)
 function formatTime(hours: number): string {
@@ -102,7 +100,12 @@ export default function DepartmentReports() {
   
   const [data, setData] = useState<DepartmentResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [timeFilter, setTimeFilter] = useState<string>('this-week');
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined
+  });
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [filters, setFilters] = useState<DepartmentFiltersState>({
     departmentId: searchParams.get('departmentId') || 'all',
     incidentTypeId: searchParams.get('incidentTypeId') || 'all'
@@ -124,10 +127,18 @@ export default function DepartmentReports() {
     { value: 'name', label: 'Nome (A-Z)' }
   ];
 
-  // Buscar dados apenas na montagem inicial
+  // Buscar dados quando filtros mudarem
   useEffect(() => {
     fetchReportsWithCurrentFilters();
-  }, []);
+    
+    // Atualizar URL com os filtros atuais
+    const newParams = new URLSearchParams();
+    if (dateRange?.from) newParams.set('start_date', toBrasiliaISOString(dateRange.from, false));
+    if (dateRange?.to) newParams.set('end_date', toBrasiliaISOString(dateRange.to, true));
+    if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
+    if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);
+    setSearchParams(newParams);
+  }, [dateRange, filters.departmentId, filters.incidentTypeId, timeFilter]);
 
   // Função para buscar relatórios com filtros atuais
   const fetchReportsWithCurrentFilters = async () => {
@@ -293,10 +304,6 @@ export default function DepartmentReports() {
     setLocation('/reports');
   };
 
-  const handleApplyFilters = () => {
-    fetchReportsWithCurrentFilters();
-  };
-
   // Preparar dados para o gráfico (formato ModernBarChart)
   // O gráfico sempre mostra tickets resolvidos, mas a ordenação pode variar
   const chartData = data?.departments
@@ -369,39 +376,14 @@ export default function DepartmentReports() {
           <div className={`grid gap-4 ${canViewDepartments ? 'md:grid-cols-5' : 'md:grid-cols-2'}`}>
             <div className="space-y-2">
               <label className="text-sm font-medium">Período</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange?.from ? (
-                      dateRange.to ? (
-                        <>
-                          {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
-                          {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
-                        </>
-                      ) : (
-                        format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
-                      )
-                    ) : (
-                      <span>Selecione o período</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateRange?.from}
-                    selected={dateRange}
-                    onSelect={setDateRange}
-                    numberOfMonths={2}
-                    locale={ptBR}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DateRangeFilter
+                timeFilter={timeFilter}
+                setTimeFilter={setTimeFilter}
+                dateRange={dateRange}
+                setDateRange={setDateRange}
+                calendarOpen={calendarOpen}
+                setCalendarOpen={setCalendarOpen}
+              />
             </div>
 
             {canViewDepartments && (
@@ -448,19 +430,13 @@ export default function DepartmentReports() {
                 </Select>
               </div>
             )}
-
-            <div className="flex items-end">
-              <Button onClick={handleApplyFilters} className="w-full">
-                Aplicar Filtros
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <LoadingSpinner size="lg" />
         </div>
       ) : !data ? (
         <Card>

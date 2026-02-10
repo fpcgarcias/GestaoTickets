@@ -4,15 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
-import { DateRange } from 'react-day-picker';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Download, CalendarIcon, Filter, ChevronDown, ArrowLeft, Users, Star, MessageSquare } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { Download, Filter, ChevronDown, ArrowLeft, Users, Star, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { ModernPieChart } from '@/components/charts/modern-pie-chart';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 // Utilitário para converter data local (Brasília) para UTC ISO string
 function toBrasiliaISOString(date: Date, endOfDay = false) {
@@ -96,7 +94,12 @@ export default function ClientReports() {
   
   const [data, setData] = useState<ClientResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [timeFilter, setTimeFilter] = useState<string>('this-week');
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined
+  });
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [filters, setFilters] = useState<ClientFiltersState>({
     departmentId: searchParams.get('departmentId') || 'all',
     incidentTypeId: searchParams.get('incidentTypeId') || 'all',
@@ -106,10 +109,19 @@ export default function ClientReports() {
   const [incidentTypes, setIncidentTypes] = useState<Array<{ id: number; name: string }>>([]);
   const [canViewDepartments, setCanViewDepartments] = useState(false);
 
-  // Buscar dados apenas na montagem inicial
+  // Buscar dados quando filtros mudarem
   useEffect(() => {
     fetchReportsWithCurrentFilters();
-  }, []);
+    
+    // Atualizar URL com os filtros atuais
+    const newParams = new URLSearchParams();
+    if (dateRange?.from) newParams.set('start_date', toBrasiliaISOString(dateRange.from, false));
+    if (dateRange?.to) newParams.set('end_date', toBrasiliaISOString(dateRange.to, true));
+    if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
+    if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);
+    if (filters.rating && filters.rating !== 'all') newParams.set('rating', filters.rating);
+    setSearchParams(newParams);
+  }, [dateRange, filters.departmentId, filters.incidentTypeId, filters.rating, timeFilter]);
 
   // Função para buscar relatórios com filtros atuais
   const fetchReportsWithCurrentFilters = async () => {
@@ -236,10 +248,6 @@ export default function ClientReports() {
     setLocation('/reports');
   };
 
-  const handleApplyFilters = () => {
-    fetchReportsWithCurrentFilters();
-  };
-
   const handleExport = (format: 'csv' | 'excel') => {
     // TODO: Implementar exportação
     console.log('Exportar em', format);
@@ -305,40 +313,14 @@ export default function ClientReports() {
           <div className="flex flex-wrap gap-3 items-end">
             <div className="space-y-2 flex-1 min-w-[140px]">
               <label className="text-sm font-medium">Período</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal text-xs"
-                    size="sm"
-                  >
-                    <CalendarIcon className="mr-1 h-3 w-3" />
-                    {dateRange?.from ? (
-                      dateRange.to ? (
-                        <>
-                          {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
-                          {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
-                        </>
-                      ) : (
-                        format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
-                      )
-                    ) : (
-                      <span className="text-xs">Selecione o período</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateRange?.from}
-                    selected={dateRange}
-                    onSelect={setDateRange}
-                    numberOfMonths={2}
-                    locale={ptBR}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DateRangeFilter
+                timeFilter={timeFilter}
+                setTimeFilter={setTimeFilter}
+                dateRange={dateRange}
+                setDateRange={setDateRange}
+                calendarOpen={calendarOpen}
+                setCalendarOpen={setCalendarOpen}
+              />
             </div>
 
             {canViewDepartments && (
@@ -402,19 +384,13 @@ export default function ClientReports() {
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="flex items-end">
-              <Button onClick={handleApplyFilters} size="sm" className="whitespace-nowrap">
-                Aplicar Filtros
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <LoadingSpinner size="lg" />
         </div>
       ) : !data ? (
         <Card>

@@ -2603,6 +2603,17 @@
         "access_token_required": "Access Token is required when ClickSign is enabled"
       }
     }
+  },
+  "header": {
+    "welcome": "Welcome, {name}!",
+    "my_account": "My Account",
+    "dark_mode": "Dark mode",
+    "settings": "Settings",
+    "logout": "Sign out"
+  },
+  "not_found": {
+    "title": "Page not found",
+    "description": "The page you are looking for does not exist or has been moved."
   }
 }
 

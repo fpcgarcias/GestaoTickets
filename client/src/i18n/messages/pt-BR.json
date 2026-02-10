@@ -2603,6 +2603,17 @@
         "access_token_required": "Access Token é obrigatório quando ClickSign está habilitado"
       }
     }
+  },
+  "header": {
+    "welcome": "Bem-vindo, {name}!",
+    "my_account": "Minha Conta",
+    "dark_mode": "Modo escuro",
+    "settings": "Configurações",
+    "logout": "Sair"
+  },
+  "not_found": {
+    "title": "Página não encontrada",
+    "description": "A página que você está procurando não existe ou foi movida."
   }
 }
 

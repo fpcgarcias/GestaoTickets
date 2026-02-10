@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { ChevronDown, Menu, User, Settings, LogOut, LayoutDashboard, TicketIcon, UserCog, Building2, FolderIcon, TagIcon, Moon, Sun } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { ChevronDown, Menu, User, Settings, LogOut, Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/contexts/theme-context';
+import { useI18n } from '@/i18n';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,11 +19,14 @@ import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
+import { NAV_ITEMS, filterNavItems } from '@/lib/nav-config';
+import { cn } from '@/lib/utils';
 
 export const Header: React.FC = () => {
   const [location, setLocation] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { toast } = useToast();
+  const { formatMessage } = useI18n();
 
   const { user, logout } = useAuth();
   
@@ -40,6 +44,12 @@ export const Header: React.FC = () => {
     avatarUrl: "", 
     initials: "U"
   };
+
+  // Filtrar itens de navegação com base no papel do usuário
+  const filteredNavItems = useMemo(() => {
+    if (!user) return [];
+    return filterNavItems(NAV_ITEMS, user.role);
+  }, [user]);
 
   // Função para fazer logout
   const handleLogout = async () => {
@@ -88,49 +98,33 @@ export const Header: React.FC = () => {
             </div>
             <div className="flex-1 overflow-y-auto">
               <nav className="p-4 space-y-1">
-              <Link href="/" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer transition-colors ${location === "/" ? "active bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"}`}>
-                <span className="mr-3 text-lg"><LayoutDashboard size={20} /></span>
-                <span className={location === "/" ? "font-medium" : ""}>Painel de Controle</span>
-              </Link>
-              <Link href="/tickets" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer transition-colors ${location.startsWith("/tickets") ? "active bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"}`}>
-                <span className="mr-3 text-lg"><TicketIcon size={20} /></span>
-                <span className={location.startsWith("/tickets") ? "font-medium" : ""}>Chamados</span>
-              </Link>
-              <Link href="/clients" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer transition-colors ${location.startsWith("/clients") ? "active bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"}`}>
-                <span className="mr-3 text-lg"><User size={20} /></span>
-                <span className={location.startsWith("/clients") ? "font-medium" : ""}>Clientes</span>
-              </Link>
-              <Link href="/users" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer transition-colors ${location.startsWith("/users") ? "active bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"}`}>
-                <span className="mr-3 text-lg"><User size={20} /></span>
-                <span className={location.startsWith("/users") ? "font-medium" : ""}>Usuários</span>
-              </Link>
-              <Link href="/officials" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer transition-colors ${location.startsWith("/officials") ? "active bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"}`}>
-                <span className="mr-3 text-lg"><UserCog size={20} /></span>
-                <span className={location.startsWith("/officials") ? "font-medium" : ""}>Atendentes</span>
-              </Link>
-                             <Link href="/companies" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer transition-colors ${location.startsWith("/companies") ? "active bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"}`}>
-                 <span className="mr-3 text-lg"><Building2 size={20} /></span>
-                 <span className={location.startsWith("/companies") ? "font-medium" : ""}>Empresas</span>
-               </Link>
-               <Link href="/departments" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer transition-colors ${location.startsWith("/departments") ? "active bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"}`}>
-                 <span className="mr-3 text-lg"><FolderIcon size={20} /></span>
-                 <span className={location.startsWith("/departments") ? "font-medium" : ""}>Departamentos</span>
-               </Link>
-               <Link href="/ticket-types" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer transition-colors ${location.startsWith("/ticket-types") ? "active bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"}`}>
-                 <span className="mr-3 text-lg"><TagIcon size={20} /></span>
-                 <span className={location.startsWith("/ticket-types") ? "font-medium" : ""}>Tipos de Chamado</span>
-               </Link>
-               {currentUser.role !== 'customer' && (
-                 <Link href="/settings" className={`sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer transition-colors ${location.startsWith("/settings") ? "active bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm" : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"}`}>
-                   <span className="mr-3 text-lg"><Settings size={20} /></span>
-                   <span className={location.startsWith("/settings") ? "font-medium" : ""}>Configurações</span>
-                 </Link>
-               )}
-             </nav>
-           </div>
-           </SheetContent>
+                {filteredNavItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = item.href === "/" 
+                    ? location === "/" 
+                    : location.startsWith(item.href);
+                  
+                  return (
+                    <Link 
+                      key={item.href}
+                      href={item.href} 
+                      className={cn(
+                        "sidebar-item flex items-center px-4 py-3 rounded-md cursor-pointer transition-colors",
+                        isActive 
+                          ? "active bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary shadow-sm" 
+                          : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                      )}
+                    >
+                      <span className="mr-3 text-lg"><Icon size={20} /></span>
+                      <span className={isActive ? "font-medium" : ""}>{formatMessage(item.labelKey)}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          </SheetContent>
         </Sheet>
-        <div className="text-muted-foreground">Bem-vindo, {currentUser.name}!</div>
+        <div className="text-muted-foreground">{formatMessage('header.welcome', { name: currentUser.name })}</div>
       </div>
 
       <div className="flex items-center">
@@ -148,7 +142,7 @@ export const Header: React.FC = () => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
-            <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+            <DropdownMenuLabel>{formatMessage('header.my_account')}</DropdownMenuLabel>
             {isDarkToggleAvailable && (
               <>
                 <DropdownMenuSeparator />
@@ -161,7 +155,7 @@ export const Header: React.FC = () => {
                 >
                   <div className="flex items-center gap-2">
                     {mode === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-                    <span>Modo escuro</span>
+                    <span>{formatMessage('header.dark_mode')}</span>
                   </div>
                   <Switch
                     checked={mode === 'dark'}
@@ -175,13 +169,13 @@ export const Header: React.FC = () => {
             {currentUser.role !== 'customer' && (
               <DropdownMenuItem onClick={goToSettings} className="cursor-pointer">
                 <Settings className="mr-2 h-4 w-4" />
-                <span>Configurações</span>
+                <span>{formatMessage('header.settings')}</span>
               </DropdownMenuItem>
             )}
             {currentUser.role !== 'customer' && <DropdownMenuSeparator />}
             <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
-              <span>Sair</span>
+              <span>{formatMessage('header.logout')}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
