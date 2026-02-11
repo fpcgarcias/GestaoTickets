@@ -6,8 +6,8 @@ Centralizar o mapeamento de tradução de status em um módulo compartilhado, co
 
 ## Tasks
 
-- [ ] 1. Criar módulo centralizado de tradução de status
-  - [ ] 1.1 Criar `server/utils/status-translations.ts` com os mapas de tradução pt-BR e en-US para status, prioridade e role
+- [x] 1. Criar módulo centralizado de tradução de status
+  - [x] 1.1 Criar `server/utils/status-translations.ts` com os mapas de tradução pt-BR e en-US para status, prioridade e role
     - Exportar `STATUS_TRANSLATIONS`, `PRIORITY_TRANSLATIONS`, `ROLE_TRANSLATIONS`
     - Exportar funções `translateStatus(status, language)`, `translatePriority(priority, language)`, `translateRole(role, language)`
     - Exportar função `detectLanguageFromDomain(domain)` que retorna `'pt-BR'` ou `'en-US'`
@@ -20,8 +20,8 @@ Centralizar o mapeamento de tradução de status em um módulo compartilhado, co
     - **Property 5: Tradução por idioma retorna valor correto do mapa**
     - **Validates: Requirements 1.1, 1.2, 1.3, 1.4, 5.1, 5.2**
 
-- [ ] 2. Atualizar `renderTemplate` no EmailNotificationService
-  - [ ] 2.1 Substituir funções locais `translateStatus`, `translatePriority`, `translateRole` por imports do módulo centralizado
+- [x] 2. Atualizar `renderTemplate` no EmailNotificationService
+  - [x] 2.1 Substituir funções locais `translateStatus`, `translatePriority`, `translateRole` por imports do módulo centralizado
     - Adicionar parâmetro de idioma ao `renderTemplate` ou detectar via contexto da empresa
     - Buscar domínio da empresa para determinar idioma antes de renderizar
     - Manter compatibilidade com todos os placeholders existentes
@@ -33,8 +33,8 @@ Centralizar o mapeamento de tradução de status em um módulo compartilhado, co
     - Testar fallback para status desconhecido
     - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 3. Corrigir customMessage em `notifyStatusChanged`
-  - [ ] 3.1 Atualizar `notifyStatusChanged` para usar módulo centralizado de tradução
+- [x] 3. Corrigir customMessage em `notifyStatusChanged`
+  - [x] 3.1 Atualizar `notifyStatusChanged` para usar módulo centralizado de tradução
     - Remover o `statusTranslations` local duplicado
     - Importar e usar `translateStatus` do módulo centralizado
     - Detectar idioma da empresa via domínio antes de traduzir
@@ -45,11 +45,11 @@ Centralizar o mapeamento de tradução de status em um módulo compartilhado, co
     - **Property 3: Custom_Message contém apenas textos traduzidos**
     - **Validates: Requirements 2.1**
 
-- [ ] 4. Checkpoint - Verificar que testes passam
+- [x] 4. Checkpoint - Verificar que testes passam
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Corrigir seed templates
-  - [ ] 5.1 Atualizar templates en-US na rota `seed-defaults` para usar variáveis `_text`
+- [x] 5. Corrigir seed templates
+  - [x] 5.1 Atualizar templates en-US na rota `seed-defaults` para usar variáveis `_text`
     - Substituir `{{ticket.status}}` por `{{ticket.status_text}}` onde aplicável
     - Substituir `{{status_change.old_status}}` por `{{status_change.old_status_text}}`
     - Substituir `{{status_change.new_status}}` por `{{status_change.new_status_text}}`
@@ -57,7 +57,7 @@ Centralizar o mapeamento de tradução de status em um módulo compartilhado, co
     - Verificar templates: `new_ticket`, `ticket_assigned`, `status_changed`, `ticket_reply`, `ticket_participant_added`, `ticket_participant_removed`
     - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-  - [ ] 5.2 Atualizar templates pt-BR na rota `seed-defaults` com as mesmas correções
+  - [x] 5.2 Atualizar templates pt-BR na rota `seed-defaults` com as mesmas correções
     - Aplicar as mesmas substituições de variáveis `_text` nos templates pt-BR
     - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
@@ -65,7 +65,7 @@ Centralizar o mapeamento de tradução de status em um módulo compartilhado, co
     - **Property 4: Seed templates usam variáveis _text**
     - **Validates: Requirements 3.1, 3.2, 3.3, 3.4**
 
-- [ ] 6. Final checkpoint - Verificar que todos os testes passam
+- [x] 6. Final checkpoint - Verificar que todos os testes passam
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

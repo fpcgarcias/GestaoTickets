@@ -14,6 +14,13 @@ import {
   addBusinessTime
 } from '@shared/utils/sla-calculator';
 import { isSlaPaused, type TicketStatus } from '@shared/ticket-utils';
+import { 
+  translateStatus, 
+  translatePriority, 
+  translateRole, 
+  detectLanguageFromDomain,
+  type SupportedLanguage 
+} from '../utils/status-translations';
 
 export interface EmailNotificationContext {
   ticket?: any;
@@ -143,9 +150,9 @@ export class EmailNotificationService {
       }
 
       // 5. Renderizar template com contexto enriquecido
-      const renderedSubject = this.renderTemplate(template.subject_template, enrichedContext);
-      const renderedHtml = this.renderTemplate(template.html_template, enrichedContext);
-      const renderedText = template.text_template ? this.renderTemplate(template.text_template, enrichedContext) : undefined;
+      const renderedSubject = await this.renderTemplate(template.subject_template, enrichedContext, validatedCompanyId);
+      const renderedHtml = await this.renderTemplate(template.html_template, enrichedContext, validatedCompanyId);
+      const renderedText = template.text_template ? await this.renderTemplate(template.text_template, enrichedContext, validatedCompanyId) : undefined;
       const finalHtml = this.ensureUtf8Html(renderedHtml);
 
             // 6. Configurar transporter
@@ -248,12 +255,31 @@ export class EmailNotificationService {
   }
 
   // Renderizar template com variáveis
-  private renderTemplate(template: string, context: EmailNotificationContext): string {
+  private async renderTemplate(template: string, context: EmailNotificationContext, companyId?: number): Promise<string> {
     if (!template || typeof template !== 'string') {
       return '';
     }
 
     let rendered = template;
+
+    // Detectar idioma baseado no domínio da empresa
+    let language: SupportedLanguage = 'pt-BR';
+    if (companyId) {
+      try {
+        const [company] = await db
+          .select()
+          .from(companies)
+          .where(eq(companies.id, companyId))
+          .limit(1);
+        
+        if (company?.domain) {
+          language = detectLanguageFromDomain(company.domain);
+        }
+      } catch (error) {
+        console.error('Erro ao detectar idioma da empresa:', error);
+        // Mantém o idioma padrão pt-BR
+      }
+    }
 
     // Função auxiliar para formatar datas
     const formatDate = (date: any) => {
@@ -266,54 +292,6 @@ export class EmailNotificationService {
         hour: '2-digit',
         minute: '2-digit'
       });
-    };
-
-    // Função auxiliar para traduzir status
-    const translateStatus = (status: string) => {
-      const statusMap: Record<string, string> = {
-        'new': 'Novo',
-        'ongoing': 'Em Andamento',
-        'suspended': 'Suspenso',
-        'waiting_customer': 'Aguardando Cliente',
-        'escalated': 'Escalado',
-        'in_analysis': 'Em Análise',
-        'pending_deployment': 'Aguardando Deploy',
-        'reopened': 'Reaberto',
-        'resolved': 'Resolvido',
-        'closed': 'Encerrado',
-        'undefined': 'Não Definido',
-        'null': 'Não Definido',
-        '': 'Não Definido'
-      };
-      return statusMap[status] || status;
-    };
-
-    // Função auxiliar para traduzir prioridade
-    const translatePriority = (priority: string) => {
-      const priorityMap: Record<string, string> = {
-        'low': 'Baixa',
-        'medium': 'Média',
-        'high': 'Alta',
-        'critical': 'Crítica'
-      };
-      return priorityMap[priority] || priority;
-    };
-
-    // Função auxiliar para traduzir role
-    const translateRole = (role: string) => {
-      const roleMap: Record<string, string> = {
-        'admin': 'Administrador',
-        'support': 'Suporte',
-        'customer': 'Cliente',
-        'integration_bot': 'Bot de Integração',
-        'quality': 'Qualidade',
-        'triage': 'Triagem',
-        'company_admin': 'Administrador da Empresa',
-        'viewer': 'Visualizador',
-        'supervisor': 'Supervisor',
-        'manager': 'Gerente'
-      };
-      return roleMap[role] || role;
     };
 
     // 1. DADOS DO TICKET - TODAS as variáveis da lista
@@ -355,8 +333,8 @@ export class EmailNotificationService {
       rendered = rendered.replace(/\{\{ticket\.updated_at_formatted\}\}/g, formatDate(ticket.updated_at));
       rendered = rendered.replace(/\{\{ticket\.first_response_at_formatted\}\}/g, formatDate(ticket.first_response_at));
       rendered = rendered.replace(/\{\{ticket\.resolved_at_formatted\}\}/g, formatDate(ticket.resolved_at));
-      rendered = rendered.replace(/\{\{ticket\.status_text\}\}/g, translateStatus(ticket.status || ''));
-      rendered = rendered.replace(/\{\{ticket\.priority_text\}\}/g, translatePriority(ticket.priority || ''));
+      rendered = rendered.replace(/\{\{ticket\.status_text\}\}/g, translateStatus(ticket.status || '', language));
+      rendered = rendered.replace(/\{\{ticket\.priority_text\}\}/g, translatePriority(ticket.priority || '', language));
       
       // Link do ticket (usando system.base_url)
       if (context.system?.base_url) {
@@ -401,7 +379,7 @@ export class EmailNotificationService {
       rendered = rendered.replace(/\{\{user\.role\}\}/g, String(user.role || ''));
 
       // Variáveis formatadas extras (mantidas para compatibilidade)
-      rendered = rendered.replace(/\{\{user\.role_text\}\}/g, translateRole(user.role || ''));
+      rendered = rendered.replace(/\{\{user\.role_text\}\}/g, translateRole(user.role || '', language));
     }
 
     // 4. DADOS DO ATENDENTE/OFICIAL (mantido para compatibilidade)
@@ -414,7 +392,7 @@ export class EmailNotificationService {
       });
 
       // Variáveis formatadas do oficial
-      rendered = rendered.replace(/\{\{official\.role_text\}\}/g, translateRole(official.role || ''));
+      rendered = rendered.replace(/\{\{official\.role_text\}\}/g, translateRole(official.role || '', language));
     }
 
     // 5. DADOS DA RESPOSTA - TODAS as variáveis da lista incluindo aninhadas
@@ -449,7 +427,7 @@ export class EmailNotificationService {
         });
         
         // Variáveis formatadas do usuário da resposta
-        rendered = rendered.replace(/\{\{reply\.user\.role_text\}\}/g, translateRole(replyUser.role || ''));
+        rendered = rendered.replace(/\{\{reply\.user\.role_text\}\}/g, translateRole(replyUser.role || '', language));
       }
 
       // Compatibilidade: reply.author_name
@@ -491,12 +469,12 @@ export class EmailNotificationService {
         });
         
         // Variáveis formatadas do usuário que mudou o status
-        rendered = rendered.replace(/\{\{status_change\.changed_by\.role_text\}\}/g, translateRole(changedByUser.role || ''));
+        rendered = rendered.replace(/\{\{status_change\.changed_by\.role_text\}\}/g, translateRole(changedByUser.role || '', language));
       }
 
       // Variáveis formatadas de status (mantidas para compatibilidade)
-      rendered = rendered.replace(/\{\{status_change\.old_status_text\}\}/g, translateStatus(statusChange.old_status || ''));
-      rendered = rendered.replace(/\{\{status_change\.new_status_text\}\}/g, translateStatus(statusChange.new_status || ''));
+      rendered = rendered.replace(/\{\{status_change\.old_status_text\}\}/g, translateStatus(statusChange.old_status || '', language));
+      rendered = rendered.replace(/\{\{status_change\.new_status_text\}\}/g, translateStatus(statusChange.new_status || '', language));
       rendered = rendered.replace(/\{\{status_change\.created_at_formatted\}\}/g, formatDate(statusChange.created_at));
     }
 
@@ -1496,25 +1474,24 @@ export class EmailNotificationService {
         console.log(`[📧 EMAIL PROD] ✅ Usuário que alterou encontrado: ${changedByUser?.name || 'N/A'}`);
       }
 
-      // Mapeamento de status igual ao frontend
-      const statusTranslations: Record<string, string> = {
-        'new': 'Novo',
-        'ongoing': 'Em Andamento',
-        'suspended': 'Suspenso',
-        'waiting_customer': 'Aguardando Cliente',
-        'escalated': 'Escalado',
-        'in_analysis': 'Em Análise',
-        'pending_deployment': 'Aguardando Deploy',
-        'reopened': 'Reaberto',
-        'resolved': 'Resolvido',
-        'closed': 'Encerrado',
-        'undefined': 'Não Definido',
-        'null': 'Não Definido',
-        '': 'Não Definido'
-      };
+      // Buscar domínio da empresa para detectar idioma
+      let companyDomain: string | null = null;
+      if (ticket.company_id) {
+        const [company] = await db
+          .select({ domain: companies.domain })
+          .from(companies)
+          .where(eq(companies.id, ticket.company_id))
+          .limit(1);
+        companyDomain = company?.domain || null;
+      }
 
-      const oldStatusText = statusTranslations[oldStatus] || oldStatus;
-      const newStatusText = statusTranslations[newStatus] || newStatus;
+      // Detectar idioma baseado no domínio da empresa
+      const language = detectLanguageFromDomain(companyDomain);
+      console.log(`[📧 EMAIL PROD] 🌐 Idioma detectado: ${language} (domínio: ${companyDomain || 'N/A'})`);
+
+      // Usar módulo centralizado de tradução
+      const oldStatusText = translateStatus(oldStatus, language);
+      const newStatusText = translateStatus(newStatus, language);
 
       // Obter URL base para a empresa
       const baseUrl = await this.getBaseUrlForCompany(ticket.company_id !== null && ticket.company_id !== undefined ? ticket.company_id : undefined);
