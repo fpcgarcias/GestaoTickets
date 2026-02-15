@@ -9,6 +9,7 @@ import {
   useCreateInventoryTerm,
   useReturnInventoryAssignment,
   useRequestDigitalSignature,
+  InventoryAssignment,
 } from "@/hooks/useInventoryApi";
 import { Button } from "@/components/ui/button";
 import { InventoryStatusBadge } from "@/components/inventory/inventory-status-badge";
@@ -135,21 +136,21 @@ export default function InventoryAssignmentsPage() {
     
     // Agrupar por assignment_group_id
     const grouped = assignments
-      .filter(a => selectedAssignments.includes(a.id))
-      .reduce((acc, assignment) => {
+      .filter((a: InventoryAssignment) => selectedAssignments.includes(a.id))
+      .reduce((acc: Record<string, InventoryAssignment[]>, assignment: InventoryAssignment) => {
         const groupId = assignment.assignment_group_id || `single-${assignment.id}`;
         if (!acc[groupId]) {
           acc[groupId] = [];
         }
         acc[groupId].push(assignment);
         return acc;
-      }, {} as Record<string, typeof assignments>);
+      }, {} as Record<string, InventoryAssignment[]>);
 
     // Se todos estão no mesmo grupo, gerar termo em lote
     const groupKeys = Object.keys(grouped);
     if (groupKeys.length === 1 && grouped[groupKeys[0]].length > 1) {
       const groupId = groupKeys[0].startsWith('single-') ? undefined : groupKeys[0];
-      const assignmentIds = grouped[groupKeys[0]].map(a => a.id);
+      const assignmentIds = grouped[groupKeys[0]].map((a: InventoryAssignment) => a.id);
       
       generateTerm.mutate(
         { assignmentGroupId: groupId, assignmentIds: groupId ? undefined : assignmentIds },

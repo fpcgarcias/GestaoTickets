@@ -211,7 +211,7 @@ export function NfeBatchImportDialog({ open, onOpenChange, nfeData }: NfeBatchIm
 
       // Calcular valor unitário com impostos proporcionais
       // IMPORTANTE: Quando produtos são expandidos, cada linha = 1 unidade
-      const totalProductsValue = nfeData.products.reduce((sum, p) => {
+      const totalProductsValue = (nfeData.products ?? []).reduce((sum, p) => {
         const unitPrice = p.unitPrice ?? 0;
         const quantity = p.quantity ?? 1;
         return sum + (unitPrice * quantity);
@@ -473,7 +473,7 @@ export function NfeBatchImportDialog({ open, onOpenChange, nfeData }: NfeBatchIm
                         {(() => {
                           // Calcular valor unitário com impostos proporcionais
                           // IMPORTANTE: Quando produtos são expandidos, cada linha = 1 unidade
-                          const totalProductsValue = nfeData.products.reduce((sum, p) => {
+                          const totalProductsValue = (nfeData.products ?? []).reduce((sum, p) => {
                             const unitPrice = p.unitPrice ?? 0;
                             const quantity = p.quantity ?? 1;
                             return sum + (unitPrice * quantity);

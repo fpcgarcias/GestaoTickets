@@ -11,6 +11,7 @@ import {
   useDeleteInventoryMovement,
   useInventoryLocations,
   useInventoryProducts,
+  InventoryProduct,
 } from "@/hooks/useInventoryApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -141,14 +142,14 @@ export default function InventoryMovementsPage() {
   const products = useMemo(() => {
     if (formState.movementType === 'return') {
       // Devolução: apenas equipamentos que estão com usuário, em manutenção ou emprestados
-      return allProducts.filter((p: any) => 
+      return allProducts.filter((p: InventoryProduct) => 
         p.status === 'in_use' || p.status === 'maintenance' || p.status === 'reserved'
       );
     }
     return allProducts;
   }, [allProducts, formState.movementType]);
 
-  const selectedProduct = products.find((p: any) => String(p.id) === formState.productId);
+  const selectedProduct = products.find((p: InventoryProduct) => String(p.id) === formState.productId);
 
   // Limpar seleção de produto quando o tipo de movimentação mudar
   useEffect(() => {
@@ -335,7 +336,7 @@ export default function InventoryMovementsPage() {
               <div className="flex flex-col">
                 <span className="font-medium">{movement.batchProducts.length} produto(s)</span>
                 <div className="text-xs text-muted-foreground space-y-1">
-                  {movement.batchProducts.slice(0, 2).map((p, idx) => (
+                  {movement.batchProducts.slice(0, 2).map((p: any, idx: number) => (
                     <div key={p.id}>
                       {p.name}
                     </div>

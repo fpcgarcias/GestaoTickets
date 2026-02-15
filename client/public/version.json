@@ -6,13 +6,13 @@
       "version": "1.2.4",
       "date": "2026-02-16",
       "title": "Correções de consistência visual (UI).",
-      "type": "update",
+      "type": "bugfix",
       "changes": {
         "fixed": [
-          "Padronização do componente de filtro de período (DateRangeFilter) em todas as telas do sistema.",
-          "Centralização dos itens de navegação em fonte única (Nav Config) para Sidebar e Header.",
+          "Padronização do componente de filtro de período em todas as telas do sistema.",
           "Correção de inconsistências visuais em componentes de gráficos e estados vazios.",
-          "Correção de tradução de status de tickets que chegavam incorretamente nos e-mails de notificação."
+          "Correção de tradução de status de tickets que chegavam incorretamente nos e-mails de notificação.",
+          "Correção de bugs menores."
         ]
       }
     },

@@ -80,7 +80,7 @@ export default function TicketsIndex() {
   
   const handleCheckboxChange = (setter: (value: boolean) => void) => {
     return (checked: boolean | "indeterminate") => {
-      setter(checked as boolean);
+      setter(checked === true);
       setCurrentPage(1); // Reset to first page when filtering
     };
   };

@@ -1647,7 +1647,7 @@
     "assigned_to": "Assigned To",
     "all_officials": "All Officials",
     "unassigned": "Unassigned",
-    "hide_resolved": "Hide resolved tickets",
+    "hide_resolved": "Hide closed tickets",
     "include_previous": "Include opened from previous periods",
     "tabs": {
       "all": "All Tickets",

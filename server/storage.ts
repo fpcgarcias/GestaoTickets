@@ -926,7 +926,7 @@ export class MemStorage implements IStorage {
     }
 
     if (filters.hide_resolved) {
-      userTickets = userTickets.filter(ticket => ticket.status !== 'resolved' && ticket.status !== 'closed');
+      userTickets = userTickets.filter(ticket => ticket.status !== 'closed');
     }
 
     if (filters.time_filter === 'first_response') {

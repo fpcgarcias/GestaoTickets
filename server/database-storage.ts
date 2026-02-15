@@ -687,33 +687,28 @@ export class DatabaseStorage implements IStorage {
         if (periodEnd) monthBranch.push(lte(tickets.created_at, periodEnd));
         // Toggle hide_resolved deve atuar apenas no mês atual
         if (filters.hide_resolved) {
-          monthBranch.push(and(
-            ne(tickets.status, 'resolved'),
-            ne(tickets.status, 'closed')
-          ));
+          monthBranch.push(ne(tickets.status, 'closed'));
         }
 
         const monthBranchCondition = monthBranch.length > 0 ? and(...monthBranch) : undefined;
-        const openOutsideCondition = ne(tickets.status, 'resolved');
+        // Condição para tickets abertos fora do período (se includeOpenOutsidePeriod estiver ativo)
+        // Se hide_resolved estiver ativo, também excluir 'closed' aqui
+        const openOutsideCondition = filters.hide_resolved 
+          ? and(ne(tickets.status, 'resolved'), ne(tickets.status, 'closed'))
+          : ne(tickets.status, 'resolved');
         const orCondition = monthBranchCondition ? or(monthBranchCondition, openOutsideCondition) : openOutsideCondition;
 
         whereClauses.push(orCondition);
       } else {
         // Se não conseguimos determinar período, cair no comportamento padrão abaixo
         if (filters.hide_resolved) {
-          whereClauses.push(and(
-            ne(tickets.status, 'resolved'),
-            ne(tickets.status, 'closed')
-          ));
+          whereClauses.push(ne(tickets.status, 'closed'));
         }
       }
     } else {
       // Comportamento padrão existente para filtros de data e hide_resolved
       if (filters.hide_resolved) {
-        whereClauses.push(and(
-          ne(tickets.status, 'resolved'),
-          ne(tickets.status, 'closed')
-        ));
+        whereClauses.push(ne(tickets.status, 'closed'));
       }
       // USAR MESMA LÓGICA DO DASHBOARD - start_date e end_date têm prioridade
       if (filters.start_date || filters.end_date) {
