@@ -3,7 +3,7 @@
  * Gerencia prioridades customizáveis por departamento com fallback para sistema legado
  */
 
-import type { DepartmentPriority, Department, Company } from '@shared/schema';
+import type { DepartmentPriority, Company } from '@shared/schema';
 
 // Prioridades padrão do sistema legado (fallback)
 export const DEFAULT_PRIORITIES = [

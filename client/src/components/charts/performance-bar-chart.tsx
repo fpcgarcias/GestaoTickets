@@ -38,8 +38,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-const CustomBar = (props: any) => {
-  const { fill, dataKey, ...rest } = props;
+const _CustomBar = (props: any) => {
+  const { fill: _fill, dataKey, ...rest } = props;
   const gradientId = dataKey === 'ticketsResolvidos' ? 'ticketsGradient' : 'satisfacaoGradient';
   
   return (
@@ -77,8 +77,8 @@ export const PerformanceBarChart: React.FC<PerformanceBarChartProps> = ({ data, 
     );
   }
 
-  const maxTickets = Math.max(...data.map(item => item.ticketsResolvidos));
-  const maxSatisfacao = Math.max(...data.map(item => item.satisfacao));
+  const _maxTickets = Math.max(...data.map(item => item.ticketsResolvidos));
+  const _maxSatisfacao = Math.max(...data.map(item => item.satisfacao));
 
   return (
     <div className="w-full">

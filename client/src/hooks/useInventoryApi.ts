@@ -33,11 +33,12 @@ export interface InventoryProduct {
   asset_number?: string;
   serial_number?: string;
   service_tag?: string;
-   purchase_value?: string;
+  purchase_value?: string;
   invoice_number?: string;
   purchase_date?: string;
   invoice_date?: string;
   warranty_expiry?: string;
+  notes?: string;
   created_at?: string;
 }
 
@@ -47,6 +48,7 @@ export interface InventoryProductType {
   category_id?: number;
   code?: string;
   department_id?: number;
+  is_active?: boolean;
 }
 
 export interface InventoryProductCategory {
@@ -75,6 +77,8 @@ export interface InventorySupplier {
   contact_name?: string;
   email?: string;
   phone?: string;
+  is_active?: boolean;
+  notes?: string;
 }
 
 export interface InventoryLocation {
@@ -83,6 +87,7 @@ export interface InventoryLocation {
   type?: string;
   parent_location_id?: number;
   department_id?: number;
+  is_active?: boolean;
 }
 
 export interface InventoryMovement {
@@ -114,6 +119,7 @@ export interface InventoryAssignment {
   responsibility_term_id?: number | null;
   term_status?: 'generated' | 'sent' | 'signed' | null;
   signature_status?: string | null;
+  assignment_group_id?: string | null;
   _debug?: any;
 }
 
@@ -342,7 +348,7 @@ export function useInventoryProducts(filters: InventoryProductsFilters) {
     queryKey: inventoryKeys.products.list(filters),
     queryFn: () => fetchJson<InventoryPaginatedResponse<InventoryProduct[]>>("/api/inventory/products", filters),
     enabled: canAccessInventory,
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -391,7 +397,7 @@ export function useInventoryMovements(filters: Record<string, any>) {
   return useQuery({
     queryKey: inventoryKeys.movements.list(filters),
     queryFn: () => fetchJson<InventoryPaginatedResponse<InventoryMovement[]>>("/api/inventory/movements", filters),
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -399,7 +405,7 @@ export function useInventoryAssignments(filters: Record<string, any>) {
   return useQuery({
     queryKey: inventoryKeys.assignments.list(filters),
     queryFn: () => fetchJson<InventoryPaginatedResponse<InventoryAssignment[]>>("/api/inventory/assignments", filters),
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
   });
 }
 
@@ -434,7 +440,7 @@ const useInventoryMutation = <TVariables = any, TData = any>({
         method === "GET" ? undefined : getBody ? getBody(variables) : (variables as Record<string, any>);
       return mutateJson<TData>(method, targetPath, payload);
     },
-    onSuccess: (data) => {
+    onSuccess: (_data) => {
       if (successMessage) toast({ title: successMessage });
       invalidateKeys.forEach((key) => {
         queryClient.invalidateQueries({ queryKey: key });
@@ -789,12 +795,12 @@ export function useImportInventoryProductsBatch() {
       }
       return await response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (_data) => {
       queryClient.invalidateQueries({ queryKey: inventoryKeys.products.root });
       toast({
         title: "Importação concluída",
-        description: data.message,
-        variant: data.results.errors.length > 0 ? "default" : "default",
+        description: _data.message,
+        variant: _data.results.errors.length > 0 ? "default" : "default",
       });
     },
     onError: (error: any) => {

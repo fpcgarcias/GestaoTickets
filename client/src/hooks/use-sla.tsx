@@ -3,8 +3,7 @@
  * Resolve SLA baseado nas novas configurações granulares
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from './use-auth';
+import { useQuery } from '@tanstack/react-query';
 import { calculateSLAStatus, addBusinessTime, getBusinessHoursConfig } from '@shared/utils/sla-calculator';
 import { type TicketStatus } from '@shared/ticket-utils';
 
@@ -186,14 +185,12 @@ export function useTicketWithSLA(
     !!(companyId && departmentId && incidentTypeId && priority)
   );
 
-  if (!sla || !createdAt) return null;
-
-  const createdDate = new Date(createdAt);
+  const createdDate = createdAt ? new Date(createdAt) : new Date(0);
   const firstResponseDate = firstResponseAt ? new Date(firstResponseAt) : undefined;
   const resolvedDate = resolvedAt ? new Date(resolvedAt) : undefined;
+  const status = useTicketSLAStatus(ticketId, createdDate, firstResponseDate, resolvedDate, sla ?? undefined, currentStatus);
 
-  const status = useTicketSLAStatus(ticketId, createdDate, firstResponseDate, resolvedDate, sla, currentStatus);
-
+  if (!sla || !createdAt) return null;
   if (!status) return null;
 
   return {

@@ -7,7 +7,7 @@
 import { Request, Response } from 'express';
 import { withTransaction } from '../transaction-manager';
 import { IStorage } from '../storage';
-import { InsertOfficial, InsertUser, departments as departmentsSchema } from '@shared/schema';
+import { InsertUser, departments as departmentsSchema } from '@shared/schema';
 import { eq, isNull, and } from 'drizzle-orm';
 import { db } from '../db';
 

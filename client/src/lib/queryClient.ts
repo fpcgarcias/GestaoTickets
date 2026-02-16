@@ -41,7 +41,7 @@ export async function apiRequest(
     
     try {
       errorData = JSON.parse(errorText);
-    } catch (parseError) {
+    } catch (_parseError) {
       // Se não conseguir fazer parse, usar mensagem padrão
       errorData = { message: `${res.status}: ${res.statusText}` };
     }

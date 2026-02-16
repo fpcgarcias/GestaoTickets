@@ -14,8 +14,8 @@ import { Check, X } from 'lucide-react';
 import { ForcedPasswordChangeModal } from '@/components/forced-password-change-modal';
 
 export default function AuthPage() {
-  const [location, setLocation] = useLocation();
-  const { user, login, isLoading, error, mustChangePassword, clearMustChangePassword } = useAuth();
+  const [, setLocation] = useLocation();
+  const { user, login, isLoading, mustChangePassword, clearMustChangePassword } = useAuth();
   const { toast } = useToast();
   // Usar nome da empresa baseado no tema do contexto
   const { companyName, companyLogo } = useTheme();
@@ -79,7 +79,7 @@ export default function AuthPage() {
         });
         setLocation('/');
       }
-    } catch (err) {
+    } catch (_err) {
       toast({
         title: "Erro no login",
         description: "Credenciais inválidas. Tente novamente.",
@@ -98,7 +98,7 @@ export default function AuthPage() {
         description: "Senha alterada e login realizado com sucesso!",
       });
       setLocation('/');
-    } catch (err) {
+    } catch (_err) {
       toast({
         title: "Erro no login",
         description: "Erro ao fazer login após trocar senha. Tente novamente.",

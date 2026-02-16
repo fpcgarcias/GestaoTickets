@@ -27,8 +27,6 @@ const isDevelopment = !isProductionDomain && (
   currentHostname === '127.0.0.1'
 );
 
-const isProduction = !isDevelopment;
-
 // Configurar URLs baseado no ambiente
 function getConfig(): AppConfig {
   const currentUrl = new URL(window.location.href);

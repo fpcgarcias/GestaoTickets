@@ -3,7 +3,7 @@
  * Horário comercial: 8h às 18h, segunda a sexta-feira
  */
 
-import { isSlaPaused, isSlaFinished, shouldRestartSla, type TicketStatus } from '@shared/ticket-utils';
+import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
 
 export interface SLAResult {
   timeElapsed: number; // Tempo já consumido em milissegundos
@@ -129,8 +129,6 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
   
   let totalBusinessTime = 0;
   const current = new Date(startDate);
-  const dailyBusinessHours = businessHours.endHour - businessHours.startHour;
-  const dailyBusinessMs = dailyBusinessHours * 60 * 60 * 1000;
   
   let dayCount = 0;
   
@@ -208,10 +206,7 @@ function calculateBusinessTimeMs(startDate: Date, endDate: Date, businessHours: 
 export function addBusinessTime(startDate: Date, businessHoursToAdd: number, businessHours: BusinessHours = DEFAULT_BUSINESS_HOURS): Date {
   const msToAdd = businessHoursToAdd * 60 * 60 * 1000;
   let remainingMs = msToAdd;
-  let current = getNextBusinessHour(startDate, businessHours);
-  
-  const dailyBusinessHours = businessHours.endHour - businessHours.startHour;
-  const dailyBusinessMs = dailyBusinessHours * 60 * 60 * 1000;
+  const current = getNextBusinessHour(startDate, businessHours);
   
   while (remainingMs > 0) {
     const currentDay = current.getDay();
@@ -423,7 +418,7 @@ export function getBusinessHoursConfig(): BusinessHours {
 export function convertStatusHistoryToPeriods(
   ticketCreatedAt: Date,
   currentStatus: TicketStatus,
-  statusHistory: any[]
+  statusHistory: unknown[]
 ): StatusPeriod[] {
   const periods: StatusPeriod[] = [];
   
@@ -486,7 +481,7 @@ export function testSLASystem(): void {
   const friday16 = new Date(2024, 0, 5, 16, 0, 0); // 5 de janeiro 2024, sexta-feira 16h
   const monday10 = new Date(2024, 0, 8, 10, 0, 0); // 8 de janeiro 2024, segunda-feira 10h
   
-  const slaResult1 = calculateSLAStatus(
+  calculateSLAStatus(
     friday16, 
     4, // 4 horas de SLA
     monday10,
@@ -521,7 +516,7 @@ export function testSLASystem(): void {
     }
   ];
   
-  const slaResult2 = calculateSLAStatus(
+  calculateSLAStatus(
     monday8,
     4, // 4 horas de SLA
     monday12,
@@ -538,7 +533,7 @@ export function testSLASystem(): void {
   const tuesday8 = new Date(2024, 0, 9, 8, 0, 0);  // Terça 8h
   const tuesday20 = new Date(2024, 0, 9, 20, 0, 0); // Terça 20h (fora do horário)
   
-  const slaResult3 = calculateSLAStatus(
+  calculateSLAStatus(
     tuesday8,
     8, // 8 horas de SLA
     tuesday20,

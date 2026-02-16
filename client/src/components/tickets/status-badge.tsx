@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 import { getStatusConfig, type TicketStatus } from '@shared/ticket-utils';
-import { getPriorityColorByWeight, convertLegacyToWeight } from '@/hooks/use-priorities';
+import { getPriorityColorByWeight } from '@/hooks/use-priorities';
 import { useI18n } from '@/i18n';
 
 interface StatusBadgeProps {

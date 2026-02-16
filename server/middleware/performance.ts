@@ -126,7 +126,7 @@ export const loadPerformanceLogsFromFile = async (limit = 1000, startDate?: Date
             cpuUsage: logEntry.cpuUsage
           });
         }
-      } catch (parseError) {
+      } catch (_parseError) {
         // Ignorar linhas que não são JSON válido
         continue;
       }

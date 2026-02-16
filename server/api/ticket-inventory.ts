@@ -19,7 +19,7 @@ function resolveCompanyId(req: Request): number {
 
 export async function listTicketInventoryItems(req: Request, res: Response) {
   try {
-    const userRole = req.session?.userRole;
+    const _userRole = req.session?.userRole;
     const ticketId = parseInt(req.params.ticketId, 10);
 
     // Customers podem ver itens do próprio ticket (não bloqueia aqui)

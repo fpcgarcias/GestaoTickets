@@ -5,7 +5,7 @@
  * usando fast-check para verificar as propriedades de correção do sistema de limpeza automática.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fc from 'fast-check';
 import { CleanupScheduler } from '../cleanup-scheduler';
 import { db } from '../../db';

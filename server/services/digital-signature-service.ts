@@ -127,7 +127,7 @@ export class ClicksignProvider implements SignatureProvider {
             } else {
               reject(new Error(`Clicksign API error: ${res.statusCode} - ${JSON.stringify(parsed)}`));
             }
-          } catch (e) {
+          } catch (_e) {
             reject(new Error(`Failed to parse response: ${body}`));
           }
         });
@@ -546,9 +546,10 @@ export class ClicksignProvider implements SignatureProvider {
         provider: 'clicksign',
         status: 'pending',
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao enviar documento para Clicksign:', error);
-      throw new Error(`Falha ao enviar para Clicksign: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Falha ao enviar para Clicksign: ${message}`, { cause: error });
     }
   }
 
@@ -1149,10 +1150,10 @@ class DigitalSignatureService {
         let data: any = term.signature_data;
         // Tratamento robusto para JSON ou String (igual ao webhook)
         if (typeof data === 'string') {
-            try { data = JSON.parse(data); } catch {}
+            try { data = JSON.parse(data); } catch { /* ignorar parse inválido */ }
             // Se ainda for string, parsear de novo (double stringify)
             if (typeof data === 'string') {
-                try { data = JSON.parse(data); } catch {}
+                try { data = JSON.parse(data); } catch { /* ignorar parse inválido */ }
             }
         }
         

@@ -1,6 +1,5 @@
 import { 
   AiConfiguration, 
-  AiAnalysisHistory, 
   InsertAiAnalysisHistory,
   departmentPriorities,
   type DepartmentPriority
@@ -139,7 +138,7 @@ export class AiService {
       const database = dbInstance || db;
       
       // Buscar prioridade exata primeiro
-      let [priority] = await database
+      const [priority] = await database
         .select({ id: departmentPriorities.id, name: departmentPriorities.name })
         .from(departmentPriorities)
         .where(
@@ -323,7 +322,7 @@ export class AiService {
     message: string,
     dbInstance: any = null
   ): Promise<{ shouldReopen: boolean, aiResult: any, usedFallback: boolean }> {
-    const database = dbInstance || require('../db').db;
+    const database = dbInstance ?? db;
     const startTime = Date.now();
     try {
       // Verificar se o ticket existe (sem buscar dados desnecessários)
@@ -408,7 +407,7 @@ export class AiService {
       const aiResult = await provider.analyze('', message, config, apiToken);
       // Para análise de reabertura, a IA retorna ACAO no campo priority
       let shouldReopen = false;
-      let aiDecision = (aiResult.priority || '').toLowerCase();
+      const aiDecision = (aiResult.priority || '').toLowerCase();
       
       // Verificar se deve reabrir baseado na ação retornada
       if (aiDecision.includes('reabrir') || aiDecision.includes('persists') || aiDecision.includes('persist')) {

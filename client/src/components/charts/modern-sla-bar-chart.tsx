@@ -49,8 +49,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-const CustomBar = (props: any) => {
-  const { fill, ...rest } = props;
+const _CustomBar = (props: any) => {
+  const { fill: _fill, ...rest } = props;
   return (
     <Bar 
       {...rest} 
@@ -87,7 +87,7 @@ export const ModernSlaBarChart: React.FC<ModernSlaBarChartProps> = ({ data, isLo
     );
   }
 
-  const maxValue = Math.max(
+  const _maxValue = Math.max(
     ...data.map(item => Math.max(item.resposta, item.resolucao))
   );
 
@@ -169,7 +169,7 @@ export const ModernSlaBarChart: React.FC<ModernSlaBarChartProps> = ({ data, isLo
       {/* Estatísticas resumidas */}
       <div className="mt-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {data.map((item, index) => {
+          {data.map((item, _index) => {
             const avgCompliance = (item.resposta + item.resolucao) / 2;
             const isHighPerformer = avgCompliance >= 90;
             const isLowPerformer = avgCompliance < 70;

@@ -3,7 +3,6 @@ import { useAuth } from '@/hooks/use-auth';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -17,7 +16,6 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useI18n } from '@/i18n';
 import { 
-  Star, 
   TrendingUp, 
   TrendingDown, 
   Users, 
@@ -25,15 +23,12 @@ import {
   BarChart3,
   Filter,
   Download,
-  Calendar,
-  Loader2,
-  Timer
+  Timer,
+  Star
 } from 'lucide-react';
-import { format, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 import { ptBR, enUS } from 'date-fns/locale';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
-import { DateRange } from 'react-day-picker';
-
 interface SatisfactionSurvey {
   id: number;
   ticket_id: number;
@@ -70,11 +65,6 @@ interface Department {
   id: number;
   name: string;
   satisfaction_survey_enabled: boolean;
-}
-
-interface Official {
-  id: number;
-  name: string;
 }
 
 const SatisfactionDashboard: React.FC = () => {

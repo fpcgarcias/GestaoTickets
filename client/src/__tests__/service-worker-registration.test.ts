@@ -25,7 +25,7 @@ const mockNotification = {
 };
 
 // Função que será testada (simulando a implementação)
-interface ServiceWorkerRegistrationResult {
+interface _ServiceWorkerRegistrationResult {
   success: boolean;
   subscription?: PushSubscription;
   error?: string;

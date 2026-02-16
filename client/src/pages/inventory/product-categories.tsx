@@ -95,7 +95,7 @@ const COLOR_PRESETS = [
 ];
 
 export default function InventoryProductCategoriesPage() {
-  const { formatMessage } = useI18n();
+  const { formatMessage: _formatMessage } = useI18n();
   const { toast } = useToast();
 
   const [statusFilter, setStatusFilter] = useState<CategoryStatus>("active");

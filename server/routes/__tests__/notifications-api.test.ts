@@ -6,10 +6,10 @@
  * usando fast-check para verificar as propriedades de correção das APIs REST.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as fc from 'fast-check';
 import { db } from '../../db';
-import { notifications, users, companies } from '../../../shared/schema';
+import { notifications, users } from '../../../shared/schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 
 // Tipos auxiliares

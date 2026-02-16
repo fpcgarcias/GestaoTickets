@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
 import clicksignConfigService from '../services/clicksign-config-service';
-import { ClicksignProvider } from '../services/digital-signature-service';
 import https from 'https';
 
 function resolveCompanyId(req: Request): number {
@@ -122,7 +121,7 @@ export async function testClicksignConnection(req: Request, res: Response) {
                 const parsed = JSON.parse(body);
                 const errorMsg = parsed?.message || parsed?.error || `HTTP ${res.statusCode}`;
                 reject(new Error(`ClickSign API retornou erro: ${errorMsg}`));
-              } catch (e) {
+              } catch (_e) {
                 // Se não for JSON, verificar se é HTML
                 if (body.toLowerCase().includes('<!doctype') || body.toLowerCase().includes('<html')) {
                   reject(new Error(`ClickSign API retornou erro HTTP ${res.statusCode}. Verifique se o Access Token está correto e se a URL da API está correta (sandbox ou produção).`));
@@ -137,7 +136,7 @@ export async function testClicksignConnection(req: Request, res: Response) {
             try {
               const parsed = JSON.parse(body);
               resolve(parsed);
-            } catch (e) {
+            } catch (_e) {
               reject(new Error(`Resposta da API não é um JSON válido`));
             }
           });

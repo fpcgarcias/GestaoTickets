@@ -1,7 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, RefreshCw, X } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -14,9 +11,9 @@ interface BeforeInstallPromptEvent extends Event {
 
 export const PWAInstaller: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [isInstalled, setIsInstalled] = useState(false);
-  const [needRefresh, setNeedRefresh] = useState(false);
+  const [_showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [_isInstalled, setIsInstalled] = useState(false);
+  const [_needRefresh, setNeedRefresh] = useState(false);
 
   useEffect(() => {
     // Detectar se o app já está instalado
@@ -35,7 +32,7 @@ export const PWAInstaller: React.FC = () => {
     }
 
     // Listener para o evento beforeinstallprompt - DEIXAR O NAVEGADOR FAZER O TRABALHO
-    const handleBeforeInstallPrompt = (e: Event) => {
+    const handleBeforeInstallPrompt = (_e: Event) => {
       console.log('🎯 Evento beforeinstallprompt disparado!');
       // NÃO FAZER NADA - DEIXAR O NAVEGADOR MOSTRAR O PROMPT NATIVO
     };
@@ -56,7 +53,7 @@ export const PWAInstaller: React.FC = () => {
     };
   }, []);
 
-  const handleInstallClick = async () => {
+  const _handleInstallClick = async () => {
     if (!deferredPrompt) return;
 
     deferredPrompt.prompt();
@@ -72,15 +69,15 @@ export const PWAInstaller: React.FC = () => {
     setShowInstallPrompt(false);
   };
 
-  const handleUpdateClick = () => {
+  const _handleUpdateClick = () => {
     window.location.reload();
   };
 
-  const handleDismissInstall = () => {
+  const _handleDismissInstall = () => {
     setShowInstallPrompt(false);
   };
 
-  const handleDismissUpdate = () => {
+  const _handleDismissUpdate = () => {
     setNeedRefresh(false);
   };
 

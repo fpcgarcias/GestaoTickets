@@ -103,7 +103,7 @@ export function ServiceProviderSelect({
   };
 
   // Gerar texto do botão
-  const getButtonText = () => {
+  const _getButtonText = () => {
     if (selectedProviders.length === 0) {
       return placeholder;
     }

@@ -1,13 +1,12 @@
-import express from 'express';
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { Request, Response } from 'express';
-import { authRequired, adminRequired, companyAdminRequired, managerRequired, supervisorRequired } from '../middleware/authorization';
+import { authRequired } from '../middleware/authorization';
 import { db } from '../db';
 import * as schema from '@shared/schema';
 import { eq, desc, and, or, gte, lte, isNull, inArray, sql } from 'drizzle-orm';
 import * as XLSX from 'xlsx';
 import puppeteer from 'puppeteer';
-import { calculateEffectiveBusinessTime, getBusinessHoursConfig, convertStatusHistoryToPeriods } from '@shared/utils/sla-calculator';
+import { getBusinessHoursConfig } from '@shared/utils/sla-calculator';
 import { type TicketStatus } from '@shared/ticket-utils';
 import { storage } from '../storage';
 import { withTimeout } from '../middleware/file-validation';
@@ -15,7 +14,7 @@ import { logger } from '../services/logger';
 
 const router = Router();
 
-// Função para traduzir status de tickets para português
+// FunÃ§Ã£o para traduzir status de tickets para portuguÃªs
 function translateTicketStatus(status: string): string {
   const translations: Record<string, string> = {
     'new': 'Novo',
@@ -23,28 +22,28 @@ function translateTicketStatus(status: string): string {
     'suspended': 'Suspenso',
     'waiting_customer': 'Aguardando Cliente',
     'escalated': 'Escalado',
-    'in_analysis': 'Em Análise',
+    'in_analysis': 'Em AnÃ¡lise',
     'pending_deployment': 'Aguardando Deploy',
     'reopened': 'Reaberto',
     'resolved': 'Resolvido',
     'closed': 'Encerrado',
     // Valores especiais
-    'undefined': 'Não Definido',
-    'null': 'Não Definido',
-    '': 'Não Definido'
+    'undefined': 'NÃ£o Definido',
+    'null': 'NÃ£o Definido',
+    '': 'NÃ£o Definido'
   };
   
   return translations[status] || status;
 }
 
-// Função utilitária para normalizar prioridade (primeira letra maiúscula, resto minúsculo)
-// IGUAL ao dashboard.tsx para consistência total
+// FunÃ§Ã£o utilitÃ¡ria para normalizar prioridade (primeira letra maiÃºscula, resto minÃºsculo)
+// IGUAL ao dashboard.tsx para consistÃªncia total
 function normalizarPrioridade(prioridade: string) {
   if (!prioridade) return '';
   return prioridade.charAt(0).toUpperCase() + prioridade.slice(1).toLowerCase();
 }
 
-// Função para formatar data/hora em português brasileiro
+// FunÃ§Ã£o para formatar data/hora em portuguÃªs brasileiro
 function formatarDataHora(dataInput: string | Date): string {
   if (!dataInput) return '';
   
@@ -58,13 +57,13 @@ function formatarDataHora(dataInput: string | Date): string {
       data = dataInput;
     }
     
-    // Verificar se a data é válida
+    // Verificar se a data Ã© vÃ¡lida
     if (isNaN(data.getTime())) {
-      console.warn('Data inválida:', dataInput);
+      console.warn('Data invÃ¡lida:', dataInput);
       return '';
     }
     
-    // Formatação ULTRA simples - sem complicações
+    // FormataÃ§Ã£o ULTRA simples - sem complicaÃ§Ãµes
     const dia = data.getDate().toString().padStart(2, '0');
     const mes = (data.getMonth() + 1).toString().padStart(2, '0');
     const ano = data.getFullYear();
@@ -80,7 +79,7 @@ function formatarDataHora(dataInput: string | Date): string {
 }
 
 // Function to generate HTML content for PDF export
-function generatePDFHTML(headers: string[], rows: any[][], reportTitle: string = 'Relatório de Chamados'): string {
+function generatePDFHTML(headers: string[], rows: any[][], reportTitle: string = 'RelatÃ³rio de Chamados'): string {
   // Format data for better PDF display with proper translations
   const tableRows = rows.map(row => {
     const formattedRow = row.map((cell, index) => {
@@ -92,14 +91,14 @@ function generatePDFHTML(headers: string[], rows: any[][], reportTitle: string =
         value = translateTicketStatus(value);
       } else if (header === 'Prioridade') {
         value = normalizarPrioridade(value);
-      } else if (header === 'Atribuído a') {
+      } else if (header === 'AtribuÃ­do a') {
         if (value === 'N/A' || value === '' || !value) {
-          value = 'Não Atribuído';
+          value = 'NÃ£o AtribuÃ­do';
         }
       } else if (header === 'Criado em' || header === 'Resolvido em') {
-        // As datas já vêm formatadas do backend, não precisa formatar novamente
+        // As datas jÃ¡ vÃªm formatadas do backend, nÃ£o precisa formatar novamente
         if (header === 'Resolvido em' && (value === 'N/A' || value === '' || !value)) {
-          value = 'Não resolvido';
+          value = 'NÃ£o resolvido';
         }
       }
       
@@ -203,7 +202,7 @@ function generatePDFHTML(headers: string[], rows: any[][], reportTitle: string =
       </style>
     </head>
     <body>
-      <h1>📋 ${reportTitle}</h1>
+      <h1>ðŸ“‹ ${reportTitle}</h1>
       <table>
         <thead>
           <tr>${headers.map(header => `<th>${header}</th>`).join('')}</tr>
@@ -213,7 +212,7 @@ function generatePDFHTML(headers: string[], rows: any[][], reportTitle: string =
         </tbody>
       </table>
       <div class="footer">
-        <strong>Relatório gerado em:</strong> ${new Date().toLocaleString('pt-BR', {
+        <strong>RelatÃ³rio gerado em:</strong> ${new Date().toLocaleString('pt-BR', {
           day: '2-digit',
           month: '2-digit',
           year: 'numeric',
@@ -235,16 +234,16 @@ router.get('/health', (req, res) => {
 // Ticket reports - SIMPLE WORKING VERSION
 router.get('/tickets', authRequired, async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, start_date, end_date, status, priority, departmentId, companyId, incidentTypeId, incident_type_id } = req.query;
+    const { startDate, endDate, start_date, end_date, status, priority, departmentId, companyId: _companyId, incidentTypeId, incident_type_id } = req.query;
     
-    // Usar start_date e end_date se disponíveis (compatibilidade com dashboard)
+    // Usar start_date e end_date se disponÃ­veis (compatibilidade com dashboard)
     const startDateParam = start_date || startDate;
     const endDateParam = end_date || endDate;
     const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
     
     console.log('Reports - Query params:', { startDateParam, endDateParam, status, priority, departmentId, incidentTypeParam });
     
-    // Build base query - versão simples sem joins complexos
+    // Build base query - versÃ£o simples sem joins complexos
     let baseQuery = db.select({
       id: schema.tickets.id,
       ticket_id: schema.tickets.ticket_id,
@@ -269,31 +268,31 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
     })
     .from(schema.tickets);
 
-    // Apply role-based filters - IGUAL À TELA DE TICKETS
+    // Apply role-based filters - IGUAL Ã€ TELA DE TICKETS
     const userId = req.session.userId;
     const userRole = req.session.userRole as string;
     
     console.log('Reports - User info:', { userId, userRole });
     
     if (!userId || !userRole) {
-      return res.status(401).json({ message: "Usuário não autenticado" });
+      return res.status(401).json({ message: "UsuÃ¡rio nÃ£o autenticado" });
     }
     
-    let roleConditions: any[] = [];
+    const roleConditions: any[] = [];
     
     if (userRole === 'admin') {
-      // Admin vê tudo - sem filtros
+      // Admin vÃª tudo - sem filtros
     } else if (userRole === 'company_admin') {
       const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
       if (!user || !user.company_id) {
-        return res.status(403).json({ message: "Usuário sem empresa definida" });
+        return res.status(403).json({ message: "UsuÃ¡rio sem empresa definida" });
       }
       console.log('Reports - Company Admin - Company ID:', user.company_id);
       roleConditions.push(eq(schema.tickets.company_id, user.company_id));
     } else if (userRole === 'manager') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: "Official não encontrado" });
+        return res.status(403).json({ message: "Official nÃ£o encontrado" });
       }
       
       // Buscar departamentos do manager
@@ -309,7 +308,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
         .where(eq(schema.officials.manager_id, official.id));
       const subordinateIds = subordinates.map(s => s.id);
       
-      // Manager vê: tickets dos seus departamentos E (atribuídos a ele OU subordinados OU não atribuídos)
+      // Manager vÃª: tickets dos seus departamentos E (atribuÃ­dos a ele OU subordinados OU nÃ£o atribuÃ­dos)
       const assignmentFilter = or(
         eq(schema.tickets.assigned_to_id, official.id),
         subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
@@ -326,7 +325,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
     } else if (userRole === 'supervisor') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: "Official não encontrado" });
+        return res.status(403).json({ message: "Official nÃ£o encontrado" });
       }
       
       // Buscar departamentos do supervisor
@@ -342,7 +341,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
         .where(eq(schema.officials.supervisor_id, official.id));
       const subordinateIds = subordinates.map(s => s.id);
       
-      // Supervisor vê: tickets dos seus departamentos E (atribuídos a ele OU subordinados OU não atribuídos)
+      // Supervisor vÃª: tickets dos seus departamentos E (atribuÃ­dos a ele OU subordinados OU nÃ£o atribuÃ­dos)
       const assignmentFilter = or(
         eq(schema.tickets.assigned_to_id, official.id),
         subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
@@ -359,7 +358,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
     } else if (userRole === 'support') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: "Official não encontrado" });
+        return res.status(403).json({ message: "Official nÃ£o encontrado" });
       }
       
       // Buscar departamentos do support
@@ -370,7 +369,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
       }
       const departmentIds = officialDepts.map(od => od.department_id);
       
-      // Support vê apenas: tickets dos seus departamentos E (atribuídos a ele OU não atribuídos)
+      // Support vÃª apenas: tickets dos seus departamentos E (atribuÃ­dos a ele OU nÃ£o atribuÃ­dos)
       const assignmentFilter = or(
         eq(schema.tickets.assigned_to_id, official.id),
         isNull(schema.tickets.assigned_to_id)
@@ -386,11 +385,11 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
     } else if (userRole === 'customer') {
       const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
       if (!customer) {
-        return res.status(403).json({ message: "Customer não encontrado" });
+        return res.status(403).json({ message: "Customer nÃ£o encontrado" });
       }
       roleConditions.push(eq(schema.tickets.customer_id, customer.id));
     } else {
-      return res.status(403).json({ message: "Role não reconhecido" });
+      return res.status(403).json({ message: "Role nÃ£o reconhecido" });
     }
     
     // Apply additional filters (datas, status, priority, department)
@@ -405,7 +404,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
     }
 
     if (status && status !== 'all') {
-      // Aceitar múltiplos status separados por vírgula
+      // Aceitar mÃºltiplos status separados por vÃ­rgula
       const statusArray = typeof status === 'string' ? status.split(',').filter(s => s.trim() !== '') : [];
       if (statusArray.length > 0) {
         if (statusArray.length === 1) {
@@ -431,7 +430,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
       }
     }
 
-    // Combinar TODAS as condições (role + filtros) em uma única cláusula WHERE
+    // Combinar TODAS as condiÃ§Ãµes (role + filtros) em uma Ãºnica clÃ¡usula WHERE
     const allConditions = [...roleConditions, ...additionalFilters];
     
     console.log('Reports - Role conditions count:', roleConditions.length);
@@ -467,7 +466,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
           .where(inArray(schema.customers.id, customerIds))
       : [];
 
-    // Fetch officials (NÃO users - assigned_to_id aponta para officials.id!)
+    // Fetch officials (NÃƒO users - assigned_to_id aponta para officials.id!)
     const officials = assignedToIds.length > 0
       ? await db.select({ id: schema.officials.id, name: schema.officials.name, email: schema.officials.email })
           .from(schema.officials)
@@ -503,7 +502,7 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
 
     // Process results with joined data - formato correto para o componente React
     const processedTickets = tickets.map(ticket => {
-      // Buscar informações da prioridade do departamento
+      // Buscar informaÃ§Ãµes da prioridade do departamento
       let priorityInfo = null;
       if (ticket.department_id && ticket.priority) {
         const key = `${ticket.department_id}-${ticket.priority.toLowerCase()}`;
@@ -549,22 +548,22 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Erro ao gerar relatório de tickets:', error);
-    res.status(500).json({ message: 'Erro ao gerar relatório de tickets' });
+    console.error('Erro ao gerar relatÃ³rio de tickets:', error);
+    res.status(500).json({ message: 'Erro ao gerar relatÃ³rio de tickets' });
   }
 });
 
 // Export tickets to multiple formats
 router.get('/tickets/export', authRequired, async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, start_date, end_date, status, priority, departmentId, companyId, incidentTypeId, incident_type_id, format = 'csv' } = req.query;
+    const { startDate, endDate, start_date, end_date, status, priority, departmentId, companyId: _companyId, incidentTypeId, incident_type_id, format = 'csv' } = req.query;
     
-    // Usar start_date e end_date se disponíveis (compatibilidade com dashboard)
+    // Usar start_date e end_date se disponÃ­veis (compatibilidade com dashboard)
     const startDateParam = start_date || startDate;
     const endDateParam = end_date || endDate;
-    const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
+    const _incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
     
-    // Build base query - versão simples sem joins complexos
+    // Build base query - versÃ£o simples sem joins complexos
     let baseQuery = db.select({
       id: schema.tickets.id,
       ticket_id: schema.tickets.ticket_id,
@@ -586,31 +585,31 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
     })
     .from(schema.tickets);
 
-    // Apply role-based filters - IGUAL À TELA DE TICKETS
+    // Apply role-based filters - IGUAL Ã€ TELA DE TICKETS
     const userId = req.session.userId;
     const userRole = req.session.userRole as string;
     
     console.log('Reports - User info:', { userId, userRole });
     
     if (!userId || !userRole) {
-      return res.status(401).json({ message: "Usuário não autenticado" });
+      return res.status(401).json({ message: "UsuÃ¡rio nÃ£o autenticado" });
     }
     
-    let roleConditions: any[] = [];
+    const roleConditions: any[] = [];
     
     if (userRole === 'admin') {
-      // Admin vê tudo - sem filtros
+      // Admin vÃª tudo - sem filtros
     } else if (userRole === 'company_admin') {
       const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
       if (!user || !user.company_id) {
-        return res.status(403).json({ message: "Usuário sem empresa definida" });
+        return res.status(403).json({ message: "UsuÃ¡rio sem empresa definida" });
       }
       console.log('Reports - Company Admin - Company ID:', user.company_id);
       roleConditions.push(eq(schema.tickets.company_id, user.company_id));
     } else if (userRole === 'manager') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: "Official não encontrado" });
+        return res.status(403).json({ message: "Official nÃ£o encontrado" });
       }
       
       // Buscar departamentos do manager
@@ -626,7 +625,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
         .where(eq(schema.officials.manager_id, official.id));
       const subordinateIds = subordinates.map(s => s.id);
       
-      // Manager vê: tickets dos seus departamentos E (atribuídos a ele OU subordinados OU não atribuídos)
+      // Manager vÃª: tickets dos seus departamentos E (atribuÃ­dos a ele OU subordinados OU nÃ£o atribuÃ­dos)
       const assignmentFilter = or(
         eq(schema.tickets.assigned_to_id, official.id),
         subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
@@ -643,7 +642,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
     } else if (userRole === 'supervisor') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: "Official não encontrado" });
+        return res.status(403).json({ message: "Official nÃ£o encontrado" });
       }
       
       // Buscar departamentos do supervisor
@@ -659,7 +658,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
         .where(eq(schema.officials.supervisor_id, official.id));
       const subordinateIds = subordinates.map(s => s.id);
       
-      // Supervisor vê: tickets dos seus departamentos E (atribuídos a ele OU subordinados OU não atribuídos)
+      // Supervisor vÃª: tickets dos seus departamentos E (atribuÃ­dos a ele OU subordinados OU nÃ£o atribuÃ­dos)
       const assignmentFilter = or(
         eq(schema.tickets.assigned_to_id, official.id),
         subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
@@ -676,7 +675,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
     } else if (userRole === 'support') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: "Official não encontrado" });
+        return res.status(403).json({ message: "Official nÃ£o encontrado" });
       }
       
       // Buscar departamentos do support
@@ -687,7 +686,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       }
       const departmentIds = officialDepts.map(od => od.department_id);
       
-      // Support vê apenas: tickets dos seus departamentos E (atribuídos a ele OU não atribuídos)
+      // Support vÃª apenas: tickets dos seus departamentos E (atribuÃ­dos a ele OU nÃ£o atribuÃ­dos)
       const assignmentFilter = or(
         eq(schema.tickets.assigned_to_id, official.id),
         isNull(schema.tickets.assigned_to_id)
@@ -703,11 +702,11 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
     } else if (userRole === 'customer') {
       const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
       if (!customer) {
-        return res.status(403).json({ message: "Customer não encontrado" });
+        return res.status(403).json({ message: "Customer nÃ£o encontrado" });
       }
       roleConditions.push(eq(schema.tickets.customer_id, customer.id));
     } else {
-      return res.status(403).json({ message: "Role não reconhecido" });
+      return res.status(403).json({ message: "Role nÃ£o reconhecido" });
     }
     
     // Apply additional filters (datas, status, priority, department)
@@ -722,7 +721,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
     }
 
     if (status && status !== 'all') {
-      // Aceitar múltiplos status separados por vírgula
+      // Aceitar mÃºltiplos status separados por vÃ­rgula
       const statusArray = typeof status === 'string' ? status.split(',').filter(s => s.trim() !== '') : [];
       if (statusArray.length > 0) {
         if (statusArray.length === 1) {
@@ -741,7 +740,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       additionalFilters.push(eq(schema.tickets.department_id, parseInt(departmentId as string)));
     }
 
-    // Combinar TODAS as condições (role + filtros) em uma única cláusula WHERE
+    // Combinar TODAS as condiÃ§Ãµes (role + filtros) em uma Ãºnica clÃ¡usula WHERE
     const allConditions = [...roleConditions, ...additionalFilters];
     
     console.log('Reports - Role conditions count:', roleConditions.length);
@@ -774,7 +773,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
           .where(inArray(schema.customers.id, customerIds))
       : [];
 
-    // Fetch officials (NÃO users - assigned_to_id aponta para officials.id!)
+    // Fetch officials (NÃƒO users - assigned_to_id aponta para officials.id!)
     const officials = assignedToIds.length > 0
       ? await db.select({ id: schema.officials.id, name: schema.officials.name, email: schema.officials.email })
           .from(schema.officials)
@@ -810,7 +809,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
 
     // Process results with joined data
     const processedTickets = tickets.map(ticket => {
-      // Buscar informações da prioridade do departamento
+      // Buscar informaÃ§Ãµes da prioridade do departamento
       let priorityInfo = null;
       if (ticket.department_id && ticket.priority) {
         const key = `${ticket.department_id}-${ticket.priority.toLowerCase()}`;
@@ -824,7 +823,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
         department_name: ticket.department_id ? departmentMap.get(ticket.department_id) || 'N/A' : 'N/A',
         customer_name: ticket.customer_id ? customerMap.get(ticket.customer_id) || 'N/A' : 'N/A',
         customer_email: ticket.customer_email || '',
-              assigned_to_name: ticket.assigned_to_id ? officialMap.get(ticket.assigned_to_id)?.name || 'N/A' : 'Não atribuído',
+              assigned_to_name: ticket.assigned_to_id ? officialMap.get(ticket.assigned_to_id)?.name || 'N/A' : 'NÃ£o atribuÃ­do',
       assigned_to_email: ticket.assigned_to_id ? officialMap.get(ticket.assigned_to_id)?.email || '' : '',
         priority_weight: priorityInfo?.weight,
         priority_color: priorityInfo?.color,
@@ -835,10 +834,10 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
     // Generate data for export - ONLY fields shown on screen
     const exportHeaders = [
       'Ticket ID', 
-      'Título', 
+      'TÃ­tulo', 
       'Cliente', 
       'Departamento', 
-      'Atribuído a', 
+      'AtribuÃ­do a', 
       'Status', 
       'Prioridade', 
       'Criado em', 
@@ -850,11 +849,11 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       `"${ticket.title.replace(/"/g, '""')}"`,
       `"${ticket.customer_name.replace(/"/g, '""')}"`,
       ticket.department_name,
-      ticket.assigned_to_name === 'N/A' || !ticket.assigned_to_name ? 'Não Atribuído' : `"${ticket.assigned_to_name.replace(/"/g, '""')}"`,
+      ticket.assigned_to_name === 'N/A' || !ticket.assigned_to_name ? 'NÃ£o AtribuÃ­do' : `"${ticket.assigned_to_name.replace(/"/g, '""')}"`,
       translateTicketStatus(ticket.status),
       ticket.priority_name || normalizarPrioridade(ticket.priority),
       formatarDataHora(ticket.created_at),
-      ticket.resolved_at ? formatarDataHora(ticket.resolved_at) : 'Não resolvido'
+      ticket.resolved_at ? formatarDataHora(ticket.resolved_at) : 'NÃ£o resolvido'
     ]);
 
     // Generate output based on format
@@ -867,14 +866,14 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       // Prepare data with proper types for Excel - ONLY screen fields
       const excelData = processedTickets.map(ticket => ({
         'Ticket ID': ticket.ticket_id,
-        'Título': ticket.title,
+        'TÃ­tulo': ticket.title,
         'Cliente': ticket.customer_name,
         'Departamento': ticket.department_name,
-        'Atribuído a': ticket.assigned_to_name === 'N/A' || !ticket.assigned_to_name ? 'Não Atribuído' : ticket.assigned_to_name,
+        'AtribuÃ­do a': ticket.assigned_to_name === 'N/A' || !ticket.assigned_to_name ? 'NÃ£o AtribuÃ­do' : ticket.assigned_to_name,
         'Status': translateTicketStatus(ticket.status),
         'Prioridade': ticket.priority_name || normalizarPrioridade(ticket.priority),
         'Criado em': formatarDataHora(ticket.created_at),
-        'Resolvido em': ticket.resolved_at ? formatarDataHora(ticket.resolved_at) : 'Não resolvido'
+        'Resolvido em': ticket.resolved_at ? formatarDataHora(ticket.resolved_at) : 'NÃ£o resolvido'
       }));
       
       const worksheet = XLSX.utils.json_to_sheet(excelData);
@@ -882,10 +881,10 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       // Set column widths - ONLY screen fields
       const colWidths = [
         { wch: 15 },  // Ticket ID
-        { wch: 35 },  // Título
+        { wch: 35 },  // TÃ­tulo
         { wch: 25 },  // Cliente
         { wch: 20 },  // Departamento
-        { wch: 25 },  // Atribuído a
+        { wch: 25 },  // AtribuÃ­do a
         { wch: 12 },  // Status
         { wch: 12 },  // Prioridade
         { wch: 18 },  // Criado em
@@ -893,9 +892,9 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       ];
       worksheet['!cols'] = colWidths;
       
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Relatório de Chamados');
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'RelatÃ³rio de Chamados');
       
-      // Proteção contra vulnerabilidades xlsx (CVE GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9)
+      // ProteÃ§Ã£o contra vulnerabilidades xlsx (CVE GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9)
       // Adiciona timeout para prevenir DoS via arquivos complexos
       logger.info('Gerando arquivo Excel de tickets', { 
         recordCount: excelData.length,
@@ -972,14 +971,14 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
         
         return res.status(500).json({ 
           error: 'Erro ao gerar PDF', 
-          details: pdfError?.message || 'Erro desconhecido na geração do PDF'
+          details: pdfError?.message || 'Erro desconhecido na geraÃ§Ã£o do PDF'
         });
       }
       
     } else {
-      // Formato não suportado
+      // Formato nÃ£o suportado
       return res.status(400).json({ 
-        error: 'Formato não suportado. Use: excel ou pdf' 
+        error: 'Formato nÃ£o suportado. Use: excel ou pdf' 
       });
     }
 
@@ -997,10 +996,10 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     const startDateParam = (start_date || startDate) as string | undefined;
     const endDateParam = (end_date || endDate) as string | undefined;
     const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
-    const showInactiveOfficialsParam = showInactiveOfficials === 'true';
+    const _showInactiveOfficialsParam = showInactiveOfficials === 'true';
 
     // Build base query for tickets
-    let baseQuery = db.select({
+    const _baseQuery = db.select({
       id: schema.tickets.id,
       ticket_id: schema.tickets.ticket_id,
       status: schema.tickets.status,
@@ -1019,7 +1018,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     const userRole = req.session.userRole as string;
 
     if (!userId || !userRole) {
-      return res.status(401).json({ message: 'Usuário não autenticado' });
+      return res.status(401).json({ message: 'UsuÃ¡rio nÃ£o autenticado' });
     }
 
     const roleConditions: any[] = [];
@@ -1029,13 +1028,13 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     } else if (userRole === 'company_admin') {
       const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
       if (!user || !user.company_id) {
-        return res.status(403).json({ message: 'Usuário sem empresa definida' });
+        return res.status(403).json({ message: 'UsuÃ¡rio sem empresa definida' });
       }
       roleConditions.push(eq(schema.tickets.company_id, user.company_id));
     } else if (userRole === 'manager') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: 'Official não encontrado' });
+        return res.status(403).json({ message: 'Official nÃ£o encontrado' });
       }
       const officialDepts = await db.select().from(schema.officialDepartments)
         .where(eq(schema.officialDepartments.official_id, official.id));
@@ -1055,7 +1054,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     } else if (userRole === 'supervisor') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: 'Official não encontrado' });
+        return res.status(403).json({ message: 'Official nÃ£o encontrado' });
       }
       const officialDepts = await db.select().from(schema.officialDepartments)
         .where(eq(schema.officialDepartments.official_id, official.id));
@@ -1075,7 +1074,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     } else if (userRole === 'support') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: 'Official não encontrado' });
+        return res.status(403).json({ message: 'Official nÃ£o encontrado' });
       }
       const officialDepts = await db.select().from(schema.officialDepartments)
         .where(eq(schema.officialDepartments.official_id, official.id));
@@ -1091,11 +1090,11 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     } else if (userRole === 'customer') {
       const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
       if (!customer) {
-        return res.status(403).json({ message: 'Customer não encontrado' });
+        return res.status(403).json({ message: 'Customer nÃ£o encontrado' });
       }
       roleConditions.push(eq(schema.tickets.customer_id, customer.id));
     } else {
-      return res.status(403).json({ message: 'Role não reconhecido' });
+      return res.status(403).json({ message: 'Role nÃ£o reconhecido' });
     }
 
     const additionalFilters: any[] = [];
@@ -1139,7 +1138,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
 
     // Validate schema objects before using them
     if (!schema || !schema.tickets) {
-      throw new Error('Schema de tickets não encontrado');
+      throw new Error('Schema de tickets nÃ£o encontrado');
     }
 
     // Define the select fields object with validation
@@ -1151,12 +1150,12 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
         created_at: schema.tickets.created_at,
         first_response_at: schema.tickets.first_response_at,
         resolved_at: schema.tickets.resolved_at
-      }).filter(([key, value]) => value !== undefined && value !== null)
+      }).filter(([_key, value]) => value !== undefined && value !== null)
     );
 
     // Validate that we have valid select fields
     if (!selectFields || Object.keys(selectFields).length === 0) {
-      throw new Error('Campos de seleção inválidos para tickets');
+      throw new Error('Campos de seleÃ§Ã£o invÃ¡lidos para tickets');
     }
 
     // Build the base query with validation
@@ -1177,18 +1176,18 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     if (ticketIds.length > 0) {
       // Validate schema before using it
       if (!schema.ticketStatusHistory) {
-        throw new Error('Schema de histórico de status não encontrado');
+        throw new Error('Schema de histÃ³rico de status nÃ£o encontrado');
       }
 
       const statusHistorySelectFields = Object.fromEntries(
         Object.entries({
           ticket_id: schema.ticketStatusHistory.ticket_id,
           created_at: schema.ticketStatusHistory.created_at
-        }).filter(([key, value]) => value !== undefined && value !== null)
+        }).filter(([_key, value]) => value !== undefined && value !== null)
       );
       
       if (Object.keys(statusHistorySelectFields).length === 0) {
-        throw new Error('Campos de seleção inválidos para histórico de status');
+        throw new Error('Campos de seleÃ§Ã£o invÃ¡lidos para histÃ³rico de status');
       }
       
       statusHistories = await db.select(statusHistorySelectFields)
@@ -1206,7 +1205,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     });
 
     // Get business hours configuration
-    const businessHours = getBusinessHoursConfig();
+    const _businessHours = getBusinessHoursConfig();
     const deptIds = Array.from(new Set(tickets.map(t => t.department_id).filter(Boolean))) as number[];
     const officialIds = Array.from(new Set(tickets.map(t => t.assigned_to_id).filter(Boolean))) as number[];
 
@@ -1215,18 +1214,18 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     if (deptIds.length > 0) {
       // Validate schema before using it
       if (!schema.departments) {
-        throw new Error('Schema de departamentos não encontrado');
+        throw new Error('Schema de departamentos nÃ£o encontrado');
       }
 
       const departmentSelectFields = Object.fromEntries(
         Object.entries({
           id: schema.departments.id,
           name: schema.departments.name
-        }).filter(([key, value]) => value !== undefined && value !== null)
+        }).filter(([_key, value]) => value !== undefined && value !== null)
       );
       
       if (Object.keys(departmentSelectFields).length === 0) {
-        throw new Error('Campos de seleção inválidos para departamentos');
+        throw new Error('Campos de seleÃ§Ã£o invÃ¡lidos para departamentos');
       }
       
       departments = await db.select(departmentSelectFields)
@@ -1238,7 +1237,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     if (officialIds.length > 0) {
       // Validate schema before using it
       if (!schema.officials) {
-        throw new Error('Schema de funcionários não encontrado');
+        throw new Error('Schema de funcionÃ¡rios nÃ£o encontrado');
       }
 
       const officialSelectFields = Object.fromEntries(
@@ -1246,11 +1245,11 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
           id: schema.officials.id,
           name: schema.officials.name,
           email: schema.officials.email
-        }).filter(([key, value]) => value !== undefined && value !== null)
+        }).filter(([_key, value]) => value !== undefined && value !== null)
       );
       
       if (Object.keys(officialSelectFields).length === 0) {
-        throw new Error('Campos de seleção inválidos para funcionários');
+        throw new Error('Campos de seleÃ§Ã£o invÃ¡lidos para funcionÃ¡rios');
       }
       
       officials = await db.select(officialSelectFields)
@@ -1262,7 +1261,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     if (ticketIds.length > 0) {
       // Validate schema before using it
       if (!schema.satisfactionSurveys) {
-        throw new Error('Schema de pesquisas de satisfação não encontrado');
+        throw new Error('Schema de pesquisas de satisfaÃ§Ã£o nÃ£o encontrado');
       }
 
       const surveySelectFields = Object.fromEntries(
@@ -1270,11 +1269,11 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
           ticket_id: schema.satisfactionSurveys.ticket_id,
           rating: schema.satisfactionSurveys.rating,
           responded_at: schema.satisfactionSurveys.responded_at
-        }).filter(([key, value]) => value !== undefined && value !== null)
+        }).filter(([_key, value]) => value !== undefined && value !== null)
       );
       
       if (Object.keys(surveySelectFields).length === 0) {
-        throw new Error('Campos de seleção inválidos para pesquisas de satisfação');
+        throw new Error('Campos de seleÃ§Ã£o invÃ¡lidos para pesquisas de satisfaÃ§Ã£o');
       }
       
       surveys = await db.select(surveySelectFields)
@@ -1282,7 +1281,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
         .where(inArray(schema.satisfactionSurveys.ticket_id, ticketIds.filter(id => typeof id === 'number')));
     }
 
-    // As funções helper foram removidas - agora usamos as funções do storage que são as mesmas do dashboard
+    // As funÃ§Ãµes helper foram removidas - agora usamos as funÃ§Ãµes do storage que sÃ£o as mesmas do dashboard
 
     // Group by official
     const officialMap = new Map(officials.map(o => [o.id, { name: o.name, email: o.email }]));
@@ -1302,18 +1301,18 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
       surveysByTicket.set(s.ticket_id, arr);
     });
 
-    // Calcular métricas por atendente usando as mesmas funções do dashboard
+    // Calcular mÃ©tricas por atendente usando as mesmas funÃ§Ãµes do dashboard
     const officialsMetrics = await Promise.all(
       Array.from(ticketsByOfficial.entries()).map(async ([officialId, ts]) => {
         if (typeof officialId !== 'number') return null;
         const ticketsAssigned = ts.length;
         const resolvedTickets = ts.filter(t => t.resolved_at).length;
         
-        // Usar as mesmas funções do dashboard para garantir consistência
+        // Usar as mesmas funÃ§Ãµes do dashboard para garantir consistÃªncia
         const avgFirstResponseHours = await storage.getAverageFirstResponseTimeByUserRole(
           userId, 
           userRole, 
-          officialId as number, // officialId específico
+          officialId as number, // officialId especÃ­fico
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
           departmentId ? Number(departmentId) : undefined
@@ -1322,14 +1321,14 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
         const avgResolutionHours = await storage.getAverageResolutionTimeByUserRole(
           userId, 
           userRole, 
-          officialId as number, // officialId específico
+          officialId as number, // officialId especÃ­fico
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
           departmentId ? Number(departmentId) : undefined
         );
 
         // Satisfaction average for this official (tickets currently assigned to the official)
-        let ratings: number[] = [];
+        const ratings: number[] = [];
         ts.forEach(t => {
           if (typeof t.id !== 'number') return;
           const entries = surveysByTicket.get(t.id) || [];
@@ -1363,21 +1362,21 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
       ticketsByDept.set(t.department_id, arr as any);
     });
 
-    // Calcular métricas por departamento usando as mesmas funções do dashboard
+    // Calcular mÃ©tricas por departamento usando as mesmas funÃ§Ãµes do dashboard
     const departmentsMetrics = await Promise.all(
       Array.from(ticketsByDept.entries()).map(async ([deptId, ts]) => {
         if (typeof deptId !== 'number') return null;
         const total = ts.length;
         const resolved = ts.filter(t => t.resolved_at).length;
         
-        // Usar as mesmas funções do dashboard para garantir consistência
+        // Usar as mesmas funÃ§Ãµes do dashboard para garantir consistÃªncia
         const avgFirstResponseHours = await storage.getAverageFirstResponseTimeByUserRole(
           userId, 
           userRole, 
           undefined, // officialId - usar undefined para todos os atendentes do departamento
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
-          deptId as number // departmentId específico
+          deptId as number // departmentId especÃ­fico
         );
         
         const avgResolutionHours = await storage.getAverageResolutionTimeByUserRole(
@@ -1386,11 +1385,11 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
           undefined, // officialId - usar undefined para todos os atendentes do departamento
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
-          deptId as number // departmentId específico
+          deptId as number // departmentId especÃ­fico
         );
 
         // Satisfaction average for this department
-        let ratings: number[] = [];
+        const ratings: number[] = [];
         ts.forEach(t => {
           if (typeof t.id !== 'number') return;
           const entries = surveysByTicket.get(t.id) || [];
@@ -1413,11 +1412,11 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
     // Ordenar por tickets resolvidos
     departmentsMetrics.filter(m => m !== null).sort((a, b) => (b!.resolved_tickets - a!.resolved_tickets));
 
-    // Summary - USAR AS MESMAS FUNÇÕES DO DASHBOARD
+    // Summary - USAR AS MESMAS FUNÃ‡Ã•ES DO DASHBOARD
     const totalTickets = tickets.length;
     const resolvedTickets = tickets.filter(t => t.resolved_at !== null).length;
     
-    // Usar as mesmas funções do dashboard para garantir consistência
+    // Usar as mesmas funÃ§Ãµes do dashboard para garantir consistÃªncia
     const avgFirstResponseTimeHours = await storage.getAverageFirstResponseTimeByUserRole(
       userId, 
       userRole, 
@@ -1442,7 +1441,7 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
       avg_first_response_time_hours: avgFirstResponseTimeHours || null,
       avg_resolution_time_hours: avgResolutionTimeHours || null,
       satisfaction_avg: (() => {
-        let ratings: number[] = [];
+        const ratings: number[] = [];
         tickets.forEach(t => {
           if (typeof t.id !== 'number') return;
           const entries = surveysByTicket.get(t.id) || [];
@@ -1458,15 +1457,15 @@ router.get('/performance', authRequired, async (req: Request, res: Response) => 
       departments: departmentsMetrics.filter(m => m !== null)
     });
   } catch (error) {
-    console.error('Erro ao gerar relatório de performance:', error);
-    return res.status(500).json({ message: 'Erro ao gerar relatório de performance' });
+    console.error('Erro ao gerar relatÃ³rio de performance:', error);
+    return res.status(500).json({ message: 'Erro ao gerar relatÃ³rio de performance' });
   }
 });
 
 // Export performance report to multiple formats
 router.get('/performance/export', authRequired, async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, start_date, end_date, departmentId, companyId, showInactiveOfficials, incidentTypeId, incident_type_id, format = 'csv' } = req.query;
+    const { startDate, endDate, start_date, end_date, departmentId, companyId, showInactiveOfficials, incidentTypeId: _incidentTypeId, incident_type_id: _incident_type_id, format = 'csv' } = req.query;
     
     const startDateParam = (start_date || startDate) as string | undefined;
     const endDateParam = (end_date || endDate) as string | undefined;
@@ -1475,7 +1474,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
     const showInactiveOfficialsParam = showInactiveOfficials === 'true';
 
     // Build base query for tickets - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
-    let baseQuery = db.select({
+    const baseQuery = db.select({
       id: schema.tickets.id,
       ticket_id: schema.tickets.ticket_id,
       status: schema.tickets.status,
@@ -1494,7 +1493,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
     const userRole = req.session.userRole as string;
 
     if (!userId || !userRole) {
-      return res.status(401).json({ message: 'Usuário não autenticado' });
+      return res.status(401).json({ message: 'UsuÃ¡rio nÃ£o autenticado' });
     }
 
     const roleConditions: any[] = [];
@@ -1504,13 +1503,13 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
     } else if (userRole === 'company_admin') {
       const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
       if (!user || !user.company_id) {
-        return res.status(403).json({ message: 'Usuário sem empresa definida' });
+        return res.status(403).json({ message: 'UsuÃ¡rio sem empresa definida' });
       }
       roleConditions.push(eq(schema.tickets.company_id, user.company_id));
     } else if (userRole === 'manager') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: 'Official não encontrado' });
+        return res.status(403).json({ message: 'Official nÃ£o encontrado' });
       }
       const officialDepts = await db.select().from(schema.officialDepartments)
         .where(eq(schema.officialDepartments.official_id, official.id));
@@ -1524,7 +1523,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
         .where(eq(schema.officials.manager_id, official.id));
       const subordinateIds = subordinates.map(s => s.id);
       
-      // Manager vê: tickets dos seus departamentos E (atribuídos a ele OU subordinados OU não atribuídos)
+      // Manager vÃª: tickets dos seus departamentos E (atribuÃ­dos a ele OU subordinados OU nÃ£o atribuÃ­dos)
       const assignmentFilter = or(
         eq(schema.tickets.assigned_to_id, official.id),
         subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
@@ -1541,7 +1540,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
     } else if (userRole === 'supervisor') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: 'Official não encontrado' });
+        return res.status(403).json({ message: 'Official nÃ£o encontrado' });
       }
       const officialDepts = await db.select().from(schema.officialDepartments)
         .where(eq(schema.officialDepartments.official_id, official.id));
@@ -1571,7 +1570,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
     } else if (userRole === 'support') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: 'Official não encontrado' });
+        return res.status(403).json({ message: 'Official nÃ£o encontrado' });
       }
       const officialDepts = await db.select().from(schema.officialDepartments)
         .where(eq(schema.officialDepartments.official_id, official.id));
@@ -1587,11 +1586,11 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
     } else if (userRole === 'customer') {
       const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
       if (!customer) {
-        return res.status(403).json({ message: 'Customer não encontrado' });
+        return res.status(403).json({ message: 'Customer nÃ£o encontrado' });
       }
       roleConditions.push(eq(schema.tickets.customer_id, customer.id));
     } else {
-      return res.status(403).json({ message: 'Role não reconhecido' });
+      return res.status(403).json({ message: 'Role nÃ£o reconhecido' });
     }
 
     // Apply additional filters - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
@@ -1656,7 +1655,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
           id: schema.officials.id,
           name: schema.officials.name,
           email: schema.officials.email
-        }).filter(([key, value]) => value !== undefined && value !== null)
+        }).filter(([_key, value]) => value !== undefined && value !== null)
       );
       
       if (Object.keys(officialSelectFields).length > 0) {
@@ -1666,7 +1665,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
       }
     }
 
-    // Buscar dados de satisfação - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
+    // Buscar dados de satisfaÃ§Ã£o - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
     const ticketIds = tickets.map(t => t.id);
     let surveys: any[] = [];
     if (ticketIds.length > 0) {
@@ -1675,7 +1674,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
           ticket_id: schema.satisfactionSurveys.ticket_id,
           rating: schema.satisfactionSurveys.rating,
           responded_at: schema.satisfactionSurveys.responded_at
-        }).filter(([key, value]) => value !== undefined && value !== null)
+        }).filter(([_key, value]) => value !== undefined && value !== null)
       );
       
       if (Object.keys(surveySelectFields).length > 0) {
@@ -1695,17 +1694,17 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
       surveysByTicket.set(s.ticket_id, arr);
     });
 
-    // Calcular métricas por atendente usando as mesmas funções do dashboard - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
+    // Calcular mÃ©tricas por atendente usando as mesmas funÃ§Ãµes do dashboard - EXATAMENTE IGUAL AO ENDPOINT PRINCIPAL
     const officialsMetrics = await Promise.all(
       Array.from(ticketsByOfficial.entries()).map(async ([officialId, ts]) => {
         const ticketsAssigned = ts.length;
         const resolvedTickets = ts.filter(t => t.resolved_at).length;
         
-        // Usar as mesmas funções do dashboard para garantir consistência
+        // Usar as mesmas funÃ§Ãµes do dashboard para garantir consistÃªncia
         const avgFirstResponseHours = await storage.getAverageFirstResponseTimeByUserRole(
           userId, 
           userRole, 
-          officialId as number, // officialId específico
+          officialId as number, // officialId especÃ­fico
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
           departmentIdParam ? Number(departmentIdParam) : undefined
@@ -1714,14 +1713,14 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
         const avgResolutionHours = await storage.getAverageResolutionTimeByUserRole(
           userId, 
           userRole, 
-          officialId as number, // officialId específico
+          officialId as number, // officialId especÃ­fico
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
           departmentIdParam ? Number(departmentIdParam) : undefined
         );
 
         // Satisfaction average for this official (tickets currently assigned to the official)
-        let ratings: number[] = [];
+        const ratings: number[] = [];
         ts.forEach(t => {
           if (typeof t.id !== 'number') return;
           const entries = surveysByTicket.get(t.id) || [];
@@ -1731,7 +1730,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
 
         return {
           official_id: officialId,
-          official_name: officialId ? (officialMap.get(officialId)?.name || 'Atendente') : 'Não atribuído',
+          official_name: officialId ? (officialMap.get(officialId)?.name || 'Atendente') : 'NÃ£o atribuÃ­do',
           official_active: true, // Simplificado para export
           tickets_assigned: ticketsAssigned,
           resolved_tickets: resolvedTickets,
@@ -1742,7 +1741,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
       })
     );
 
-    // Filter out inactive officials if needed - APÓS O CÁLCULO
+    // Filter out inactive officials if needed - APÃ“S O CÃLCULO
     let filteredOfficialsMetrics = officialsMetrics;
     if (!showInactiveOfficialsParam) {
       filteredOfficialsMetrics = officialsMetrics.filter(official => 
@@ -1754,14 +1753,14 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
     const exportHeaders = [
       'Atendente',
       'Status',
-      'Tickets Atribuídos',
+      'Tickets AtribuÃ­dos',
       'Tickets Resolvidos',
-      'Tempo Médio 1ª Resposta (h)',
-      'Tempo Médio Resolução (h)',
-      'Satisfação Média'
+      'Tempo MÃ©dio 1Âª Resposta (h)',
+      'Tempo MÃ©dio ResoluÃ§Ã£o (h)',
+      'SatisfaÃ§Ã£o MÃ©dia'
     ];
 
-    // Função para formatar tempo igual ao dashboard (TimeMetricCard)
+    // FunÃ§Ã£o para formatar tempo igual ao dashboard (TimeMetricCard)
     const formatTime = (hours: number): string => {
       if (hours === 0) return '0h';
       
@@ -1808,11 +1807,11 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
       worksheet['!cols'] = [
         { width: 25 }, // Atendente
         { width: 10 }, // Status
-        { width: 15 }, // Tickets Atribuídos
+        { width: 15 }, // Tickets AtribuÃ­dos
         { width: 15 }, // Tickets Resolvidos
-        { width: 20 }, // Tempo Médio 1ª Resposta
-        { width: 20 }, // Tempo Médio Resolução
-        { width: 15 }  // Satisfação Média
+        { width: 20 }, // Tempo MÃ©dio 1Âª Resposta
+        { width: 20 }, // Tempo MÃ©dio ResoluÃ§Ã£o
+        { width: 15 }  // SatisfaÃ§Ã£o MÃ©dia
       ];
       
       // Style header row
@@ -1826,9 +1825,9 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
         };
       }
       
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Relatório Performance');
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'RelatÃ³rio Performance');
       
-      // Proteção contra vulnerabilidades xlsx (CVE GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9)
+      // ProteÃ§Ã£o contra vulnerabilidades xlsx (CVE GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9)
       // Adiciona timeout para prevenir DoS via arquivos complexos
       logger.info('Gerando arquivo Excel de performance', { 
         recordCount: exportRows.length,
@@ -1848,7 +1847,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
     } else if (exportFormat === 'pdf') {
       // PDF export with proper binary handling
       console.log('Starting PDF generation for performance report...');
-      const htmlContent = generatePDFHTML(exportHeaders, exportRows, 'Relatório de Performance');
+      const htmlContent = generatePDFHTML(exportHeaders, exportRows, 'RelatÃ³rio de Performance');
       console.log('HTML content generated, length:', htmlContent.length);
       
       let browser;
@@ -1856,7 +1855,7 @@ router.get('/performance/export', authRequired, async (req: Request, res: Respon
         browser = await puppeteer.launch({
           headless: true,
           args: ['--no-sandbox', '--disable-setuid-sandbox'],
-          // Configuração para Windows - usar Chrome/Chromium instalado
+          // ConfiguraÃ§Ã£o para Windows - usar Chrome/Chromium instalado
           executablePath: process.platform === 'win32' 
             ? undefined // Deixa o Puppeteer encontrar automaticamente
             : '/usr/bin/chromium-browser'
@@ -1920,7 +1919,7 @@ router.get('/sla', authRequired, async (req: Request, res: Response) => {
     const priorityParam = priority as string | undefined;
 
     // Build base query for tickets
-    let baseQuery = db.select({
+    const _baseQuery = db.select({
       id: schema.tickets.id,
       ticket_id: schema.tickets.ticket_id,
       title: schema.tickets.title,
@@ -1940,7 +1939,7 @@ router.get('/sla', authRequired, async (req: Request, res: Response) => {
     const userRole = req.session.userRole as string;
 
     if (!userId || !userRole) {
-      return res.status(401).json({ message: 'Usuário não autenticado' });
+      return res.status(401).json({ message: 'UsuÃ¡rio nÃ£o autenticado' });
     }
 
     const roleConditions: any[] = [];
@@ -1950,29 +1949,29 @@ router.get('/sla', authRequired, async (req: Request, res: Response) => {
     } else if (userRole === 'company_admin') {
       const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
       if (!user || !user.company_id) {
-        return res.status(403).json({ message: 'Usuário sem empresa definida' });
+        return res.status(403).json({ message: 'UsuÃ¡rio sem empresa definida' });
       }
       roleConditions.push(eq(schema.tickets.company_id, user.company_id));
     } else if (userRole === 'manager' || userRole === 'supervisor' || userRole === 'support') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: 'Official não encontrado' });
+        return res.status(403).json({ message: 'Official nÃ£o encontrado' });
       }
       const officialDepts = await db.select().from(schema.officialDepartments)
         .where(eq(schema.officialDepartments.official_id, official.id));
       if (officialDepts.length === 0) {
-        return res.status(403).json({ message: 'Usuário sem departamentos' });
+        return res.status(403).json({ message: 'UsuÃ¡rio sem departamentos' });
       }
       const departmentIds = officialDepts.map(od => od.department_id);
       roleConditions.push(inArray(schema.tickets.department_id, departmentIds));
     } else if (userRole === 'customer') {
       const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
       if (!customer) {
-        return res.status(403).json({ message: 'Customer não encontrado' });
+        return res.status(403).json({ message: 'Customer nÃ£o encontrado' });
       }
       roleConditions.push(eq(schema.tickets.customer_id, customer.id));
     } else {
-      return res.status(403).json({ message: 'Role não reconhecido' });
+      return res.status(403).json({ message: 'Role nÃ£o reconhecido' });
     }
 
     const additionalFilters: any[] = [];
@@ -1999,7 +1998,7 @@ router.get('/sla', authRequired, async (req: Request, res: Response) => {
     }
     if (priorityParam && priorityParam !== 'all') {
       // Filtro case-insensitive usando LOWER() do SQL
-      // Normalizar o valor para comparação case-insensitive e escapar para SQL
+      // Normalizar o valor para comparaÃ§Ã£o case-insensitive e escapar para SQL
       const normalizedPriority = priorityParam.trim().toLowerCase().replace(/'/g, "''");
       additionalFilters.push(
         sql`LOWER(TRIM(${schema.tickets.priority})) = LOWER(${sql.raw(`'${normalizedPriority}'`)})`
@@ -2046,16 +2045,16 @@ router.get('/sla', authRequired, async (req: Request, res: Response) => {
     const tickets = await ticketsQuery;
 
     // Get company_id from user or first ticket
-    let companyId: number | undefined;
+    let _companyId: number | undefined;
     if (userRole === 'company_admin') {
       const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
-      companyId = user?.company_id || undefined;
+      _companyId = user?.company_id || undefined;
     } else if (tickets.length > 0 && tickets[0].department_id) {
       const [dept] = await db.select({ company_id: schema.departments.company_id })
         .from(schema.departments)
         .where(eq(schema.departments.id, tickets[0].department_id))
         .limit(1);
-      companyId = dept?.company_id || undefined;
+      _companyId = dept?.company_id || undefined;
     }
 
     // Calculate summary
@@ -2075,7 +2074,7 @@ router.get('/sla', authRequired, async (req: Request, res: Response) => {
       priorityMap.set(prioKey, current);
     });
 
-    const byPriority = Array.from(priorityMap.entries()).map(([priorityKey, data]) => ({
+    const byPriority = Array.from(priorityMap.entries()).map(([_priorityKey, data]) => ({
       priority: normalizarPrioridade(data.originalName),
       total_tickets: data.total,
       breached_tickets: data.breached,
@@ -2134,8 +2133,8 @@ router.get('/sla', authRequired, async (req: Request, res: Response) => {
       breached_tickets: breachedTicketsList
     });
   } catch (error) {
-    console.error('Erro ao gerar relatório de SLA:', error);
-    return res.status(500).json({ message: 'Erro ao gerar relatório de SLA' });
+    console.error('Erro ao gerar relatÃ³rio de SLA:', error);
+    return res.status(500).json({ message: 'Erro ao gerar relatÃ³rio de SLA' });
   }
 });
 
@@ -2150,7 +2149,7 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
     const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
 
     // Build base query for tickets
-    let baseQuery = db.select({
+    const _baseQuery = db.select({
       id: schema.tickets.id,
       ticket_id: schema.tickets.ticket_id,
       status: schema.tickets.status,
@@ -2169,7 +2168,7 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
     const userRole = req.session.userRole as string;
 
     if (!userId || !userRole) {
-      return res.status(401).json({ message: 'Usuário não autenticado' });
+      return res.status(401).json({ message: 'UsuÃ¡rio nÃ£o autenticado' });
     }
 
     const roleConditions: any[] = [];
@@ -2179,13 +2178,13 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
     } else if (userRole === 'company_admin') {
       const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
       if (!user || !user.company_id) {
-        return res.status(403).json({ message: 'Usuário sem empresa definida' });
+        return res.status(403).json({ message: 'UsuÃ¡rio sem empresa definida' });
       }
       roleConditions.push(eq(schema.tickets.company_id, user.company_id));
     } else if (userRole === 'manager') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: 'Official não encontrado' });
+        return res.status(403).json({ message: 'Official nÃ£o encontrado' });
       }
       const officialDepts = await db.select().from(schema.officialDepartments)
         .where(eq(schema.officialDepartments.official_id, official.id));
@@ -2205,7 +2204,7 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
     } else if (userRole === 'supervisor') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: 'Official não encontrado' });
+        return res.status(403).json({ message: 'Official nÃ£o encontrado' });
       }
       const officialDepts = await db.select().from(schema.officialDepartments)
         .where(eq(schema.officialDepartments.official_id, official.id));
@@ -2225,7 +2224,7 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
     } else if (userRole === 'support') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: 'Official não encontrado' });
+        return res.status(403).json({ message: 'Official nÃ£o encontrado' });
       }
       const officialDepts = await db.select().from(schema.officialDepartments)
         .where(eq(schema.officialDepartments.official_id, official.id));
@@ -2241,11 +2240,11 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
     } else if (userRole === 'customer') {
       const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
       if (!customer) {
-        return res.status(403).json({ message: 'Customer não encontrado' });
+        return res.status(403).json({ message: 'Customer nÃ£o encontrado' });
       }
       roleConditions.push(eq(schema.tickets.customer_id, customer.id));
     } else {
-      return res.status(403).json({ message: 'Role não reconhecido' });
+      return res.status(403).json({ message: 'Role nÃ£o reconhecido' });
     }
 
     const additionalFilters: any[] = [];
@@ -2295,7 +2294,7 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
         created_at: schema.tickets.created_at,
         first_response_at: schema.tickets.first_response_at,
         resolved_at: schema.tickets.resolved_at
-      }).filter(([key, value]) => value !== undefined && value !== null)
+      }).filter(([_key, value]) => value !== undefined && value !== null)
     );
 
     let ticketsQuery = db.select(selectFields).from(schema.tickets);
@@ -2367,7 +2366,7 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
       });
     }
 
-    // Calcular métricas por departamento
+    // Calcular mÃ©tricas por departamento
     const incidentTypeIdForDept = incidentTypeParam && incidentTypeParam !== 'all' ? parseInt(incidentTypeParam, 10) : undefined;
     
     const departmentsMetrics = await Promise.all(
@@ -2376,14 +2375,14 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
         const total = ts.length;
         const resolved = ts.filter(t => t.resolved_at).length;
         
-        // Usar as mesmas funções do dashboard para garantir consistência
+        // Usar as mesmas funÃ§Ãµes do dashboard para garantir consistÃªncia
         const avgFirstResponseHours = await storage.getAverageFirstResponseTimeByUserRole(
           userId, 
           userRole, 
           undefined, // officialId - usar undefined para todos os atendentes do departamento
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
-          deptId as number, // departmentId específico
+          deptId as number, // departmentId especÃ­fico
           incidentTypeIdForDept
         );
         
@@ -2393,12 +2392,12 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
           undefined, // officialId - usar undefined para todos os atendentes do departamento
           startDateParam ? new Date(startDateParam) : undefined,
           endDateParam ? new Date(endDateParam) : undefined,
-          deptId as number, // departmentId específico
+          deptId as number, // departmentId especÃ­fico
           incidentTypeIdForDept
         );
 
         // Satisfaction average for this department
-        let ratings: number[] = [];
+        const ratings: number[] = [];
         ts.forEach(t => {
           if (typeof t.id !== 'number') return;
           const entries = surveysByTicket.get(t.id) || [];
@@ -2455,7 +2454,7 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
       avg_first_response_time_hours: avgFirstResponseTimeHours || null,
       avg_resolution_time_hours: avgResolutionTimeHours || null,
       satisfaction_avg: (() => {
-        let ratings: number[] = [];
+        const ratings: number[] = [];
         tickets.forEach(t => {
           if (typeof t.id !== 'number') return;
           const entries = surveysByTicket.get(t.id) || [];
@@ -2470,8 +2469,8 @@ router.get('/department', authRequired, async (req: Request, res: Response) => {
       departments: departmentsMetrics.filter(m => m !== null)
     });
   } catch (error) {
-    console.error('Erro ao gerar relatório por departamento:', error);
-    return res.status(500).json({ message: 'Erro ao gerar relatório por departamento' });
+    console.error('Erro ao gerar relatÃ³rio por departamento:', error);
+    return res.status(500).json({ message: 'Erro ao gerar relatÃ³rio por departamento' });
   }
 });
 
@@ -2487,7 +2486,7 @@ router.get('/clients', authRequired, async (req: Request, res: Response) => {
     const ratingParam = rating ? parseInt(rating as string, 10) : undefined;
 
     // Build base query for tickets
-    let baseQuery = db.select({
+    const _baseQuery = db.select({
       id: schema.tickets.id,
       ticket_id: schema.tickets.ticket_id,
       status: schema.tickets.status,
@@ -2506,7 +2505,7 @@ router.get('/clients', authRequired, async (req: Request, res: Response) => {
     const userRole = req.session.userRole as string;
 
     if (!userId || !userRole) {
-      return res.status(401).json({ message: 'Usuário não autenticado' });
+      return res.status(401).json({ message: 'UsuÃ¡rio nÃ£o autenticado' });
     }
 
     const roleConditions: any[] = [];
@@ -2516,29 +2515,29 @@ router.get('/clients', authRequired, async (req: Request, res: Response) => {
     } else if (userRole === 'company_admin') {
       const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
       if (!user || !user.company_id) {
-        return res.status(403).json({ message: 'Usuário sem empresa definida' });
+        return res.status(403).json({ message: 'UsuÃ¡rio sem empresa definida' });
       }
       roleConditions.push(eq(schema.tickets.company_id, user.company_id));
     } else if (userRole === 'manager' || userRole === 'supervisor' || userRole === 'support') {
       const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
       if (!official) {
-        return res.status(403).json({ message: 'Official não encontrado' });
+        return res.status(403).json({ message: 'Official nÃ£o encontrado' });
       }
       const officialDepts = await db.select().from(schema.officialDepartments)
         .where(eq(schema.officialDepartments.official_id, official.id));
       if (officialDepts.length === 0) {
-        return res.status(403).json({ message: 'Usuário sem departamentos' });
+        return res.status(403).json({ message: 'UsuÃ¡rio sem departamentos' });
       }
       const departmentIds = officialDepts.map(od => od.department_id);
       roleConditions.push(inArray(schema.tickets.department_id, departmentIds));
     } else if (userRole === 'customer') {
       const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
       if (!customer) {
-        return res.status(403).json({ message: 'Customer não encontrado' });
+        return res.status(403).json({ message: 'Customer nÃ£o encontrado' });
       }
       roleConditions.push(eq(schema.tickets.customer_id, customer.id));
     } else {
-      return res.status(403).json({ message: 'Role não reconhecido' });
+      return res.status(403).json({ message: 'Role nÃ£o reconhecido' });
     }
 
     const additionalFilters: any[] = [];
@@ -2597,7 +2596,7 @@ router.get('/clients', authRequired, async (req: Request, res: Response) => {
 
     // Fetch customers
     const customerIds = Array.from(new Set(tickets.map(t => t.customer_id).filter(Boolean))) as number[];
-    const customerEmails = Array.from(new Set(tickets.map(t => t.customer_email).filter(Boolean))) as string[];
+    const _customerEmails = Array.from(new Set(tickets.map(t => t.customer_email).filter(Boolean))) as string[];
     
     let customers: any[] = [];
     if (customerIds.length > 0) {
@@ -2813,9 +2812,11 @@ router.get('/clients', authRequired, async (req: Request, res: Response) => {
       recent_comments: recentComments
     });
   } catch (error) {
-    console.error('Erro ao gerar relatório de clientes:', error);
-    return res.status(500).json({ message: 'Erro ao gerar relatório de clientes' });
+    console.error('Erro ao gerar relatÃ³rio de clientes:', error);
+    return res.status(500).json({ message: 'Erro ao gerar relatÃ³rio de clientes' });
   }
 });
 
 export default router;
+
+

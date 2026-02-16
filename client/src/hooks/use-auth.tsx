@@ -137,7 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       let userData;
       try {
         userData = JSON.parse(responseText);
-      } catch (parseError) {
+      } catch {
         throw new Error('Resposta inválida do servidor');
       }
 

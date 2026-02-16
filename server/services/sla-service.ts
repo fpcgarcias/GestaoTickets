@@ -9,13 +9,9 @@ import {
   slaDefinitions,
   departmentPriorities,
   departments,
-  companies,
-  incidentTypes,
-  type SlaConfiguration,
-  type SLADefinition,
   type DepartmentPriority
 } from '@shared/schema';
-import { eq, and, desc, isNull, isNotNull, ilike } from 'drizzle-orm';
+import { eq, and, isNull, ilike } from 'drizzle-orm';
 
 // Interface para resultado de SLA resolvido
 export interface ResolvedSLA {
@@ -268,7 +264,7 @@ export class SLAService {
    * Nível 1: Tentar configuração específica com fallback de prioridade
    */
   private async trySpecificConfiguration(params: SLAResolutionParams): Promise<ResolvedSLA> {
-    let priorityForQuery = this.normalizePriorityForSLA(params.priorityName || params.priorityId || 'Média');
+    const priorityForQuery = this.normalizePriorityForSLA(params.priorityName || params.priorityId || 'Média');
     
     // Tentar encontrar configuração com fallback de prioridade
     const result = await this.findSLAConfigWithPriorityFallback(

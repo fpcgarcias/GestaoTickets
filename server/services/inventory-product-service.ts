@@ -28,7 +28,7 @@ export interface CreateProductInput extends Omit<InsertInventoryProduct, 'specif
   photos?: ProductPhoto[];
 }
 
-export interface UpdateProductInput extends Partial<CreateProductInput> {}
+export type UpdateProductInput = Partial<CreateProductInput>;
 
 export interface ProductFilters {
   companyId: number;

@@ -479,16 +479,16 @@ describe('NotificationPanel - Testes Unitários', () => {
     });
 
     it('deve mostrar empty state quando não há notificações', () => {
-      const loading = false;
+      const _loading = false;
       const notifications: any[] = [];
 
       // Verificar condição para mostrar empty state
-      const shouldShowEmpty = !loading && notifications.length === 0;
+      const shouldShowEmpty = !_loading && notifications.length === 0;
       expect(shouldShowEmpty).toBe(true);
     });
 
     it('deve mostrar lista quando há notificações', () => {
-      const loading = false;
+      const _loading = false;
       const notifications = [
         { id: 1, title: 'Notificação 1' },
         { id: 2, title: 'Notificação 2' },

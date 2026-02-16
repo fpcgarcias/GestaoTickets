@@ -31,7 +31,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -43,16 +42,13 @@ import {
   Trash2, 
   Eye, 
   TestTube,
-  Copy,
-  Check,
   Code,
   Monitor,
   FileText,
-  AlertCircle,
   Building2
 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { queryClient, apiRequest } from '@/lib/queryClient';
+import { apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/contexts/theme-context';
@@ -965,7 +961,7 @@ export default function EmailSettings() {
           const value = data[obj]?.[prop];
           return value !== undefined && value !== null ? String(value) : match;
         }
-      } catch (e) {
+      } catch (_e) {
         return match;
       }
     });
@@ -975,7 +971,7 @@ export default function EmailSettings() {
       try {
         const value = data[prop];
         return value !== undefined && value !== null ? String(value) : match;
-      } catch (e) {
+      } catch (_e) {
         return match;
       }
     });

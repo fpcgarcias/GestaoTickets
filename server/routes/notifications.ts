@@ -12,7 +12,7 @@ const router = express.Router();
 /**
  * Interface para opções de listagem de notificações
  */
-interface GetNotificationsOptions {
+interface _GetNotificationsOptions {
   page?: number;
   limit?: number;
   type?: string;

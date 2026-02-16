@@ -1,5 +1,5 @@
 import React from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useI18n } from '@/i18n';
 
 interface ModernPieChartProps {
@@ -35,7 +35,7 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
-const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }: any) => {
+const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name: _name }: any) => {
   const RADIAN = Math.PI / 180;
   const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -129,7 +129,7 @@ export const ModernPieChart: React.FC<ModernPieChartProps> = ({ data, isLoading,
       {!hideLegend && (
         <div className="mt-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {data.map((item, index) => {
+            {data.map((item, _index) => {
               const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
               return (
                 <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/60 hover:bg-muted transition-colors duration-200">

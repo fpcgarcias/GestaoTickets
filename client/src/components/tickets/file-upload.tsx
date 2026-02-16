@@ -76,38 +76,34 @@ export function FileUpload({
     const formData = new FormData();
     formData.append('file', file);
 
-    try {
-      const response = await fetch(`/api/tickets/${ticketId}/attachments`, {
-        method: 'POST',
-        body: formData,
-      });
+    const response = await fetch(`/api/tickets/${ticketId}/attachments`, {
+      method: 'POST',
+      body: formData,
+    });
 
-      if (!response.ok) {
-        let errorMessage = formatMessage('file_upload.unexpected_error');
-        const text = await response.text();
-        try {
-          const errorData = JSON.parse(text);
-          if (errorData && errorData.message) {
-            errorMessage = errorData.message;
-          }
-        } catch (jsonErr) {
-          // Se não for JSON, pode ser HTML ou texto
-          if (text && text.includes('Tipo de arquivo não permitido')) {
-            errorMessage = formatMessage('file_upload.file_type_not_allowed_retry');
-          } else if (text && text.includes('Payload Too Large')) {
-            errorMessage = formatMessage('file_upload.file_too_large_exceeded');
-          } else {
-            errorMessage = formatMessage('file_upload.unexpected_error');
-          }
+    if (!response.ok) {
+      let errorMessage = formatMessage('file_upload.unexpected_error');
+      const text = await response.text();
+      try {
+        const errorData = JSON.parse(text);
+        if (errorData && errorData.message) {
+          errorMessage = errorData.message;
         }
-        throw new Error(errorMessage);
+      } catch (_jsonErr) {
+        // Se não for JSON, pode ser HTML ou texto
+        if (text && text.includes('Tipo de arquivo não permitido')) {
+          errorMessage = formatMessage('file_upload.file_type_not_allowed_retry');
+        } else if (text && text.includes('Payload Too Large')) {
+          errorMessage = formatMessage('file_upload.file_too_large_exceeded');
+        } else {
+          errorMessage = formatMessage('file_upload.unexpected_error');
+        }
       }
-
-      const attachment = await response.json();
-      return attachment;
-    } catch (error) {
-      throw error;
+      throw new Error(errorMessage);
     }
+
+    const attachment = await response.json();
+    return attachment;
   };
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {

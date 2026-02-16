@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from '../db';
 import { tickets, users, ticketStatusHistory } from '@shared/schema';
-import { sql, desc, and, gte } from 'drizzle-orm';
+import { sql, gte } from 'drizzle-orm';
 
 // Armazenamento temporário de eventos de segurança (em produção, usar Redis/banco)
 const securityEvents: Array<{

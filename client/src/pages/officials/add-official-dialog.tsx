@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from '@/i18n';
-import { cn, generateSecurePassword } from "@/lib/utils";
+import { generateSecurePassword } from "@/lib/utils";
 
 interface AddOfficialDialogProps {
   open: boolean;
@@ -35,7 +35,6 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
   const { toast } = useToast();
   const { user } = useAuth();
   const { formatMessage } = useI18n();
-  const queryClient = useQueryClient();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -211,7 +210,9 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       
       // Fechar o diálogo e resetar o formulário
       handleCloseDialog();
-      onCreated && onCreated(data.official);
+      if (onCreated) {
+        onCreated(data.official);
+      }
     },
     onError: (error: any) => {
       setSubmitting(false);

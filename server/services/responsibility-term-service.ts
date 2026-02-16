@@ -18,6 +18,7 @@ import nodemailer from 'nodemailer';
 import puppeteer from 'puppeteer';
 import s3Service from './s3-service';
 import { emailConfigService } from './email-config-service';
+import { resolveDevEmail } from '../utils/email-dev';
 
 export interface TemplateInput extends Omit<InsertInventoryTermTemplate, 'company_id' | 'created_at' | 'updated_at'> {
   company_id: number;
@@ -214,7 +215,7 @@ class ResponsibilityTermService {
   }
 
   async generateBatchTerm(params: GenerateTermParams): Promise<InventoryResponsibilityTerm & { pdfBase64?: string }> {
-    let assignmentIds: number[] = [];
+    let assignmentIds: number[];
 
     if (params.assignmentGroupId) {
       // Buscar assignments pelo group_id
@@ -789,7 +790,7 @@ class ResponsibilityTermService {
     }).join('\n');
 
     // Gerar cabeçalho da tabela baseado nas colunas que serão mostradas
-    let tableHeader = '';
+    let tableHeader: string;
     if (showBothColumns) {
       tableHeader = `
         <thead>
@@ -863,7 +864,7 @@ class ResponsibilityTermService {
             executablePath = path;
             break;
           }
-        } catch (e) {
+        } catch (_e) {
           // Ignorar erros e tentar próximo caminho
         }
       }
@@ -917,6 +918,16 @@ class ResponsibilityTermService {
     message?: string;
     companyId: number;
   }) {
+    const devEmail = resolveDevEmail(params.to);
+    if (!devEmail.send) {
+      console.log(`[📧 EMAIL DEV] Termo de responsabilidade: envio desabilitado em desenvolvimento. Destinatário original: ${devEmail.originalTo}`);
+      return;
+    }
+    const effectiveTo = devEmail.to;
+    if (effectiveTo !== devEmail.originalTo) {
+      console.log(`[📧 EMAIL DEV] Termo de responsabilidade redirecionado para: ${effectiveTo} (original: ${devEmail.originalTo})`);
+    }
+
     const config = await emailConfigService.getEmailConfig(params.companyId);
     if (!config.enabled) {
       throw new Error('Envio de e-mail não está habilitado para esta empresa.');
@@ -945,7 +956,7 @@ class ResponsibilityTermService {
 
     await transporter.sendMail({
       from: `${config.fromName} <${config.fromEmail}>`,
-      to: params.to,
+      to: effectiveTo,
       subject: 'Termo de Responsabilidade - Inventário',
       html,
     });

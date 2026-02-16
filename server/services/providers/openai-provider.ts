@@ -63,12 +63,12 @@ export class OpenAiProvider implements AiProviderInterface {
 
       const data = await response.json();
       return this.processResponse(data, config, startTime);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro no provedor OpenAI:', error);
       
       // Se for timeout, marcar como tal
-      if (error.name === 'TimeoutError') {
-        throw new Error('OpenAI analysis timeout');
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        throw new Error('OpenAI analysis timeout', { cause: error });
       }
       
       throw error;

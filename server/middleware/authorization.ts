@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { db } from '../db';
 import { eq, and } from 'drizzle-orm';
-import { users, tickets, ticketParticipants, customers, officials, departments, officialDepartments } from '@shared/schema';
+import { customers, officials, departments, officialDepartments } from '@shared/schema';
 import { storage } from '../storage';
 
 // 🔥 FASE 5.2: Middleware para verificar se o usuário está autenticado

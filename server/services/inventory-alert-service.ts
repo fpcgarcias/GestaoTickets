@@ -7,7 +7,6 @@ import {
   productCategories,
   userInventoryAssignments,
   departmentInventorySettings,
-  type InventoryAlert,
   type InventoryProduct,
 } from '@shared/schema';
 import { eq, and, lt, isNull, sql } from 'drizzle-orm';

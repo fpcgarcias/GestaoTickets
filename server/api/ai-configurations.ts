@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { eq, desc, and, ne, sql, count, isNull, or, like } from "drizzle-orm";
+import { eq, desc, and, isNull, or, like } from "drizzle-orm";
 import * as schema from "../../shared/schema";
 import { db } from "../db";
 import { AiService } from "../services/ai-service";
@@ -26,7 +26,7 @@ export async function getAiConfigurations(req: Request, res: Response) {
         });
       }
     }
-    let baseQuery = db
+    const baseQuery = db
       .select({
             id: schema.aiConfigurations.id,
     name: schema.aiConfigurations.name,
@@ -54,7 +54,7 @@ export async function getAiConfigurations(req: Request, res: Response) {
       .leftJoin(schema.users, eq(schema.aiConfigurations.created_by_id, schema.users.id))
       .leftJoin(schema.departments, eq(schema.aiConfigurations.department_id, schema.departments.id));
     // Construir condições de filtro
-    let whereConditions: any[] = [];
+    const whereConditions: any[] = [];
     
     // Filtro por empresa
     if (userRole === 'admin' && company_id) {

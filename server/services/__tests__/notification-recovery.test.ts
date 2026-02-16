@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import * as fc from 'fast-check';
 import { db } from '../../db';
-import { notifications, users, companies, tickets, customers } from '../../../shared/schema';
+import { notifications, users, tickets } from '../../../shared/schema';
 import { eq, and, sql } from 'drizzle-orm';
 
 describe('Property 4: Recuperação de notificações não lidas na conexão', () => {

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 
 export interface ClicksignConfig {
@@ -33,8 +33,6 @@ export function useClicksignConfig() {
 }
 
 export function useUpdateClicksignConfig() {
-  const queryClient = useQueryClient();
-  
   return useMutation({
     mutationFn: async (config: Partial<ClicksignConfig>) => {
       const response = await apiRequest('PUT', '/api/clicksign-config', config);

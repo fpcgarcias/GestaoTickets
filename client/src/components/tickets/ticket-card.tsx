@@ -13,7 +13,7 @@ import {
 import { StatusDot, StatusBadge, PriorityBadge } from './status-badge';
 import { SLAIndicator } from './sla-indicator';
 import { formatDate } from '@/lib/utils';
-import { Ticket, Official } from '@shared/schema';
+import { Ticket } from '@shared/schema';
 import { 
   Select,
   SelectContent,
@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { usePriorities, convertLegacyToWeight } from '@/hooks/use-priorities';
@@ -70,14 +69,14 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
     assigned_to_id: assignedToId,
     department_id: departmentId,
     company_id: companyId,
-    incident_type_id: incidentTypeId,
-    category_id: categoryId,
+    incident_type_id: _incidentTypeId,
+    category_id: _categoryId,
     // campos enriquecidos do backend
-    // @ts-ignore
+    // @ts-expect-error - campos enriquecidos do backend podem não estar na tipagem
     department_name: departmentName,
-    // @ts-ignore
+    // @ts-expect-error - campos enriquecidos do backend podem não estar na tipagem
     incident_type_name: incidentTypeName,
-    // @ts-ignore
+    // @ts-expect-error - campos enriquecidos do backend podem não estar na tipagem
     category_name: categoryName,
   } = ticket as any;
   
@@ -105,7 +104,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
   });
 
   // Buscar participantes do ticket
-  const { data: participantsResponse, isLoading: participantsLoading } = useQuery({
+  const { data: participantsResponse, isLoading: _participantsLoading } = useQuery({
     queryKey: [`/api/ticket-participants/${id}`],
     queryFn: async () => {
       const response = await fetch(`/api/ticket-participants/${id}`);

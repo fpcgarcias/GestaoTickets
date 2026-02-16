@@ -1,28 +1,23 @@
 import { 
-  users, customers, officials, tickets, ticketReplies, ticketStatusHistory, slaDefinitions, 
+  users, customers, officials, tickets, ticketReplies, ticketStatusHistory,
   type User, type InsertUser, 
   type Customer, type InsertCustomer, 
   type Official, type InsertOfficial,
   type Ticket, type InsertTicket,
   type TicketReply, type InsertTicketReply,
   type TicketStatusHistory,
-  type SLADefinition,
   officialDepartments, type OfficialDepartment, type InsertOfficialDepartment,
   ticketStatusEnum,
-  userRoleEnum,
-  systemSettings, type SystemSetting,
   incidentTypes, type IncidentType,
   categories, type Category,
   companies, departments,
   ticketParticipants, type TicketParticipant,
-  type InsertTicketParticipant,
   type Company,
   serviceProviders, departmentServiceProviders, ticketServiceProviders,
   type ServiceProvider
 } from "@shared/schema";
-import * as schema from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, inArray, getTableColumns, isNotNull, isNull, ilike, asc, gte, lte, ne, exists } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, getTableColumns, isNull, ilike, asc, gte, lte, ne, exists } from "drizzle-orm";
 import { IStorage } from "./storage";
 import { isSlaPaused } from "@shared/ticket-utils";
 import { convertStatusHistoryToPeriods, calculateEffectiveBusinessTime, getBusinessHoursConfig } from "@shared/utils/sla-calculator";
@@ -49,20 +44,20 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(userData: InsertUser): Promise<User> {
     try {
-      console.log('DatabaseStorage.createUser - Iniciando criação com dados:', JSON.stringify(userData, null, 2));
+      console.log('DatabaseStorage.createUser - Iniciando criaÃ§Ã£o com dados:', JSON.stringify(userData, null, 2));
       
-      // Verificar campos obrigatórios
+      // Verificar campos obrigatÃ³rios
       if (!userData.username) {
-        throw new Error('Nome de usuário é obrigatório');
+        throw new Error('Nome de usuÃ¡rio Ã© obrigatÃ³rio');
       }
       if (!userData.email) {
-        throw new Error('Email é obrigatório');
+        throw new Error('Email Ã© obrigatÃ³rio');
       }
       if (!userData.password) {
-        throw new Error('Senha é obrigatória');
+        throw new Error('Senha Ã© obrigatÃ³ria');
       }
       
-      // Garantir que isActive tem um valor padrão verdadeiro
+      // Garantir que isActive tem um valor padrÃ£o verdadeiro
       const dataWithDefaults = {
         ...userData,
         active: userData.active !== false, // default para true
@@ -74,10 +69,10 @@ export class DatabaseStorage implements IStorage {
       const [user] = await db.insert(users).values(dataWithDefaults).returning();
       
       if (!user) {
-        throw new Error('Falha ao criar usuário - nenhum registro retornado');
+        throw new Error('Falha ao criar usuÃ¡rio - nenhum registro retornado');
       }
       
-      console.log('DatabaseStorage.createUser - Usuário criado com sucesso:', JSON.stringify(user, null, 2));
+      console.log('DatabaseStorage.createUser - UsuÃ¡rio criado com sucesso:', JSON.stringify(user, null, 2));
       return user;
     } catch (error) {
       console.error('DatabaseStorage.createUser - Erro:', error);
@@ -144,7 +139,7 @@ export class DatabaseStorage implements IStorage {
   
   // Customer operations
   async getCustomers(): Promise<Customer[]> {
-    // Busca clientes já com nome da empresa e status do usuário associado, eliminando N+1 queries
+    // Busca clientes jÃ¡ com nome da empresa e status do usuÃ¡rio associado, eliminando N+1 queries
     return db
       .select({
         id: customers.id,
@@ -158,7 +153,7 @@ export class DatabaseStorage implements IStorage {
         created_at: customers.created_at,
         updated_at: customers.updated_at,
         company_name: companies.name, // nome da empresa (auxiliar)
-        user_active: users.active, // status do usuário (auxiliar)
+        user_active: users.active, // status do usuÃ¡rio (auxiliar)
         user_username: users.username,
         user_role: users.role
       })
@@ -199,7 +194,7 @@ export class DatabaseStorage implements IStorage {
 
   // Official operations
   async getOfficials(): Promise<Official[]> {
-    // 1ª Query: Busca oficiais, dados do usuário, empresa e contagem de tickets em uma query agregada
+    // 1Âª Query: Busca oficiais, dados do usuÃ¡rio, empresa e contagem de tickets em uma query agregada
     const officialsWithUserAndTicketCount = await db
       .select({
         id: officials.id,
@@ -226,7 +221,7 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(tickets, eq(tickets.assigned_to_id, officials.id))
       .groupBy(officials.id, users.id, companies.id);
 
-    // 2ª Query: Busca todos os departamentos de todos os oficiais de uma vez
+    // 2Âª Query: Busca todos os departamentos de todos os oficiais de uma vez
     const officialDepartmentsData = await db
       .select({
         official_id: officialDepartments.official_id,
@@ -246,13 +241,13 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // Monta um mapa de id para dados do official (para lookup rápido do manager)
+    // Monta um mapa de id para dados do official (para lookup rÃ¡pido do manager)
     const officialIdMap = new Map<number, { id: number, name: string, email: string }>();
     for (const row of officialsWithUserAndTicketCount) {
       officialIdMap.set(row.id, { id: row.id, name: row.name, email: row.email });
     }
 
-    // Monta o array final de oficiais, agregando departamentos, dados do usuário, empresa e manager
+    // Monta o array final de oficiais, agregando departamentos, dados do usuÃ¡rio, empresa e manager
     const officialsResult: Official[] = officialsWithUserAndTicketCount.map((row) => {
       let manager: Partial<Official> | undefined = undefined;
       if (row.manager_id && officialIdMap.has(row.manager_id)) {
@@ -275,8 +270,8 @@ export class DatabaseStorage implements IStorage {
       };
     });
 
-    // // melhoria de performance: eliminadas N+1 queries usando JOINs e agregação
-    // // agora apenas 2 queries fixas, independente do número de oficiais
+    // // melhoria de performance: eliminadas N+1 queries usando JOINs e agregaÃ§Ã£o
+    // // agora apenas 2 queries fixas, independente do nÃºmero de oficiais
     return officialsResult;
   }
 
@@ -292,17 +287,17 @@ export class DatabaseStorage implements IStorage {
 
   async createOfficial(officialData: InsertOfficial): Promise<Official> {
     try {
-      console.log('DatabaseStorage.createOfficial - Iniciando criação com dados:', JSON.stringify(officialData, null, 2));
+      console.log('DatabaseStorage.createOfficial - Iniciando criaÃ§Ã£o com dados:', JSON.stringify(officialData, null, 2));
       
-      // Verificar campos obrigatórios
+      // Verificar campos obrigatÃ³rios
       if (!officialData.email) {
-        throw new Error('Email do atendente é obrigatório');
+        throw new Error('Email do atendente Ã© obrigatÃ³rio');
       }
       if (!officialData.name) {
-        throw new Error('Nome do atendente é obrigatório');
+        throw new Error('Nome do atendente Ã© obrigatÃ³rio');
       }
       
-      // Garantir que isActive tem um valor padrão verdadeiro
+      // Garantir que isActive tem um valor padrÃ£o verdadeiro
       const dataWithDefaults = {
         ...officialData,
         is_active: officialData.is_active !== false, // default para true
@@ -360,7 +355,7 @@ export class DatabaseStorage implements IStorage {
     return official || undefined;
   }
   
-  // Operações de departamentos dos oficiais
+  // OperaÃ§Ãµes de departamentos dos oficiais
   async getOfficialDepartments(officialId: number): Promise<OfficialDepartment[]> {
     return db
       .select()
@@ -385,7 +380,7 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     if (!official || !official.company_id) {
-      console.warn(`Não foi possível determinar a empresa do atendente ${officialId} para remover departamento '${departmentName}'`);
+      console.warn(`NÃ£o foi possÃ­vel determinar a empresa do atendente ${officialId} para remover departamento '${departmentName}'`);
       return false;
     }
 
@@ -400,7 +395,7 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     
     if (!dept) {
-      console.warn(`Departamento não encontrado para a empresa ${official.company_id}: ${departmentName}`);
+      console.warn(`Departamento nÃ£o encontrado para a empresa ${official.company_id}: ${departmentName}`);
       return false;
     }
     
@@ -423,7 +418,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(departments.name, departmentName));
     
     if (!dept) {
-      console.warn(`Departamento não encontrado: ${departmentName}`);
+      console.warn(`Departamento nÃ£o encontrado: ${departmentName}`);
       return [];
     }
     
@@ -436,8 +431,8 @@ export class DatabaseStorage implements IStorage {
     return departmentOfficials.map(row => row.officials);
   }
   
-  // Filtrar tickets baseado no perfil do usuário
-  // Método paginado principal
+  // Filtrar tickets baseado no perfil do usuÃ¡rio
+  // MÃ©todo paginado principal
   async getTicketsByUserRolePaginated(
     userId: number,
     userRole: string,
@@ -463,7 +458,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<{ data: Ticket[]; pagination: { page: number; limit: number; total: number; totalPages: number; hasNext: boolean; hasPrev: boolean } }> {
     // Montar filtros SQL conforme papel do usuário (MESMA LÓGICA DO DASHBOARD)
     let whereClauses: any[] = [];
-    let companyId: number | null = null;
+    let companyId: number | null;
     
     if (userRole === 'admin') {
       // Admin vê tudo
@@ -479,7 +474,7 @@ export class DatabaseStorage implements IStorage {
       // Cliente pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
       const customerCondition = or(
         eq(tickets.customer_id, customer.id), // Tickets que ele criou
-        exists( // Tickets onde ele é participante
+        exists( // Tickets onde ele Ã© participante
           db.select().from(ticketParticipants)
             .where(and(
               eq(ticketParticipants.ticket_id, tickets.id),
@@ -488,7 +483,7 @@ export class DatabaseStorage implements IStorage {
         )
       );
       whereClauses.push(customerCondition);
-      // Garantir filtro por empresa para não-admins
+      // Garantir filtro por empresa para nÃ£o-admins
       if (customer.company_id) {
         whereClauses.push(eq(tickets.company_id, customer.company_id));
       }
@@ -522,12 +517,12 @@ export class DatabaseStorage implements IStorage {
         } else if (Number(filters.assigned_to_id) === official.id) {
           whereClauses.push(eq(tickets.assigned_to_id, official.id));
         } else {
-          // Não tem permissão
+          // NÃ£o tem permissÃ£o
           return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
         }
       }
       
-      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO (mas união com tickets que criou/participa abaixo)
+      // FILTRO OBRIGATÃ“RIO POR DEPARTAMENTO (mas uniÃ£o com tickets que criou/participa abaixo)
       const deptConstraint = inArray(tickets.department_id, departmentIds);
       whereClauses.push(deptConstraint);
       
@@ -561,12 +556,12 @@ export class DatabaseStorage implements IStorage {
         } else if (Number(filters.assigned_to_id) === official.id) {
           whereClauses.push(eq(tickets.assigned_to_id, official.id));
         } else {
-          // Não tem permissão
+          // NÃ£o tem permissÃ£o
           return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
         }
       }
       
-      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO (mas união com tickets que criou/participa abaixo)
+      // FILTRO OBRIGATÃ“RIO POR DEPARTAMENTO (mas uniÃ£o com tickets que criou/participa abaixo)
       const deptConstraint = inArray(tickets.department_id, departmentIds);
       whereClauses.push(deptConstraint);
       
@@ -595,15 +590,15 @@ export class DatabaseStorage implements IStorage {
         return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       }
       
-      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO (mas união com tickets que criou/participa abaixo)
+      // FILTRO OBRIGATÃ“RIO POR DEPARTAMENTO (mas uniÃ£o com tickets que criou/participa abaixo)
       const deptConstraint = inArray(tickets.department_id, departmentIds);
       whereClauses.push(deptConstraint);
     }
 
-    // OR adicional: Todos os papéis (exceto admin) também enxergam tickets que criaram (customer) OU onde são participantes,
+    // OR adicional: Todos os papÃ©is (exceto admin) tambÃ©m enxergam tickets que criaram (customer) OU onde sÃ£o participantes,
     // independentemente do departamento
     if (userRole !== 'admin') {
-      // Obter customer_id do usuário, se existir
+      // Obter customer_id do usuÃ¡rio, se existir
       const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
       const participantSubquery = exists(
         db.select().from(ticketParticipants)
@@ -617,7 +612,7 @@ export class DatabaseStorage implements IStorage {
         ? eq(tickets.customer_id, customer.id)
         : sql`false`;
 
-      // Se já há cláusulas, OR com o branch de criador/participante; senão, usar apenas criador/participante
+      // Se jÃ¡ hÃ¡ clÃ¡usulas, OR com o branch de criador/participante; senÃ£o, usar apenas criador/participante
       if (whereClauses.length > 0) {
         const existingAnd = and(...whereClauses);
         const visibilityUnion = or(existingAnd, createdByBranch, participantSubquery);
@@ -650,10 +645,10 @@ export class DatabaseStorage implements IStorage {
         whereClauses.push(eq(tickets.assigned_to_id, Number(filters.assigned_to_id)));
       }
     }
-    // Tratamento especial: incluir abertos fora do período (OR lógico)
+    // Tratamento especial: incluir abertos fora do perÃ­odo (OR lÃ³gico)
     const includeOpenOutsidePeriod = !!(filters as any).include_open_outside_period;
     if (includeOpenOutsidePeriod) {
-      // Determinar janela do período (preferência: start/end_date, depois date_from/date_to, depois this-month)
+      // Determinar janela do perÃ­odo (preferÃªncia: start/end_date, depois date_from/date_to, depois this-month)
       let periodStart: Date | undefined;
       let periodEnd: Date | undefined;
       if (filters.start_date || filters.end_date) {
@@ -681,41 +676,36 @@ export class DatabaseStorage implements IStorage {
       }
 
       if (periodStart || periodEnd) {
-        // Montar ramo do período do mês atual
+        // Montar ramo do perÃ­odo do mÃªs atual
         const monthBranch: any[] = [];
         if (periodStart) monthBranch.push(gte(tickets.created_at, periodStart));
         if (periodEnd) monthBranch.push(lte(tickets.created_at, periodEnd));
-        // Toggle hide_resolved deve atuar apenas no mês atual
+        // Toggle hide_resolved deve atuar apenas no mÃªs atual
         if (filters.hide_resolved) {
-          monthBranch.push(and(
-            ne(tickets.status, 'resolved'),
-            ne(tickets.status, 'closed')
-          ));
+          monthBranch.push(and(ne(tickets.status, 'resolved'), ne(tickets.status, 'closed')));
         }
 
         const monthBranchCondition = monthBranch.length > 0 ? and(...monthBranch) : undefined;
-        const openOutsideCondition = ne(tickets.status, 'resolved');
+        // CondiÃ§Ã£o para tickets abertos fora do perÃ­odo (se includeOpenOutsidePeriod estiver ativo)
+        // Se hide_resolved estiver ativo, tambÃ©m excluir 'closed' aqui
+        const openOutsideCondition = filters.hide_resolved 
+          ? and(ne(tickets.status, 'resolved'), ne(tickets.status, 'closed'))
+          : ne(tickets.status, 'resolved');
         const orCondition = monthBranchCondition ? or(monthBranchCondition, openOutsideCondition) : openOutsideCondition;
 
         whereClauses.push(orCondition);
       } else {
-        // Se não conseguimos determinar período, cair no comportamento padrão abaixo
+        // Se nÃ£o conseguimos determinar perÃ­odo, cair no comportamento padrÃ£o abaixo
         if (filters.hide_resolved) {
-          whereClauses.push(and(
-            ne(tickets.status, 'resolved'),
-            ne(tickets.status, 'closed')
-          ));
+          whereClauses.push(and(ne(tickets.status, 'resolved'), ne(tickets.status, 'closed')));
         }
       }
     } else {
-      // Comportamento padrão existente para filtros de data e hide_resolved
+      // Comportamento padrÃ£o existente para filtros de data e hide_resolved (ocultar resolvidos e encerrados)
       if (filters.hide_resolved) {
-        whereClauses.push(and(
-          ne(tickets.status, 'resolved'),
-          ne(tickets.status, 'closed')
-        ));
+        whereClauses.push(and(ne(tickets.status, 'resolved'), ne(tickets.status, 'closed')));
       }
-      // USAR MESMA LÓGICA DO DASHBOARD - start_date e end_date têm prioridade
+      // USAR MESMA LÃ“GICA DO DASHBOARD - start_date e end_date tÃªm prioridade
       if (filters.start_date || filters.end_date) {
         if (filters.start_date) {
           whereClauses.push(gte(tickets.created_at, new Date(filters.start_date)));
@@ -732,7 +722,7 @@ export class DatabaseStorage implements IStorage {
         whereClauses.push(lte(tickets.created_at, endDate));
       }
       if (filters.time_filter && !filters.start_date && !filters.end_date && !filters.date_from && !filters.date_to) {
-        // Usar a mesma lógica do dashboard para calcular datas
+        // Usar a mesma lÃ³gica do dashboard para calcular datas
         const now = new Date();
         let startDate: Date;
         let endDate: Date;
@@ -773,11 +763,11 @@ export class DatabaseStorage implements IStorage {
           whereClauses.push(gte(tickets.created_at, startDate));
           whereClauses.push(lte(tickets.created_at, endDate));
         } else if (filters.time_filter === 'this-month') {
-          // Primeiro dia do mês atual
+          // Primeiro dia do mÃªs atual
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
           startDate.setHours(0, 0, 0, 0);
           
-          // Último dia do mês atual
+          // Ãšltimo dia do mÃªs atual
           endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
           endDate.setHours(23, 59, 59, 999);
           
@@ -786,7 +776,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
     }
-    // Filtro de busca textual livre (em múltiplos campos)
+    // Filtro de busca textual livre (em mÃºltiplos campos)
     let searchClause: any = undefined;
     if (filters.search) {
       const search = `%${filters.search.toLowerCase()}%`;
@@ -799,7 +789,7 @@ export class DatabaseStorage implements IStorage {
       );
     }
     // Montar query principal com JOINs
-    let query = db
+    const query = db
       .select({
         ...getTableColumns(tickets),
         customer_name: customers.name,
@@ -819,7 +809,7 @@ export class DatabaseStorage implements IStorage {
       whereFinal = searchClause;
     }
     // Query de total
-    let total = 0;
+    let total: number;
     if (whereFinal) {
       const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(tickets)
         .leftJoin(customers, eq(tickets.customer_id, customers.id))
@@ -878,7 +868,7 @@ export class DatabaseStorage implements IStorage {
     const enrichedTickets = await Promise.all(
       ticketsData.map(async (ticket) => {
         let customerData: Customer | undefined = undefined;
-        if (ticket.customer_id) { // Verificar se customer_id não é null
+        if (ticket.customer_id) { // Verificar se customer_id nÃ£o Ã© null
           [customerData] = await db
             .select()
             .from(customers)
@@ -886,7 +876,7 @@ export class DatabaseStorage implements IStorage {
         }
         
         let officialData: Official | undefined = undefined;
-        if (ticket.assigned_to_id) { // Verificar se assigned_to_id não é null
+        if (ticket.assigned_to_id) { // Verificar se assigned_to_id nÃ£o Ã© null
           [officialData] = await db
             .select()
             .from(officials)
@@ -912,7 +902,7 @@ export class DatabaseStorage implements IStorage {
           }
         }
         
-        const replies = await this.getTicketReplies(ticket.id); // Assumindo que ticket.id é sempre number
+        const replies = await this.getTicketReplies(ticket.id); // Assumindo que ticket.id Ã© sempre number
         
         return {
           ...ticket,
@@ -923,7 +913,7 @@ export class DatabaseStorage implements IStorage {
       })
     );
     
-    // Cast explícito para Ticket[] para resolver a incompatibilidade estrutural percebida pelo TS
+    // Cast explÃ­cito para Ticket[] para resolver a incompatibilidade estrutural percebida pelo TS
     return enrichedTickets as Ticket[];
   }
 
@@ -931,7 +921,7 @@ export class DatabaseStorage implements IStorage {
     const ticket = await this.getTicketInternal(id);
     if (!ticket) return undefined;
 
-    // Verificar permissões de acesso apenas para usuários não-admin
+    // Verificar permissÃµes de acesso apenas para usuÃ¡rios nÃ£o-admin
     if (userRole && userCompanyId && userRole !== 'admin') {
       if (ticket.company_id && ticket.company_id !== userCompanyId) {
         return undefined;
@@ -957,13 +947,13 @@ export class DatabaseStorage implements IStorage {
     
     if (!result) return undefined;
     
-    // Chamada interna - não precisa de controle de acesso de empresa
+    // Chamada interna - nÃ£o precisa de controle de acesso de empresa
     return this.getTicketInternal(result.ticket.id);
   }
 
-  // Método interno sem controle de empresa para uso em outras funções
+  // MÃ©todo interno sem controle de empresa para uso em outras funÃ§Ãµes
   private async getTicketInternal(id: number): Promise<Ticket | undefined> {
-    // 🔥 OTIMIZAÇÃO CRÍTICA: Buscar tudo em uma única query com JOINs
+    // ðŸ”¥ OTIMIZAÃ‡ÃƒO CRÃTICA: Buscar tudo em uma Ãºnica query com JOINs
     const [result] = await db
       .select({
         // Ticket
@@ -1079,11 +1069,11 @@ export class DatabaseStorage implements IStorage {
       supervisor_id: result.official_supervisor_id,
       manager_id: result.official_manager_id,
       department_id: result.official_department_id,
-      departments: [], // Não buscar departamentos aqui para não atrasar - só se realmente precisar
+      departments: [], // NÃ£o buscar departamentos aqui para nÃ£o atrasar - sÃ³ se realmente precisar
     } : undefined;
 
-    // 🔥 OTIMIZAÇÃO: NÃO buscar replies automaticamente - só quando realmente precisar
-    // Isso evita uma query pesada desnecessária na maioria dos casos
+    // ðŸ”¥ OTIMIZAÃ‡ÃƒO: NÃƒO buscar replies automaticamente - sÃ³ quando realmente precisar
+    // Isso evita uma query pesada desnecessÃ¡ria na maioria dos casos
     const replies: TicketReply[] = [];
     
     return {
@@ -1143,20 +1133,20 @@ export class DatabaseStorage implements IStorage {
       const ticketInsertData = {
         ...ticketData,
         ticket_id: ticketId,
-        status: ticketStatusEnum.enumValues[0], // Definir status inicial explicitamente se necessário
-        priority: ticketData.priority || null, // Não definir prioridade padrão - deixar a IA definir
-        // Garantir que department_id, incident_type_id, customer_id e company_id são números ou null
+        status: ticketStatusEnum.enumValues[0], // Definir status inicial explicitamente se necessÃ¡rio
+        priority: ticketData.priority || null, // NÃ£o definir prioridade padrÃ£o - deixar a IA definir
+        // Garantir que department_id, incident_type_id, customer_id e company_id sÃ£o nÃºmeros ou null
         department_id: ticketData.department_id ? Number(ticketData.department_id) : null,
         incident_type_id: ticketData.incident_type_id ? Number(ticketData.incident_type_id) : null,
         customer_id: ticketData.customer_id ? Number(ticketData.customer_id) : null,
-        company_id: ticketData.company_id ? Number(ticketData.company_id) : null, // ✅ Incluir company_id
+        company_id: ticketData.company_id ? Number(ticketData.company_id) : null, // âœ… Incluir company_id
       };
 
   
 
-      // @ts-ignore - Ignorar erro de tipo temporariamente se status não bater exatamente
+      // @ts-expect-error - Ignorar erro de tipo temporariamente se status não bater exatamente
       const [insertedTicket] = await db.insert(tickets).values(ticketInsertData).returning();
-      return this.getTicketInternal(insertedTicket.id) as Promise<Ticket>; // Usar método interno
+      return this.getTicketInternal(insertedTicket.id) as Promise<Ticket>; // Usar mÃ©todo interno
     } catch (error) {
       console.error("Error creating ticket:", error);
       throw error;
@@ -1166,7 +1156,7 @@ export class DatabaseStorage implements IStorage {
   async updateTicket(id: number, ticketData: Partial<Ticket>, changedById?: number): Promise<Ticket | undefined> {
 
     
-    // Se estamos atualizando o status, primeiro adicionamos ao histórico
+    // Se estamos atualizando o status, primeiro adicionamos ao histÃ³rico
     if (ticketData.status) {
       const [currentTicket] = await db.select().from(tickets).where(eq(tickets.id, id));
       
@@ -1179,31 +1169,31 @@ export class DatabaseStorage implements IStorage {
           changedById
         );
         
-        // 🔥 CRÍTICO: Qualquer mudança de status DEVE PARAR o timer de primeira resposta
-        // Se o status está mudando de "new" para qualquer outro E ainda não há first_response_at
+        // ðŸ”¥ CRÃTICO: Qualquer mudanÃ§a de status DEVE PARAR o timer de primeira resposta
+        // Se o status estÃ¡ mudando de "new" para qualquer outro E ainda nÃ£o hÃ¡ first_response_at
         if (currentTicket.status === 'new' && !currentTicket.first_response_at) {
-          console.log(`[SLA] ⏰ STATUS ALTERADO: Definindo first_response_at para ticket ${id} (${currentTicket.status} → ${ticketData.status})`);
+          console.log(`[SLA] â° STATUS ALTERADO: Definindo first_response_at para ticket ${id} (${currentTicket.status} â†’ ${ticketData.status})`);
           ticketData.first_response_at = new Date();
         }
         
-        // Se o status está sendo alterado para 'resolved' ou 'closed', marcamos a data de resolução
+        // Se o status estÃ¡ sendo alterado para 'resolved' ou 'closed', marcamos a data de resoluÃ§Ã£o
         if ((ticketData.status === 'resolved' || ticketData.status === 'closed') && 
             (currentTicket.status !== 'resolved' && currentTicket.status !== 'closed')) {
-          console.log(`[SLA] ✅ TICKET FINALIZADO: Definindo resolved_at para ticket ${id} (status: ${ticketData.status})`);
+          console.log(`[SLA] âœ… TICKET FINALIZADO: Definindo resolved_at para ticket ${id} (status: ${ticketData.status})`);
           ticketData.resolved_at = new Date();
         }
         
-        // Se o status está saindo de 'resolved' ou 'closed' para outro status, limpamos resolved_at
+        // Se o status estÃ¡ saindo de 'resolved' ou 'closed' para outro status, limpamos resolved_at
         if ((currentTicket.status === 'resolved' || currentTicket.status === 'closed') &&
             (ticketData.status !== 'resolved' && ticketData.status !== 'closed')) {
-          console.log(`[SLA] 🔄 TICKET REABERTO: Limpando resolved_at para ticket ${id} (${currentTicket.status} → ${ticketData.status})`);
+          console.log(`[SLA] ðŸ”„ TICKET REABERTO: Limpando resolved_at para ticket ${id} (${currentTicket.status} â†’ ${ticketData.status})`);
           ticketData.resolved_at = null;
         }
       }
     }
     
     if (ticketData.assigned_to_id !== undefined) {
-
+      // Lógica futura para assigned_to_id se necessário
     }
     
     try {
@@ -1223,7 +1213,7 @@ export class DatabaseStorage implements IStorage {
         return undefined;
       }
       
-      const updatedTicket = await this.getTicketInternal(ticket.id); // Usar método interno
+      const updatedTicket = await this.getTicketInternal(ticket.id); // Usar mÃ©todo interno
 
       return updatedTicket;
     } catch (error) {
@@ -1233,7 +1223,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteTicket(id: number): Promise<boolean> {
-    // Primeiro removemos as dependências (respostas e histórico)
+    // Primeiro removemos as dependÃªncias (respostas e histÃ³rico)
     await db.delete(ticketReplies).where(eq(ticketReplies.ticket_id, id));
     await db.delete(ticketStatusHistory).where(eq(ticketStatusHistory.ticket_id, id));
     
@@ -1250,7 +1240,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(ticketReplies.ticket_id, ticketId))
       .orderBy(ticketReplies.created_at);
     
-    // Enriquecer com dados do usuário
+    // Enriquecer com dados do usuÃ¡rio
     const enrichedReplies = await Promise.all(
       replies.map(async (reply) => {
         if (reply.user_id) {
@@ -1274,17 +1264,17 @@ export class DatabaseStorage implements IStorage {
   async createTicketReply(replyData: InsertTicketReply): Promise<TicketReply> {
 
     
-    // 🎯 SEPARAR campos da REPLY dos campos do TICKET
-    const { status, assigned_to_id, type, ...replyOnlyData } = replyData;
+    // ðŸŽ¯ SEPARAR campos da REPLY dos campos do TICKET
+    const { status, assigned_to_id, type: _type, ...replyOnlyData } = replyData;
     
 
     
-    // ✅ INSERIR APENAS OS CAMPOS QUE PERTENCEM À TABELA ticket_replies
+    // âœ… INSERIR APENAS OS CAMPOS QUE PERTENCEM Ã€ TABELA ticket_replies
     const [reply] = await db.insert(ticketReplies).values(replyOnlyData).returning();
     
 
     
-    // Atualizações do ticket a serem feitas
+    // AtualizaÃ§Ãµes do ticket a serem feitas
     const ticketUpdates: Partial<Ticket> = {};
     
     // Se estamos atualizando o status do ticket junto com a resposta
@@ -1294,8 +1284,8 @@ export class DatabaseStorage implements IStorage {
       if (ticket && ticket.status !== status) {
         ticketUpdates.status = status;
         
-        // Nota: A lógica de resolved_at é tratada no updateTicket
-        // Não precisamos duplicar aqui pois updateTicket já cuida disso
+        // Nota: A lÃ³gica de resolved_at Ã© tratada no updateTicket
+        // NÃ£o precisamos duplicar aqui pois updateTicket jÃ¡ cuida disso
       }
     }
     
@@ -1304,12 +1294,12 @@ export class DatabaseStorage implements IStorage {
       ticketUpdates.assigned_to_id = assigned_to_id;
     }
     
-    // ✅ APLICAR AS ATUALIZAÇÕES PASSANDO O USER_ID PARA O HISTÓRICO
+    // âœ… APLICAR AS ATUALIZAÃ‡Ã•ES PASSANDO O USER_ID PARA O HISTÃ“RICO
     if (Object.keys(ticketUpdates).length > 0) {
       await this.updateTicket(reply.ticket_id, ticketUpdates, reply.user_id || undefined);
     }
     
-    // Se esta é a primeira resposta, atualizar first_response_at
+    // Se esta Ã© a primeira resposta, atualizar first_response_at
     const ticketRepliesCount = await db
       .select({ count: sql`count(*)` })
       .from(ticketReplies)
@@ -1319,7 +1309,7 @@ export class DatabaseStorage implements IStorage {
       await this.updateTicket(reply.ticket_id, { first_response_at: reply.created_at }, reply.user_id || undefined);
     }
     
-    // Incluímos dados do usuário
+    // IncluÃ­mos dados do usuÃ¡rio
     if (reply.user_id) {
       const [user] = await db
         .select()
@@ -1335,7 +1325,7 @@ export class DatabaseStorage implements IStorage {
     return reply;
   }
 
-  // Helper para histórico de status
+  // Helper para histÃ³rico de status
   private async addTicketStatusHistory(
     ticketId: number, 
     oldStatus: string, 
@@ -1344,7 +1334,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<void> {
     await db.insert(ticketStatusHistory).values({
       ticket_id: ticketId,
-      change_type: 'status', // Especificar que é mudança de status
+      change_type: 'status', // Especificar que Ã© mudanÃ§a de status
       old_status: oldStatus as any,
       new_status: newStatus as any,
       changed_by_id: changedById,
@@ -1378,7 +1368,7 @@ export class DatabaseStorage implements IStorage {
         .groupBy(tickets.priority);
       const byPriority: Record<string, number> = {};
       for (const row of priorityRows) {
-        // Normalizar prioridade: primeira letra maiúscula, resto minúsculo
+        // Normalizar prioridade: primeira letra maiÃºscula, resto minÃºsculo
         const priority = row.priority
           ? row.priority.charAt(0).toUpperCase() + row.priority.slice(1).toLowerCase()
           : 'Medium';
@@ -1391,7 +1381,7 @@ export class DatabaseStorage implements IStorage {
         byPriority,
       };
     } catch (error) {
-      console.error('Erro ao obter estatísticas de tickets:', error);
+      console.error('Erro ao obter estatÃ­sticas de tickets:', error);
       return {
         total: 0,
         byStatus: {},
@@ -1400,12 +1390,12 @@ export class DatabaseStorage implements IStorage {
     }
   }
   
-  // Obter estatísticas dos tickets filtrados pelo papel do usuário
-  async getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+  // Obter estatÃ­sticas dos tickets filtrados pelo papel do usuÃ¡rio
+  async getTicketStatsByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, _departmentId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
     try {
       // Montar filtros SQL conforme papel do usuário
-      let whereClauses: any[] = [];
-      let companyId: number | null = null;
+      const whereClauses: any[] = [];
+      let companyId: number | null;
       if (userRole === 'admin') {
         // Admin vê tudo
       } else if (userRole === 'company_admin') {
@@ -1420,7 +1410,7 @@ export class DatabaseStorage implements IStorage {
         // Cliente pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
         const customerCondition = or(
           eq(tickets.customer_id, customer.id), // Tickets que ele criou
-          exists( // Tickets onde ele é participante
+          exists( // Tickets onde ele Ã© participante
             db.select().from(ticketParticipants)
               .where(and(
                 eq(ticketParticipants.ticket_id, tickets.id),
@@ -1429,7 +1419,7 @@ export class DatabaseStorage implements IStorage {
           )
         );
         whereClauses.push(customerCondition);
-        // Filtrar por empresa SEMPRE para não-admins
+        // Filtrar por empresa SEMPRE para nÃ£o-admins
         if (customer.company_id) {
           whereClauses.push(eq(tickets.company_id, customer.company_id));
         }
@@ -1450,7 +1440,7 @@ export class DatabaseStorage implements IStorage {
         const subordinates = await db.select().from(officials).where(eq(officials.manager_id, official.id));
         const subordinateIds = subordinates.map(s => s.id);
         
-        // Se não filtrar por officialId, mostrar tickets do próprio, subordinados e não atribuídos
+        // Se nÃ£o filtrar por officialId, mostrar tickets do prÃ³prio, subordinados e nÃ£o atribuÃ­dos
         if (!officialId) {
           const assignmentFilter = or(
             eq(tickets.assigned_to_id, official.id),
@@ -1459,18 +1449,18 @@ export class DatabaseStorage implements IStorage {
           );
           whereClauses.push(assignmentFilter);
         } else {
-          // Se filtrar por officialId, só permitir se for subordinado ou ele mesmo
+          // Se filtrar por officialId, sÃ³ permitir se for subordinado ou ele mesmo
           if (subordinateIds.includes(officialId)) {
             whereClauses.push(eq(tickets.assigned_to_id, officialId));
           } else if (officialId === official.id) {
             whereClauses.push(eq(tickets.assigned_to_id, official.id));
           } else {
-            // Não tem permissão
+            // NÃ£o tem permissÃ£o
             return { total: 0, byStatus: {}, byPriority: {} };
           }
         }
         
-        // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+        // FILTRO OBRIGATÃ“RIO POR DEPARTAMENTO
         whereClauses.push(inArray(tickets.department_id, departmentIds));
         
       } else if (userRole === 'supervisor') {
@@ -1490,7 +1480,7 @@ export class DatabaseStorage implements IStorage {
         const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, official.id));
         const subordinateIds = subordinates.map(s => s.id);
         
-        // Se não filtrar por officialId, mostrar tickets do próprio, subordinados e não atribuídos
+        // Se nÃ£o filtrar por officialId, mostrar tickets do prÃ³prio, subordinados e nÃ£o atribuÃ­dos
         if (!officialId) {
           const assignmentFilter = or(
             eq(tickets.assigned_to_id, official.id),
@@ -1499,18 +1489,18 @@ export class DatabaseStorage implements IStorage {
           );
           whereClauses.push(assignmentFilter);
         } else {
-          // Se filtrar por officialId, só permitir se for subordinado ou ele mesmo
+          // Se filtrar por officialId, sÃ³ permitir se for subordinado ou ele mesmo
           if (subordinateIds.includes(officialId)) {
             whereClauses.push(eq(tickets.assigned_to_id, officialId));
           } else if (officialId === official.id) {
             whereClauses.push(eq(tickets.assigned_to_id, official.id));
           } else {
-            // Não tem permissão
+            // NÃ£o tem permissÃ£o
             return { total: 0, byStatus: {}, byPriority: {} };
           }
         }
         
-        // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+        // FILTRO OBRIGATÃ“RIO POR DEPARTAMENTO
         whereClauses.push(inArray(tickets.department_id, departmentIds));
         
       } else if (userRole === 'support') {
@@ -1526,7 +1516,7 @@ export class DatabaseStorage implements IStorage {
           whereClauses.push(eq(tickets.company_id, official.company_id));
         }
         
-        // Support vê tickets atribuídos a ele ou não atribuídos
+        // Support vÃª tickets atribuÃ­dos a ele ou nÃ£o atribuÃ­dos
         if (!officialId) {
           const assignmentFilter = or(
             eq(tickets.assigned_to_id, official.id),
@@ -1536,11 +1526,11 @@ export class DatabaseStorage implements IStorage {
         } else if (officialId === official.id) {
           whereClauses.push(eq(tickets.assigned_to_id, official.id));
         } else {
-          // Não pode ver de outros
+          // NÃ£o pode ver de outros
           return { total: 0, byStatus: {}, byPriority: {} };
         }
         
-        // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+        // FILTRO OBRIGATÃ“RIO POR DEPARTAMENTO
         whereClauses.push(inArray(tickets.department_id, departmentIds));
       } else if (officialId) {
         whereClauses.push(eq(tickets.assigned_to_id, officialId));
@@ -1588,7 +1578,7 @@ export class DatabaseStorage implements IStorage {
         byPriority,
       };
     } catch (error) {
-      console.error('Erro ao obter estatísticas de tickets por papel do usuário:', error);
+      console.error('Erro ao obter estatÃ­sticas de tickets por papel do usuÃ¡rio:', error);
       return {
         total: 0,
         byStatus: {},
@@ -1606,7 +1596,7 @@ export class DatabaseStorage implements IStorage {
         .limit(limit);
       
       const enrichedTickets = await Promise.all(
-        recentTickets.map(ticket => this.getTicketInternal(ticket.id)) // Usar método interno
+        recentTickets.map(ticket => this.getTicketInternal(ticket.id)) // Usar mÃ©todo interno
       );
       
       return enrichedTickets.filter(Boolean) as Ticket[];
@@ -1616,8 +1606,8 @@ export class DatabaseStorage implements IStorage {
     }
   }
   
-  // Obter tickets recentes filtrados pelo papel do usuário
-  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 10, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number): Promise<Ticket[]> {
+  // Obter tickets recentes filtrados pelo papel do usuÃ¡rio
+  async getRecentTicketsByUserRole(userId: number, userRole: string, limit: number = 10, officialId?: number, startDate?: Date, endDate?: Date, _departmentId?: number): Promise<Ticket[]> {
     try {
       const userTicketsArr = await this.getTicketsByUserRole(userId, userRole);
 
@@ -1626,19 +1616,19 @@ export class DatabaseStorage implements IStorage {
       if (officialId) {
         filtered = filtered.filter(ticket => ticket.assigned_to_id === officialId);
       }
-      // Filtrar por período se especificado
+      // Filtrar por perÃ­odo se especificado
       if (startDate && endDate) {
         filtered = filtered.filter(ticket => {
           const createdAt = new Date(ticket.created_at);
           return createdAt >= startDate && createdAt <= endDate;
         });
       }
-      // Ordenar tickets por data de criação (mais recentes primeiro) e limitar
+      // Ordenar tickets por data de criaÃ§Ã£o (mais recentes primeiro) e limitar
       return filtered
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, limit);
     } catch (error) {
-      console.error('Erro ao obter tickets recentes por papel do usuário:', error);
+      console.error('Erro ao obter tickets recentes por papel do usuÃ¡rio:', error);
       return [];
     }
   }
@@ -1648,8 +1638,8 @@ export class DatabaseStorage implements IStorage {
       // Buscar tickets filtrados via SQL (otimizado)
       const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId, categoryId);
       
-      // Filtrar tickets que têm created_at e (first_response_at OU resolved_at)
-      // Se não tem first_response_at mas tem resolved_at, usar resolved_at como primeira resposta
+      // Filtrar tickets que tÃªm created_at e (first_response_at OU resolved_at)
+      // Se nÃ£o tem first_response_at mas tem resolved_at, usar resolved_at como primeira resposta
       const ticketsWithFirstResponse = tickets.filter(ticket => 
         ticket.created_at && (ticket.first_response_at || ticket.resolved_at)
       );
@@ -1657,7 +1647,7 @@ export class DatabaseStorage implements IStorage {
         return 0;
       }
 
-      // Buscar status history de todos os tickets em uma única query (otimizado)
+      // Buscar status history de todos os tickets em uma Ãºnica query (otimizado)
       const ticketIds = ticketsWithFirstResponse.map(t => t.id);
       const allStatusHistory = await db
         .select()
@@ -1674,10 +1664,10 @@ export class DatabaseStorage implements IStorage {
 
       const businessHours = getBusinessHoursConfig();
       
-      // Calcular tempo útil (horário comercial, dias úteis, descontando pausas) para cada ticket
+      // Calcular tempo Ãºtil (horÃ¡rio comercial, dias Ãºteis, descontando pausas) para cada ticket
       const totalResponseTime = ticketsWithFirstResponse.map((ticket) => {
         const createdAt = new Date(ticket.created_at);
-        // LÓGICA CORRETA: Se tem first_response_at, usa ele. Se não tem, usa resolved_at
+        // LÃ“GICA CORRETA: Se tem first_response_at, usa ele. Se nÃ£o tem, usa resolved_at
         let firstResponseAt: Date;
         if (ticket.first_response_at) {
           firstResponseAt = new Date(ticket.first_response_at);
@@ -1688,10 +1678,10 @@ export class DatabaseStorage implements IStorage {
         // Buscar status history do ticket
         const statusHistory = statusMap.get(ticket.id) || [];
         
-        // CORREÇÃO: Para primeira resposta, criar períodos apenas até firstResponseAt
+        // CORREÃ‡ÃƒO: Para primeira resposta, criar perÃ­odos apenas atÃ© firstResponseAt
         const statusPeriods = convertStatusHistoryToPeriods(createdAt, ticket.status as TicketStatus, statusHistory);
         
-        // Limitar o cálculo apenas até firstResponseAt (não até resolved_at)
+        // Limitar o cÃ¡lculo apenas atÃ© firstResponseAt (nÃ£o atÃ© resolved_at)
         const limitedPeriods = statusPeriods.map(period => ({
           ...period,
           endTime: new Date(Math.min(new Date(period.endTime).getTime(), firstResponseAt.getTime()))
@@ -1705,7 +1695,7 @@ export class DatabaseStorage implements IStorage {
       const soma = totalResponseTime.reduce((a, b) => a + b, 0);
       return Math.round((soma / ticketsWithFirstResponse.length) * 100) / 100;
     } catch (error) {
-      console.error('Erro ao calcular tempo médio de primeira resposta:', error);
+      console.error('Erro ao calcular tempo mÃ©dio de primeira resposta:', error);
       return 0;
     }
   }
@@ -1721,7 +1711,7 @@ export class DatabaseStorage implements IStorage {
         return 0;
       }
 
-      // Buscar status history de todos os tickets em uma única query (otimizado)
+      // Buscar status history de todos os tickets em uma Ãºnica query (otimizado)
       const ticketIds = resolvedTickets.map(t => t.id);
       const allStatusHistory = await db
         .select()
@@ -1738,7 +1728,7 @@ export class DatabaseStorage implements IStorage {
 
       const businessHours = getBusinessHoursConfig();
       
-      // Calcular tempo útil (horário comercial, dias úteis, descontando pausas) para cada ticket
+      // Calcular tempo Ãºtil (horÃ¡rio comercial, dias Ãºteis, descontando pausas) para cada ticket
       const times = resolvedTickets.map(ticket => {
         const createdAt = new Date(ticket.created_at);
         const resolvedAt = new Date(ticket.resolved_at!);
@@ -1746,7 +1736,7 @@ export class DatabaseStorage implements IStorage {
         // Buscar status history do ticket
         const statusHistory = statusMap.get(ticket.id) || [];
         
-        // Definir tipo TicketStatus localmente se necessário
+        // Definir tipo TicketStatus localmente se necessÃ¡rio
         const statusPeriods = convertStatusHistoryToPeriods(createdAt, ticket.status as TicketStatus, statusHistory);
         const effectiveTimeMs = calculateEffectiveBusinessTime(createdAt, resolvedAt, statusPeriods, businessHours);
         
@@ -1757,14 +1747,14 @@ export class DatabaseStorage implements IStorage {
       const avg = times.length ? Math.round((total / times.length) * 100) / 100 : 0;
       return avg;
     } catch (error) {
-      console.error('Erro ao calcular tempo médio de resolução:', error);
+      console.error('Erro ao calcular tempo mÃ©dio de resoluÃ§Ã£o:', error);
       return 0;
     }
   }
 
   /**
-   * Calcula o tempo efetivo excluindo períodos de suspensão
-   * Baseado na lógica do SLA calculator
+   * Calcula o tempo efetivo excluindo perÃ­odos de suspensÃ£o
+   * Baseado na lÃ³gica do SLA calculator
    */
   private calculateEffectiveTime(
     startTime: Date,
@@ -1776,16 +1766,16 @@ export class DatabaseStorage implements IStorage {
     let currentPeriodStart = startTime;
     let currentStatus = initialStatus;
     
-    // Se não há histórico, considerar período inteiro como ativo
+    // Se nÃ£o hÃ¡ histÃ³rico, considerar perÃ­odo inteiro como ativo
     if (statusHistory.length === 0) {
       return !isSlaPaused(currentStatus as any) ? (endTime.getTime() - startTime.getTime()) : 0;
     }
     
-    // Processar cada mudança de status
+    // Processar cada mudanÃ§a de status
     for (const change of statusHistory) {
       const changeTime = new Date(change.created_at);
       
-      // Se o período atual não está pausado, contar o tempo
+      // Se o perÃ­odo atual nÃ£o estÃ¡ pausado, contar o tempo
       if (!isSlaPaused(currentStatus as any) && currentPeriodStart < changeTime) {
         const periodEnd = changeTime > endTime ? endTime : changeTime;
         if (currentPeriodStart < periodEnd) {
@@ -1793,7 +1783,7 @@ export class DatabaseStorage implements IStorage {
         }
       }
       
-      // Atualizar para o próximo período
+      // Atualizar para o prÃ³ximo perÃ­odo
       currentPeriodStart = changeTime;
       currentStatus = change.new_status || currentStatus;
       
@@ -1803,7 +1793,7 @@ export class DatabaseStorage implements IStorage {
       }
     }
     
-    // Período final (do último status até o fim)
+    // PerÃ­odo final (do Ãºltimo status atÃ© o fim)
     if (currentPeriodStart < endTime && !isSlaPaused(currentStatus as any)) {
       totalEffectiveTime += endTime.getTime() - currentPeriodStart.getTime();
     }
@@ -1814,7 +1804,7 @@ export class DatabaseStorage implements IStorage {
   // Categories operations
   async getCategories(filters: any = {}, page: number = 1, limit: number = 50): Promise<{ categories: Category[], total: number }> {
     try {
-      let whereConditions: any[] = [];
+      const whereConditions: any[] = [];
       if (filters.incident_type_id) {
         whereConditions.push(eq(categories.incident_type_id, filters.incident_type_id));
       }
@@ -1839,7 +1829,7 @@ export class DatabaseStorage implements IStorage {
       const countQueryBuilder = db.select({ count: sql<number>`count(*)` }).from(categories);
       const countQuery = whereConditions.length > 0 ? countQueryBuilder.where(and(...whereConditions)) : countQueryBuilder;
       const [{ count: total }] = await countQuery;
-      // Aplicar paginação e ordenação
+      // Aplicar paginaÃ§Ã£o e ordenaÃ§Ã£o
       const categoriesData = await query
         .orderBy(categories.name)
         .limit(limit)
@@ -2023,8 +2013,8 @@ export class DatabaseStorage implements IStorage {
 
   /**
    * Busca otimizada para dashboards de performance: retorna apenas os campos essenciais,
-   * aplica todos os filtros no SQL e não faz enrichments.
-   * NÃO IMPACTA OUTRAS TELAS.
+   * aplica todos os filtros no SQL e nÃ£o faz enrichments.
+   * NÃƒO IMPACTA OUTRAS TELAS.
    */
   async getTicketsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<{
     id: number;
@@ -2039,8 +2029,8 @@ export class DatabaseStorage implements IStorage {
     priority: string | null;
   }[]> {
     // Montar filtros SQL conforme papel do usuário
-    let whereClauses: any[] = [];
-    let companyId: number | null = null;
+    const whereClauses: any[] = [];
+    let companyId: number | null;
     if (userRole === 'admin') {
       // Admin vê tudo
     } else if (userRole === 'company_admin') {
@@ -2055,7 +2045,7 @@ export class DatabaseStorage implements IStorage {
       // Cliente pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
       const customerCondition = or(
         eq(tickets.customer_id, customer.id), // Tickets que ele criou
-        exists( // Tickets onde ele é participante
+        exists( // Tickets onde ele Ã© participante
           db.select().from(ticketParticipants)
             .where(and(
               eq(ticketParticipants.ticket_id, tickets.id),
@@ -2064,7 +2054,7 @@ export class DatabaseStorage implements IStorage {
         )
       );
       whereClauses.push(customerCondition);
-      // Filtrar por empresa SEMPRE para não-admins
+      // Filtrar por empresa SEMPRE para nÃ£o-admins
       if (customer.company_id) {
         whereClauses.push(eq(tickets.company_id, customer.company_id));
       }
@@ -2098,12 +2088,12 @@ export class DatabaseStorage implements IStorage {
         } else if (officialId === official.id) {
           whereClauses.push(eq(tickets.assigned_to_id, official.id));
         } else {
-          // Não tem permissão
+          // NÃ£o tem permissÃ£o
           return [];
         }
       }
       
-      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+      // FILTRO OBRIGATÃ“RIO POR DEPARTAMENTO
       whereClauses.push(inArray(tickets.department_id, departmentIds));
       
     } else if (userRole === 'supervisor') {
@@ -2136,12 +2126,12 @@ export class DatabaseStorage implements IStorage {
         } else if (officialId === official.id) {
           whereClauses.push(eq(tickets.assigned_to_id, official.id));
         } else {
-          // Não tem permissão
+          // NÃ£o tem permissÃ£o
           return [];
         }
       }
       
-      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+      // FILTRO OBRIGATÃ“RIO POR DEPARTAMENTO
       whereClauses.push(inArray(tickets.department_id, departmentIds));
       
     } else if (userRole === 'support') {
@@ -2172,7 +2162,7 @@ export class DatabaseStorage implements IStorage {
         } as any;
       }
       
-      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
+      // FILTRO OBRIGATÃ“RIO POR DEPARTAMENTO
       whereClauses.push(inArray(tickets.department_id, departmentIds));
     }
     
@@ -2191,7 +2181,7 @@ export class DatabaseStorage implements IStorage {
     
     // APLICAR FILTRO DE DEPARTAMENTO SE ESPECIFICADO (adicional aos filtros por role)
     if (departmentId) {
-      whereClauses.push(eq(tickets.department_id, departmentId));
+      whereClauses.push(eq(tickets.department_id, _departmentId));
     }
     if (incidentTypeId) {
       whereClauses.push(eq(tickets.incident_type_id, incidentTypeId));
@@ -2220,7 +2210,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Retorna estatísticas de tickets para o dashboard (total, byStatus, byPriority),
+   * Retorna estatÃ­sticas de tickets para o dashboard (total, byStatus, byPriority),
    * aplicando filtros no SQL e sem enrichments.
    */
   async getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
@@ -2244,7 +2234,7 @@ export class DatabaseStorage implements IStorage {
    * Retorna tickets recentes para o dashboard, apenas campos essenciais, sem enrichments.
    */
   async getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number = 10, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>> {
-    // Reaproveita a query otimizada, mas só pega os campos necessários
+    // Reaproveita a query otimizada, mas sÃ³ pega os campos necessÃ¡rios
     const tickets = await this.getTicketsForDashboardByUserRole(userId, userRole, officialId, startDate, endDate, departmentId, incidentTypeId, categoryId);
     return tickets
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
@@ -2265,7 +2255,7 @@ export class DatabaseStorage implements IStorage {
    * Retorna lista de officials para o dashboard, apenas campos essenciais, sem enrichments.
    */
   async getOfficialsForDashboard(companyId?: number, onlyActive: boolean = true): Promise<Array<{ id: number; name: string; email: string; is_active: boolean; company_id: number | null; supervisor_id: number | null; manager_id: number | null; department_id: number | null; }>> {
-    let whereClauses: any[] = [];
+    const whereClauses: any[] = [];
     if (companyId) {
       whereClauses.push(eq(officials.company_id, companyId));
     }
@@ -2282,23 +2272,23 @@ export class DatabaseStorage implements IStorage {
         supervisor_id: officials.supervisor_id,
         manager_id: officials.manager_id,
         department_id: officials.department_id,
-        // role removido pois não existe na tabela
+        // role removido pois nÃ£o existe na tabela
       })
       .from(officials)
       .where(whereClauses.length > 0 ? and(...whereClauses) : undefined);
     return result;
   }
 
-  // === MÉTODOS DE PARTICIPANTES DE TICKETS ===
+  // === MÃ‰TODOS DE PARTICIPANTES DE TICKETS ===
 
   /**
    * Adiciona um participante a um ticket
    */
   async addTicketParticipant(ticketId: number, userId: number, addedById: number): Promise<TicketParticipant> {
-    // Verificar se o participante já existe
+    // Verificar se o participante jÃ¡ existe
     const existingParticipant = await this.isUserTicketParticipant(ticketId, userId);
     if (existingParticipant) {
-      throw new Error('Usuário já é participante deste ticket');
+      throw new Error('UsuÃ¡rio jÃ¡ Ã© participante deste ticket');
     }
 
     const [participant] = await db
@@ -2322,7 +2312,7 @@ export class DatabaseStorage implements IStorage {
    * Remove um participante de um ticket
    */
   async removeTicketParticipant(ticketId: number, userId: number): Promise<boolean> {
-    const result = await db
+    const _result = await db
       .delete(ticketParticipants)
       .where(
         and(
@@ -2335,7 +2325,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Obtém todos os participantes de um ticket
+   * ObtÃ©m todos os participantes de um ticket
    */
   async getTicketParticipants(ticketId: number): Promise<TicketParticipant[]> {
     const participants = await db
@@ -2344,7 +2334,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(ticketParticipants.ticket_id, ticketId))
       .orderBy(asc(ticketParticipants.added_at));
 
-    // Enriquecer com dados dos usuários
+    // Enriquecer com dados dos usuÃ¡rios
     const enrichedParticipants: TicketParticipant[] = [];
     
     for (const participant of participants) {
@@ -2378,10 +2368,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Verifica se um usuário é participante de um ticket
+   * Verifica se um usuÃ¡rio Ã© participante de um ticket
    */
   async isUserTicketParticipant(ticketId: number, userId: number): Promise<boolean> {
-    // 🔥 OTIMIZAÇÃO: Buscar apenas o ID para verificar existência (mais eficiente)
+    // ðŸ”¥ OTIMIZAÃ‡ÃƒO: Buscar apenas o ID para verificar existÃªncia (mais eficiente)
     const [participant] = await db
       .select({ id: ticketParticipants.id })
       .from(ticketParticipants)
@@ -2397,13 +2387,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Obtém o histórico de participantes de um ticket
+   * ObtÃ©m o histÃ³rico de participantes de um ticket
    */
   async getTicketParticipantsHistory(ticketId: number): Promise<any[]> {
     try {
-      // Por enquanto, retornar apenas os participantes atuais como histórico
-      // Em uma implementação futura, isso pode ser expandido para incluir
-      // um log de adições/remoções de participantes
+      // Por enquanto, retornar apenas os participantes atuais como histÃ³rico
+      // Em uma implementaÃ§Ã£o futura, isso pode ser expandido para incluir
+      // um log de adiÃ§Ãµes/remoÃ§Ãµes de participantes
       const participants = await this.getTicketParticipants(ticketId);
       
       return participants.map(p => ({
@@ -2418,16 +2408,16 @@ export class DatabaseStorage implements IStorage {
       }));
     } catch (error) {
       console.error('Erro ao buscar histórico de participantes:', error);
-      throw new Error('Falha ao buscar histórico de participantes');
+      throw new Error('Falha ao buscar histórico de participantes', { cause: error });
     }
   }
 
   // ========================================
-  // MÉTODOS PARA PRESTADORES DE SERVIÇOS
+  // MÃ‰TODOS PARA PRESTADORES DE SERVIÃ‡OS
   // ========================================
 
   /**
-   * Obtém prestadores de serviços com filtros opcionais
+   * ObtÃ©m prestadores de serviÃ§os com filtros opcionais
    */
   async getServiceProviders(filters?: {
     companyId?: number;
@@ -2486,7 +2476,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Obtém um prestador de serviço por ID
+   * ObtÃ©m um prestador de serviÃ§o por ID
    */
   async getServiceProvider(id: number): Promise<ServiceProvider | undefined> {
     const [provider] = await db
@@ -2499,7 +2489,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Cria um novo prestador de serviço
+   * Cria um novo prestador de serviÃ§o
    */
   async createServiceProvider(data: {
     name: string;
@@ -2527,7 +2517,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Atualiza um prestador de serviço
+   * Atualiza um prestador de serviÃ§o
    */
   async updateServiceProvider(id: number, data: Partial<{
     name: string;
@@ -2551,14 +2541,14 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     if (!provider) {
-      throw new Error('Prestador de serviço não encontrado');
+      throw new Error('Prestador de serviÃ§o nÃ£o encontrado');
     }
     
     return provider;
   }
 
   /**
-   * Desativa um prestador de serviço (soft delete)
+   * Desativa um prestador de serviÃ§o (soft delete)
    */
   async deleteServiceProvider(id: number): Promise<boolean> {
     await db
@@ -2573,9 +2563,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Obtém prestadores vinculados a um departamento
+   * ObtÃ©m prestadores vinculados a um departamento
    */
-  async getDepartmentServiceProviders(departmentId: number): Promise<ServiceProvider[]> {
+  async getDepartmentServiceProviders(_departmentId: number): Promise<ServiceProvider[]> {
     const providers = await db
       .select({
         id: serviceProviders.id,
@@ -2597,7 +2587,7 @@ export class DatabaseStorage implements IStorage {
         departmentServiceProviders,
         eq(serviceProviders.id, departmentServiceProviders.service_provider_id)
       )
-      .where(eq(departmentServiceProviders.department_id, departmentId));
+      .where(eq(departmentServiceProviders.department_id, _departmentId));
     
     return providers;
   }
@@ -2617,7 +2607,7 @@ export class DatabaseStorage implements IStorage {
       
       return true;
     } catch (error: any) {
-      // Se já existe, retornar true sem erro
+      // Se jÃ¡ existe, retornar true sem erro
       if (error?.code === '23505') { // Unique violation
         return true;
       }
@@ -2626,14 +2616,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Remove vinculação de prestador a um departamento
+   * Remove vinculaÃ§Ã£o de prestador a um departamento
    */
   async removeDepartmentServiceProvider(departmentId: number, providerId: number): Promise<boolean> {
     await db
       .delete(departmentServiceProviders)
       .where(
         and(
-          eq(departmentServiceProviders.department_id, departmentId),
+          eq(departmentServiceProviders.department_id, _departmentId),
           eq(departmentServiceProviders.service_provider_id, providerId)
         )
       );
@@ -2642,7 +2632,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Obtém prestadores vinculados a um ticket
+   * ObtÃ©m prestadores vinculados a um ticket
    */
   async getTicketServiceProviders(ticketId: number): Promise<Array<ServiceProvider & { added_by_id?: number | null; added_at?: Date }>> {
     const providers = await db
@@ -2690,7 +2680,7 @@ export class DatabaseStorage implements IStorage {
       
       return true;
     } catch (error: any) {
-      // Se já existe, retornar true sem erro
+      // Se jÃ¡ existe, retornar true sem erro
       if (error?.code === '23505') { // Unique violation
         return true;
       }
@@ -2699,7 +2689,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Remove vinculação de prestador a um ticket
+   * Remove vinculaÃ§Ã£o de prestador a um ticket
    */
   async removeTicketServiceProvider(ticketId: number, providerId: number): Promise<boolean> {
     await db
@@ -2715,3 +2705,4 @@ export class DatabaseStorage implements IStorage {
   }
 
 }
+

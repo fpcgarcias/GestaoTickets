@@ -109,7 +109,7 @@ async function markMigrationAsExecuted(migrationName: string) {
 }
 
 // Remover migração do registro (para reexecutar)
-async function removeMigrationRecord(migrationName: string) {
+async function _removeMigrationRecord(migrationName: string) {
   await db.execute(sql`
     DELETE FROM migrations 
     WHERE name = ${migrationName}

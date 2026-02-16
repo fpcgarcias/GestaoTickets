@@ -1,0 +1,615 @@
+﻿
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\__tests__\service-worker-registration.test.ts
+   44:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  113:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  114:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  317:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  354:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  382:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  402:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\ai-settings.tsx
+   144:14  warning  Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+   340:22  warning  Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+   553:23  warning  Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+   655:48  warning  Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+   932:21  warning  Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+  1099:38  warning  Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+  1246:99  warning  Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+  1399:48  warning  Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+  1524:45  warning  Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+  1546:6   warning  React Hook useEffect has a missing dependency: 'fetchConfigurations'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  2011:21  warning  Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+  2815:30  warning  Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+  2966:89  warning  Unexpected any. Specify a different type                                                                                @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\charts\modern-bar-chart.tsx
+  13:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\charts\modern-pie-chart.tsx
+  15:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:92  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\charts\modern-sla-bar-chart.tsx
+  15:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  24:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  52:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\charts\performance-bar-chart.tsx
+  14:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  16:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  17:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  41:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\email-settings.tsx
+  431:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  465:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  550:66  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  728:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  945:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  996:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\forced-password-change-modal.tsx
+  107:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\inventory\inventory-status-badge.tsx
+  50:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\notifications\__tests__\notification-panel.test.ts
+  132:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  202:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  294:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  344:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  429:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  474:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  483:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\notifications\notification-panel.tsx
+  113:69  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\satisfaction\pending-survey-modal.tsx
+  180:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\tickets\TicketTransferDialog.tsx
+   52:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   83:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   97:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  119:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  132:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  145:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\tickets\ai-analysis-history.tsx
+  42:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  90:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\tickets\file-upload.tsx
+   10:34  warning  Unexpected any. Specify a different type                                                                            @typescript-eslint/no-explicit-any
+  189:6   warning  React Hook useCallback has a missing dependency: 'formatMessage'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\tickets\participant-management.tsx
+  175:78  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  254:96  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\tickets\pending-waiting-customer-modal.tsx
+  128:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\tickets\service-provider-management.tsx
+  73:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\tickets\sla-indicator.tsx
+  153:46  warning  Unexpected any. Specify a different type                                                                                                                                    @typescript-eslint/no-explicit-any
+  154:65  warning  Unexpected any. Specify a different type                                                                                                                                    @typescript-eslint/no-explicit-any
+  157:20  warning  Unexpected any. Specify a different type                                                                                                                                    @typescript-eslint/no-explicit-any
+  179:49  warning  Unexpected any. Specify a different type                                                                                                                                    @typescript-eslint/no-explicit-any
+  209:26  warning  Unexpected any. Specify a different type                                                                                                                                    @typescript-eslint/no-explicit-any
+  252:6   warning  React Hook useEffect has missing dependencies: 'firstResponseAt', 'formatMessage', and 'formatTimeRemainingTranslated'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\tickets\sla-status.tsx
+   87:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   93:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  104:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  292:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  345:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\tickets\ticket-card.tsx
+   81:17  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  147:9   warning  The 'allOfficialsData' logical expression could make the dependencies of useMemo Hook (at line 152) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'allOfficialsData' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  192:44  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  196:43  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  376:70  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  397:56  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\tickets\ticket-form.tsx
+  210:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  240:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  241:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  393:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  413:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  417:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  423:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  447:86  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  466:92  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  492:82  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  553:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  596:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  599:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  604:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  631:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  644:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  644:89  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  645:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  654:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  680:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  717:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  765:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  811:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  827:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\tickets\ticket-history.tsx
+   88:9   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  147:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  199:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  245:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  249:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  250:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  397:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  398:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  400:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\tickets\ticket-reply.tsx
+   114:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   168:72  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   184:71  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   204:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   215:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   216:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   242:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   254:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   264:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   280:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   323:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   331:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   339:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   632:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   705:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   753:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   754:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   790:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   867:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   990:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1013:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1081:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\ui\textarea.tsx
+  5:18  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\components\ui\use-toast.ts
+   16:6   error  'ToastActionElement' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   21:6   error  'ToastProps' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  118:11  error  An interface declaring no members is equivalent to its supertype                      @typescript-eslint/no-empty-object-type
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\contexts\theme-context.tsx
+  374:7   error    Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  461:14  warning  Unexpected any. Specify a different type                               @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\contexts\websocket-context.tsx
+   86:71  warning  Unexpected any. Specify a different type                                                                                                                                       @typescript-eslint/no-explicit-any
+  322:6   warning  React Hook useEffect has missing dependencies: 'fetchUnreadNotifications', 'formatMessage', 'locale', 'toast', and 'user'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\hooks\__tests__\use-notifications.test.ts
+  4:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\hooks\use-auth.tsx
+  73:6   warning  React Hook useEffect has a missing dependency: 'handleSessionExpired'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  83:25  warning  Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\hooks\use-clicksign-config.ts
+  19:10  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\hooks\use-notifications.ts
+   18:29  warning  Unexpected any. Specify a different type                                                                          @typescript-eslint/no-explicit-any
+  122:67  warning  Unexpected any. Specify a different type                                                                          @typescript-eslint/no-explicit-any
+  341:6   warning  React Hook useEffect has a missing dependency: 'notifications'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\hooks\useInventoryApi.ts
+  123:12   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  226:51   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  255:67   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  261:86   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  275:36   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  280:37   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  284:37   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  291:36   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  295:36   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  320:57   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  339:57   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  396:63   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  404:65   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  419:44   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  419:57   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  432:55   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  436:29   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  440:100  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  449:22   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  469:62   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  498:62   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  527:62   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  556:62   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  585:62   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  677:30   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  703:67   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  722:72   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  732:47   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  751:22   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  789:89   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  806:22   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\i18n\index.ts
+   16:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   21:67  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   31:70  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   32:70  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  156:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  164:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  173:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  174:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\lib\query-client.ts
+   19:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   80:72  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   90:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  103:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  115:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  123:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  130:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  137:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  144:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  151:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\lib\queryClient.ts
+  14:10  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  40:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  65:89  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\lib\theme-manager.ts
+   9:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  10:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  17:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  18:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  25:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  26:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  35:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\CategoryManagement.tsx
+   99:84  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  105:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  124:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  345:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  358:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  481:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  717:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\DepartmentManagement.tsx
+   63:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  320:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  321:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  322:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  323:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  324:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  421:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  487:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  504:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  625:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\ServiceProvidersManagement.tsx
+   74:45  warning  Unexpected any. Specify a different type                                                                                                  @typescript-eslint/no-explicit-any
+   88:46  warning  Unexpected any. Specify a different type                                                                                                  @typescript-eslint/no-explicit-any
+  108:40  warning  Unexpected any. Specify a different type                                                                                                  @typescript-eslint/no-explicit-any
+  144:34  warning  Unexpected any. Specify a different type                                                                                                  @typescript-eslint/no-explicit-any
+  144:74  warning  Unexpected any. Specify a different type                                                                                                  @typescript-eslint/no-explicit-any
+  167:6   warning  React Hook useEffect has a missing dependency: 'providerDepartments'. Either include it or remove the dependency array                    react-hooks/exhaustive-deps
+  167:38  warning  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+  479:40  warning  Unexpected any. Specify a different type                                                                                                  @typescript-eslint/no-explicit-any
+  544:46  warning  Unexpected any. Specify a different type                                                                                                  @typescript-eslint/no-explicit-any
+  898:46  warning  Unexpected any. Specify a different type                                                                                                  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\TicketTypeManagement.tsx
+   81:9   warning  The 'departments' logical expression could make the dependencies of useMemo Hook (at line 121) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'departments' in its own useMemo() Hook        react-hooks/exhaustive-deps
+  113:39  warning  Unexpected any. Specify a different type                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+  129:45  warning  Unexpected any. Specify a different type                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+  148:20  warning  Unexpected any. Specify a different type                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+  222:9   warning  The 'rawTicketTypes' logical expression could make the dependencies of useMemo Hook (at line 245) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'rawTicketTypes' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  239:43  warning  Unexpected any. Specify a different type                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+  411:35  warning  Unexpected any. Specify a different type                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+  426:37  warning  Unexpected any. Specify a different type                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+  546:48  warning  Unexpected any. Specify a different type                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+  626:40  warning  Unexpected any. Specify a different type                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+  790:46  warning  Unexpected any. Specify a different type                                                                                                                                                                                                             @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\add-official-dialog.tsx
+   19:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   83:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  256:62  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\ai-audit.tsx
+  87:6  warning  React Hook React.useEffect has a missing dependency: 'formatMessage'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\clients\add-client-dialog.tsx
+  112:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  151:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\clients\edit-client-dialog.tsx
+   17:71  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  107:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  139:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\clients\index.tsx
+  291:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\dashboard.tsx
+  169:9   warning  The 'incidentTypes' conditional could make the dependencies of useEffect Hook (at line 179) change on every render. To fix this, wrap the initialization of 'incidentTypes' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  213:9   warning  The 'categories' conditional could make the dependencies of useEffect Hook (at line 221) change on every render. To fix this, wrap the initialization of 'categories' in its own useMemo() Hook        react-hooks/exhaustive-deps
+  455:51  warning  Unexpected any. Specify a different type                                                                                                                                                               @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\inventory\assignments.tsx
+   78:76  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  103:25  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  158:29  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  184:28  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  195:29  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  221:28  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  240:24  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  259:31  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  324:98  warning  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  416:5   warning  React Hook useMemo has missing dependencies: 'handleGenerateTerm', 'handleReturn', 'handleSendToClicksign', and 'selectedAssignments'. Either include them or remove the dependency array. You can also do a functional update 'setSelectedAssignments(s => ...)' if you only need 'selectedAssignments' in the 'setSelectedAssignments' call  react-hooks/exhaustive-deps
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\inventory\catalog.tsx
+  155:9   warning  The 'suppliers' logical expression could make the dependencies of useMemo Hook (at line 162) change on every render. To fix this, wrap the initialization of 'suppliers' in its own useMemo() Hook                                             react-hooks/exhaustive-deps
+  156:9   warning  The 'productTypes' logical expression could make the dependencies of useMemo Hook (at line 166) change on every render. To fix this, wrap the initialization of 'productTypes' in its own useMemo() Hook                                       react-hooks/exhaustive-deps
+  156:9   warning  The 'productTypes' logical expression could make the dependencies of useMemo Hook (at line 314) change on every render. To fix this, wrap the initialization of 'productTypes' in its own useMemo() Hook                                       react-hooks/exhaustive-deps
+  157:9   warning  The 'locations' logical expression could make the dependencies of useMemo Hook (at line 170) change on every render. To fix this, wrap the initialization of 'locations' in its own useMemo() Hook                                             react-hooks/exhaustive-deps
+  158:9   warning  The 'departments' logical expression could make the dependencies of useMemo Hook (at line 174) change on every render. To fix this, wrap the initialization of 'departments' in its own useMemo() Hook                                         react-hooks/exhaustive-deps
+  293:9   warning  The 'rawProducts' logical expression could make the dependencies of useMemo Hook (at line 308) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'rawProducts' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  320:33  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  322:90  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  371:66  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\inventory\locations.tsx
+   82:9   warning  The 'locations' logical expression could make the dependencies of useMemo Hook (at line 94) change on every render. To fix this, wrap the initialization of 'locations' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  113:71  warning  Unexpected any. Specify a different type                                                                                                                                                           @typescript-eslint/no-explicit-any
+  259:91  warning  Unexpected any. Specify a different type                                                                                                                                                           @typescript-eslint/no-explicit-any
+  377:77  warning  Unexpected any. Specify a different type                                                                                                                                                           @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\inventory\movements.tsx
+  141:9   warning  The 'allProducts' logical expression could make the dependencies of useMemo Hook (at line 150) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'allProducts' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  179:71  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  193:74  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  262:20  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  300:9   warning  The 'handleApprove' function makes the dependencies of useMemo Hook (at line 431) change on every render. Move it inside the useMemo callback. Alternatively, wrap the definition of 'handleApprove' in its own useCallback() Hook             react-hooks/exhaustive-deps
+  304:9   warning  The 'handleReject' function makes the dependencies of useMemo Hook (at line 431) change on every render. Move it inside the useMemo callback. Alternatively, wrap the definition of 'handleReject' in its own useCallback() Hook               react-hooks/exhaustive-deps
+  308:9   warning  The 'formatDateValue' function makes the dependencies of useMemo Hook (at line 431) change on every render. Move it inside the useMemo callback. Alternatively, wrap the definition of 'formatDateValue' in its own useCallback() Hook         react-hooks/exhaustive-deps
+  323:31  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  339:63  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  365:85  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  498:79  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  546:47  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  641:53  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  659:53  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+  690:51  warning  Unexpected any. Specify a different type                                                                                                                                                                                                       @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\inventory\overview.tsx
+   34:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  115:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  150:56  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  203:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  215:95  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\inventory\product-categories.tsx
+  125:9   warning  The 'categories' logical expression could make the dependencies of useMemo Hook (at line 146) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'categories' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  199:42  warning  Unexpected any. Specify a different type                                                                                                                                                                                                     @typescript-eslint/no-explicit-any
+  200:44  warning  Unexpected any. Specify a different type                                                                                                                                                                                                     @typescript-eslint/no-explicit-any
+  201:46  warning  Unexpected any. Specify a different type                                                                                                                                                                                                     @typescript-eslint/no-explicit-any
+  202:35  warning  Unexpected any. Specify a different type                                                                                                                                                                                                     @typescript-eslint/no-explicit-any
+  202:78  warning  Unexpected any. Specify a different type                                                                                                                                                                                                     @typescript-eslint/no-explicit-any
+  282:25  warning  Unexpected any. Specify a different type                                                                                                                                                                                                     @typescript-eslint/no-explicit-any
+  283:25  warning  Unexpected any. Specify a different type                                                                                                                                                                                                     @typescript-eslint/no-explicit-any
+  284:25  warning  Unexpected any. Specify a different type                                                                                                                                                                                                     @typescript-eslint/no-explicit-any
+  285:25  warning  Unexpected any. Specify a different type                                                                                                                                                                                                     @typescript-eslint/no-explicit-any
+  286:65  warning  Unexpected any. Specify a different type                                                                                                                                                                                                     @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\inventory\product-types.tsx
+   97:36  warning  Unexpected any. Specify a different type                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+  107:9   warning  The 'productTypes' conditional could make the dependencies of useMemo Hook (at line 128) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'productTypes' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  176:28  warning  Unexpected any. Specify a different type                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+  176:63  warning  Unexpected any. Specify a different type                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+  177:30  warning  Unexpected any. Specify a different type                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+  177:67  warning  Unexpected any. Specify a different type                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+  253:37  warning  Unexpected any. Specify a different type                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+  254:48  warning  Unexpected any. Specify a different type                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+  378:41  warning  Unexpected any. Specify a different type                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\inventory\reports.tsx
+  51:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  67:68  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  71:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\inventory\suppliers.tsx
+  78:9  warning  The 'suppliers' logical expression could make the dependencies of useMemo Hook (at line 97) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'suppliers' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\inventory\webhooks.tsx
+   37:56  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   45:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   95:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  103:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\logs.tsx
+  44:13  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\officials\add-official-dialog.tsx
+   24:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   98:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  110:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  119:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  163:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  217:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  478:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  562:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  566:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  591:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  595:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\officials\delete-official-dialog.tsx
+  86:86  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\officials\edit-official-dialog.tsx
+   16:71  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  143:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  155:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  164:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  206:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  207:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  208:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  243:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  258:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  309:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  550:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  553:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  562:69  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  591:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  594:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  603:66  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\officials\index.tsx
+  284:37   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  293:65   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  315:48   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  316:75   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  316:105  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  340:49   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  358:58   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\officials\toggle-status-official-dialog.tsx
+  91:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\performance-dashboard.tsx
+   59:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   60:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   62:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   63:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   64:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   69:13  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  177:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\priority-settings.tsx
+  367:9  warning  The 'currentPriorities' logical expression could make the dependencies of useEffect Hook (at line 377) change on every render. To fix this, wrap the initialization of 'currentPriorities' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\reports\TicketReports.tsx
+  135:6   warning  React Hook useEffect has a missing dependency: 'fetchReportsWithCurrentFilters'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  213:6   warning  React Hook useEffect has a missing dependency: 'searchParams'. Either include it or remove the dependency array                    react-hooks/exhaustive-deps
+  222:72  warning  Unexpected any. Specify a different type                                                                                           @typescript-eslint/no-explicit-any
+  262:27  warning  Unexpected any. Specify a different type                                                                                           @typescript-eslint/no-explicit-any
+  263:24  warning  Unexpected any. Specify a different type                                                                                           @typescript-eslint/no-explicit-any
+  336:26  warning  Unexpected any. Specify a different type                                                                                           @typescript-eslint/no-explicit-any
+  341:23  warning  Unexpected any. Specify a different type                                                                                           @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\reports\clients.tsx
+  125:6   warning  React Hook useEffect has missing dependencies: 'fetchReportsWithCurrentFilters' and 'setSearchParams'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  179:6   warning  React Hook useEffect has a missing dependency: 'searchParams'. Either include it or remove the dependency array                                            react-hooks/exhaustive-deps
+  188:72  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  226:28  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  227:25  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  235:72  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  246:6   warning  React Hook useEffect has a missing dependency: 'filters.incidentTypeId'. Either include it or remove the dependency array                                  react-hooks/exhaustive-deps
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\reports\department.tsx
+  140:6   warning  React Hook useEffect has missing dependencies: 'fetchReportsWithCurrentFilters' and 'setSearchParams'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  192:6   warning  React Hook useEffect has a missing dependency: 'searchParams'. Either include it or remove the dependency array                                            react-hooks/exhaustive-deps
+  201:72  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  254:26  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  265:23  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\reports\performance.tsx
+  157:6   warning  React Hook useEffect has missing dependencies: 'fetchReportsWithCurrentFilters' and 'setSearchParams'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  212:6   warning  React Hook useEffect has a missing dependency: 'searchParams'. Either include it or remove the dependency array                                            react-hooks/exhaustive-deps
+  221:72  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  283:26  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  288:23  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\reports\sla.tsx
+  110:46  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  128:6   warning  React Hook useEffect has missing dependencies: 'fetchReportsWithCurrentFilters' and 'setSearchParams'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  184:6   warning  React Hook useEffect has a missing dependency: 'searchParams'. Either include it or remove the dependency array                                            react-hooks/exhaustive-deps
+  193:72  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  252:26  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  257:23  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  306:32  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  307:23  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  307:31  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+  329:35  warning  Unexpected any. Specify a different type                                                                                                                   @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\satisfaction-dashboard.tsx
+  165:55  warning  Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+  185:6   warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array          react-hooks/exhaustive-deps
+  197:6   warning  React Hook useEffect has a missing dependency: 'selectedOfficial'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  426:42  warning  Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+  427:33  warning  Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+  427:41  warning  Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+  428:39  warning  Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\settings.tsx
+   65:6  warning  React Hook useEffect has a missing dependency: 'formatMessage'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  121:6  warning  React Hook useEffect has a missing dependency: 'formatMessage'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  184:6  warning  React Hook useEffect has a missing dependency: 'formatMessage'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\settings\clicksign-config.tsx
+  72:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\sla-configurations.tsx
+   131:15   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   272:45   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   360:44   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   393:22   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   435:22   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   576:52   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   579:54   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   667:33   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1063:86   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1321:138  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1490:44   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1555:56   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1555:97   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1575:48   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1577:43   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1577:51   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1578:44   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  1820:65   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\tickets\index.tsx
+  183:9    warning  The 'incidentTypes' logical expression could make the dependencies of useEffect Hook (at line 193) change on every render. To fix this, wrap the initialization of 'incidentTypes' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  188:46   warning  Unexpected any. Specify a different type                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  376:46   warning  Unexpected any. Specify a different type                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  403:45   warning  Unexpected any. Specify a different type                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  403:53   warning  Unexpected any. Specify a different type                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  403:144  warning  Unexpected any. Specify a different type                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  424:42   warning  Unexpected any. Specify a different type                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  424:50   warning  Unexpected any. Specify a different type                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  424:137  warning  Unexpected any. Specify a different type                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  444:51   warning  Unexpected any. Specify a different type                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  493:126  warning  Unexpected any. Specify a different type                                                                                                                                                                      @typescript-eslint/no-explicit-any
+  593:32   warning  Unexpected any. Specify a different type                                                                                                                                                                      @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\pages\users\index.tsx
+   56:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   79:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   85:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  105:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  207:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  235:66  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  307:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  453:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\fpcga\Documents\GitHub\GestaoTickets\client\src\utils\ai-bot-names.ts
+  38:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+Ô£û 458 problems (5 errors, 453 warnings)
+

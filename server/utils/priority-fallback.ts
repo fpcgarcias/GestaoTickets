@@ -4,6 +4,7 @@
 
 import { PriorityService } from '../services/priority-service';
 import type { DepartmentPriority } from '@shared/schema';
+import { validatePriorityWeights } from '@shared/utils/priority-utils';
 
 /**
  * Testa se o sistema de fallback está funcionando corretamente
@@ -71,9 +72,6 @@ export function testPriorityValidation(): {
   details: any;
 } {
   try {
-    // Importar função de validação
-    const { validatePriorityWeights } = require('@shared/utils/priority-utils');
-    
     // Teste 1: Prioridades com pesos duplicados
     const duplicateWeightPriorities: DepartmentPriority[] = [
       {

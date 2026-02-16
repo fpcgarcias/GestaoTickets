@@ -30,7 +30,6 @@ import {
 } from '@/components/ui/card';
 import { useLocation } from 'wouter';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import { Search, Pencil, UserX, UserCheck, PlusCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCNPJ, cleanCNPJ, isValidCNPJ } from '@/lib/utils';
@@ -89,7 +88,7 @@ export default function CompaniesPage() {
           throw new Error('Falha ao carregar empresas');
         }
         
-        let data = await response.json();
+        const data = await response.json();
         
         const formattedData = Array.isArray(data) ? data.map(company => ({
           ...company,
@@ -178,7 +177,7 @@ export default function CompaniesPage() {
         throw new Error(errorData.message || 'Falha ao salvar empresa');
       }
       
-      const savedCompany = await response.json();
+      await response.json();
       
       const fetchResponse = await fetch('/api/companies');
       const updatedData = await fetchResponse.json();

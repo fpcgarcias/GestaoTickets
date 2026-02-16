@@ -5,7 +5,7 @@
  * Testes unitários para validar os endpoints de gerenciamento de push subscriptions.
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { db } from '../../db';
 import { pushSubscriptions, users } from '../../../shared/schema';
 import { eq } from 'drizzle-orm';

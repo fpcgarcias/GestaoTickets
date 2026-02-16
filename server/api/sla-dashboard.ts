@@ -9,16 +9,14 @@ import {
   slaDefinitions,
   departments,
   incidentTypes,
-  tickets,
-  companies,
   departmentPriorities,
   categories,
+  tickets,
   type SlaConfiguration,
-  type Department,
-  type IncidentType,
   ticketStatusHistory
 } from '@shared/schema';
-import { eq, and, count, sql, desc, asc, isNull, isNotNull, inArray } from 'drizzle-orm';
+import { eq, and, count, sql, desc, asc, isNotNull, inArray } from 'drizzle-orm';
+import { isNull } from 'drizzle-orm/sql';
 import { type ResolvedSLA, type SLAResolutionParams } from '../services/sla-service';
 import { convertStatusHistoryToPeriods, calculateEffectiveBusinessTime, getBusinessHoursConfig } from '../../shared/utils/sla-calculator';
 
@@ -108,7 +106,7 @@ export class SLADashboardAPI {
       .where(and(...baseFilters, eq(slaConfigurations.is_active, true)));
 
     // 2. Buscar modos dos departamentos
-    let deptFilter: any[] = [eq(departments.company_id, companyId)];
+    const deptFilter: any[] = [eq(departments.company_id, companyId)];
     if (departmentIds && departmentIds.length > 0) {
       deptFilter.push(inArray(departments.id, departmentIds));
     }
@@ -118,7 +116,7 @@ export class SLADashboardAPI {
       .where(and(...deptFilter));
 
     // 3. Buscar todas as prioridades por departamento
-    let priorityFilter: any[] = [eq(departmentPriorities.company_id, companyId), eq(departmentPriorities.is_active, true)];
+    const priorityFilter: any[] = [eq(departmentPriorities.company_id, companyId), eq(departmentPriorities.is_active, true)];
     if (departmentIds && departmentIds.length > 0) {
       priorityFilter.push(inArray(departmentPriorities.department_id, departmentIds));
     }
@@ -353,7 +351,7 @@ export class SLADashboardAPI {
     if (params.priorityId) {
       const deptPriorities = data.prioritiesByDept.get(params.departmentId);
       if (deptPriorities) {
-        for (const [normalized, priority] of deptPriorities.entries()) {
+        for (const [_normalized, priority] of deptPriorities.entries()) {
           if (priority.id === params.priorityId) {
             priorityName = priority.name;
             break;
@@ -789,21 +787,21 @@ export class SLADashboardAPI {
    */
   private async getMissingConfigurationAlerts(companyId: number, departmentIds?: number[]): Promise<SLADashboardStats['missingConfigurationAlerts']> {
     // Buscar todos os departamentos ativos da empresa
-    let deptFilter: any[] = [eq(departments.company_id, companyId), eq(departments.is_active, true)];
+    const deptFilter: any[] = [eq(departments.company_id, companyId), eq(departments.is_active, true)];
     if (departmentIds && departmentIds.length > 0) {
       deptFilter.push(inArray(departments.id, departmentIds));
     }
     const allDepartments = await db.select({ id: departments.id, name: departments.name, sla_mode: departments.sla_mode }).from(departments).where(and(...deptFilter));
 
     // Buscar todos os tipos de incidente ativos da empresa
-    let incidentTypeFilter = [eq(incidentTypes.company_id, companyId)];
+    const incidentTypeFilter = [eq(incidentTypes.company_id, companyId)];
     if (departmentIds && departmentIds.length > 0) {
       incidentTypeFilter.push(inArray(incidentTypes.department_id, departmentIds));
     }
     const allIncidentTypes = await db.select({ id: incidentTypes.id, name: incidentTypes.name }).from(incidentTypes).where(and(...incidentTypeFilter));
 
     // Buscar todas as prioridades ativas por departamento da empresa
-    let priorityFilter = [eq(departmentPriorities.company_id, companyId), eq(departmentPriorities.is_active, true)];
+    const priorityFilter = [eq(departmentPriorities.company_id, companyId), eq(departmentPriorities.is_active, true)];
     if (departmentIds && departmentIds.length > 0) {
       priorityFilter.push(inArray(departmentPriorities.department_id, departmentIds));
     }
@@ -814,7 +812,7 @@ export class SLADashboardAPI {
     }).from(departmentPriorities).where(and(...priorityFilter));
 
     // Buscar todas as configurações de SLA ativas
-    let configFilter = [eq(slaConfigurations.company_id, companyId), eq(slaConfigurations.is_active, true)];
+    const configFilter = [eq(slaConfigurations.company_id, companyId), eq(slaConfigurations.is_active, true)];
     if (departmentIds && departmentIds.length > 0) {
       configFilter.push(inArray(slaConfigurations.department_id, departmentIds));
     }
@@ -826,7 +824,7 @@ export class SLADashboardAPI {
     }).from(slaConfigurations).where(and(...configFilter));
 
     // Buscar todas as combinações realmente usadas em tickets reais
-    let ticketFilter = [
+    const ticketFilter = [
       eq(tickets.company_id, companyId),
       isNotNull(tickets.department_id),
       isNotNull(tickets.incident_type_id),

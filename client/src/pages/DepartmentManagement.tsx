@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, FolderIcon, Search, Building2 } from 'lucide-react';
+import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, Search, Building2 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { Department } from '@shared/schema';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';

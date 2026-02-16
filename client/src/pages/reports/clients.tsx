@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale/pt-BR';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Download, Filter, ChevronDown, ArrowLeft, Users, Star, MessageSquare } from 'lucide-react';
+import { Download, Filter, ChevronDown, ArrowLeft, Users, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { ModernPieChart } from '@/components/charts/modern-pie-chart';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';

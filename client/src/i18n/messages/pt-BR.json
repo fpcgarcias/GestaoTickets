@@ -1647,7 +1647,7 @@
     "assigned_to": "Atendente",
     "all_officials": "Todos os Atendentes",
     "unassigned": "Não Atribuídos",
-    "hide_resolved": "Ocultar chamados resolvidos",
+    "hide_resolved": "Ocultar chamados encerrados",
     "include_previous": "Incluir abertos de períodos anteriores",
     "tabs": {
       "all": "Todos os Chamados",

@@ -28,19 +28,16 @@ import {
   Settings,
   Lightbulb,
   Save,
-  X,
   CheckCircle,
   AlertTriangle,
   Key,
-  Globe,
-  Server,
   Edit3,
   Target,
   RotateCcw,
   Search
 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { queryClient, apiRequest } from '@/lib/queryClient';
+import { apiRequest } from '@/lib/queryClient';
 import { config } from '@/lib/config';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
@@ -51,7 +48,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -622,7 +618,7 @@ function CompanyAiConfiguration() {
 
 // Wrapper que verifica permissões antes de mostrar configurações por departamento
 function DepartmentAiConfigurationWrapper() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const { formatMessage } = useI18n();
 
   // Este componente agora só é renderizado quando há permissão
@@ -1399,7 +1395,7 @@ function AdminAiConfiguration() {
   const [isTestLoading, setIsTestLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingConfig, setEditingConfig] = useState<AiConfiguration | null>(null);
-  const [deleteConfig, setDeleteConfig] = useState<AiConfiguration | null>(null);
+  const [_deleteConfig, setDeleteConfig] = useState<AiConfiguration | null>(null);
   const [testResult, setTestResult] = useState<any>(null);
   const [testData, setTestData] = useState({
     test_title: "",
@@ -1654,7 +1650,7 @@ function AdminAiConfiguration() {
     },
   });
 
-  const deleteMutation = useMutation({
+  const _deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       const response = await fetch(`/api/ai-configurations/${id}`, {
         method: 'DELETE',
@@ -1873,7 +1869,7 @@ function AdminAiConfiguration() {
   const handleTestProvider = async (provider: AiProvider) => {
     try {
       await testProviderMutation.mutateAsync(provider);
-    } catch (error) {
+    } catch (_error) {
       // Erro já tratado na mutation
     }
   };

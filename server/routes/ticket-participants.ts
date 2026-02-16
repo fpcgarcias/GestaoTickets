@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { eq, and, inArray } from 'drizzle-orm';
-import { tickets, ticketParticipants, users, customers, officials } from '@shared/schema';
+import { eq, and } from 'drizzle-orm';
+import { users, customers, officials } from '@shared/schema';
 import { storage } from '../storage';
 import { notificationService } from '../services/notification-service';
 import { emailNotificationService } from '../services/email-notification-service';
@@ -155,7 +155,7 @@ async function canUserRemoveParticipant(
 router.get('/:ticketId', authRequired, ticketAccessRequired, async (req: Request, res: Response) => {
   try {
     const ticketId = parseInt(req.params.ticketId);
-    const userId = req.session?.userId;
+    const _userId = req.session?.userId;
     const userRole = req.session?.userRole;
 
     if (!ticketId || isNaN(ticketId)) {
@@ -232,7 +232,7 @@ router.post('/:ticketId', authRequired, canAddParticipants, async (req: Request,
     }
 
     // Verificar se todos os usuários existem
-    const usersToAdd = await Promise.all(
+    const _usersToAdd = await Promise.all(
       userIds.map(async (userId) => {
         const user = await storage.getUser(userId);
         if (!user) {
@@ -487,7 +487,7 @@ router.put('/:ticketId', authRequired, participantManagementRequired, async (req
     }
 
     // Verificar se todos os usuários existem
-    const usersToAdd = await Promise.all(
+    const _usersToAdd = await Promise.all(
       userIds.map(async (userId) => {
         const user = await storage.getUser(userId);
         if (!user) {

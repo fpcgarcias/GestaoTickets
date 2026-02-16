@@ -36,7 +36,7 @@ import {
   Monitor,
 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { queryClient, apiRequest } from '@/lib/queryClient';
+import { apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 
@@ -117,7 +117,7 @@ const AVAILABLE_VARIABLES: Record<string, { label: string; variables: Array<{ ke
 
 export default function TermTemplatesSettings() {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const [selectedTemplate, setSelectedTemplate] = useState<TermTemplate | null>(null);
   const [isEditingTemplate, setIsEditingTemplate] = useState(false);
   const [previewMode, setPreviewMode] = useState<'code' | 'visual'>('visual');
@@ -682,7 +682,7 @@ export default function TermTemplatesSettings() {
               </h4>
               <div className="max-h-32 overflow-y-auto">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                  {Object.entries(AVAILABLE_VARIABLES).flatMap(([category, info]) =>
+                  {Object.entries(AVAILABLE_VARIABLES).flatMap(([_category, info]) =>
                     info.variables.map((variable) => {
                       return (
                         <div key={variable.key} className="bg-card p-2 rounded border border-border">

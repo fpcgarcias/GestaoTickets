@@ -73,7 +73,7 @@ interface PerformanceStats {
 
 export default function PerformanceDashboard() {
   const { user } = useAuth();
-  const [location, navigate] = useLocation();
+  const [_location, navigate] = useLocation();
   const [data, setData] = useState<PerformanceStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -106,7 +106,7 @@ export default function PerformanceDashboard() {
   }
 
   // KPIs
-  const { stats, statusCodeDistribution, systemInfo, slowestRequests, errorDetails, topEndpoints, topEndpointsByAvgTime, errorRateByEndpoint } = data;
+  const { stats, statusCodeDistribution, systemInfo, slowestRequests, errorDetails, topEndpoints, topEndpointsByAvgTime } = data;
   const statusData = Object.entries(statusCodeDistribution).map(([code, count]) => ({ code, count }));
   const errorPieData = [
     { name: 'Erros', value: Math.round(stats.totalRequests * (stats.errorRate / 100)) },

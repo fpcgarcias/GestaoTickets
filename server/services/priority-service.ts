@@ -9,19 +9,15 @@ import {
   departments, 
   companies,
   type DepartmentPriority, 
-  type InsertDepartmentPriority,
-  type Company,
-  type Department 
+  type InsertDepartmentPriority
 } from '@shared/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { 
   getDepartmentPriorities,
   usesFlexibleSLA,
-  convertLegacyPriority,
   createDefaultPriorities,
   validatePriorityWeights,
-  type PriorityResult,
-  type PriorityConfig
+  type PriorityResult
 } from '@shared/utils/priority-utils';
 import { logger } from './logger';
 
@@ -52,7 +48,7 @@ export class PriorityService {
       return priorities;
     } catch (error) {
       logger.error('Erro ao buscar prioridades da empresa', { companyId, error });
-      throw new Error('Falha ao buscar prioridades da empresa');
+      throw new Error('Falha ao buscar prioridades da empresa', { cause: error });
     }
   }
 
@@ -71,7 +67,7 @@ export class PriorityService {
       return priority || null;
     } catch (error) {
       logger.error('Erro ao buscar prioridade por ID', { id, error });
-      throw new Error('Falha ao buscar prioridade');
+      throw new Error('Falha ao buscar prioridade', { cause: error });
     }
   }
 
@@ -123,7 +119,7 @@ export class PriorityService {
       
     } catch (error) {
       logger.error('Erro ao buscar prioridades do departamento', { companyId, departmentId, error });
-      throw new Error('Falha ao buscar prioridades do departamento');
+      throw new Error('Falha ao buscar prioridades do departamento', { cause: error });
     }
   }
 
@@ -201,7 +197,7 @@ export class PriorityService {
       
     } catch (error) {
       logger.error('Erro ao criar prioridades padrão', { companyId, departmentId, error });
-      throw new Error('Falha ao criar prioridades padrão');
+      throw new Error('Falha ao criar prioridades padrão', { cause: error });
     }
   }
 
@@ -269,7 +265,7 @@ export class PriorityService {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Falha ao criar prioridade personalizada');
+      throw new Error('Falha ao criar prioridade personalizada', { cause: error });
     }
   }
 
@@ -342,7 +338,7 @@ export class PriorityService {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Falha ao atualizar prioridade');
+      throw new Error('Falha ao atualizar prioridade', { cause: error });
     }
   }
 
@@ -379,7 +375,7 @@ export class PriorityService {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Falha ao remover prioridade');
+      throw new Error('Falha ao remover prioridade', { cause: error });
     }
   }
 
@@ -474,7 +470,7 @@ export class PriorityService {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Falha ao reordenar prioridades');
+      throw new Error('Falha ao reordenar prioridades', { cause: error });
     }
   }
 
@@ -493,7 +489,7 @@ export class PriorityService {
         
     } catch (error) {
       logger.error('Erro ao ativar sistema flexível', { companyId, error });
-      throw new Error('Falha ao ativar sistema flexível de SLA');
+      throw new Error('Falha ao ativar sistema flexível de SLA', { cause: error });
     }
   }
 

@@ -454,7 +454,7 @@ export default function SLAConfigurations() {
       }
       return res.json();
     },
-    onSuccess: async (data) => {
+    onSuccess: async (_data) => {
       toast({ title: formatMessage('sla_config.success'), description: formatMessage('sla_config.sla_configuration_updated') });
       
       // Usar função auxiliar para invalidar cache
@@ -491,7 +491,7 @@ export default function SLAConfigurations() {
       }
       return res.json();
     },
-    onSuccess: async (data, variables) => {
+    onSuccess: async (_data, _variables) => {
       toast({ title: formatMessage('sla_config.success'), description: formatMessage('sla_config.sla_configuration_removed') });
       
       // Usar função auxiliar para invalidar cache
@@ -696,7 +696,7 @@ export default function SLAConfigurations() {
       URL.revokeObjectURL(downloadUrl);
       
       toast({ title: formatMessage('sla_config.success'), description: formatMessage('sla_config.configurations_exported') });
-    } catch (error) {
+    } catch (_error) {
       toast({ title: formatMessage('sla_config.error'), description: formatMessage('sla_config.export_error'), variant: "destructive" });
     }
   };
@@ -787,7 +787,7 @@ export default function SLAConfigurations() {
         title: formatMessage('sla_config.template_downloaded'), 
         description: formatMessage('sla_config.use_csv_template_description') 
       });
-    } catch (error) {
+    } catch (_error) {
       toast({ title: formatMessage('sla_config.error'), description: formatMessage('sla_config.download_template_error'), variant: "destructive" });
     }
   };

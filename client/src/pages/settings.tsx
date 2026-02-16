@@ -4,16 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Loader2, Mail, Settings as SettingsIcon, Brain, FileSignature, X } from "lucide-react";
-import { useQuery, useMutation, QueryClient } from '@tanstack/react-query';
+import { Loader2, Mail, Settings as SettingsIcon, Brain, FileSignature, X } from "lucide-react";
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 import { Link } from 'wouter';
@@ -71,7 +64,7 @@ export default function Settings() {
     }
   }, [isLoadingAuth, user?.role, navigate, toast]);
 
-  const [companies, setCompanies] = useState<ApiCompany[]>([]);
+  const [, setCompanies] = useState<ApiCompany[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>(
     (user?.role === 'manager' || user?.role === 'company_admin') && userCompany?.id ? userCompany.id : undefined
   );
@@ -87,7 +80,6 @@ export default function Settings() {
   // Buscar lista de empresas se for admin
   const { 
     data: companiesData, 
-    isLoading: isLoadingCompanies, 
     isError: isErrorCompanies, 
     error: errorCompanies 
   } = useQuery<ApiCompany[], Error>({
@@ -138,11 +130,7 @@ export default function Settings() {
                         (!isLoadingAuth && user?.role === 'company_admin' && !!userCompany?.id) ||
                         (!isLoadingAuth && user?.role === 'support' && !!userCompany?.id);
   const { 
-    data: slaSettingsData, 
-    isLoading: isLoadingSla, 
-    refetch: refetchSlaSettings, 
-    isError: isErrorSla, 
-    error: errorSla 
+    refetch: refetchSlaSettings 
   } = useQuery<SlaSettingsApiResponse, Error>({
     queryKey: ["/api/settings/sla", selectedCompanyId],
     queryFn: async (): Promise<SlaSettingsApiResponse> => {
@@ -213,7 +201,7 @@ export default function Settings() {
   }, [generalSettingsData]);
 
   // Mutação para salvar configurações de SLA
-  const saveSlaSettingsMutation = useMutation<
+  const _saveSlaSettingsMutation = useMutation<
     SlaSettingsApiResponse, 
     Error, 
     { company_id?: number; settings: Record<string, SlaRule>; }
@@ -265,7 +253,7 @@ export default function Settings() {
     },
   });
 
-  const slaPriorities = [
+  const _slaPriorities = [
     { key: 'low', label: formatMessage('settings.low') },
     { key: 'medium', label: formatMessage('settings.medium') },
     { key: 'high', label: formatMessage('settings.high') },

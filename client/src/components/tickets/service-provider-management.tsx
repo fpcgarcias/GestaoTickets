@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useI18n } from '@/i18n';
@@ -26,7 +26,7 @@ export const ServiceProviderManagement: React.FC<ServiceProviderManagementProps>
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { formatMessage } = useI18n();
+  const { formatMessage: _formatMessage } = useI18n();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedProviders, setSelectedProviders] = useState<ServiceProvider[]>([]);
 

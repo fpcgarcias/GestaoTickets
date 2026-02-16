@@ -43,7 +43,7 @@ export function UserSearch({
 }: UserSearchProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const { formatMessage } = useI18n();
+  const { formatMessage: _formatMessage } = useI18n();
 
   // Query para buscar usuários
   const { data: allUsers = [], isLoading, error } = useQuery<User[]>({
@@ -164,7 +164,7 @@ export function UserSearch({
               
               {/* Usuário selecionado */}
               {selectedUserInList.map((user: User) => {
-                const isSelected = value === String(user.id);
+                const _isSelected = value === String(user.id);
                 
                 return (
                   <CommandItem

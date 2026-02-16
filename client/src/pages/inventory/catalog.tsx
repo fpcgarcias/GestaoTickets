@@ -296,7 +296,7 @@ export default function InventoryCatalogPage() {
     if (!filters.purchaseDateRange?.from && !filters.purchaseDateRange?.to) {
       return rawProducts;
     }
-    return rawProducts.filter((product) => {
+    return rawProducts.filter((product: InventoryProduct) => {
       if (!product.invoice_date) return false;
       const purchaseDate = new Date(product.invoice_date);
       const from = filters.purchaseDateRange?.from;
@@ -556,19 +556,19 @@ export default function InventoryCatalogPage() {
     {
       key: "type",
       header: formatMessage("inventory.catalog.table.product_type"),
-      render: (product) => productTypeMap.get(product.product_type_id)?.name ?? "--",
+      render: (product) => product.product_type_id ? (productTypeMap.get(product.product_type_id)?.name ?? "--") : "--",
     },
     {
       key: "supplier",
       header: formatMessage("inventory.catalog.table.supplier"),
-      render: (product) => supplierMap.get(product.supplier_id)?.name ?? "--",
+      render: (product) => product.supplier_id ? (supplierMap.get(product.supplier_id)?.name ?? "--") : "--",
     },
     {
       key: "location",
       header: formatMessage("inventory.catalog.table.department_location"),
       render: (product) => {
-        const department = departmentMap.get(product.department_id)?.name ?? "--";
-        const location = locationMap.get(product.location_id)?.name ?? "--";
+        const department = product.department_id ? (departmentMap.get(product.department_id)?.name ?? "--") : "--";
+        const location = product.location_id ? (locationMap.get(product.location_id)?.name ?? "--") : "--";
         return (
           <div className="flex flex-col text-sm">
             <span>{department}</span>

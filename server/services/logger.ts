@@ -190,9 +190,9 @@ export const logNotificationError = (
 // Middleware para capturar logs não tratados
 if (process.env.NODE_ENV === 'production') {
   // Capturar console.log em produção
-  const originalConsoleLog = console.log;
-  const originalConsoleError = console.error;
-  const originalConsoleWarn = console.warn;
+  const _originalConsoleLog = console.log;
+  const _originalConsoleError = console.error;
+  const _originalConsoleWarn = console.warn;
   
   console.log = (...args: any[]) => {
     logger.info(args.join(' '));

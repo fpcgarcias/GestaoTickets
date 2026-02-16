@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNotifications, NotificationFilters as FilterType } from '@/hooks/use-notifications';
-import { Bell, X, Trash2, CheckCheck, Loader2 } from 'lucide-react';
+import { Bell, Trash2, CheckCheck, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -58,11 +58,11 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
   const { locale, formatMessage } = useI18n();
   // 🔥 CORREÇÃO: Usar hook useNotifications para sincronizar estado e contador
   const { 
-    notifications: hookNotifications, 
+    notifications: _hookNotifications, 
     markAsRead, 
     markAllAsRead, 
     refresh,
-    loading: hookLoading 
+    loading: _hookLoading 
   } = useNotifications();
   const [notifications, setNotifications] = useState<PersistentNotification[]>([]);
   const [loading, setLoading] = useState(false);
@@ -264,7 +264,7 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
         addSuffix: true,
         locale: dateFnsLocale,
       });
-    } catch (error) {
+    } catch (_error) {
       return locale === 'en-US' ? 'now' : 'agora';
     }
   };

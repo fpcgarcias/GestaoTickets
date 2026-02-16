@@ -13,12 +13,12 @@ type ToasterToast = ActualToastProps & {
   onOpenChange?: (open: boolean) => void; // Add onOpenChange
 }
 
-type ToastActionElement = React.ReactElement<typeof ToastAction>
+type _ToastActionElement = React.ReactElement<typeof ToastAction>
 
 const TOAST_LIMIT = 1
 const TOAST_REMOVE_DELAY = 1000000
 
-type ToastProps = Omit<ToasterToast, "id"> & { id: string }
+type _ToastProps = Omit<ToasterToast, "id"> & { id: string }
 
 interface State {
   toasts: ToasterToast[]
@@ -115,7 +115,7 @@ function dispatch(action: Action) {
 }
 
 // This is the type for the props you pass to the toast() function
-interface ToastFnProps extends Omit<ToasterToast, "id" | "open" | "onOpenChange"> {}
+type ToastFnProps = Omit<ToasterToast, "id" | "open" | "onOpenChange">
 
 function toast(props: ToastFnProps) {
   const id = genId()

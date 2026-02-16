@@ -4,20 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
-  Plus, 
   Search, 
-  Mail, 
   Pencil, 
-  Trash, 
   UserPlus,
-  Check,
-  X,
-  UserCog,
   UserCheck,
   UserX,
-  Shield,
-  User,
-  AlertTriangle,
   Building2
 } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
@@ -170,7 +161,7 @@ export default function OfficialsIndex() {
       <AddOfficialDialog 
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
-        onCreated={(official) => {
+        onCreated={(_official) => {
           // Atualizar a lista de atendentes automaticamente depois que um novo for adicionado
           queryClient.invalidateQueries({ predicate: (query) => 
             query.queryKey[0] === '/api/officials' 

@@ -1,6 +1,6 @@
 import { db } from "../../../db";
-import { eq, and, ne } from "drizzle-orm";
-import { tickets, ticketReplies, customers, ticketParticipants } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { ticketReplies, customers } from "@shared/schema";
 import { Request, Response } from "express";
 import { storage } from "../../../storage";
 

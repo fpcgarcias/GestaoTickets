@@ -7,7 +7,7 @@ import {
   ticketInventoryItems,
   users,
 } from '@shared/schema';
-import { eq, and, desc, sql, or, inArray, getTableColumns } from 'drizzle-orm';
+import { eq, and, desc, sql, or, inArray } from 'drizzle-orm';
 import { getDepartmentFilter } from '../utils/department-filter';
 
 function resolveCompanyId(req: Request): number {
@@ -43,7 +43,7 @@ export async function getInventoryDashboardStats(req: Request, res: Response) {
     ];
 
     // Aplicar filtro de departamento apenas se necessário
-    let conditions = [...baseConditions];
+    const conditions = [...baseConditions];
     
     if (userId && userRole) {
       const deptFilter = await getDepartmentFilter(userId, userRole);

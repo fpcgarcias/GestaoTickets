@@ -147,12 +147,12 @@ export class AnthropicProvider implements AiProviderInterface {
         rawResponse: data
       };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro no provedor Anthropic Claude:', error);
       
       // Se for timeout, marcar como tal
-      if (error.name === 'TimeoutError') {
-        throw new Error('Anthropic Claude analysis timeout');
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        throw new Error('Anthropic Claude analysis timeout', { cause: error });
       }
       
       throw error;

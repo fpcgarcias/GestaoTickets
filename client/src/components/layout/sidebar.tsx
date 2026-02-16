@@ -114,7 +114,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath }) => {
           )}
         </div>
         <nav className="p-4 flex-1 overflow-y-auto">
-          {filteredNavItems.map((item, index) => {
+          {filteredNavItems.map((item, _index) => {
             const sidebarEntry = (
             <SidebarItem 
               key={item.href}

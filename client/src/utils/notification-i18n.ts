@@ -1,4 +1,4 @@
-import { intl, detectLocaleFromDomain, createIntlInstance, type SupportedLocale } from '@/i18n';
+import { detectLocaleFromDomain, createIntlInstance, type SupportedLocale } from '@/i18n';
 
 /**
  * Utilitário para traduzir mensagens de notificações recebidas do servidor
