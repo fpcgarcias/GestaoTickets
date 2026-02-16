@@ -440,7 +440,7 @@ const useInventoryMutation = <TVariables = any, TData = any>({
         method === "GET" ? undefined : getBody ? getBody(variables) : (variables as Record<string, any>);
       return mutateJson<TData>(method, targetPath, payload);
     },
-    onSuccess: (data) => {
+    onSuccess: (_data) => {
       if (successMessage) toast({ title: successMessage });
       invalidateKeys.forEach((key) => {
         queryClient.invalidateQueries({ queryKey: key });
@@ -795,12 +795,12 @@ export function useImportInventoryProductsBatch() {
       }
       return await response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (_data) => {
       queryClient.invalidateQueries({ queryKey: inventoryKeys.products.root });
       toast({
         title: "Importação concluída",
-        description: data.message,
-        variant: data.results.errors.length > 0 ? "default" : "default",
+        description: _data.message,
+        variant: _data.results.errors.length > 0 ? "default" : "default",
       });
     },
     onError: (error: any) => {

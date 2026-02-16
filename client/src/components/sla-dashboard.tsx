@@ -16,8 +16,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   Clock, 
   Target, 
-  TrendingUp, 
-  TrendingDown, 
   AlertTriangle, 
   CheckCircle2,
   Settings,
@@ -25,15 +23,6 @@ import {
   BarChart3,
   PieChart
 } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts';
 import { ModernPieChart } from '@/components/charts/modern-pie-chart';
 import { ModernSlaBarChart } from '@/components/charts/modern-sla-bar-chart';
 import { useAuth } from '@/hooks/use-auth';
@@ -195,7 +184,7 @@ export function SLADashboard({ className }: SLADashboardProps) {
   if (!slaStats) return null;
 
   // Preparar dados para gráficos
-  const coverageData = slaStats.configurationsByDepartment.map((dept, index) => {
+  const coverageData = slaStats.configurationsByDepartment.map((dept, _index) => {
     const realMissing = slaStats.missingConfigurationAlerts.filter(a => a.departmentId === dept.departmentId).length;
     const total = dept.configurationsCount + realMissing;
     const coverage = total > 0 ? (dept.configurationsCount / total) * 100 : 0;
@@ -208,13 +197,13 @@ export function SLADashboard({ className }: SLADashboardProps) {
   });
 
   // Preparar dados para o ModernPieChart (formato: name, value, color)
-  const coveragePieData = slaStats.configurationsByDepartment.map((dept, index) => {
+  const coveragePieData = slaStats.configurationsByDepartment.map((dept, idx) => {
     const realMissing = slaStats.missingConfigurationAlerts.filter(a => a.departmentId === dept.departmentId).length;
-    const total = dept.configurationsCount + realMissing;
+    const _total = dept.configurationsCount + realMissing;
     return {
       name: dept.departmentName,
       value: dept.configurationsCount,
-      color: COLORS[index % COLORS.length]
+      color: COLORS[idx % COLORS.length]
     };
   });
 
@@ -233,7 +222,7 @@ export function SLADashboard({ className }: SLADashboardProps) {
     ? slaStats.slaCompliance.reduce((acc, dept) => acc + dept.resolutionCompliance, 0) / slaStats.slaCompliance.length 
     : 0;
 
-  const totalTickets = slaStats.slaCompliance.reduce((acc, dept) => acc + dept.totalTickets, 0);
+  const _totalTickets = slaStats.slaCompliance.reduce((acc, dept) => acc + dept.totalTickets, 0);
   const totalMissingConfigs = slaStats.missingConfigurationAlerts.length;
 
   return (

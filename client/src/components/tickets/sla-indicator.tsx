@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Clock, AlertTriangle, CheckCircle, Pause, Target } from 'lucide-react';
 import { calculateSLAStatus, formatTimeRemaining, getBusinessHoursConfig, convertStatusHistoryToPeriods } from '@shared/utils/sla-calculator';
 import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
-import { useTicketWithSLA, slaUtils } from '@/hooks/use-sla';
+import { useTicketWithSLA } from '@/hooks/use-sla';
 import { Badge } from '../ui/badge';
 import { useI18n } from '@/i18n';
 import { useSLAFormatting } from '@/lib/sla-utils';
@@ -39,8 +39,8 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
   const { formatMessage } = useI18n();
   const { formatTimeRemaining: formatTimeRemainingTranslated } = useSLAFormatting();
   const [timeRemaining, setTimeRemaining] = useState<string>('');
-  const [percentConsumed, setPercentConsumed] = useState<number>(0);
-  const [slaStatus, setSlaStatus] = useState<'ok' | 'warning' | 'critical' | 'breached'>('ok');
+  const [_percentConsumed, setPercentConsumed] = useState<number>(0);
+  const [_slaStatus, setSlaStatus] = useState<'ok' | 'warning' | 'critical' | 'breached'>('ok');
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [useNewSLA, setUseNewSLA] = useState<boolean>(false);
 
@@ -242,7 +242,7 @@ export const SLAIndicator: React.FC<SLAIndicatorProps> = ({
         const overdueTime = formatTimeRemaining(slaResult.timeElapsed - (resolutionTimeHours * 60 * 60 * 1000), true);
         setTimeRemaining(`Excedido em ${overdueTime}`);
       } else {
-        const remainingTime = formatTimeRemaining(slaResult.timeRemaining);
+        const _remainingTime = formatTimeRemaining(slaResult.timeRemaining);
         setTimeRemaining(formatTimeRemainingTranslated(slaResult.timeRemaining / (60 * 60 * 1000)));
       }
       

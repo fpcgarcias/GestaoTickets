@@ -26,7 +26,7 @@ interface TestUser {
   active: boolean;
 }
 
-interface TestNotificationPayload {
+interface _TestNotificationPayload {
   type: string;
   title: string;
   message: string;

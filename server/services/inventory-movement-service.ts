@@ -448,7 +448,7 @@ class InventoryMovementService {
       throw new Error('Movimentação já avaliada.');
     }
 
-    const [updated] = await db
+    const [_updated] = await db
       .update(inventoryMovements)
       .set({
         approval_status: 'rejected',
@@ -717,7 +717,7 @@ class InventoryMovementService {
       }
 
       // Buscar informações do usuário que possui o equipamento
-      const [assignedUser] = await db
+      const [_assignedUser] = await db
         .select({
           id: inventoryProducts.id,
           name: inventoryProducts.name,

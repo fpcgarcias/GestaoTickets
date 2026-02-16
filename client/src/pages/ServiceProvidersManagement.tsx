@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, Search, Building2, UserCheck, UserX } from 'lucide-react';
+import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, Search, Building2 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { ServiceProvider } from '@shared/schema';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -16,7 +16,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from '@/hooks/use-auth';
-import { useI18n } from '@/i18n';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
@@ -42,7 +41,6 @@ const ServiceProvidersManagement: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { formatMessage } = useI18n();
   
   // Estados para filtros e busca
   const [searchTerm, setSearchTerm] = useState('');

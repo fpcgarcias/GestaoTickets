@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { cn, generateSecurePassword } from "@/lib/utils";
+import { generateSecurePassword } from "@/lib/utils";
 
 interface AddOfficialDialogProps {
   open: boolean;
@@ -21,7 +21,6 @@ interface AddOfficialDialogProps {
 
 export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficialDialogProps) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -80,34 +79,6 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     }));
   };
 
-  const createOfficialMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest('POST', '/api/officials', data);
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Erro ao criar atendente');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/officials'] });
-      setSubmitting(false);
-      setUserCreated(true);
-      toast({
-        title: "Atendente adicionado",
-        description: "O atendente foi adicionado com sucesso.",
-      });
-    },
-    onError: (error) => {
-      setSubmitting(false);
-      toast({
-        title: "Erro ao adicionar atendente",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  });
-
   const createSupportUserMutation = useMutation({
     mutationFn: async (userData: any) => {
       const res = await apiRequest('POST', '/api/support-users', userData);
@@ -130,7 +101,9 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       
       // Fechar o diálogo e resetar o formulário
       handleCloseDialog();
-      onCreated && onCreated(data.official);
+      if (onCreated) {
+        onCreated(data.official);
+      }
     },
     onError: (error) => {
       setSubmitting(false);

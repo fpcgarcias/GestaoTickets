@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { AuthContext } from '@/hooks/use-auth';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'wouter';
 import { Button } from "@/components/ui/button";
-import { Plus, Search, Calendar } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,9 +19,8 @@ import { useI18n } from '@/i18n';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { TicketCard } from '@/components/tickets/ticket-card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
-import { Ticket, Official, Department } from '@shared/schema';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TICKET_STATUS } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { usePriorities } from '@/hooks/use-priorities';
@@ -44,7 +42,7 @@ export default function TicketsIndex() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { formatMessage, locale } = useI18n();
+  const { formatMessage } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [timeFilter, setTimeFilter] = useState('this-month');
   const [includeOpenOutsidePeriod, setIncludeOpenOutsidePeriod] = useState(true);
@@ -71,8 +69,8 @@ export default function TicketsIndex() {
     setCurrentPage(1); // Reset to first page when searching
   };
   
-  const handleFilterChange = (setter: (value: any) => void) => {
-    return (value: any) => {
+  const handleFilterChange = (setter: (value: string) => void) => {
+    return (value: string) => {
       setter(value);
       setCurrentPage(1); // Reset to first page when filtering
     };
@@ -152,7 +150,7 @@ export default function TicketsIndex() {
   const pagination = ticketsResponse?.pagination;
 
   // 🆕 Busca departamentos (filtrado por empresa automaticamente no backend)
-  const { data: departmentsResponse, isLoading: isDepartmentsLoading } = useQuery({
+  const { data: departmentsResponse } = useQuery({
     queryKey: ['/api/departments', { active_only: true }],
     queryFn: async () => {
       const res = await fetch('/api/departments?active_only=true');
@@ -222,7 +220,7 @@ export default function TicketsIndex() {
   const availablePriorities = departmentPriorities || [];
 
   // 🆕 Busca atendentes (filtrado por empresa automaticamente no backend)  
-  const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
+  const { data: officialsResponse } = useQuery({
     queryKey: ['/api/officials'],
     queryFn: async () => {
       const res = await fetch('/api/officials?limit=1000'); // Buscar todos para o dropdown

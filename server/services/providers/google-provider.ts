@@ -150,12 +150,12 @@ export class GoogleProvider implements AiProviderInterface {
         rawResponse: data
       };
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro no provedor Google Gemini:', error);
       
       // Se for timeout, marcar como tal
-      if (error.name === 'TimeoutError') {
-        throw new Error('Google Gemini analysis timeout');
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        throw new Error('Google Gemini analysis timeout', { cause: error });
       }
       
       throw error;

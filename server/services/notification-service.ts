@@ -1,9 +1,7 @@
 import { WebSocket } from 'ws';
 import { db } from '../db';
-import { tickets, users, ticketStatusHistory, userNotificationSettings, ticketParticipants, notifications, customers, officials, officialDepartments } from '@shared/schema';
-import * as schema from '@shared/schema';
+import { tickets, users, userNotificationSettings, ticketParticipants, notifications, customers, officials, officialDepartments } from '@shared/schema';
 import { eq, and, ne, isNull, sql, inArray } from 'drizzle-orm';
-import { emailNotificationService } from './email-notification-service';
 import { webPushService } from './web-push-service';
 import { logNotificationError } from './logger';
 import { STATUS_CONFIG } from '@shared/ticket-utils';
@@ -1039,7 +1037,7 @@ class NotificationService {
       console.log(`[🔔 NOTIFICAÇÃO] Encontrados ${participants.length} participantes para notificar sobre nova resposta`);
 
       // Determinar para quem enviar a notificação
-      const notifyUserIds: number[] = [];
+      const _notifyUserIds: number[] = [];
 
       // Se a resposta foi do cliente, notificar suporte/admin + participantes
       if (replyUser.role === 'customer') {

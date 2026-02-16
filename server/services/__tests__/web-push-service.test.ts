@@ -11,7 +11,7 @@ import * as fc from 'fast-check';
 import { webPushService } from '../web-push-service';
 import { db } from '../../db';
 import { pushSubscriptions, users, notifications } from '../../../shared/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 // Mock do web-push
 vi.mock('web-push', () => ({
@@ -516,7 +516,7 @@ describe('WebPushService - Property-Based Tests', () => {
             const calls = sendNotificationSpy.mock.calls;
             expect(calls.length).toBeGreaterThan(0);
             
-            const [subscriptionArg, payloadArg] = calls[0];
+            const [_subscriptionArg, payloadArg] = calls[0];
             const payload = JSON.parse(payloadArg as string);
             
             expect(payload.title).toBe('Test Notification');

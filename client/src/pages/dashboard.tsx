@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
 import { useBusinessHoursRefetchInterval } from '../hooks/use-business-hours';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfYear, endOfYear, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 import { ptBR, enUS } from 'date-fns/locale';
 import { useI18n } from '@/i18n';
 import { ModernPieChart } from '@/components/charts/modern-pie-chart';
@@ -22,24 +22,6 @@ import { PendingSatisfactionSurveys } from '@/components/satisfaction/pending-su
 import { PendingWaitingCustomerTickets } from '@/components/tickets/pending-waiting-customer-modal';
 
 // Definir tipos para os dados das consultas
-interface TicketStats {
-  total: number;
-  byStatus: {
-    new: number;
-    ongoing: number;
-    resolved: number;
-    closed: number;
-    [key: string]: number; // Para outros status que possam existir
-  };
-  byPriority: {
-    low: number;
-    medium: number;
-    high: number;
-    critical: number;
-    [key: string]: number; // Para prioridades customizadas
-  };
-}
-
 interface RecentTicket {
   id: number;
   title: string;
@@ -49,17 +31,6 @@ interface RecentTicket {
   customer?: {
     name: string;
   };
-}
-
-interface Official {
-  id: number;
-  name: string;
-  email: string;
-  is_active: boolean;
-  department_id?: number | null;
-  company_id?: number;
-  supervisor_id?: number;
-  manager_id?: number;
 }
 
 interface IncidentTypeOption {
@@ -73,14 +44,6 @@ interface CategoryOption {
   name: string;
   incident_type_id: number | null;
 }
-
-// Opções de períodos pré-definidos
-const PERIOD_OPTIONS = [
-  { value: 'current_month', label: 'Mês Atual' },
-  { value: 'last_month', label: 'Mês Passado' },
-  { value: 'current_year', label: 'Ano Atual' },
-  { value: 'custom', label: 'Personalizado' }
-];
 
 // Utilitário para converter data local (Brasília) para UTC ISO string (yyyy-mm-ddTHH:MM:SSZ)
 function toBrasiliaISOString(date: Date, endOfDay = false) {
@@ -102,10 +65,9 @@ function normalizarPrioridade(prioridade: string) {
 }
 
 export default function Dashboard() {
-  const { user, isLoading: isLoadingAuth } = useAuth();
+  const { user } = useAuth();
   const { formatMessage, locale } = useI18n();
   const isChangingFromIncidentType = useRef(false);
-  const [selectedCompany, setSelectedCompany] = useState<string>("all");
   const isCustomer = user?.role === 'customer';
   const [waitingCustomerDone, setWaitingCustomerDone] = useState(false);
   const shouldShowWaitingCustomer = isCustomer;
@@ -172,7 +134,7 @@ export default function Dashboard() {
   // O endpoint /api/departments já filtra automaticamente baseado na role:
   // - Admin/Company_admin: retorna todos os departamentos
   // - Manager/Supervisor: retorna apenas departamentos vinculados ao usuário
-  const { data: departmentsResponse, isLoading: isDepartmentsLoading } = useQuery({
+  const { data: departmentsResponse } = useQuery({
     queryKey: ['/api/departments', { active_only: true }, user?.role, user?.id],
     queryFn: async () => {
       const res = await fetch('/api/departments?active_only=true');
@@ -217,7 +179,7 @@ export default function Dashboard() {
   }, [incidentTypes, selectedIncidentTypeId]);
 
   // Buscar categorias - TODAS por padrão, filtrando por departamento/tipo se selecionados
-  const { data: categoriesResponse, isLoading: isCategoriesLoading, error: categoriesError } = useQuery({
+  const { data: categoriesResponse, isLoading: isCategoriesLoading } = useQuery({
     queryKey: ['/api/categories', selectedDepartmentId, selectedIncidentTypeId, user?.role, user?.id],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -237,7 +199,7 @@ export default function Dashboard() {
       const url = `/api/categories?${params.toString()}`;
       const res = await fetch(url, { credentials: 'include' });
       if (!res.ok) {
-        const errorText = await res.text();
+        await res.text();
         throw new Error(`Erro ao carregar categorias: ${res.status}`);
       }
       const data = await res.json();
@@ -259,7 +221,7 @@ export default function Dashboard() {
   }, [categories, selectedCategoryId]);
 
   // Buscar atendentes apenas se necessário
-  const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
+  const { data: officialsResponse } = useQuery({
     queryKey: ['/api/officials', user?.id, user?.role, selectedDepartmentId],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -356,15 +318,6 @@ export default function Dashboard() {
       setSelectedDepartmentId(selectedOfficial.department_id.toString());
       setSelectedIncidentTypeId('all');
     }
-  };
-
-  // Construir query key com filtro de atendente
-  const getQueryKey = (endpoint: string) => {
-    const baseKey = [endpoint];
-    if (selectedOfficialId !== 'all') {
-      baseKey.push(`official_${selectedOfficialId}`);
-    }
-    return baseKey;
   };
 
   // Construir query params para as APIs

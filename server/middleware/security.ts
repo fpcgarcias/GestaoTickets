@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 import Joi from 'joi';
-import { body, validationResult } from 'express-validator';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import xss from 'xss';
 import { logSecurityEvent } from '../api/security-monitoring';

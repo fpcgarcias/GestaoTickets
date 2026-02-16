@@ -1,16 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../services/logger';
 
-// Extend Express Request type to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: number;
-        username: string;
-        role: string;
-      };
-    }
+// Extend Express Request type to include user (module augmentation)
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: {
+      id: number;
+      username: string;
+      role: string;
+    };
   }
 }
 

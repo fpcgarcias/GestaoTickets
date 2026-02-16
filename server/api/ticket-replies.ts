@@ -1,10 +1,8 @@
 import { db } from "../db";
-import { eq, and, ne, exists } from "drizzle-orm";
+import { eq, and, exists } from "drizzle-orm";
 import { tickets, ticketReplies, ticketStatusHistory, customers, ticketParticipants, users } from "@shared/schema";
-import * as schema from "@shared/schema";
 import { insertTicketReplySchema } from "@shared/schema";
 import { Request, Response } from "express";
-import { storage } from "../storage";
 import { AiService } from "../services/ai-service";
 import { getDefaultAiBotName } from "../utils/ai-bot-names";
 
@@ -141,7 +139,7 @@ export async function POST(req: Request, res: Response) {
         .where(eq(tickets.id, ticketId))
         .limit(1);
       isUserParticipant = Boolean(isParticipant[0]?.exists);
-    } catch (err) {
+    } catch (_err) {
       isUserParticipant = false;
     }
 
@@ -155,7 +153,7 @@ export async function POST(req: Request, res: Response) {
 
     // --- INÍCIO LÓGICA DE REABERTURA AUTOMÁTICA (ANTES DE SALVAR A RESPOSTA) ---
     let shouldReopenByAI = false;
-    let aiReopenResult: any = null;
+    let _aiReopenResult: any = null;
     
     // Acionar IA se:
     // - status atual do ticket for 'waiting_customer'
@@ -177,7 +175,7 @@ export async function POST(req: Request, res: Response) {
           String(validatedData.message),
           db
         );
-        aiReopenResult = aiResult;
+        _aiReopenResult = aiResult;
         if (aiResult.shouldReopen) {
           shouldReopenByAI = true;
         }
@@ -222,10 +220,10 @@ export async function POST(req: Request, res: Response) {
     }
     if (statusChanged) {
       // Buscar ou criar usuário bot para IA
-      let botUser = await db
+      const botUser = await db
         .select()
-        .from(schema.users)
-        .where(eq(schema.users.role, 'integration_bot'))
+        .from(users)
+        .where(eq(users.role, 'integration_bot'))
         .limit(1);
 
       let botUserId: number;
@@ -233,7 +231,7 @@ export async function POST(req: Request, res: Response) {
       if (botUser.length === 0) {
         // Criar usuário bot se não existir
         const [createdBot] = await db
-          .insert(schema.users)
+          .insert(users)
           .values({
             username: 'ai_robot',
             email: 'ai@system.internal',

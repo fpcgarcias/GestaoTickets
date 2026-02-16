@@ -11,7 +11,6 @@ import {
   Search, 
   Filter, 
   RefreshCw, 
-  Calendar,
   Clock,
   Zap,
   AlertCircle,
@@ -29,7 +28,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { useI18n } from '@/i18n';
 import { Link } from 'wouter';
-import { formatDate } from '@/lib/utils';
 
 interface AiAnalysisAuditItem {
   id: number;

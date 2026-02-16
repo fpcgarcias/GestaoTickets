@@ -79,7 +79,7 @@ class S3Service {
       .normalize('NFD') // Normalizar acentos
       .replace(/[\u0300-\u036f]/g, '') // Remover diacríticos
       .replace(/ç/g, 'c').replace(/Ç/g, 'C') // Cedilha
-      .replace(/[^a-zA-Z0-9\-_\.]/g, '_') // Substituir tudo que não for letra, número, - _ . por _
+      .replace(/[^a-zA-Z0-9\-_.]/g, '_') // Substituir tudo que não for letra, número, - _ . por _
       .replace(/_{2,}/g, '_') // Múltiplos _ por um só
       .replace(/^_+|_+$/g, '') // Remover _ do início/fim
       .substring(0, 80); // Limitar tamanho
@@ -147,7 +147,7 @@ class S3Service {
 
     } catch (error) {
       console.error(`[S3] ❌ Erro no upload:`, error);
-      throw new Error('Falha ao fazer upload do arquivo. Tente novamente.');
+      throw new Error('Falha ao fazer upload do arquivo. Tente novamente.', { cause: error });
     }
   }
 
@@ -217,7 +217,7 @@ class S3Service {
       };
     } catch (error) {
       console.error('[S3] ❌ Erro no upload de inventário:', error);
-      throw new Error('Falha ao fazer upload do arquivo de inventário. Tente novamente.');
+      throw new Error('Falha ao fazer upload do arquivo de inventário. Tente novamente.', { cause: error });
     }
   }
 
@@ -274,7 +274,7 @@ class S3Service {
       };
     } catch (error) {
       console.error('[S3] ❌ Erro no upload de PDF assinado:', error);
-      throw new Error('Falha ao fazer upload do PDF assinado. Tente novamente.');
+      throw new Error('Falha ao fazer upload do PDF assinado. Tente novamente.', { cause: error });
     }
   }
 
@@ -295,7 +295,7 @@ class S3Service {
       return signedUrl;
     } catch (error) {
       console.error('Erro ao gerar URL de download:', error);
-      throw new Error('Falha ao gerar URL de download.');
+      throw new Error('Falha ao gerar URL de download.', { cause: error });
     }
   }
 
@@ -312,7 +312,7 @@ class S3Service {
       await s3Client.send(deleteCommand);
     } catch (error) {
       console.error('Erro ao deletar arquivo:', error);
-      throw new Error('Falha ao deletar arquivo.');
+      throw new Error('Falha ao deletar arquivo.', { cause: error });
     }
   }
 

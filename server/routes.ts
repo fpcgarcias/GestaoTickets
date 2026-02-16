@@ -10,26 +10,22 @@ import { storage } from "./storage";
 
 import { z } from "zod";
 
-import { insertTicketSchema, insertTicketReplySchema, slaDefinitions, departments as departmentsSchema, userRoleEnum, customers } from "@shared/schema";
+import { insertTicketSchema, insertTicketReplySchema, departments as departmentsSchema, customers } from "@shared/schema";
 
 import { eq, desc, asc, isNull, sql, and, ne, or, inArray, ilike, not, type SQLWrapper, gte, lte } from "drizzle-orm";
 
 import * as schema from "@shared/schema";
 
-import { users } from "@shared/schema";
-
 import { db } from "./db";
 
 import { notificationService } from "./services/notification-service";
-
-import * as crypto from 'crypto';
 
 import multer from 'multer';
 
 import s3Service from './services/s3-service';
 import { getDefaultAiBotName } from './utils/ai-bot-names';
 
-import { emailConfigService, type EmailConfig, type SMTPConfigInput } from './services/email-config-service';
+import { emailConfigService, type SMTPConfigInput } from './services/email-config-service';
 
 import { emailNotificationService } from './services/email-notification-service';
 
@@ -57,27 +53,7 @@ import {
 
   companyAdminRequired,
 
-  managerRequired,
-
-  supervisorRequired,
-
-  triageRequired,
-
-  viewerRequired,
-
   authorize,
-
-  companyAccessRequired,
-
-  ticketAccessRequired,
-
-  participantManagementRequired,
-
-  canAddParticipants,
-
-  canRemoveParticipants,
-
-  departmentAccessRequired,
 
   canManageUserRole
 
@@ -88,18 +64,6 @@ import {
 // === IMPORTS DE SEGURANÇA ===
 // NOTA: Os imports de rate limiting foram movidos para dentro de registerRoutes()
 // para evitar conflitos com trust proxy que é configurado depois
-
-
-
-// === IMPORTS DE MÉTRICAS TÉCNICAS ===
-
-import {
-
-  recordApiError,
-
-  recordApiResponseTime
-
-} from './telemetry/custom-metrics';
 
 
 
@@ -131,7 +95,7 @@ import { performanceMiddleware, performanceStatsHandler } from './middleware/per
 
 // === IMPORTS DE LOGGING ===
 
-import { logger, logPerformance, logSecurity } from './services/logger';
+import { logger } from './services/logger';
 
 
 
@@ -310,8 +274,6 @@ import {
   seedDefaultTermTemplate,
 } from './api/term-templates';
 
-import responsibilityTermService from './services/responsibility-term-service';
-
 import {
 
   getDepartmentInventorySettings,
@@ -446,7 +408,7 @@ const insertDepartmentSchemaInternal = z.object({
 
 });
 
-const updateDepartmentSchemaInternal = insertDepartmentSchemaInternal.partial();
+const _updateDepartmentSchemaInternal = insertDepartmentSchemaInternal.partial();
 
 
 
@@ -582,9 +544,8 @@ function validateRequest(schemaToValidate: z.ZodType<any, any>) {
 
 // Ver: server/middleware/authorization.ts
 
-
-
-function fixEmailDomain(email: string, source: string): { email: string, wasFixed: boolean } {
+// Função auxiliar para corrigir domínio de email (não utilizada atualmente)
+function _fixEmailDomain(email: string, _source: string): { email: string, wasFixed: boolean } {
 
   if (!email || !email.includes('@') || !process.env.AD_EMAIL_DOMAIN) {
 
@@ -678,9 +639,9 @@ async function isUserAlsoOfficial(userId: number): Promise<boolean> {
 
 
 
-// Função auxiliar para verificar se um usuário pode responder a um ticket
+// Função auxiliar para verificar se um usuário pode responder a um ticket (não utilizada atualmente)
 
-async function canUserReplyToTicket(
+async function _canUserReplyToTicket(
 
   userId: number,
 
@@ -798,7 +759,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
   const {
     validateSchema,
     loginSchema,
-    ticketSchema,
+    ticketSchema: _ticketSchema,
     sanitizeHtml,
     securityLogger,
     validateFileUpload
@@ -860,7 +821,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      const { authenticateAD } = await import('./utils/active-directory');
+      const { authenticateAD: _authenticateAD } = await import('./utils/active-directory');
 
 
 
@@ -958,7 +919,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           await client.unbind();
 
-        } catch (unbindError) {
+        } catch (_unbindError) {
 
           // Ignorar erros de unbind
 
@@ -1298,9 +1259,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                   inArray(schema.tickets.department_id, departmentIds) // Dos departamentos relevantes
 
-                )!!!!!!
+                )!
 
-              )!!!;
+              )!;
 
             }
 
@@ -1402,9 +1363,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                   inArray(schema.tickets.department_id, departmentIds) // Dos departamentos relevantes
 
-                )!!!!!!
+                )!
 
-              )!!!;
+              )!;
 
             }
 
@@ -1466,11 +1427,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                       inArray(schema.tickets.department_id, departmentIds)
 
-                    )!!!!!!!!
+                    )!
 
-                  )!!!!!!!
+                  )!
 
-                )!!!!!!;
+                )!;
 
               } else {
 
@@ -2086,7 +2047,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       res.json(ticket);
 
-    } catch (error) {
+    } catch (_error) {
 
       res.status(500).json({ message: "Falha ao buscar ticket" });
 
@@ -2808,7 +2769,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         // 🔥 FASE 5.3: Verificar se o customer também é official (atendente)
 
-        const isAlsoOfficial = await isUserAlsoOfficial(req.session?.userId!);
+        const sessionUserId = req.session?.userId;
+        const isAlsoOfficial = sessionUserId !== undefined && await isUserAlsoOfficial(sessionUserId);
 
 
 
@@ -3284,7 +3246,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       let statusChanged = false;
 
-      let oldStatus = existingTicket.status;
+      const oldStatus = existingTicket.status;
 
 
 
@@ -3422,7 +3384,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                 eq(schema.categories.is_active, true)
 
-              )!!!)
+              )!)
 
               .limit(1);
 
@@ -3730,7 +3692,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       // Validar categoria quando necessário
 
-      let effectiveCategoryId: number | null | undefined = category_id ?? null;
+      const effectiveCategoryId: number | null | undefined = category_id ?? null;
 
       if (targetDept.sla_mode === 'category') {
 
@@ -4010,7 +3972,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                 eq(schema.categories.is_active, true)
 
-              )!!!)
+              )!)
 
               .limit(1);
 
@@ -4068,7 +4030,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       // 🔍 OBTER A PRIORIDADE REAL QUE FOI SALVA NO TICKET
 
-      let originalPriority = ticket.priority || null;
+      const originalPriority = ticket.priority || null;
 
 
 
@@ -4218,9 +4180,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                   eq(schema.departmentPriorities.is_active, true)
 
-                )!!!!!!
+                )!
 
-              )!!!
+              )!
 
               .limit(1);
 
@@ -4254,9 +4216,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     eq(schema.departmentPriorities.is_active, true)
 
-                  )!!!!!!!
+                  )!
 
-                )!!!!!!;
+                )!;
 
 
 
@@ -4264,7 +4226,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                 p.name.toLowerCase() === (finalPriority || '').toLowerCase()
 
-              )!!!;
+              )!;
 
 
 
@@ -4336,7 +4298,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               // Buscar ou criar usuário bot para IA
 
-              let botUser = await db
+              const botUser = await db
 
                 .select()
 
@@ -4974,7 +4936,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               userData = await storage.getUser(customer.user_id);
 
-            } catch (userError) {
+            } catch (_userError) {
 
               // Silenciar warning para produção
 
@@ -6003,7 +5965,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             // Incluir o próprio supervisor
 
-            let allowedOfficialIds = [currentOfficial.id];
+            const allowedOfficialIds = [currentOfficial.id];
 
 
 
@@ -6351,9 +6313,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     dataWithDepartment.company_id ? eq(schema.departments.company_id, dataWithDepartment.company_id) : isNull(schema.departments.company_id)
 
-                  )!!!!!!!
+                  )!
 
-                )!!!!!!;
+                )!;
 
               deptRecord = rec;
 
@@ -6377,9 +6339,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     dataWithDepartment.company_id ? eq(schema.departments.company_id, dataWithDepartment.company_id) : isNull(schema.departments.company_id)
 
-                  )!!!!!!!
+                  )!
 
-                )!!!!!!;
+                )!;
 
               deptRecord = recByName;
 
@@ -6719,7 +6681,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (Object.keys(userUpdateData).length > 0) {
 
-          const updated = await storage.updateUser(official.user_id, userUpdateData);
+          const _updated = await storage.updateUser(official.user_id, userUpdateData);
 
           // Se a senha foi alterada, encerrar as sessões do usuário
 
@@ -6922,9 +6884,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     effectiveCompanyId ? eq(schema.departments.company_id, effectiveCompanyId) : isNull(schema.departments.company_id)
 
-                  )!!!!!!!
+                  )!
 
-                )!!!!!!;
+                )!;
 
               deptRecord = rec;
 
@@ -6948,9 +6910,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     effectiveCompanyId ? eq(schema.departments.company_id, effectiveCompanyId) : isNull(schema.departments.company_id)
 
-                  )!!!!!!!
+                  )!
 
-                )!!!!!!;
+                )!;
 
               deptRecord = recByName;
 
@@ -7086,13 +7048,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      let updatedOfficial;
+      let _updatedOfficial;
 
       if (currentActiveStatus) {
 
         // Se está ativo, inativar
 
-        updatedOfficial = await storage.inactivateOfficial(id); // Removido ?
+        _updatedOfficial = await storage.inactivateOfficial(id); // Removido ?
 
 
 
@@ -7120,7 +7082,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         // Se está inativo, ativar
 
-        updatedOfficial = await storage.activateOfficial(id); // Removido ?
+        _updatedOfficial = await storage.activateOfficial(id); // Removido ?
 
 
 
@@ -8461,7 +8423,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const usersWithoutPasswords = filteredUsers.map(user => {
 
-        const { password, ...userWithoutPassword } = user;
+        const { password: _password, ...userWithoutPassword } = user;
 
         return userWithoutPassword;
 
@@ -9445,7 +9407,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         // Contagem total
 
-        let countQuery = db
+        const countQuery = db
 
           .select({ count: sql<number>`count(*)`.mapWith(Number) })
 
@@ -9705,7 +9667,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-        let allowedDepartmentIds = userDepartments.map(d => d.department_id).filter(id => id !== null);
+        const allowedDepartmentIds = userDepartments.map(d => d.department_id).filter(id => id !== null);
 
 
 
@@ -10583,19 +10545,39 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-        // Verificar vínculos com categorias (através de incident_types)
+        // Verificar vínculos com categorias (categorias vinculadas ao departamento via incident_types)
 
-        const [categoryLink] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) })
+        const incidentTypeIds = await db
 
-          .from(schema.categories)
+          .select({ id: schema.incidentTypes.id })
 
-        // Categorias não têm department_id - removido filtro incorreto
+          .from(schema.incidentTypes)
 
-        if (categoryLink && categoryLink.count > 0) {
+          .where(eq(schema.incidentTypes.department_id, departmentIdParam));
+
+        const incidentIds = incidentTypeIds.map((r) => r.id);
+
+        let categoryLinkCount = 0;
+
+        if (incidentIds.length > 0) {
+
+          const [categoryLink] = await db
+
+            .select({ count: sql<number>`count(*)`.mapWith(Number) })
+
+            .from(schema.categories)
+
+            .where(inArray(schema.categories.incident_type_id, incidentIds));
+
+          categoryLinkCount = categoryLink?.count ?? 0;
+
+        }
+
+        if (categoryLinkCount > 0) {
 
           return res.status(400).json({
 
-            message: `Departamento não pode ser excluído pois está vinculado a ${categoryLink.count} categoria(s).`
+            message: `Departamento não pode ser excluído pois está vinculado a ${categoryLinkCount} categoria(s).`
 
           });
 
@@ -10711,7 +10693,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       // Verificar conexão com o banco
 
-      const testConnection = await db.select().from(schema.companies).limit(1);
+      const _testConnection = await db.select().from(schema.companies).limit(1);
 
 
 
@@ -11752,9 +11734,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                   inArray(schema.ticketTypes.department_id, departmentIds)
 
-                )!!!!!!
+                )!
 
-              )!!!!;
+              )!;
 
             } else {
 
@@ -12734,9 +12716,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     inArray(schema.incidentTypes.department_id, departmentIds)
 
-                  )!!!!!!!
+                  )!
 
-                )!!!!!!;
+                )!;
 
 
 
@@ -12752,9 +12734,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
                     inArray(schema.categories.incident_type_id, incidentTypeIds)
 
-                  )!!!!!!!
+                  )!
 
-                )!!!!!!;
+                )!;
 
               } else {
 
@@ -13384,7 +13366,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   router.get("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support', 'customer']), async (req: Request, res: Response) => {
 
-    let effectiveCompanyId: number | undefined = undefined; // Inicializada e tipo ajustado
+    let effectiveCompanyId: number | undefined;
 
     try {
 
@@ -13392,7 +13374,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const sessionCompanyId = req.session.companyId; // Pode ser undefined
 
-      let queryCompanyId = req.query.company_id ? parseInt(req.query.company_id as string, 10) : undefined;
+      const queryCompanyId = req.query.company_id ? parseInt(req.query.company_id as string, 10) : undefined;
 
 
 
@@ -13552,7 +13534,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-  type DrizzleReturningQuery = any; // Placeholder para tipo de query Drizzle com .returning()
+  // Placeholder para tipo de query Drizzle com .returning() (não utilizado atualmente)
+  type _DrizzleReturningQuery = any;
 
   router.post("/settings/sla", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
 
@@ -13808,7 +13791,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       console.error("Error saving SLA definitions:", error);
 
-      // @ts-ignore: Verificar se o erro é uma instância de Error para acessar message
+      // @ts-expect-error: Verificar se o erro é uma instância de Error para acessar message
 
       if (error instanceof Error && (error.message.includes('Tempo de resposta inválido') || error.message.includes('Tempo de resolução inválido'))) {
 
@@ -13816,11 +13799,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       }
 
-      // @ts-ignore: Acessar error.code e error.constraint se existirem
+      // @ts-expect-error: Acessar error.code e error.constraint se existirem
 
       if (error && typeof error === 'object' && 'code' in error && error.code === '23503') {
 
-        // @ts-ignore
+        // @ts-expect-error: constraint pode existir em erro de banco
 
         if ('constraint' in error && error.constraint && typeof error.constraint === 'string' && error.constraint.includes('sla_definitions_company_id_fkey')) {
 
@@ -15302,7 +15285,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const companyId = req.session.companyId;
 
-      const userId = req.session.userId;
+      const _userId = req.session.userId;
 
 
 
@@ -20420,7 +20403,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
       const usersWithoutPasswords = filteredUsers.map(user => {
 
-        const { password, ...userWithoutPassword } = user;
+        const { password: _password, ...userWithoutPassword } = user;
 
         return userWithoutPassword;
 

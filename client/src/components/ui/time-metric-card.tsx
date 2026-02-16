@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock, TrendingUp } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ComparisonArrow } from './comparison-arrow';
@@ -22,7 +22,6 @@ export const TimeMetricCard: React.FC<TimeMetricCardProps> = ({
   value, 
   previousValue,
   isLoading, 
-  unit = 'horas',
   icon = <Clock className="h-4 w-4" />,
   trend,
   trendValue

@@ -306,7 +306,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
     setSubmitting(true);
     
     // Usar diretamente formData, pois já contém o array de strings 'departments'
-    let updatedData: any = {
+    const updatedData: any = {
       name: formData.name,
       email: formData.email,
       is_active: formData.isActive,

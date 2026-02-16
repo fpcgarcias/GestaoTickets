@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from './use-auth';
-import { PRIORITY_LEVELS } from '@/lib/utils';
 import { queryConfigs } from '@/lib/query-client';
 import type { DepartmentPriority } from '@shared/schema';
 
@@ -28,46 +27,6 @@ function convertWeightToLegacy(weight: number): string {
   
   return mapping[weight] || 'medium';
 }
-
-// Prioridades padrão do sistema legado
-const DEFAULT_LEGACY_PRIORITIES: NormalizedPriority[] = [
-  {
-    id: 'low',
-    name: 'Baixa',
-    value: 'low',
-    weight: 1,
-    color: '#6B7280',
-    legacyValue: 'low',
-    isDefault: true
-  },
-  {
-    id: 'medium', 
-    name: 'Média',
-    value: 'medium',
-    weight: 2,
-    color: '#3B82F6',
-    legacyValue: 'medium',
-    isDefault: true
-  },
-  {
-    id: 'high',
-    name: 'Alta', 
-    value: 'high',
-    weight: 3,
-    color: '#F59E0B',
-    legacyValue: 'high',
-    isDefault: true
-  },
-  {
-    id: 'critical',
-    name: 'Crítica',
-    value: 'critical', 
-    weight: 4,
-    color: '#EF4444',
-    legacyValue: 'critical',
-    isDefault: true
-  }
-];
 
 /**
  * Hook para buscar prioridades de um departamento específico
@@ -163,5 +122,3 @@ export function getPriorityColorByWeight(weight: number): string {
   
   return colorMapping[weight] || '#3B82F6';
 }
-
-import React from 'react'; 

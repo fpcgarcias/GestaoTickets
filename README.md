@@ -48,6 +48,11 @@ VAPID_SUBJECT=mailto:seu-email@dominio.com
 # Limpeza Automática de Notificações
 READ_NOTIFICATIONS_RETENTION_DAYS=90
 UNREAD_NOTIFICATIONS_RETENTION_DAYS=180
+
+# E-mail em desenvolvimento (evita disparar para clientes reais com banco cópia de produção)
+# EMAIL_DEV_DISABLE=true          → não envia nenhum e-mail em dev (apenas log)
+# EMAIL_DEV_OVERRIDE=teste@email.com → em dev, redireciona todos os destinatários para este e-mail
+# Se nenhuma for definida em dev, o padrão é não enviar (segurança).
 ```
 
 ### 2. Configuração do Banco de Dados

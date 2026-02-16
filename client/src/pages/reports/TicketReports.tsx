@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
@@ -10,7 +9,7 @@ import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge, PriorityBadge } from '@/components/tickets/status-badge';
-import { getStatusConfig, type TicketStatus, STATUS_CONFIG } from '@shared/ticket-utils';
+import { type TicketStatus, STATUS_CONFIG } from '@shared/ticket-utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,13 +27,6 @@ import { Download, CalendarIcon, Filter, ChevronDown, ArrowLeft } from 'lucide-r
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useAuth } from '@/hooks/use-auth';
-
-// Função utilitária para normalizar prioridade (primeira letra maiúscula, resto minúsculo)
-// IGUAL ao dashboard.tsx para consistência total
-function normalizarPrioridade(prioridade: string) {
-  if (!prioridade) return '';
-  return prioridade.charAt(0).toUpperCase() + prioridade.slice(1).toLowerCase();
-}
 
 // Utilitário para converter data local (Brasília) para UTC ISO string (yyyy-mm-ddTHH:MM:SSZ)
 // IGUAL ao dashboard.tsx para consistência total

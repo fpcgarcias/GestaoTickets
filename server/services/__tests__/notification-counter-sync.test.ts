@@ -26,7 +26,7 @@ describe('Notification Counter Sync via WebSocket', () => {
         name: 'Test Company',
         active: true,
       }).onConflictDoNothing();
-    } catch (error) {
+    } catch {
       // Empresa já existe, continuar
     }
     
@@ -41,7 +41,7 @@ describe('Notification Counter Sync via WebSocket', () => {
         active: true,
         company_id: 1,
       }).onConflictDoNothing();
-    } catch (error) {
+    } catch {
       // Usuário já existe, continuar
     }
     

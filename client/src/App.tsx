@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from "react";
+import { lazy, Suspense } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -78,8 +78,8 @@ function MainLayout({ children }: { children: React.ReactNode }) {
 }
 
 function AppContent() {
-  const { user } = useAuth();
-  const { settings } = useSystemSettings();
+  const { user: _user } = useAuth();
+  const { settings: _settings } = useSystemSettings();
 
   const InventorySection = () => (
     <MainLayout>

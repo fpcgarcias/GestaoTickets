@@ -40,7 +40,7 @@ function createLDAPClient(): Client {
  * @param source Fonte de onde o email foi extraído
  * @returns Email com domínio corrigido, se aplicável
  */
-function fixEmailDomain(email: string, source: string): { email: string, wasFixed: boolean } {
+function fixEmailDomain(email: string, _source: string): { email: string, wasFixed: boolean } {
   if (!email || !email.includes('@') || !process.env.AD_EMAIL_DOMAIN) {
     return { email, wasFixed: false };
   }
@@ -171,7 +171,7 @@ export async function authenticateAD(username: string, password: string): Promis
     }
     
     // Corrigir o domínio do email se necessário
-    const { email: correctedEmail, wasFixed } = fixEmailDomain(userEmail, emailSource);
+    const { email: correctedEmail, wasFixed: _wasFixed } = fixEmailDomain(userEmail, emailSource);
     userEmail = correctedEmail;
     
     // Mapear atributos do AD para o formato esperado pelo sistema
@@ -184,13 +184,13 @@ export async function authenticateAD(username: string, password: string): Promis
     
     return adUser;
     
-  } catch (error) {
+  } catch (_error) {
     // Em caso de erro na autenticação, retornar null
     return null;
   } finally {
     try {
       await client.unbind();
-    } catch (unbindError) {
+    } catch (_unbindError) {
       // Ignorar erros de unbind
     }
   }
@@ -263,7 +263,7 @@ export async function isUserInGroup(username: string, groupName: string): Promis
   } finally {
     try {
       await client.unbind();
-    } catch (unbindError) {
+    } catch (_unbindError) {
       // Ignorar erros de unbind
     }
   }
@@ -368,7 +368,7 @@ export async function testADConnection(): Promise<{ success: boolean; message: s
     } finally {
       try {
         await client.unbind();
-      } catch (unbindError) {
+      } catch (_unbindError) {
         // Ignorar erros de unbind
       }
     }

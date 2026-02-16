@@ -112,7 +112,7 @@ export async function getDepartmentPriorities(req: Request, res: Response) {
         .from(officialDepartments)
         .where(eq(officialDepartments.official_id, official.id));
 
-      let allowedDepartmentIds = userDepartments.map(d => d.department_id).filter(id => id !== null);
+      const allowedDepartmentIds = userDepartments.map(d => d.department_id).filter(id => id !== null);
 
       // Se for supervisor, incluir departamentos dos subordinados
       if (userRole === 'supervisor') {
@@ -771,7 +771,7 @@ export async function createDefaultPriorities(req: Request, res: Response) {
           .from(officialDepartments)
           .where(eq(officialDepartments.official_id, official.id));
 
-        let allowedDepartmentIds = userDepartments.map(d => d.department_id).filter(id => id !== null);
+        const allowedDepartmentIds = userDepartments.map(d => d.department_id).filter(id => id !== null);
 
         // Incluir departamentos dos subordinados
         const subordinates = await db

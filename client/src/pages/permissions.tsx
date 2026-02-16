@@ -4,8 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Brain, Settings, Building2, Shield } from "lucide-react";
@@ -94,11 +92,11 @@ export default function PermissionsPage() {
       queryClient.invalidateQueries({ queryKey: ["companies-permissions"] });
       queryClient.invalidateQueries({ queryKey: ["company-permissions", selectedCompanyId] });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error("❌ Erro ao atualizar permissões:", error);
       toast({
         title: "Erro",
-        description: error.message || "Falha ao atualizar permissões",
+        description: (error instanceof Error ? error.message : null) || "Falha ao atualizar permissões",
         variant: "destructive",
       });
     },

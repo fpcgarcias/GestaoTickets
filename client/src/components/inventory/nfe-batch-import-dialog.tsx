@@ -11,7 +11,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useI18n } from "@/i18n";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -43,7 +42,7 @@ interface ProductFormData {
 }
 
 export function NfeBatchImportDialog({ open, onOpenChange, nfeData }: NfeBatchImportDialogProps) {
-  const { formatMessage, locale } = useI18n();
+  const { formatMessage: _formatMessage, locale } = useI18n();
   const { toast } = useToast();
   const batchImportMutation = useImportInventoryProductsBatch();
 

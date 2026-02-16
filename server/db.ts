@@ -17,11 +17,7 @@ async function createDb() {
   const db = drizzle(pool, { schema });
   
   // Ping leve para validar conexão
-  try {
-    await db.execute(sql`select 1`);
-  } catch (err) {
-    throw err;
-  }
+  await db.execute(sql`select 1`);
   
   return { pool, db } as const;
 }

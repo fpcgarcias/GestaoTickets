@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, tickets, customers, officials, ticketReplies, ticketStatusHistory, slaDefinitions,
-  userRoleEnum, ticketStatusEnum, officialDepartments
+  officialDepartments
 } from "@shared/schema";
 
 async function seedDatabase() {
@@ -76,7 +76,7 @@ async function seedDatabase() {
   
   // Adicionar definições de SLA
   console.log("Adicionando definições de SLA...");
-  const [slaLow] = await db.insert(slaDefinitions).values({
+  const [_slaLow] = await db.insert(slaDefinitions).values({
     priority: "low",
     response_time_hours: 24,
     resolution_time_hours: 72,
@@ -84,7 +84,7 @@ async function seedDatabase() {
     updated_at: new Date()
   }).returning();
   
-  const [slaMedium] = await db.insert(slaDefinitions).values({
+  const [_slaMedium] = await db.insert(slaDefinitions).values({
     priority: "medium",
     response_time_hours: 12,
     resolution_time_hours: 48,
@@ -92,7 +92,7 @@ async function seedDatabase() {
     updated_at: new Date()
   }).returning();
   
-  const [slaHigh] = await db.insert(slaDefinitions).values({
+  const [_slaHigh] = await db.insert(slaDefinitions).values({
     priority: "high",
     response_time_hours: 6,
     resolution_time_hours: 24,
@@ -100,7 +100,7 @@ async function seedDatabase() {
     updated_at: new Date()
   }).returning();
   
-  const [slaCritical] = await db.insert(slaDefinitions).values({
+  const [_slaCritical] = await db.insert(slaDefinitions).values({
     priority: "critical",
     response_time_hours: 2,
     resolution_time_hours: 12,
@@ -127,7 +127,7 @@ async function seedDatabase() {
     updated_at: new Date()
   }).returning();
   
-  const [ticket2] = await db.insert(tickets).values({
+  const [_ticket2] = await db.insert(tickets).values({
     ticket_id: "TK-2023-002",
     title: "Solicitar atualização de funcionalidade",
     description: "Precisamos adicionar um novo botão na tela inicial.",

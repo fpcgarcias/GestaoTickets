@@ -26,12 +26,6 @@ function toBrasiliaISOString(date: Date, endOfDay = false) {
   return local.toISOString();
 }
 
-// Função utilitária para normalizar prioridade
-function normalizarPrioridade(prioridade: string) {
-  if (!prioridade) return '';
-  return prioridade.charAt(0).toUpperCase() + prioridade.slice(1).toLowerCase();
-}
-
 interface SLASummary {
   total_tickets: number;
   breached_tickets: number;
@@ -344,7 +338,7 @@ export default function SLAReports() {
             
             // Converter para array e ordenar alfabeticamente
             const uniquePriorities = Array.from(priorityMap.entries())
-              .map(([normalized, original]) => ({
+              .map(([_normalized, original]) => ({
                 value: original,
                 label: original
               }))

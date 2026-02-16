@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Command,
@@ -16,7 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { Check, ChevronsUpDown, Users, User } from "lucide-react";
+import { Check, ChevronsUpDown, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from '@/i18n';
 
@@ -51,7 +50,7 @@ export function ParticipantSearch({
 }: ParticipantSearchProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const { formatMessage } = useI18n();
 
   // Query para buscar usuários (usando a rota existente que já tem a lógica de permissões)
@@ -128,7 +127,7 @@ export function ParticipantSearch({
   };
 
   // Gerar texto do botão
-  const getButtonText = () => {
+  const _getButtonText = () => {
     if (selectedUsers.length === 0) {
       return placeholder;
     }

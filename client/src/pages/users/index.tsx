@@ -6,8 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
-  Search, Key, Pencil, Loader2, Copy, AlertTriangle, 
-  User, Check, X, UserCog, UserCheck, UserX, Shield, Save, Building2, UserPlus
+  Search, Key, Pencil, AlertTriangle, 
+  User, UserCog, UserCheck, UserX, Shield, Save, Building2, UserPlus
 } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -29,7 +29,7 @@ import AddUserDialog from './add-user-dialog';
 import { useI18n } from '@/i18n';
 
 // Função para traduzir códigos de erro de senha
-const translatePasswordErrors = (errorCodes: string[], formatMessage: any): string[] => {
+const translatePasswordErrors = (errorCodes: string[], formatMessage: (id: string) => string): string[] => {
   return errorCodes.map(code => formatMessage(`password_validation.${code}`));
 };
 

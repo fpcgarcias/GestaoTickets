@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronDown, Menu, User, Settings, LogOut, Moon, Sun } from 'lucide-react';
+import { ChevronDown, Menu, Settings, LogOut, Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/contexts/theme-context';
 import { useI18n } from '@/i18n';
 import {
@@ -13,7 +13,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Sidebar } from "@/components/layout/sidebar";
 import { NotificationCenter } from "@/components/layout/notification-center";
 import { useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -61,7 +60,7 @@ export const Header: React.FC = () => {
       });
       // Redirecionar para página de login
       setLocation('/auth');
-    } catch (error) {
+    } catch (_error) {
       toast({
         title: "Erro ao sair",
         description: "Não foi possível fazer logout.",

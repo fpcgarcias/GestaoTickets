@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Pencil, Trash, ScanLine } from "lucide-react";
+import { Pencil, Trash } from "lucide-react";
 import { InventoryLayout } from "@/components/inventory/inventory-layout";
 import { useI18n } from "@/i18n";
 import { InventoryFilterBar, InventoryFilterConfig, InventoryFilterValue } from "@/components/inventory/inventory-filter-bar";
@@ -202,7 +202,7 @@ export default function InventoryLocationsPage() {
     deleteLocation.mutate({ id: location.id });
   };
 
-  const openQrCode = async (location: InventoryLocation) => {
+  const _openQrCode = async (location: InventoryLocation) => {
     setIsLoadingQrCode(true);
     setIsQrCodeOpen(true);
     setCurrentQrCodeLocation(location);
@@ -219,7 +219,7 @@ export default function InventoryLocationsPage() {
         setIsQrCodeOpen(false);
         setCurrentQrCodeLocation(null);
       }
-    } catch (error) {
+    } catch (_error) {
       toast({
         title: formatMessage("inventory.locations.qrcode.error"),
         variant: "destructive",
@@ -293,7 +293,7 @@ export default function InventoryLocationsPage() {
             variant="outline"
             size="sm"
             className="h-8 w-8 p-0"
-            onClick={() => openQrCode(location)}
+            onClick={() => _openQrCode(location)}
             title={formatMessage("inventory.locations.table.qrcode")}
           >
             <ScanLine className="h-3.5 w-3.5" />

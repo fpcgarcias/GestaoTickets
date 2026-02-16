@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,9 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, Grid3X3, Search, Building2, TagIcon, FolderIcon } from 'lucide-react';
+import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, Search, Building2, TagIcon, FolderIcon } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
-import { Category, IncidentType, Department } from '@shared/schema';
+import { IncidentType } from '@shared/schema';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -174,7 +174,7 @@ const CategoryManagement: React.FC = () => {
         try {
           const text = await response.clone().text();
           console.error('[ERRO] Resposta:', text.substring(0, 500));
-        } catch (e) {
+        } catch (_e) {
           console.error('[ERRO] Não foi possível ler texto da resposta');
         }
         const errorData = await response.json();

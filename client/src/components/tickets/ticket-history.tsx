@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate, translateTicketStatus, translateUserRole } from '@/lib/utils';
-import { getPriorityColorByWeight, convertLegacyToWeight } from '@/hooks/use-priorities';
 import { useI18n } from '@/i18n';
 
 // Função para traduzir e normalizar prioridades
@@ -31,7 +30,7 @@ const translatePriority = (priority: string): string => {
 };
 
 // Função para cores das prioridades (melhorada para lidar com customizadas)
-const getPriorityColors = (priority: string, type: 'old' | 'new'): string => {
+const getPriorityColors = (priority: string, _type: 'old' | 'new'): string => {
   const normalizedPriority = priority.toLowerCase();
   
   const colorMap: Record<string, string> = {
@@ -91,7 +90,7 @@ interface HistoryItem {
 
 // Componente de item de histórico
 const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
-  const { locale, formatMessage } = useI18n();
+  const { formatMessage, locale } = useI18n();
   
   if (item.type === 'reply') {
     const reply = item.data as TicketReply;
@@ -357,7 +356,7 @@ const HistoryItem: React.FC<{ item: HistoryItem }> = ({ item }) => {
 };
 
 export const TicketHistory: React.FC<TicketHistoryProps> = ({ ticketId }) => {
-  const { formatMessage, locale } = useI18n();
+  const { formatMessage, locale: _locale } = useI18n();
   
   // Buscar respostas do ticket
   const { data: ticketReplies, isLoading: isRepliesLoading } = useQuery<TicketReply[]>({

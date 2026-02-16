@@ -7,7 +7,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { ParticipantSearch } from './participant-search';
-import { ParticipantList } from './participant-list';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Users, UserPlus, UserMinus, Clock, AlertCircle } from 'lucide-react';
@@ -85,7 +84,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
                      (participantsResponse?.data && Array.isArray(participantsResponse.data)) ? participantsResponse.data : [];
 
   // Buscar histórico de participantes (se disponível)
-  const { data: history = [], isLoading: historyLoading } = useQuery({
+  const { data: history = [], isLoading: _historyLoading } = useQuery({
     queryKey: [`/api/ticket-participants/${ticketId}/history`],
     queryFn: async () => {
       const response = await fetch(`/api/ticket-participants/${ticketId}/history`);
@@ -151,7 +150,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
       
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (_data) => {
       toast({
         title: "Participante removido",
         description: "Participante foi removido com sucesso.",

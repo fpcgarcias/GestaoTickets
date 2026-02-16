@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import responsibilityTermService from '../services/responsibility-term-service';
 import { db } from '../db';
 import { inventoryTermTemplates } from '@shared/schema';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 function resolveCompanyId(req: Request): number {
   const userRole = req.session?.userRole;

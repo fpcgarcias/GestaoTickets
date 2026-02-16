@@ -3,7 +3,7 @@
  * Feature: static-scan-fixes
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { parse as csvParse } from 'csv-parse/sync';
 
 describe('CSV Parser para SLA Configurations', () => {

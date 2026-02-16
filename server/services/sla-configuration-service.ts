@@ -9,12 +9,11 @@ import {
   departments,
   incidentTypes,
   departmentPriorities,
-  companies,
   categories,
   type SlaConfiguration,
   type InsertSlaConfiguration
 } from '@shared/schema';
-import { eq, and, inArray, or, isNull } from 'drizzle-orm';
+import { eq, and, inArray, isNull } from 'drizzle-orm';
 
 // Interfaces para operações
 export interface SLAConfigurationInput {

@@ -14,8 +14,7 @@ import {
   OfficialDepartment,
   InsertOfficialDepartment,
   Company,
-  ticketStatusEnum,
-  userRoleEnum
+  ticketStatusEnum
 } from "@shared/schema";
 import { generateTicketId } from "@shared/utils";
 
@@ -417,7 +416,7 @@ export class MemStorage implements IStorage {
 
   async createUser(userData: InsertUser): Promise<User> {
     const newId = this.userId++;
-    const { createdAt, updatedAt, ...restUserData } = userData as any;
+    const { createdAt: _createdAt, updatedAt: _updatedAt, ...restUserData } = userData as any;
     const user: User = {
       id: newId,
       ...restUserData,
@@ -495,7 +494,7 @@ export class MemStorage implements IStorage {
 
   async createCustomer(customerData: InsertCustomer): Promise<Customer> {
     const newId = this.customerId++;
-    const { createdAt, updatedAt, ...restCustomerData } = customerData as any;
+    const { createdAt: _createdAt, updatedAt: _updatedAt, ...restCustomerData } = customerData as any;
     const customer: Customer = {
       id: newId,
       ...restCustomerData,
@@ -538,7 +537,7 @@ export class MemStorage implements IStorage {
 
   async createOfficial(officialData: InsertOfficial): Promise<Official> {
     const newId = this.officialId++;
-    const { departments: inputDepartments, createdAt, updatedAt, ...restOfficialData } = officialData as any;
+    const { departments: inputDepartments, createdAt: _createdAt, updatedAt: _updatedAt, ...restOfficialData } = officialData as any;
     const official: Official = {
       id: newId, ...restOfficialData, departments: [],
       createdAt: new Date(), updatedAt: new Date()
@@ -602,7 +601,7 @@ export class MemStorage implements IStorage {
     return Array.from(this.tickets.values());
   }
 
-  async getTicket(id: number, userRole?: string, userCompanyId?: number): Promise<Ticket | undefined> {
+  async getTicket(id: number, _userRole?: string, _userCompanyId?: number): Promise<Ticket | undefined> {
     const ticket = this.tickets.get(id);
     if (!ticket) return undefined;
     
@@ -815,7 +814,7 @@ export class MemStorage implements IStorage {
   
   async addOfficialDepartment(officialDepartment: InsertOfficialDepartment): Promise<OfficialDepartment> {
     const newId = this.officialDepartmentId++;
-    const { createdAt, ...restData } = officialDepartment as any;
+    const { createdAt: _createdAt, ...restData } = officialDepartment as any;
     const newDept: OfficialDepartment = {
       id: newId, ...restData, createdAt: new Date()
     };
@@ -827,7 +826,7 @@ export class MemStorage implements IStorage {
     return newDept;
   }
   
-  async removeOfficialDepartment(officialId: number, department: string): Promise<boolean> {
+  async removeOfficialDepartment(_officialId: number, _department: string): Promise<boolean> {
     // Simulação: sempre retorna true (sucesso)
     return true;
   }
@@ -926,7 +925,7 @@ export class MemStorage implements IStorage {
     }
 
     if (filters.hide_resolved) {
-      userTickets = userTickets.filter(ticket => ticket.status !== 'closed');
+      userTickets = userTickets.filter(ticket => ticket.status !== 'closed' && ticket.status !== 'resolved');
     }
 
     if (filters.time_filter === 'first_response') {
@@ -1024,7 +1023,7 @@ export class MemStorage implements IStorage {
     return userTickets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
   }
 
-  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<number> {
+  async getAverageFirstResponseTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, _categoryId?: number): Promise<number> {
     let userTickets = await this.getTicketsByUserRole(userId, userRole);
     
     // Filtrar por atendente se especificado
@@ -1071,7 +1070,7 @@ export class MemStorage implements IStorage {
     return Math.round((totalResponseTime / ticketsWithFirstResponse.length) * 100) / 100;
   }
 
-  async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<number> {
+  async getAverageResolutionTimeByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, _categoryId?: number): Promise<number> {
     let userTickets = await this.getTicketsByUserRole(userId, userRole);
     
     // Filtrar por atendente se especificado
@@ -1131,7 +1130,7 @@ export class MemStorage implements IStorage {
   }
 
   // Dashboard optimized operations
-  async getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
+  async getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, _categoryId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }> {
     // Implementação básica para memória
     const userTickets = await this.getTicketsByUserRole(userId, userRole);
     
@@ -1176,7 +1175,7 @@ export class MemStorage implements IStorage {
     };
   }
 
-  async getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>> {
+  async getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, _categoryId?: number): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>> {
     // Implementação básica para memória
     const userTickets = await this.getTicketsByUserRole(userId, userRole);
     

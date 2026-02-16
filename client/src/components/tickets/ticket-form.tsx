@@ -28,7 +28,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { insertTicketSchema, type InsertTicket, type AiConfiguration } from '@shared/schema';
-import { TICKET_TYPES, PRIORITY_LEVELS } from '@/lib/utils';
+import { PRIORITY_LEVELS } from '@/lib/utils';
 import { z } from 'zod';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -36,16 +36,15 @@ import { useLocation } from 'wouter';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/contexts/theme-context';
-import { FileUpload } from './file-upload';
 import { CustomerSearch } from './customer-search';
 import { ParticipantSearch } from './participant-search';
-import { usePriorities, findPriorityByLegacyValue, type NormalizedPriority } from '@/hooks/use-priorities';
+import { type NormalizedPriority } from '@/hooks/use-priorities';
 import { Loader2, CheckCircle, AlertCircle, Brain, FileText } from 'lucide-react';
 import { useI18n } from '@/i18n';
 
 // Garante que PRIORITY_LEVELS.LOW etc. sejam tratados como literais específicos.
 // Zod z.enum requer um array não vazio de strings literais.
-const ZOD_PRIORITY_ENUM_VALUES = [
+const _ZOD_PRIORITY_ENUM_VALUES = [
   PRIORITY_LEVELS.LOW, 
   PRIORITY_LEVELS.MEDIUM, 
   PRIORITY_LEVELS.HIGH, 
@@ -67,7 +66,7 @@ type ExtendedInsertTicket = z.infer<typeof extendedInsertTicketSchema>;
 
 
 // Definir tipos para os dados buscados
-interface Customer {
+interface _Customer {
   id: number;
   name: string;
   email: string;
@@ -128,7 +127,7 @@ export const TicketForm = () => {
 
   // Estado para gerenciar arquivos pendentes
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+  const [isUploadingFiles, _setIsUploadingFiles] = useState(false);
   
   // Estado para gerenciar participantes selecionados
   const [selectedParticipants, setSelectedParticipants] = useState<User[]>([]);
@@ -391,7 +390,7 @@ export const TicketForm = () => {
       toast({ title: formatMessage('new_ticket.category_required'), description: formatMessage('new_ticket.select_category_for_type'), variant: "destructive" });
       return;
     }
-    let ticketDataToSend: any = {
+    const ticketDataToSend: any = {
       title: data.title,
       description: data.description,
       customer_email: data.customer_email,

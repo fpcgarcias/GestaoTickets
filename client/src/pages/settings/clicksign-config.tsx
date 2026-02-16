@@ -101,7 +101,7 @@ export default function ClicksignConfigPage() {
       // Limpar os campos de senha após salvar
       setAccessToken('');
       setWebhookSecret('');
-    } catch (error) {
+    } catch (_error) {
       toast({
         title: intl.formatMessage({ id: 'clicksign.config.toast.error' }),
         variant: 'destructive',
@@ -130,9 +130,9 @@ export default function ClicksignConfigPage() {
           variant: 'destructive',
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
-        title: error.message || intl.formatMessage({ id: 'clicksign.config.test_result.error' }),
+        title: (error instanceof Error ? error.message : null) || intl.formatMessage({ id: 'clicksign.config.test_result.error' }),
         variant: 'destructive',
       });
     }

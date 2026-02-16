@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, slaDefinitions, companies, ticketParticipants, systemSettings, ticketStatusHistory, departments, satisfactionSurveys, ticketReplies } from '@shared/schema';
+import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, companies, ticketParticipants, ticketStatusHistory, departments, satisfactionSurveys, ticketReplies } from '@shared/schema';
 import { eq, and, isNull, inArray, not, ne, or, gte, gt, desc } from 'drizzle-orm';
 import { storage } from '../storage';
 import { emailConfigService } from './email-config-service';
@@ -21,6 +21,7 @@ import {
   detectLanguageFromDomain,
   type SupportedLanguage 
 } from '../utils/status-translations';
+import { resolveDevEmail } from '../utils/email-dev';
 
 export interface EmailNotificationContext {
   ticket?: any;
@@ -109,6 +110,17 @@ export class EmailNotificationService {
         }
         validatedCompanyId = companyId;
       }
+
+      // Controle de e-mail em desenvolvimento (não enviar ou redirecionar para e-mail de teste)
+      const devEmail = resolveDevEmail(recipientEmail);
+      if (!devEmail.send) {
+        console.log(`[📧 EMAIL DEV] Envio desabilitado em desenvolvimento. Destinatário original: ${devEmail.originalTo}`);
+        return { success: true };
+      }
+      const effectiveRecipient = devEmail.to;
+      if (effectiveRecipient !== devEmail.originalTo) {
+        console.log(`[📧 EMAIL DEV] Redirecionado para: ${effectiveRecipient} (original: ${devEmail.originalTo})`);
+      }
       
       // 1. Obter URL base para a empresa
       const baseUrl = await this.getBaseUrlForCompany(validatedCompanyId);
@@ -162,7 +174,7 @@ export class EmailNotificationService {
         // 7. Enviar email
         const mailOptions = {
           from: `${emailConfig.from_name} <${emailConfig.from_email}>`,
-          to: recipientEmail,
+          to: effectiveRecipient,
           subject: renderedSubject,
           html: finalHtml,
           text: renderedText,
@@ -177,7 +189,7 @@ export class EmailNotificationService {
           encoding: 'utf8'
         };
 
-        const result = await transporter.sendMail(mailOptions);
+        const _result = await transporter.sendMail(mailOptions);
 
         return { success: true };
       } catch (transporterError) {
@@ -193,7 +205,7 @@ export class EmailNotificationService {
       }
 
     } catch (error) {
-      console.error(`[📧 EMAIL PROD] ❌ ERRO GERAL ao enviar email para ${recipientEmail}:`, error);
+      console.error(`[📧 EMAIL PROD] ❌ ERRO GERAL ao enviar email para ${effectiveRecipient}:`, error);
       console.error(`[📧 EMAIL PROD] Stack trace:`, (error as any)?.stack);
       return { success: false, error: String(error) };
     }
@@ -914,7 +926,7 @@ export class EmailNotificationService {
         // Busca todas as prioridades do departamento
         const result = await priorityService.getDepartmentPriorities(ticket.company_id, ticket.department_id);
         // Busca pelo nome (case-insensitive)
-        let found = result.priorities.find(p => p.name?.toLowerCase() === ticket.priority?.toLowerCase());
+        const found = result.priorities.find(p => p.name?.toLowerCase() === ticket.priority?.toLowerCase());
         if (found) {
           priorityText = found.name;
         } else {
@@ -923,7 +935,7 @@ export class EmailNotificationService {
           priorityText = map[ticket.priority] || ticket.priority;
         }
       }
-    } catch (e) {
+    } catch (_e) {
       // Fallback para tradução padrão
       const map: Record<string, string> = { low: 'Baixa', medium: 'Média', high: 'Alta', critical: 'Crítica' };
       priorityText = map[ticket.priority] || ticket.priority;
@@ -1009,8 +1021,8 @@ export class EmailNotificationService {
         return;
       }
 
-      let emailsSent = 0;
-      let emailsFailed = 0;
+      let _emailsSent = 0;
+      let _emailsFailed = 0;
 
       for (const user of departmentUsers) {
         // Enviar para todos os oficiais ativos DO DEPARTAMENTO respeitando preferências/horários
@@ -1029,9 +1041,9 @@ export class EmailNotificationService {
           undefined
         );
         if (result.success) {
-          emailsSent++;
+          _emailsSent++;
         } else {
-          emailsFailed++;
+          _emailsFailed++;
         }
       }
 
@@ -2834,11 +2846,13 @@ export class EmailNotificationService {
             user: participant
           };
 
+          const companyId = participant.company_id ?? context.ticket?.company_id;
+          if (companyId === undefined) continue;
           const result = await this.sendEmailNotification(
             notificationType,
             participant.email,
             participantContext,
-            participant.company_id ?? context.ticket?.company_id!,
+            companyId,
             participant.role
           );
           
@@ -3389,7 +3403,7 @@ export class EmailNotificationService {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7); // Expira em 7 dias
 
-      const [surveyRecord] = await db
+      const [_surveyRecord] = await db
         .insert(satisfactionSurveys)
         .values({
           ticket_id: ticketData.ticket_id,

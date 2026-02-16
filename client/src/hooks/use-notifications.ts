@@ -116,10 +116,10 @@ export function useNotifications(): UseNotificationsReturn {
         throw new Error(`Erro ao carregar notificações: ${response.status}`);
       }
       
-      const data = await response.json();
+      const { notifications: rawNotifications, hasMore: serverHasMore } = await response.json();
       
       // 🔥 CORREÇÃO: Mapear campos snake_case do backend para camelCase do frontend
-      const formattedNotifications = data.notifications.map((notif: any) => ({
+      const formattedNotifications = rawNotifications.map((notif: any) => ({
         id: notif.id,
         userId: notif.user_id,
         type: notif.type,
@@ -141,7 +141,7 @@ export function useNotifications(): UseNotificationsReturn {
       }
       
       // Atualizar paginação
-      setHasMore(data.hasMore);
+      setHasMore(serverHasMore);
       setCurrentPage(page);
       
     } catch (error) {
@@ -181,8 +181,6 @@ export function useNotifications(): UseNotificationsReturn {
       if (!response.ok) {
         throw new Error(`Erro ao marcar notificação como lida: ${response.status}`);
       }
-      
-      const data = await response.json();
       
       // 🔥 CORREÇÃO: Atualizar notificação localmente com timestamp correto
       const now = new Date().toISOString();

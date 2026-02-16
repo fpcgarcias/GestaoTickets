@@ -13,20 +13,17 @@ import {
   Search, 
   Filter, 
   RefreshCw, 
-  Calendar,
   HardDrive,
   Activity,
   AlertTriangle,
-  Info,
   Loader2,
   ChevronLeft,
   ChevronRight,
-  Eye,
   Clock,
   BarChart3
 } from "lucide-react";
 import { useQuery } from '@tanstack/react-query';
-import { queryClient, apiRequest } from '@/lib/queryClient';
+import { apiRequest } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { formatBytes, formatDate } from '@/lib/utils';
@@ -89,7 +86,7 @@ export default function LogsPage() {
     to: endOfWeek(new Date(), { weekStartsOn: 0 })
   });
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [orderDirection, setOrderDirection] = useState<'asc' | 'desc'>('desc');
+  const [_orderDirection, _setOrderDirection] = useState<'asc' | 'desc'>('desc');
 
   // Atualizar dateRange quando timeFilter mudar
   useEffect(() => {
@@ -101,13 +98,14 @@ export default function LogsPage() {
           to: endOfWeek(now, { weekStartsOn: 0 })
         });
         break;
-      case 'last-week':
+      case 'last-week': {
         const lastWeek = subWeeks(now, 1);
         setDateRange({
           from: startOfWeek(lastWeek, { weekStartsOn: 0 }),
           to: endOfWeek(lastWeek, { weekStartsOn: 0 })
         });
         break;
+      }
       case 'this-month':
         setDateRange({
           from: startOfMonth(now),
@@ -220,7 +218,7 @@ export default function LogsPage() {
         title: "Download iniciado",
         description: `Arquivo ${filename} está sendo baixado.`,
       });
-    } catch (error) {
+    } catch (_error) {
       toast({
         title: "Erro no download",
         description: "Não foi possível fazer o download do arquivo.",
@@ -540,7 +538,7 @@ export default function LogsPage() {
                             {logContent.entries.map((entry, index) => {
                               // Tentar extrair informações estruturadas da mensagem
                               let formattedMessage = entry.message;
-                              let messageDetails: any = null;
+                              let messageDetails: unknown = null;
                               
                               // Se a mensagem é JSON, tentar parsear
                               try {
@@ -553,7 +551,7 @@ export default function LogsPage() {
                                     formattedMessage = parsed.message;
                                   }
                                 }
-                              } catch (e) {
+                              } catch (_e) {
                                 // Se não for JSON válido, usar a mensagem original
                               }
                               

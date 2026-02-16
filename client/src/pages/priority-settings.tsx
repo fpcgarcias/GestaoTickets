@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { 
   Plus, 
@@ -15,17 +14,11 @@ import {
   GripVertical, 
   Settings as SettingsIcon, 
   Palette,
-  Save,
-  X,
-  ChevronLeft,
   Building2,
   Loader2,
-  ArrowUpDown,
-  CheckCircle,
   AlertCircle
 } from "lucide-react";
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { queryClient } from '@/lib/queryClient';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/hooks/use-auth';
 import { motion, Reorder } from 'framer-motion';
@@ -109,7 +102,7 @@ export default function PrioritySettings() {
   });
 
   // Buscar departamentos
-  const { data: departments, isLoading: isLoadingDepartments, error: departmentsError } = useQuery<Department[]>({
+  const { data: departments, isLoading: isLoadingDepartments } = useQuery<Department[]>({
     queryKey: ['/api/departments', selectedCompanyId],
     queryFn: async () => {
       // CORREÇÃO: Para admin, supervisor, manager, company_admin, sempre passar company_id se disponível

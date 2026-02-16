@@ -178,8 +178,6 @@ export async function listAssignments(req: Request, res: Response) {
         status = 'completed';
       } else if (row.signature_status === 'signed') {
         status = 'active';
-      } else {
-        status = 'pending';
       }
 
       // Calcular term_status baseado no termo real

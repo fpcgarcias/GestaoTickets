@@ -48,7 +48,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const isConnectingRef = useRef<boolean>(false);
 
   // Usar hook dinâmico para horário comercial
-  const isWithinAllowedHours = useBusinessHours();
+  const _isWithinAllowedHours = useBusinessHours();
 
   /**
    * Recupera notificações não lidas do servidor
@@ -231,7 +231,7 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           
           let toastVariant: 'default' | 'destructive' = 'default';
           let toastTitle = translated.title;
-          let toastDescription = translated.message;
+          const toastDescription = translated.message;
 
           // Personalizar toast baseado no tipo de notificação
           switch (notification.type) {

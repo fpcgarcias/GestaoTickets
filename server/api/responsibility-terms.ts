@@ -48,7 +48,7 @@ export async function listResponsibilityTerms(req: Request, res: Response) {
       .map(t => t.term.id);
 
     // Buscar assignments relacionados para termos em lote
-    let batchAssignmentsMap: Map<number, any[]> = new Map();
+    const batchAssignmentsMap: Map<number, any[]> = new Map();
     if (batchTermIds.length > 0) {
       const termAssignments = await db
         .select({

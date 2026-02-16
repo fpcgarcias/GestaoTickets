@@ -3,7 +3,7 @@ import digitalSignatureService from '../services/digital-signature-service';
 import clicksignConfigService from '../services/clicksign-config-service';
 import { db } from '../db';
 import { inventoryResponsibilityTerms } from '@shared/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import crypto from 'crypto';
 
 /**
@@ -113,13 +113,13 @@ export async function handleClicksignWebhook(req: Request, res: Response) {
     // DEBUG EXTREMO: Listar o que temos no banco para entender por que não está batendo
     terms.forEach(t => {
         try {
-            let rawData = t.signature_data;
+            const rawData = t.signature_data;
             // Tentar parsear. Se for string, parsear de novo (caso de double stringify)
             let d: any = {};
             if (typeof rawData === 'string') {
                 try {
                     d = JSON.parse(rawData);
-                } catch (e) {
+                } catch (_e) {
                     console.log(`[DEBUG BANCO] Termo ID ${t.id}: FALHA AO PARSEAR JSON PRIMÁRIO. Conteúdo: ${rawData}`);
                     return;
                 }
@@ -127,7 +127,7 @@ export async function handleClicksignWebhook(req: Request, res: Response) {
                 if (typeof d === 'string') {
                      try {
                         d = JSON.parse(d);
-                     } catch (e) {
+                     } catch (_e) {
                         console.log(`[DEBUG BANCO] Termo ID ${t.id}: FALHA AO PARSEAR JSON SECUNDÁRIO (double stringify?). Conteúdo: ${d}`);
                      }
                 }
@@ -141,8 +141,8 @@ export async function handleClicksignWebhook(req: Request, res: Response) {
             } else {
                  console.log(`[DEBUG BANCO] Termo ID ${t.id}: Objeto sem IDs. Keys: ${Object.keys(d || {}).join(', ')}`);
             }
-        } catch (e) {
-            console.log(`[DEBUG BANCO] Termo ID ${t.id}: Erro genérico no debug: ${e}`);
+        } catch (_e) {
+            console.log(`[DEBUG BANCO] Termo ID ${t.id}: Erro genérico no debug: ${_e}`);
         }
     });
 
@@ -174,7 +174,7 @@ export async function handleClicksignWebhook(req: Request, res: Response) {
           console.log(`[Clicksign Webhook ${requestId}] Termo encontrado! ID: ${term.id}, Status Atual: ${term.status}, RequestID: ${castedData.requestId}, DocumentID: ${castedData.documentId}`);
         }
         return match;
-      } catch (e) {
+      } catch (_e) {
         return false;
       }
     });
@@ -186,7 +186,9 @@ export async function handleClicksignWebhook(req: Request, res: Response) {
         try {
            const d = JSON.parse(t.signature_data || '{}');
            console.log(`[Clicksign Webhook ${requestId}] Termo ${t.id} tem requestId: ${d.requestId}`);
-        } catch {}
+        } catch (_e) {
+          // Ignorar JSON inválido
+        }
       });
       
       // Retornar 200 para evitar retries da ClickSign

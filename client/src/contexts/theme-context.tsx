@@ -283,8 +283,6 @@ function verifyThemeApplication(themeName: ThemeKey, mode: ThemeMode) {
   const appliedPrimary = computedStyle.getPropertyValue('--primary').trim();
   if (appliedPrimary !== expectedPrimary) {
     applyThemeColors(themeName, mode);
-    const root = document.documentElement;
-    root.className = root.className;
   }
 }
 
@@ -373,7 +371,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const isFirstApplication = !hasAppliedThemeRef.current;
     if (isFirstApplication) {
       document.documentElement.style.display = 'none';
-      document.documentElement.offsetHeight;
+      void document.documentElement.offsetHeight;
       document.documentElement.style.display = '';
       hasAppliedThemeRef.current = true;
     }

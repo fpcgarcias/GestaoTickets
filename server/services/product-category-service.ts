@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, or, sql, inArray } from 'drizzle-orm';
+import { and, eq, ilike, or, sql, inArray } from 'drizzle-orm';
 import { db } from '../db';
 import {
   productCategories,

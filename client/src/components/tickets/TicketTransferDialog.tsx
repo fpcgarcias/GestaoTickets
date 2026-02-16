@@ -3,7 +3,6 @@ import { Dialog, DialogContent, DialogHeader, DialogDescription } from '@/compon
 import { DialogTitle } from '@radix-ui/react-dialog';
 import { Button } from '@/components/ui/button';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -16,7 +15,7 @@ interface TicketTransferDialogProps {
   currentDepartmentId?: number | null;
 }
 
-export const TicketTransferDialog: React.FC<TicketTransferDialogProps> = ({ open, onOpenChange, ticketId, currentDepartmentId }) => {
+export const TicketTransferDialog: React.FC<TicketTransferDialogProps> = ({ open, onOpenChange, ticketId, currentDepartmentId: _currentDepartmentId }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { formatMessage } = useI18n();

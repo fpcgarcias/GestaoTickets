@@ -336,7 +336,7 @@ export default function InventoryMovementsPage() {
               <div className="flex flex-col">
                 <span className="font-medium">{movement.batchProducts.length} produto(s)</span>
                 <div className="text-xs text-muted-foreground space-y-1">
-                  {movement.batchProducts.slice(0, 2).map((p: any, idx: number) => (
+                  {movement.batchProducts.slice(0, 2).map((p: any, _idx: number) => (
                     <div key={p.id}>
                       {p.name}
                     </div>

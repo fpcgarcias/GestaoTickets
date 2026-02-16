@@ -31,7 +31,7 @@ import { Ticket, Official } from '@shared/schema';
 import { Loader2 } from 'lucide-react';
 import { FileUpload } from './file-upload';
 import { useAuth } from '@/hooks/use-auth';
-import { getStatusConfig, type TicketStatus } from '@shared/ticket-utils';
+import { getStatusConfig } from '@shared/ticket-utils';
 import { TicketTransferDialog } from './TicketTransferDialog';
 import { useI18n } from '@/i18n';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -111,7 +111,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     .sort((a: Official, b: Official) => a.name.localeCompare(b.name, 'pt-BR'));
 
   // Buscar usuários para seleção de responsável
-  const { data: usersData = [] } = useQuery<any[]>({
+  const { data: _usersData = [] } = useQuery<any[]>({
     queryKey: ["/api/company/users"],
     queryFn: async () => {
       const response = await fetch('/api/company/users?includeInactive=false');
@@ -224,15 +224,6 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
     setSearchIn('');
     setMovementLocationId('');
   }, [movementType]);
-  
-  const getProductDisplayText = (product: any) => {
-    if (!product) return "";
-    const parts = [product.name];
-    if (product.serial_number) parts.push(`S/N: ${product.serial_number}`);
-    if (product.service_tag) parts.push(`Service Tag: ${product.service_tag}`);
-    if (product.asset_number) parts.push(`Patrimônio: ${product.asset_number}`);
-    return parts.join(" • ");
-  };
 
   const replyMutation = useMutation({
     mutationFn: async (data: InsertTicketReply) => {

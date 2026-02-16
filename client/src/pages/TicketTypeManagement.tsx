@@ -6,9 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, FolderIcon, Search, Filter, Building2 } from 'lucide-react';
+import { PencilIcon, TrashIcon, PlusIcon, LoaderIcon, Search, Building2 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
-import { Department, IncidentType } from '@shared/schema';
+import { Department } from '@shared/schema';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -40,7 +40,6 @@ const TicketTypeManagement: React.FC = () => {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [userDepartmentIds, setUserDepartmentIds] = useState<number[]>([]);
   
   // Estados para o formulário
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -204,7 +203,7 @@ const TicketTypeManagement: React.FC = () => {
           if (process.env.NODE_ENV !== 'production') {
             console.error('[ERRO] Resposta:', text.substring(0, 500));
           }
-        } catch (err) {
+        } catch (_err) {
           if (process.env.NODE_ENV !== 'production') {
             console.error('[ERRO] Não foi possível ler o corpo da resposta');
           }
@@ -220,7 +219,7 @@ const TicketTypeManagement: React.FC = () => {
   });
 
   // 🔍 Filtrar tipos de chamado pelos departamentos permitidos
-  let rawTicketTypes = ticketTypesResponse?.incidentTypes || [];
+  const rawTicketTypes = ticketTypesResponse?.incidentTypes || [];
   
   const ticketTypes = React.useMemo(() => {
     if (!user) return [];

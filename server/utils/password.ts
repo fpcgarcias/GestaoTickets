@@ -6,8 +6,8 @@ const SALT_ROUNDS = 12; // Alto nível de segurança
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 128;
 
-// Regex para validação de senha forte
-const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
+// Regex para validação de senha forte (não utilizado atualmente)
+const _PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/;
 
 /**
  * Valida se a senha atende aos critérios de segurança
@@ -82,7 +82,7 @@ export async function hashPassword(password: string): Promise<string> {
     return hash;
   } catch (error) {
     console.error('Erro ao gerar hash da senha:', error);
-    throw new Error('Erro interno ao processar senha');
+    throw new Error('Erro interno ao processar senha', { cause: error });
   }
 }
 
@@ -151,7 +151,6 @@ export function checkCommonPasswords(password: string): boolean {
  */
 export function calculatePasswordStrength(password: string): { score: number; feedback: string } {
   let score = 0;
-  let feedback = 'Muito fraca';
 
   // Comprimento
   if (password.length >= 8) score += 20;
@@ -169,11 +168,11 @@ export function calculatePasswordStrength(password: string): { score: number; fe
   if (/(.)\1{2,}/.test(password)) score -= 15; // Caracteres repetidos
 
   // Feedback
+  let feedback: string;
   if (score < 30) feedback = 'Muito fraca';
   else if (score < 50) feedback = 'Fraca';
   else if (score < 70) feedback = 'Média';
   else if (score < 90) feedback = 'Forte';
   else feedback = 'Muito forte';
-
   return { score: Math.max(0, Math.min(100, score)), feedback };
 }

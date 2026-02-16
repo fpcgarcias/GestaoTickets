@@ -5,19 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Calendar } from '@/components/ui/calendar';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Download, Filter, ChevronDown, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { PerformanceBarChart } from '@/components/charts/performance-bar-chart';
-
-// Função utilitária para normalizar prioridade (primeira letra maiúscula, resto minúsculo)
-// IGUAL ao dashboard.tsx para consistência total
-function normalizarPrioridade(prioridade: string) {
-  if (!prioridade) return '';
-  return prioridade.charAt(0).toUpperCase() + prioridade.slice(1).toLowerCase();
-}
 
 // Função para formatar tempo igual ao dashboard (TimeMetricCard)
 function formatTime(hours: number): string {
@@ -396,7 +388,7 @@ export default function PerformanceReports() {
       filters.showInactiveOfficials || official.is_active !== false
     );
     
-    let sortedOfficials = [...officialsForChart];
+    const sortedOfficials = [...officialsForChart];
     
     // Aplicar ordenação
     switch (sortBy) {

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { db } from '../db';
-import { satisfactionSurveys, tickets, departments, officials, customers, companies } from '@shared/schema';
+import { satisfactionSurveys, tickets, departments, officials } from '@shared/schema';
 import { eq, and, gte, lte, desc, sql, inArray, isNull, lt } from 'drizzle-orm';
 import { format } from 'date-fns';
 
