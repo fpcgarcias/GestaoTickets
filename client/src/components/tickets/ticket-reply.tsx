@@ -244,8 +244,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
         title: formatMessage('ticket_reply.success'),
         description: formatMessage('ticket_reply.reply_sent_successfully'),
       });
-      // 🔥 TESTE: Navegar imediatamente sem invalidateQueries
-      // O WebSocket vai atualizar os dados automaticamente
+      queryClient.invalidateQueries({ queryKey: ['/api/tickets/user-role'] });
       navigate('/tickets');
     },
     onError: (error: any) => {

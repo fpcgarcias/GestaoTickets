@@ -151,6 +151,9 @@ export default function TicketsIndex() {
   const tickets = ticketsResponse?.data || [];
   const pagination = ticketsResponse?.pagination;
 
+  // Total de chamados listados (segue todos os filtros + checkbox ocultar resolvidos)
+  const listedCount = pagination?.total ?? 0;
+
   // 🆕 Busca departamentos (filtrado por empresa automaticamente no backend)
   const { data: departmentsResponse, isLoading: isDepartmentsLoading } = useQuery({
     queryKey: ['/api/departments', { active_only: true }],
@@ -546,10 +549,11 @@ export default function TicketsIndex() {
         onValueChange={handleFilterChange(setStatusFilter)}
         className="mb-6"
       >
-        <TabsList className="border-b border-border w-full justify-start rounded-none bg-transparent">
-          <TabsTrigger value="all" className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
-            {formatMessage('tickets.tabs.all')}
-          </TabsTrigger>
+        <div className="flex items-center justify-between w-full border-b border-border">
+          <TabsList className="justify-start rounded-none bg-transparent border-0 flex-1 min-w-0 p-0 h-auto">
+            <TabsTrigger value="all" className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
+              {formatMessage('tickets.tabs.all')}
+            </TabsTrigger>
           <TabsTrigger value={TICKET_STATUS.NEW} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
             {formatMessage('tickets.tabs.new')}
           </TabsTrigger>
@@ -571,7 +575,11 @@ export default function TicketsIndex() {
           <TabsTrigger value={TICKET_STATUS.CLOSED} className="px-6 py-3 data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none bg-transparent data-[state=active]:shadow-none">
             {formatMessage('tickets.tabs.closed')}
           </TabsTrigger>
-        </TabsList>
+          </TabsList>
+          <span className="text-sm text-muted-foreground shrink-0 ml-4 py-3">
+            {isTicketsLoading ? '...' : formatMessage('tickets.listed_count', { count: listedCount })}
+          </span>
+        </div>
       </Tabs>
 
       {/* Ticket Cards */}

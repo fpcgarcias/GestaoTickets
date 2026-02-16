@@ -8,6 +8,9 @@
       "title": "Correções de consistência visual (UI).",
       "type": "update",
       "changes": {
+        "improved": [
+          "Adicionado contador de chamados na listagem de tickets."
+        ],
         "fixed": [
           "Padronização do componente de filtro de período (DateRangeFilter) em todas as telas do sistema.",
           "Centralização dos itens de navegação em fonte única (Nav Config) para Sidebar e Header.",

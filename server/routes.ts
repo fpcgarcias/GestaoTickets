@@ -1904,8 +1904,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
-
-
   router.get("/tickets/recent", authRequired, async (req: Request, res: Response) => {
 
     try {

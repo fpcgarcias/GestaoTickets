@@ -1659,6 +1659,8 @@
       "resolved": "✅ Resolvidos",
       "closed": "🔒 Encerrados"
     },
+    "open_count": "{count} em aberto",
+    "listed_count": "{count} chamados",
     "no_tickets": "Nenhum chamado encontrado",
     "no_tickets_search": "Tente ajustar seus termos de busca",
     "no_tickets_create": "Crie seu primeiro chamado para começar",

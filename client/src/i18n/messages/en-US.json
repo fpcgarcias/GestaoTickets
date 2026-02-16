@@ -1659,6 +1659,8 @@
       "resolved": "✅ Resolved",
       "closed": "🔒 Closed"
     },
+    "open_count": "{count} open",
+    "listed_count": "{count} tickets",
     "no_tickets": "No tickets found",
     "no_tickets_search": "Try adjusting your search terms",
     "no_tickets_create": "Create your first ticket to get started",
