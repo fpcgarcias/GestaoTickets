@@ -176,7 +176,7 @@ Analise este ticket e determine sua prioridade. Responda no formato:
 <JUSTIFICATIVA>justificativa</JUSTIFICATIVA>`
     },
     reopen: {
-      system: `Você é um assistente especializado em análise de respostas de clientes para tickets em status wait_customer. Sua única função é determinar se a resposta do cliente indica que:
+      system: `Você é um assistente especializado em análise de respostas de solicitantes para tickets em status wait_customer. Sua única função é determinar se a resposta do cliente indica que:
 
 1. O problema foi RESOLVIDO (manter status wait_customer)
 2. O problema ainda PERSISTE (reabrir ticket para status ongoing)

@@ -29,7 +29,7 @@ export async function getPeopleEndpoint(req: Request, res: Response, storage: IS
   try {
     const userRole = req.session?.userRole as string;
     if (userRole === 'customer') {
-      return res.status(403).json({ message: 'Acesso negado. Clientes não podem acessar esta tela.' });
+      return res.status(403).json({ message: 'Acesso negado. Solicitantes não podem acessar esta tela.' });
     }
 
     const page = parseInt((req.query.page as string) || '1');

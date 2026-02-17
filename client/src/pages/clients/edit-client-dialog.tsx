@@ -58,7 +58,7 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
     enabled: user?.role === 'admin', // Apenas buscar empresas se o usuário for admin
   });
 
-  // Atualizar o formulário quando o cliente selecionado mudar
+  // Atualizar o formulário quando o solicitante selecionado mudar
   useEffect(() => {
     if (client) {
       setFormData({
@@ -101,7 +101,7 @@ export default function EditClientDialog({ open, onOpenChange, client, onSaved }
 
   const updateClientMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      if (!client) throw new Error('Cliente não selecionado');
+      if (!client) throw new Error('Solicitante não selecionado');
       
       // Remover campos de senha se estiverem vazios
       const dataToSend: any = {...data};

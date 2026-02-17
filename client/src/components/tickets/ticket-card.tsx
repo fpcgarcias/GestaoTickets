@@ -104,7 +104,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
       return res.json();
     },
     staleTime: 5 * 60 * 1000,
-    enabled: !isCustomerForThisTicket, // Clientes não devem carregar a lista de atendentes
+    enabled: !isCustomerForThisTicket, // solicitantes não devem carregar a lista de atendentes
   });
 
   // Buscar participantes do ticket
@@ -164,7 +164,7 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
   const getCurrentOfficialName = () => {
     if (!assignedToId) return formatMessage('tickets.card.not_assigned');
     
-    // Para clientes, usar informação básica do ticket se disponível
+    // Para solicitantes, usar informação básica do ticket se disponível
     if (isCustomerForThisTicket) {
       // Se o ticket tem informação do oficial diretamente, usar
       if (ticket.official?.name) {
@@ -248,11 +248,11 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
           
           <div className="flex items-center gap-2 flex-wrap">
             {isCustomerForThisTicket ? (
-              // Para clientes: dropdown bloqueado
+              // Para solicitantes: dropdown bloqueado
               <div className="flex items-center gap-2">
                 <Select 
                   value={assignedToId?.toString() || "unassigned"}
-                  disabled={true} // Sempre desabilitado para clientes
+                  disabled={true} // Sempre desabilitado para solicitantes
                 >
                   <SelectTrigger 
                     className="w-[180px] h-8 text-xs font-medium bg-muted border-border text-muted-foreground cursor-not-allowed"

@@ -22,7 +22,7 @@ export const STATUS_TRANSLATIONS: TranslationMaps = {
     'new': 'Novo',
     'ongoing': 'Em Andamento',
     'suspended': 'Suspenso',
-    'waiting_customer': 'Aguardando Cliente',
+    'waiting_customer': 'Aguardando Solicitante',
     'escalated': 'Escalado',
     'in_analysis': 'Em Análise',
     'pending_deployment': 'Aguardando Deploy',
@@ -75,7 +75,7 @@ export const ROLE_TRANSLATIONS: TranslationMaps = {
   'pt-BR': {
     'admin': 'Administrador',
     'support': 'Suporte',
-    'customer': 'Cliente',
+    'customer': 'Solicitante',
     'integration_bot': 'Bot de Integração',
     'quality': 'Qualidade',
     'triage': 'Triagem',
@@ -106,7 +106,7 @@ export const ROLE_TRANSLATIONS: TranslationMaps = {
  * @returns Texto traduzido do status, ou o valor original se não encontrado
  * 
  * @example
- * translateStatus('waiting_customer', 'pt-BR') // 'Aguardando Cliente'
+ * translateStatus('waiting_customer', 'pt-BR') // 'Aguardando Solicitante'
  * translateStatus('waiting_customer', 'en-US') // 'Waiting for Customer'
  * translateStatus('unknown_status', 'pt-BR') // 'unknown_status' (fallback)
  */

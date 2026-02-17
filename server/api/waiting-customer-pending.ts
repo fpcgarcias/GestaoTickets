@@ -5,12 +5,12 @@ import { eq, and, desc, ne } from 'drizzle-orm';
 
 /**
  * GET /api/tickets/waiting-customer-pending
- * Retorna tickets em status waiting_customer do cliente autenticado
- * onde o cliente AINDA NÃO RESPONDEU desde que o ticket entrou em waiting_customer.
+ * Retorna tickets em status waiting_customer do solicitante autenticado
+ * onde o solicitante AINDA NÃO RESPONDEU desde que o ticket entrou em waiting_customer.
  *
  * Mesma lógica do fechamento automático (checkWaitingCustomerAutoClose):
  *   - entered_at = última vez que entrou em waiting_customer
- *   - last_customer_reply_at = última resposta do cliente
+ *   - last_customer_reply_at = última resposta do solicitante
  *   - Elegível se: last_customer_reply_at == null OU last_customer_reply_at < entered_at
  *
  * Apenas role === 'customer'.
@@ -25,7 +25,7 @@ export async function getWaitingCustomerPending(req: Request, res: Response) {
     const userId = req.session.userId;
 
     if (userRole !== 'customer') {
-      return res.status(403).json({ message: 'Acesso permitido apenas para clientes' });
+      return res.status(403).json({ message: 'Acesso permitido apenas para solicitantes' });
     }
 
     const list = await db
@@ -72,7 +72,7 @@ export async function getWaitingCustomerPending(req: Request, res: Response) {
 
       const customerUserId = row.customer_user_id ?? null;
 
-      // Última resposta do cliente neste ticket
+      // Última resposta do solicitante neste ticket
       const lastCustomerReply = customerUserId != null
         ? await db
             .select({ created_at: ticketReplies.created_at })
@@ -91,7 +91,7 @@ export async function getWaitingCustomerPending(req: Request, res: Response) {
         ? new Date(lastCustomerReply[0].created_at)
         : null;
 
-      // Mesma regra do auto-close: só elegível se o cliente NÃO respondeu desde que entrou em waiting_customer
+      // Mesma regra do auto-close: só elegível se o solicitante NÃO respondeu desde que entrou em waiting_customer
       const eligible = last_customer_reply_at == null || last_customer_reply_at.getTime() < entered_at.getTime();
       if (!eligible) continue;
 

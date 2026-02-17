@@ -174,7 +174,7 @@ class NotificationService {
   private isUserOnline(userId: number): boolean {
     const userClients = this.clients.get(userId);
     if (!userClients || userClients.length === 0) {
-      console.log(`[🔔 ONLINE CHECK] Usuário ${userId} OFFLINE - sem clientes WebSocket`);
+      console.log(`[🔔 ONLINE CHECK] Usuário ${userId} OFFLINE - sem solicitantes WebSocket`);
       return false;
     }
 
@@ -182,7 +182,7 @@ class NotificationService {
     const activeClients = userClients.filter(client => client.readyState === WebSocket.OPEN);
     const isOnline = activeClients.length > 0;
 
-    console.log(`[🔔 ONLINE CHECK] Usuário ${userId} ${isOnline ? 'ONLINE' : 'OFFLINE'} - ${activeClients.length}/${userClients.length} clientes ativos`);
+    console.log(`[🔔 ONLINE CHECK] Usuário ${userId} ${isOnline ? 'ONLINE' : 'OFFLINE'} - ${activeClients.length}/${userClients.length} solicitantes ativos`);
     return isOnline;
   }
 
@@ -431,14 +431,14 @@ class NotificationService {
       console.log(`[🔔 WEBSOCKET] 🛠️ Usuário ${userId} adicionado ao SUPORTE`);
     }
 
-    // Adicionar à lista de clientes por ID do usuário
+    // Adicionar à lista de solicitantes por ID do usuário
     if (!this.clients.has(userId)) {
       this.clients.set(userId, []);
     }
     this.clients.get(userId)!.push(ws);
 
-    console.log(`[🔔 WEBSOCKET] ✅ Cliente WebSocket REGISTRADO para usuário ID: ${userId}`);
-    console.log(`[🔔 WEBSOCKET] 📊 Total de clientes WebSocket conectados: ${this.getTotalClients()}`);
+    console.log(`[🔔 WEBSOCKET] ✅ Solicitante WebSocket REGISTRADO para usuário ID: ${userId}`);
+    console.log(`[🔔 WEBSOCKET] 📊 Total de solicitantes WebSocket conectados: ${this.getTotalClients()}`);
     console.log(`[🔔 WEBSOCKET] 📊 Usuário ${userId} agora tem ${this.clients.get(userId)!.length} conexões`);
   }
 
@@ -461,14 +461,14 @@ class NotificationService {
       const userClients = this.clients.get(userId)!;
       this.clients.set(userId, userClients.filter(client => client !== ws));
 
-      // Se não houver mais clientes para este usuário, remover o item do mapa
+      // Se não houver mais solicitantes para este usuário, remover o item do mapa
       if (this.clients.get(userId)!.length === 0) {
         this.clients.delete(userId);
       }
     }
 
     console.log(`Cliente WebSocket removido para usuário ID: ${userId}, Função: ${userRole}`);
-    console.log(`Total de clientes WebSocket conectados: ${this.getTotalClients()}`);
+    console.log(`Total de solicitantes WebSocket conectados: ${this.getTotalClients()}`);
   }
 
   // Verificar apenas se o tipo de notificação está habilitado (sem verificar horário)
@@ -638,7 +638,7 @@ class NotificationService {
 
       if (this.clients.has(userId)) {
         const userClients = this.clients.get(userId)!;
-        console.log(`[🔔 WEBSOCKET] 📱 Usuário ${userId} tem ${userClients.length} clientes WebSocket`);
+        console.log(`[🔔 WEBSOCKET] 📱 Usuário ${userId} tem ${userClients.length} solicitantes WebSocket`);
 
         let notificationSent = false;
         for (const client of userClients) {
@@ -652,7 +652,7 @@ class NotificationService {
             console.log(`[🔔 WEBSOCKET] ✅ Notificação ENVIADA via WebSocket para usuário ${userId}`);
             notificationSent = true;
           } else {
-            console.log(`[🔔 WEBSOCKET] ⚠️ Cliente WebSocket não está aberto (readyState: ${client.readyState})`);
+            console.log(`[🔔 WEBSOCKET] ⚠️ Solicitante WebSocket não está aberto (readyState: ${client.readyState})`);
           }
         }
 
@@ -662,7 +662,7 @@ class NotificationService {
           await this.sendUnreadCountUpdate(userId);
         }
       } else {
-        console.log(`[🔔 WEBSOCKET] 📴 Usuário ${userId} NÃO TEM clientes WebSocket registrados (usuário offline)`);
+        console.log(`[🔔 WEBSOCKET] 📴 Usuário ${userId} NÃO TEM solicitantes WebSocket registrados (usuário offline)`);
         console.log(`[🔔 WEBSOCKET] 📴 Notificação foi persistida no banco e aparecerá quando o usuário acessar o sistema`);
       }
     } catch (error) {
@@ -955,7 +955,7 @@ class NotificationService {
       const oldStatusName = this.translateStatus(oldStatus);
       const newStatusName = this.translateStatus(newStatus);
 
-      // Notificar o cliente que abriu o ticket
+      // Notificar o solicitante que abriu o ticket
       if (ticket.customer_id) {
         const payload: NotificationPayload = {
           type: 'status_update',
@@ -967,7 +967,7 @@ class NotificationService {
           priority: ticket.priority as 'low' | 'medium' | 'high' | 'critical'
         };
 
-        // Obter o ID do usuário associado ao cliente
+        // Obter o ID do usuário associado ao solicitante
         const [customer] = await db
           .select({ user_id: customers.user_id })
           .from(customers)
@@ -1039,13 +1039,13 @@ class NotificationService {
       // Determinar para quem enviar a notificação
       const _notifyUserIds: number[] = [];
 
-      // Se a resposta foi do cliente, notificar suporte/admin + participantes
+      // Se a resposta foi do solicitante, notificar suporte/admin + participantes
       if (replyUser.role === 'customer') {
         // Notificar administradores e suporte
         const payload: NotificationPayload = {
           type: 'new_reply',
-          title: 'Nova Resposta de Cliente',
-          message: `O cliente respondeu ao ticket #${ticket.ticket_id}: "${ticket.title}".`,
+          title: 'Nova Resposta de Solicitante',
+          message: `O solicitante respondeu ao ticket #${ticket.ticket_id}: "${ticket.title}".`,
           ticketId: ticket.id,
           ticketCode: ticket.ticket_id,
           timestamp: new Date(),
@@ -1060,8 +1060,8 @@ class NotificationService {
         const participantIds = participants.map(p => p.id);
         const participantPayload: NotificationPayload = {
           type: 'new_reply',
-          title: 'Nova Resposta de Cliente',
-          message: `O cliente respondeu ao ticket #${ticket.ticket_id}: "${ticket.title}".`,
+          title: 'Nova Resposta de Solicitante',
+          message: `O solicitante respondeu ao ticket #${ticket.ticket_id}: "${ticket.title}".`,
           ticketId: ticket.id,
           ticketCode: ticket.ticket_id,
           timestamp: new Date(),
@@ -1071,9 +1071,9 @@ class NotificationService {
         await this.sendNotificationToUsers(participantIds, participantPayload);
         console.log(`[🔔 NOTIFICAÇÃO] Notificação enviada para ${participants.length} participantes`);
       }
-      // Se a resposta foi do suporte/admin, notificar o cliente + participantes
+      // Se a resposta foi do suporte/admin, notificar o solicitante + participantes
       else if (replyUser.role === 'admin' || replyUser.role === 'support' || replyUser.role === 'manager' || replyUser.role === 'supervisor') {
-        // Notificar o cliente
+        // Notificar o solicitante
         if (ticket.customer_id) {
           const [customer] = await db
             .select({ user_id: customers.user_id })
@@ -1494,7 +1494,7 @@ class NotificationService {
         priority
       };
 
-      // Notificar o cliente (se aplicável)
+      // Notificar o solicitante (se aplicável)
       if (ticket.customer_id) {
         // 🔥 CORREÇÃO: Converter customer_id para user_id
         const [customer] = await db
@@ -1669,7 +1669,7 @@ class NotificationService {
         }
       };
 
-      // Notificar o cliente
+      // Notificar o solicitante
       if (ticket.customer_id) {
         const [customer] = await db
           .select({ user_id: customers.user_id })
@@ -1721,7 +1721,7 @@ class NotificationService {
     console.log('Serviço de notificações inicializado');
   }
 
-  // Obter contagem total de clientes conectados
+  // Obter contagem total de solicitantes conectados
   private getTotalClients(): number {
     let count = 0;
     this.clients.forEach(clientArray => {

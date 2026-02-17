@@ -31,7 +31,7 @@ async function canUserAccessTicket(
       return { canAccess: true };
     }
 
-    // Para clientes, verificar se é o criador do ticket
+    // Para solicitantes, verificar se é o criador do ticket
     if (userRole === 'customer') {
       if (ticket.customer_id) {
         const [customer] = await db

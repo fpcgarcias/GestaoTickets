@@ -461,7 +461,7 @@ export async function exportData(req: Request, res: Response) {
     const csvHeaders = [
       'Ticket',
       'Título',
-      'Cliente',
+      'Solicitante',
       'Departamento',
       'Atendente',
       'Avaliação',

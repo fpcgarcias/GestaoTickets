@@ -360,20 +360,20 @@ export class EmailNotificationService {
       });
     }
 
-    // 2. DADOS DO CLIENTE - TODAS as variáveis da lista
+    // 2. DADOS DO SOLICITANTE - TODAS as variáveis da lista
     if (context.customer) {
       const customer = context.customer;
       
-      // {{customer.name}} - Nome do cliente
+      // {{customer.name}} - Nome do solicitante
       rendered = rendered.replace(/\{\{customer\.name\}\}/g, String(customer.name || ''));
       
-      // {{customer.email}} - Email do cliente
+      // {{customer.email}} - Email do solicitante
       rendered = rendered.replace(/\{\{customer\.email\}\}/g, String(customer.email || ''));
       
-      // {{customer.phone}} - Telefone do cliente
+      // {{customer.phone}} - Telefone do solicitante
       rendered = rendered.replace(/\{\{customer\.phone\}\}/g, String(customer.phone || ''));
       
-      // {{customer.company}} - Empresa do cliente
+      // {{customer.company}} - Empresa do solicitante
       rendered = rendered.replace(/\{\{customer\.company\}\}/g, String(customer.company || ''));
     }
 
@@ -962,7 +962,7 @@ export class EmailNotificationService {
         return;
       }
 
-      // Buscar dados do cliente
+      // Buscar dados do solicitante
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -979,7 +979,7 @@ export class EmailNotificationService {
       const context: EmailNotificationContext = {
         ticket,
         customer: customer || { 
-          name: 'Cliente', 
+          name: 'Solicitante', 
           email: ticket.customer_email 
         },
         system: {
@@ -1094,7 +1094,7 @@ export class EmailNotificationService {
       console.log(`[📧 EMAIL PROD] - Email: ${official.email}`);
       console.log(`[📧 EMAIL PROD] - Empresa ID: ${official.company_id}`);
 
-      // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
+      // Buscar dados do solicitante DIRETO DA TABELA CUSTOMERS
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -1110,7 +1110,7 @@ export class EmailNotificationService {
 
       const context: EmailNotificationContext = {
         ticket,
-        customer: customer || { name: 'Cliente', email: ticket.customer_email },
+        customer: customer || { name: 'Solicitante', email: ticket.customer_email },
         user: official, // agora é o official
         official,
         system: {
@@ -1163,7 +1163,7 @@ export class EmailNotificationService {
         .limit(1);
       if (!ticket) return;
       // Buscar dados do usuário que respondeu
-      // Se for atendente, buscar em officials; se for cliente, buscar em customers
+      // Se for atendente, buscar em officials; se for solicitante, buscar em customers
       let replyUser = null;
       if (ticket.assigned_to_id && replyUserId === ticket.assigned_to_id) {
         // Atendente responsável respondeu
@@ -1173,7 +1173,7 @@ export class EmailNotificationService {
           .where(and(eq(officials.id, replyUserId), eq(officials.is_active, true)))
           .limit(1);
       } else {
-        // Cliente respondeu (ou outro)
+        // Solicitante respondeu (ou outro)
         [replyUser] = await db
           .select()
           .from(users)
@@ -1181,7 +1181,7 @@ export class EmailNotificationService {
           .limit(1);
       }
       if (!replyUser) return;
-      // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
+      // Buscar dados do solicitante DIRETO DA TABELA CUSTOMERS
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -1197,7 +1197,7 @@ export class EmailNotificationService {
 
       const context: EmailNotificationContext = {
         ticket,
-        customer: customer || { name: 'Cliente', email: ticket.customer_email },
+        customer: customer || { name: 'Solicitante', email: ticket.customer_email },
         user: replyUser,
         reply: {
           message: replyMessage,
@@ -1212,9 +1212,9 @@ export class EmailNotificationService {
         }
       };
 
-      // NOVA LÓGICA: Se o ticket tem responsável, notificar só ele e o cliente
+      // NOVA LÓGICA: Se o ticket tem responsável, notificar só ele e o solicitante
       if (ticket.assigned_to_id) {
-        // Se quem respondeu foi o cliente, notificar só o responsável
+        // Se quem respondeu foi o solicitante, notificar só o responsável
         if ('role' in replyUser && replyUser.role === 'customer') {
           // Buscar official pelo assigned_to_id
           const [assignedOfficial] = await db
@@ -1246,11 +1246,11 @@ export class EmailNotificationService {
             }
           }
         } else {
-          // Se quem respondeu foi o responsável, notificar só o cliente
+          // Se quem respondeu foi o responsável, notificar só o solicitante
           if (customer) {
             const shouldNotify = typeof customer.id === 'number' ? await this.shouldSendEmailToUser(customer.id, 'ticket_reply') : false;
             if (shouldNotify) {
-              // 🔥 CORREÇÃO: Criar contexto personalizado para o cliente
+              // 🔥 CORREÇÃO: Criar contexto personalizado para o solicitante
               const customerContext: EmailNotificationContext = {
                 ...context,
                 user: {
@@ -1284,9 +1284,9 @@ export class EmailNotificationService {
         return;
       }
 
-      // 🔥 LÓGICA ATUALIZADA FASE 4.1: Se quem respondeu foi o cliente, notificar ATENDENTES + PARTICIPANTES
+      // 🔥 LÓGICA ATUALIZADA FASE 4.1: Se quem respondeu foi o solicitante, notificar ATENDENTES + PARTICIPANTES
       if ('role' in replyUser && replyUser.role === 'customer') {
-        console.log(`[📧 EMAIL PROD] 📧 Cliente respondeu - notificando atendentes e participantes do departamento ${ticket.department_id}`);
+        console.log(`[📧 EMAIL PROD] 📧 Solicitante respondeu - notificando atendentes e participantes do departamento ${ticket.department_id}`);
         
         // 🔥 BUSCAR APENAS atendentes do departamento específico do ticket
         let departmentUsers = [];
@@ -1379,7 +1379,7 @@ export class EmailNotificationService {
             participants,
             'ticket_reply',
             context,
-            `Há uma nova resposta de cliente no ticket #${ticket.ticket_id}: "${ticket.title}".`
+            `Há uma nova resposta de solicitante no ticket #${ticket.ticket_id}: "${ticket.title}".`
           );
         }
 
@@ -1399,7 +1399,7 @@ export class EmailNotificationService {
 
   /**
    * Envia o alerta de 48h (ticket será encerrado em 24h por falta de interação).
-   * Disparo obrigatório: não verifica preferências de notificação do cliente.
+   * Disparo obrigatório: não verifica preferências de notificação do solicitante.
    */
   async sendWaitingCustomerClosureAlert(ticketId: number): Promise<{ success: boolean; error?: string }> {
     try {
@@ -1421,7 +1421,7 @@ export class EmailNotificationService {
       }
       const context: EmailNotificationContext = {
         ticket: await this.mapTicketFields(ticketRow),
-        customer: customer || { name: 'Cliente', email: ticketRow.customer_email },
+        customer: customer || { name: 'Solicitante', email: ticketRow.customer_email },
         system: {}
       };
       return await this.sendEmailNotification(
@@ -1465,7 +1465,7 @@ export class EmailNotificationService {
 
       // REMOVIDO: Pesquisa de satisfação duplicada - já é enviada no final da função (linha 1739)
 
-      // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
+      // Buscar dados do solicitante DIRETO DA TABELA CUSTOMERS
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -1511,7 +1511,7 @@ export class EmailNotificationService {
 
       const context: EmailNotificationContext = {
         ticket,
-        customer: customer || { name: 'Cliente', email: ticket.customer_email },
+        customer: customer || { name: 'Solicitante', email: ticket.customer_email },
         user: changedByUser,
         status_change: {
           old_status: oldStatusText,
@@ -1526,7 +1526,7 @@ export class EmailNotificationService {
         }
       };
 
-      // NOVA LÓGICA: Se o ticket tem responsável, notificar só ele (exceto se ele mesmo alterou) e o cliente
+      // NOVA LÓGICA: Se o ticket tem responsável, notificar só ele (exceto se ele mesmo alterou) e o solicitante
       if (ticket.assigned_to_id) {
         // Notificar responsável, exceto se ele mesmo alterou
         if (!changedByUserId || ticket.assigned_to_id !== changedByUserId) {
@@ -1560,11 +1560,11 @@ export class EmailNotificationService {
             }
           }
         }
-        // Notificar cliente normalmente
+        // Notificar solicitante normalmente
         if (customer) {
           const shouldNotify = await this.shouldSendEmailToUser(customer.id, (newStatus === 'resolved' || newStatus === 'closed') ? 'ticket_resolved' : 'status_changed');
           if (shouldNotify) {
-            // 🔥 CORREÇÃO: Criar contexto personalizado para o cliente
+            // 🔥 CORREÇÃO: Criar contexto personalizado para o solicitante
             const customerContext: EmailNotificationContext = {
               ...context,
               user: {
@@ -1614,10 +1614,10 @@ export class EmailNotificationService {
         title: ticket.title?.substring(0, 50)
       });
 
-      // 🔥 NOTIFICAR O CLIENTE (sempre que houver email)
-      console.log(`[📧 EMAIL PROD] 🔍 Verificando se ticket tem email do cliente: ${ticket.customer_email || 'SEM EMAIL'}`);
+      // 🔥 NOTIFICAR O SOLICITANTE (sempre que houver email)
+      console.log(`[📧 EMAIL PROD] 🔍 Verificando se ticket tem email do solicitante: ${ticket.customer_email || 'SEM EMAIL'}`);
       if (ticket.customer_email) {
-        console.log(`[📧 EMAIL PROD] 📧 Notificando cliente sobre mudança de status: ${ticket.customer_email}`);
+        console.log(`[📧 EMAIL PROD] 📧 Notificando solicitante sobre mudança de status: ${ticket.customer_email}`);
         
         const [customerUser] = await db
           .select()
@@ -1625,18 +1625,18 @@ export class EmailNotificationService {
           .where(eq(users.email, ticket.customer_email))
           .limit(1);
 
-        // 🔥 NOVA LÓGICA: Por padrão cliente recebe, só não envia se explicitamente desativado
+        // 🔥 NOVA LÓGICA: Por padrão solicitante recebe, só não envia se explicitamente desativado
         const shouldNotify = customerUser
           ? await this.shouldSendEmailToUser(customerUser.id, (newStatus === 'resolved' || newStatus === 'closed') ? 'ticket_resolved' : 'status_changed')
           : true; // Se não é usuário registrado, sempre envia
 
         if (shouldNotify) {
-          // 🔥 CORREÇÃO: Criar contexto personalizado para o cliente
+          // 🔥 CORREÇÃO: Criar contexto personalizado para o solicitante
           const customerContext: EmailNotificationContext = {
             ...context,
             user: customerUser || {
               id: 0,
-              name: customer?.name || 'Cliente',
+              name: customer?.name || 'Solicitante',
               email: ticket.customer_email,
               role: 'customer'
             }
@@ -1655,18 +1655,18 @@ export class EmailNotificationService {
             ticket.customer_email,
             customerContext,
             ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
-            customerUser?.role || 'customer' // Passar a role do cliente para validação
+            customerUser?.role || 'customer' // Passar a role do solicitante para validação
           );
           
           if (result.success) {
-            console.log(`[📧 EMAIL PROD] ✅ Email de mudança de status enviado com sucesso para cliente`);
+            console.log(`[📧 EMAIL PROD] ✅ Email de mudança de status enviado com sucesso para solicitante`);
           } else {
-            console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email de mudança de status para cliente: ${result.error}`);
+            console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email de mudança de status para solicitante: ${result.error}`);
           }
 
           // 🎯 PESQUISA DE SATISFAÇÃO SERÁ ENVIADA INDEPENDENTE DAS NOTIFICAÇÕES (ver abaixo)
         } else {
-          console.log(`[📧 EMAIL PROD] 🔕 Cliente não configurado para receber notificações de mudança de status`);
+          console.log(`[📧 EMAIL PROD] 🔕 Solicitante não configurado para receber notificações de mudança de status`);
         }
 
       }
@@ -1819,7 +1819,7 @@ export class EmailNotificationService {
         .where(eq(tickets.id, ticketId))
         .limit(1);
       if (!ticket) return;
-      // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
+      // Buscar dados do solicitante DIRETO DA TABELA CUSTOMERS
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -1846,7 +1846,7 @@ export class EmailNotificationService {
 
       const context: EmailNotificationContext = {
         ticket,
-        customer: customer || { name: 'Cliente', email: ticket.customer_email },
+        customer: customer || { name: 'Solicitante', email: ticket.customer_email },
         user: escalatedByUser,
         system: {
           base_url: baseUrl,
@@ -1855,9 +1855,9 @@ export class EmailNotificationService {
         }
       };
 
-      // 🔥 NOTIFICAR O CLIENTE (sempre que houver email)
+      // 🔥 NOTIFICAR O SOLICITANTE (sempre que houver email)
       if (ticket.customer_email) {
-        console.log(`[📧 EMAIL PROD] 📧 Notificando cliente sobre escalação: ${ticket.customer_email}`);
+        console.log(`[📧 EMAIL PROD] 📧 Notificando solicitante sobre escalação: ${ticket.customer_email}`);
         
         const [customerUser] = await db
           .select()
@@ -1870,12 +1870,12 @@ export class EmailNotificationService {
           : true;
 
         if (shouldNotify) {
-          // Personalizar contexto para o cliente destinatário
+          // Personalizar contexto para o solicitante destinatário
           const customerContext: EmailNotificationContext = {
             ...context,
             user: customerUser || {
               id: 0,
-              name: customer?.name || 'Cliente',
+              name: customer?.name || 'Solicitante',
               email: ticket.customer_email,
               role: 'customer'
             }
@@ -1886,16 +1886,16 @@ export class EmailNotificationService {
             ticket.customer_email,
             customerContext,
             ticket.company_id!, // 🔥 OBRIGATÓRIO: ticket sempre tem company_id
-            customerUser?.role || 'customer' // Passar a role do cliente para validação
+            customerUser?.role || 'customer' // Passar a role do solicitante para validação
           );
           
           if (result.success) {
-            console.log(`[📧 EMAIL PROD] ✅ Email de escalação enviado com sucesso para cliente`);
+            console.log(`[📧 EMAIL PROD] ✅ Email de escalação enviado com sucesso para solicitante`);
           } else {
-            console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email de escalação para cliente: ${result.error}`);
+            console.log(`[📧 EMAIL PROD] ❌ Falha ao enviar email de escalação para solicitante: ${result.error}`);
           }
         } else {
-          console.log(`[📧 EMAIL PROD] 🔕 Cliente não configurado para receber notificações de escalação`);
+          console.log(`[📧 EMAIL PROD] 🔕 Solicitante não configurado para receber notificações de escalação`);
         }
       }
 
@@ -2011,7 +2011,7 @@ export class EmailNotificationService {
         .where(eq(tickets.id, ticketId))
         .limit(1);
       if (!ticket) return;
-      // Buscar dados do cliente DIRETO DA TABELA CUSTOMERS
+      // Buscar dados do solicitante DIRETO DA TABELA CUSTOMERS
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -2040,7 +2040,7 @@ export class EmailNotificationService {
 
       const context: EmailNotificationContext = {
         ticket,
-        customer: customer || { name: 'Cliente', email: ticket.customer_email },
+        customer: customer || { name: 'Solicitante', email: ticket.customer_email },
         system: {
           base_url: baseUrl,
           company_name: 'Sistema de Tickets',
@@ -2187,7 +2187,7 @@ export class EmailNotificationService {
 
   async notifyNewCustomerRegistered(customerId: number): Promise<void> {
     try {
-      // Buscar dados do cliente
+      // Buscar dados do solicitante
       const [customer] = await db
         .select()
         .from(customers)
@@ -2249,7 +2249,7 @@ export class EmailNotificationService {
         );
       }
     } catch (error) {
-      console.error('Erro ao notificar novo cliente registrado:', error);
+      console.error('Erro ao notificar novo solicitante registrado:', error);
     }
   }
 
@@ -2619,7 +2619,7 @@ export class EmailNotificationService {
         return;
       }
 
-      // Buscar dados do cliente
+      // Buscar dados do solicitante
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -2634,7 +2634,7 @@ export class EmailNotificationService {
 
       const context: EmailNotificationContext = {
         ticket,
-        customer: customer || { name: 'Cliente', email: ticket.customer_email },
+        customer: customer || { name: 'Solicitante', email: ticket.customer_email },
         user: participant,
         official: addedBy,
         system: {
@@ -2734,7 +2734,7 @@ export class EmailNotificationService {
         return;
       }
 
-      // Buscar dados do cliente
+      // Buscar dados do solicitante
       let customer = null;
       if (ticket.customer_id) {
         [customer] = await db
@@ -2749,7 +2749,7 @@ export class EmailNotificationService {
 
       const context: EmailNotificationContext = {
         ticket,
-        customer: customer || { name: 'Cliente', email: ticket.customer_email },
+        customer: customer || { name: 'Solicitante', email: ticket.customer_email },
         user: participant,
         official: removedBy,
         system: {
@@ -3350,7 +3350,7 @@ export class EmailNotificationService {
           department_id: tickets.department_id,
           assigned_to_id: tickets.assigned_to_id,
           resolved_at: tickets.resolved_at,
-          // Dados do cliente via JOIN
+          // Dados do solicitante via JOIN
           customer_id: customers.id,
           customer_name: customers.name,
           customer_email: customers.email
@@ -3361,13 +3361,13 @@ export class EmailNotificationService {
         .limit(1);
 
       if (!ticketData) {
-        console.log(`[📧 SATISFACTION] ❌ Ticket ${ticketId} não encontrado ou sem cliente associado`);
+        console.log(`[📧 SATISFACTION] ❌ Ticket ${ticketId} não encontrado ou sem solicitante associado`);
         return;
       }
 
       console.log(`[📧 SATISFACTION] ✅ Dados encontrados:`);
       console.log(`[📧 SATISFACTION] - Ticket: ${ticketData.ticket_number}`);
-      console.log(`[📧 SATISFACTION] - Cliente: ${ticketData.customer_name} (${ticketData.customer_email})`);
+      console.log(`[📧 SATISFACTION] - Solicitante: ${ticketData.customer_name} (${ticketData.customer_email})`);
       console.log(`[📧 SATISFACTION] - Departamento: ${ticketData.department_id}`);
 
       // Verificar se o departamento tem pesquisa de satisfação ativada (department_id é obrigatório)
@@ -3472,7 +3472,7 @@ export class EmailNotificationService {
       // 🧪 DESENVOLVIMENTO: Log do link da pesquisa para testes
       if (process.env.NODE_ENV === 'development') {
         console.log(`\n🔗 PESQUISA DE SATISFAÇÃO GERADA (DESENVOLVIMENTO)`);
-        console.log(`📧 Cliente: ${ticketData.customer_email}`);
+        console.log(`📧 Solicitante: ${ticketData.customer_email}`);
         console.log(`🎫 Ticket #${ticketData.ticket_number}: "${ticketData.title}"`);
         console.log(`🌐 Link da pesquisa: http://localhost:5173/satisfaction/${surveyToken}`);
         console.log(`⏰ Expira em: 7 dias (${expiresAt.toLocaleDateString('pt-BR')})`);
@@ -3497,7 +3497,7 @@ export class EmailNotificationService {
           }) || new Date().toLocaleDateString('pt-BR')
         },
         customer: {
-          name: ticketData.customer_name || 'Cliente',
+          name: ticketData.customer_name || 'Solicitante',
           email: ticketData.customer_email
         },
         survey: {
@@ -3691,7 +3691,7 @@ export class EmailNotificationService {
           resolved_at_formatted: resolvedFormatted
         },
         customer: {
-          name: survey.customer_name || 'Cliente',
+          name: survey.customer_name || 'Solicitante',
           email: survey.customer_email
         },
         survey: {
@@ -3743,9 +3743,9 @@ export class EmailNotificationService {
   }
 
   /**
-   * Automação: tickets em aguardando cliente sem resposta do cliente (elegível).
+   * Automação: tickets em aguardando solicitante sem resposta do solicitante (elegível).
    * 48h desde entered_at → enviar alerta; 24h após alerta → encerrar.
-   * Elegível = nenhuma resposta do cliente desde que entrou em waiting_customer.
+   * Elegível = nenhuma resposta do solicitante desde que entrou em waiting_customer.
    */
   async checkWaitingCustomerAutoClose(companyFilter?: string): Promise<void> {
     try {

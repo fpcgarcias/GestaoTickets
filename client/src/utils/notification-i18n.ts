@@ -21,7 +21,7 @@ function translateStatus(ptStatus: string, locale: SupportedLocale): string {
     'Novo': 'tickets.new',
     'Em Andamento': 'tickets.ongoing',
     'Suspenso': 'tickets.suspended',
-    'Aguardando Cliente': 'tickets.waiting_customer',
+    'Aguardando Solicitante': 'tickets.waiting_customer',
     'Escalado': 'tickets.escalated',
     'Em Análise': 'tickets.in_analysis',
     'Aguardando Deploy': 'tickets.pending_deployment',
@@ -156,7 +156,7 @@ function mapToTranslationKey(ptTitle: string, ptMessage: string): { key: string;
     'Ticket Resolvido': 'notifications.messages.ticket_resolved_title',
     'Ticket Encerrado': 'notifications.messages.ticket_closed_title',
     'Nova Resposta no Seu Ticket': 'notifications.messages.new_reply_customer_title',
-    'Nova Resposta de Cliente': 'notifications.messages.new_reply_client_title',
+    'Nova Resposta de Solicitante': 'notifications.messages.new_reply_client_title',
     'Nova Resposta de Atendente': 'notifications.messages.new_reply_support_title',
     'Você foi adicionado como participante': 'notifications.messages.participant_added_self_title',
     'Novo participante adicionado': 'notifications.messages.participant_added_other_title',
@@ -187,7 +187,7 @@ function mapToTranslationKey(ptTitle: string, ptMessage: string): { key: string;
       messageKey = 'notifications.messages.ticket_closed_message';
     } else if (ptTitle === 'Nova Resposta no Seu Ticket') {
       messageKey = 'notifications.messages.new_reply_customer_message';
-    } else if (ptTitle === 'Nova Resposta de Cliente') {
+    } else if (ptTitle === 'Nova Resposta de Solicitante') {
       messageKey = 'notifications.messages.new_reply_client_message';
     } else if (ptTitle === 'Nova Resposta de Atendente') {
       messageKey = 'notifications.messages.new_reply_support_message';
@@ -272,7 +272,7 @@ export function translateNotification(
       'Ticket Resolvido': 'notifications.messages.ticket_resolved_title',
       'Ticket Encerrado': 'notifications.messages.ticket_closed_title',
       'Nova Resposta no Seu Ticket': 'notifications.messages.new_reply_customer_title',
-      'Nova Resposta de Cliente': 'notifications.messages.new_reply_client_title',
+      'Nova Resposta de Solicitante': 'notifications.messages.new_reply_client_title',
       'Nova Resposta de Atendente': 'notifications.messages.new_reply_support_title',
       'Você foi adicionado como participante': 'notifications.messages.participant_added_self_title',
       'Novo participante adicionado': 'notifications.messages.participant_added_other_title',

@@ -703,7 +703,7 @@ async function _canUserReplyToTicket(
 
 
 
-    // Para clientes, verificar se é o criador do ticket
+    // Para solicitantes, verificar se é o criador do ticket
 
     if (userRole === 'customer') {
 
@@ -1061,7 +1061,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Criar um registro de cliente vinculado ao usuário
+      // Criar um registro de solicitante vinculado ao usuário
 
       if (userRole === 'customer' && companyId) {
 
@@ -2778,7 +2778,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             message: "Operação não permitida",
 
-            details: "Clientes não podem alterar o atendente do ticket."
+            details: "solicitantes não podem alterar o atendente do ticket."
 
           });
 
@@ -2940,7 +2940,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       // Notificar sobre a atualização de atribuição
       try {
-        // Notificar o cliente do ticket
+        // Notificar o solicitante do ticket
         if (ticket.customer_id) {
           // 🔥 CORREÇÃO: Converter customer_id para user_id
           const [customer] = await db
@@ -3258,7 +3258,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             message: "Operação não permitida",
 
-            details: "Clientes só podem alterar o status para 'Aguardando Cliente'."
+            details: "solicitantes só podem alterar o status para 'Aguardando Solicitante'."
 
           });
 
@@ -3584,7 +3584,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       if (userRole === 'customer') {
 
-        return res.status(403).json({ message: "Clientes não podem transferir chamados" });
+        return res.status(403).json({ message: "solicitantes não podem transferir chamados" });
 
       }
 
@@ -3919,7 +3919,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // ✅ BUSCAR O CUSTOMER_ID E COMPANY_ID BASEADO NO EMAIL FORNECIDO
 
       let customerId: number | null = null;
-      let customerUserId: number | null = null; // ID do usuário associado ao cliente
+      let customerUserId: number | null = null; // ID do usuário associado ao solicitante
       let companyId: number | null = null;
       let existingCustomer: any = null;
 
@@ -3928,7 +3928,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         if (existingCustomer) {
           customerId = existingCustomer.id;
           customerUserId = existingCustomer.user_id; // ✅ CAPTURAR O USER_ID PARA NOTIFICAÇÕES
-          companyId = existingCustomer.company_id; // ✅ USAR O COMPANY_ID DO CLIENTE
+          companyId = existingCustomer.company_id; // ✅ USAR O COMPANY_ID DO SOLICITANTE
         }
       }
 
@@ -4020,7 +4020,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         customer_id: customerId || undefined,
 
-        company_id: companyId || undefined // ✅ USAR O COMPANY_ID DO CLIENTE
+        company_id: companyId || undefined // ✅ USAR O COMPANY_ID DO SOLICITANTE
 
       });
 
@@ -4434,7 +4434,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       // 🔔 ENVIAR NOTIFICAÇÃO PERSISTENTE DE NOVO TICKET
       try {
-        // Notificar o cliente que criou o ticket
+        // Notificar o solicitante que criou o ticket
         if (customerUserId) {
           await notificationService.sendNotificationToUser(customerUserId, {
             type: 'new_ticket',
@@ -4445,14 +4445,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             ticketCode: ticket.ticket_id,
             timestamp: new Date(),
             metadata: {
-              customerName: existingCustomer?.name || (req.body.customer_name as string) || 'Cliente',
+              customerName: existingCustomer?.name || (req.body.customer_name as string) || 'Solicitante',
               departmentId: ticket.department_id,
               category: ticketData.category_id ? 'Categorizado' : 'Sem categoria'
             }
           });
         }
 
-        // Notificar o criador do ticket (se não for o próprio cliente e não for user bot)
+        // Notificar o criador do ticket (se não for o próprio solicitante e não for user bot)
         const creatorId = req.session?.userId;
         if (creatorId && creatorId !== customerUserId) {
           await notificationService.sendNotificationToUser(creatorId, {
@@ -4484,13 +4484,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // 📧 ENVIAR EMAIL DE CONFIRMAÇÃO PARA O CLIENTE
+      // 📧 ENVIAR EMAIL DE CONFIRMAÇÃO PARA O SOLICITANTE
 
       try {
 
         if (customerId && ticketData.customer_email) {
 
-          // Buscar dados completos do cliente
+          // Buscar dados completos do solicitante
 
           const customer = await storage.getCustomer(customerId);
 
@@ -4552,7 +4552,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             )!.catch((emailError) => {
 
-              console.error('[Email] Erro ao enviar confirmação para o cliente:', emailError);
+              console.error('[Email] Erro ao enviar confirmação para o solicitante:', emailError);
 
             });
 
@@ -4566,7 +4566,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       } catch (emailError) {
 
-        console.error('[Email] Erro ao enviar confirmação para o cliente:', emailError);
+        console.error('[Email] Erro ao enviar confirmação para o solicitante:', emailError);
 
       }
 
@@ -4698,7 +4698,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Buscar todos os clientes
+      // Buscar todos os solicitantes
 
       const allCustomers = await storage.getCustomers();
 
@@ -4732,7 +4732,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Enriquecer clientes com nome da empresa e status do usuário, sem sobrescrever o campo company original
+      // Enriquecer solicitantes com nome da empresa e status do usuário, sem sobrescrever o campo company original
 
       const enrichedCustomers = customers.map(customer => ({
 
@@ -4746,7 +4746,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Filtrar os clientes inativos se necessário
+      // Filtrar os solicitantes inativos se necessário
 
       let filteredCustomers = includeInactive
 
@@ -4816,9 +4816,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
     } catch (error) {
 
-      console.error('Erro ao buscar clientes:', error);
+      console.error('Erro ao buscar solicitantes:', error);
 
-      res.status(500).json({ message: "Falha ao buscar clientes" });
+      res.status(500).json({ message: "Falha ao buscar solicitantes" });
 
     }
 
@@ -4826,7 +4826,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-  // Endpoint específico para buscar clientes no formulário de tickets
+  // Endpoint específico para buscar solicitantes no formulário de tickets
 
   router.get("/customers/search", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
 
@@ -4840,7 +4840,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Buscar todos os clientes
+      // Buscar todos os solicitantes
 
       const allCustomers = await storage.getCustomers();
 
@@ -4884,7 +4884,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Filtrar apenas clientes ativos
+      // Filtrar apenas solicitantes ativos
 
       customers = customers.filter(customer => (customer as any).active);
 
@@ -4914,13 +4914,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Se não há busca, retornar todos os clientes (filtro será feito no frontend)
+      // Se não há busca, retornar todos os solicitantes (filtro será feito no frontend)
 
       const limitedCustomers = customers;
 
 
 
-      // Enriquecer dados dos clientes
+      // Enriquecer dados dos solicitantes
 
       const enrichedCustomers = await Promise.all(
 
@@ -4974,9 +4974,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
     } catch (error) {
 
-      console.error('Erro ao buscar clientes:', error);
+      console.error('Erro ao buscar solicitantes:', error);
 
-      res.status(500).json({ message: "Falha ao buscar clientes" });
+      res.status(500).json({ message: "Falha ao buscar solicitantes" });
 
     }
 
@@ -4996,17 +4996,17 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const shouldLinkUser = Boolean(linkExistingUser);
 
-      console.log('Cliente - linkExistingUser recebido:', linkExistingUser, 'convertido para:', shouldLinkUser);
+      console.log('Solicitante - linkExistingUser recebido:', linkExistingUser, 'convertido para:', shouldLinkUser);
 
 
 
-      // Verificar se já existe cliente com este email
+      // Verificar se já existe solicitante com este email
 
       const existingCustomer = await storage.getCustomerByEmail(email);
 
       if (existingCustomer) {
 
-        return res.status(400).json({ message: "Email já cadastrado para outro cliente" });
+        return res.status(400).json({ message: "Email já cadastrado para outro solicitante" });
 
       }
 
@@ -5020,7 +5020,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         // Se o usuário existe mas não foi solicitado para vincular, retornar erro com opção
 
-        console.log(`Cliente - Usuário com email '${email}' já existe. Sugerindo vinculação.`);
+        console.log(`Solicitante - Usuário com email '${email}' já existe. Sugerindo vinculação.`);
 
 
 
@@ -5046,7 +5046,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-        console.log('Cliente - Resposta 409 sendo enviada:', JSON.stringify(responseData, null, 2));
+        console.log('Solicitante - Resposta 409 sendo enviada:', JSON.stringify(responseData, null, 2));
 
         return res.status(409).json(responseData);
 
@@ -5056,11 +5056,11 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       if (existingUser && shouldLinkUser) {
 
-        console.log(`Cliente - Vinculando usuário existente (ID: ${existingUser.id}, role: ${existingUser.role}) como cliente`);
+        console.log(`Solicitante - Vinculando usuário existente (ID: ${existingUser.id}, role: ${existingUser.role}) como solicitante`);
 
 
 
-        // Atualizar o role do usuário para 'customer' ao vincular como cliente
+        // Atualizar o role do usuário para 'customer' ao vincular como solicitante
 
         const updatedUser = await storage.updateUser(existingUser.id, {
 
@@ -5072,7 +5072,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           existingUser.role = 'customer';
 
-          console.log(`Cliente - Role do usuário atualizado para 'customer'`);
+          console.log(`Solicitante - Role do usuário atualizado para 'customer'`);
 
         }
 
@@ -5174,7 +5174,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         user = existingUser;
 
-        console.log(`Cliente - Usando usuário existente ID: ${user.id}`);
+        console.log(`Solicitante - Usando usuário existente ID: ${user.id}`);
 
 
 
@@ -5182,7 +5182,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (userRole === 'admin' && effectiveCompanyId !== user.company_id) {
 
-          console.log(`Cliente - Atualizando company_id do usuário de ${user.company_id} para ${effectiveCompanyId}`);
+          console.log(`Solicitante - Atualizando company_id do usuário de ${user.company_id} para ${effectiveCompanyId}`);
 
           const updatedUser = await storage.updateUser(user.id, { company_id: effectiveCompanyId });
 
@@ -5198,7 +5198,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Criar cliente associado ao usuário com company_id
+      // Criar solicitante associado ao usuário com company_id
 
       const customer = await storage.createCustomer({
 
@@ -5212,7 +5212,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Notificar sobre novo cliente registrado
+      // Notificar sobre novo solicitante registrado
 
       try {
 
@@ -5220,15 +5220,15 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       } catch (notificationError) {
 
-        console.error('Erro ao enviar notificação de novo cliente:', notificationError);
+        console.error('Erro ao enviar notificação de novo solicitante:', notificationError);
 
-        // Não falhar a criação do cliente por causa da notificação
+        // Não falhar a criação do solicitante por causa da notificação
 
       }
 
 
 
-      // Retornar o cliente com informações de acesso (apenas para novos usuários)
+      // Retornar o solicitante com informações de acesso (apenas para novos usuários)
 
       if (!existingUser) {
 
@@ -5242,7 +5242,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             temporaryPassword: tempPassword,
 
-            message: "Uma senha temporária foi gerada. Por favor, informe ao cliente para alterá-la no primeiro acesso."
+            message: "Uma senha temporária foi gerada. Por favor, informe ao solicitante para alterá-la no primeiro acesso."
 
           }
 
@@ -5256,7 +5256,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           ...customer,
 
-          message: "Cliente vinculado com sucesso ao usuário existente."
+          message: "solicitante vinculado com sucesso ao usuário existente."
 
         });
 
@@ -5264,9 +5264,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
     } catch (error) {
 
-      console.error('Erro ao criar cliente:', error);
+      console.error('Erro ao criar solicitante:', error);
 
-      res.status(500).json({ message: "Falha ao criar cliente", error: String(error) });
+      res.status(500).json({ message: "Falha ao criar solicitante", error: String(error) });
 
     }
 
@@ -5282,7 +5282,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       if (isNaN(id)) {
 
-        return res.status(400).json({ message: "ID de cliente inválido" });
+        return res.status(400).json({ message: "ID de solicitante inválido" });
 
       }
 
@@ -5296,13 +5296,13 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       if (password) {
 
-        // Verificar se o cliente tem um usuário associado
+        // Verificar se o solicitante tem um usuário associado
 
         const customer = await storage.getCustomer(id);
 
         if (!customer) {
 
-          return res.status(404).json({ message: "Cliente não encontrado" });
+          return res.status(404).json({ message: "Solicitante não encontrado" });
 
         }
 
@@ -5341,7 +5341,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-          // Encerrar sessões do usuário após alterar a senha via cliente
+          // Encerrar sessões do usuário após alterar a senha via solicitante
 
           try {
 
@@ -5355,7 +5355,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           } catch (sessionError) {
 
-            console.error('Erro ao encerrar sessões do usuário (cliente) após alterar senha:', sessionError);
+            console.error('Erro ao encerrar sessões do usuário (solicitante) após alterar senha:', sessionError);
 
           }
 
@@ -5369,7 +5369,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       if (!customer) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Solicitante não encontrado" });
 
       }
 
@@ -5379,9 +5379,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
     } catch (error) {
 
-      console.error('Erro ao atualizar cliente:', error);
+      console.error('Erro ao atualizar solicitante:', error);
 
-      res.status(500).json({ message: "Falha ao atualizar cliente", error: String(error) });
+      res.status(500).json({ message: "Falha ao atualizar solicitante", error: String(error) });
 
     }
 
@@ -5397,19 +5397,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       if (isNaN(id)) {
 
-        return res.status(400).json({ message: "ID de cliente inválido" });
+        return res.status(400).json({ message: "ID de solicitante inválido" });
 
       }
 
 
 
-      // Buscar cliente para verificar se há um usuário associado
+      // Buscar solicitante para verificar se há um usuário associado
 
       const customer = await storage.getCustomer(id);
 
       if (!customer) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Solicitante não encontrado" });
 
       }
 
@@ -5431,7 +5431,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         if (!user) {
 
-          return res.status(404).json({ message: "Usuário do cliente não encontrado" });
+          return res.status(404).json({ message: "Usuário do solicitante não encontrado" });
 
         }
 
@@ -5447,7 +5447,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           if (!inactivatedUser) {
 
-            return res.status(404).json({ message: "Usuário do cliente não encontrado" });
+            return res.status(404).json({ message: "Usuário do solicitante não encontrado" });
 
           }
 
@@ -5455,7 +5455,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             success: true,
 
-            message: "Cliente inativado com sucesso",
+            message: "Solicitante inativado com sucesso",
 
             inactive: true,
 
@@ -5471,7 +5471,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           if (!activatedUser) {
 
-            return res.status(404).json({ message: "Usuário do cliente não encontrado" });
+            return res.status(404).json({ message: "Usuário do solicitante não encontrado" });
 
           }
 
@@ -5479,7 +5479,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             success: true,
 
-            message: "Cliente ativado com sucesso",
+            message: "Solicitante ativado com sucesso",
 
             inactive: false,
 
@@ -5491,25 +5491,25 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       } else {
 
-        // Se não há usuário associado, remover o cliente
+        // Se não há usuário associado, remover o solicitante
 
         const success = await storage.deleteCustomer(id);
 
         if (!success) {
 
-          return res.status(404).json({ message: "Cliente não encontrado" });
+          return res.status(404).json({ message: "Solicitante não encontrado" });
 
         }
 
-        res.json({ success: true, message: "Cliente removido com sucesso" });
+        res.json({ success: true, message: "Solicitante removido com sucesso" });
 
       }
 
     } catch (error) {
 
-      console.error('Erro ao ativar/inativar cliente:', error);
+      console.error('Erro ao ativar/inativar solicitante:', error);
 
-      res.status(500).json({ message: "Falha ao ativar/inativar cliente", error: String(error) });
+      res.status(500).json({ message: "Falha ao ativar/inativar solicitante", error: String(error) });
 
     }
 
@@ -7425,7 +7425,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Adicionar a informação da empresa ao objeto do usuário para retornar ao cliente
+      // Adicionar a informação da empresa ao objeto do usuário para retornar ao solicitante
 
       if (company) {
 
@@ -8837,7 +8837,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           { id: 2, name: "Faturamento", description: "Para consultas de pagamento e faturamento" },
 
-          { id: 3, name: "Atendimento ao Cliente", description: "Para consultas gerais e assistência" }
+          { id: 3, name: "Atendimento ao Solicitante", description: "Para consultas gerais e assistência" }
 
         ];
 
@@ -16122,7 +16122,7 @@ View Ticket: {{ticket.link}}`,
 
                 <tr>
 
-                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Cliente:</td>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Solicitante:</td>
 
                   <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}} ({{customer.email}})</td>
 
@@ -16208,7 +16208,7 @@ View Ticket: {{ticket.link}}`,
 
 Título: {{ticket.title}}
 
-Cliente: {{customer.name}} ({{customer.email}})
+Solicitante: {{customer.name}} ({{customer.email}})
 
 Prioridade: {{ticket.priority_text}}
 
@@ -16334,7 +16334,7 @@ Ver Ticket: {{ticket.link}}`,
 
                 <tr>
 
-                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Cliente:</td>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Solicitante:</td>
 
                   <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}} ({{customer.email}})</td>
 
@@ -16436,7 +16436,7 @@ Ver Ticket: {{ticket.link}}`,
 
 Título: {{ticket.title}}
 
-Cliente: {{customer.name}} ({{customer.email}})
+Solicitante: {{customer.name}} ({{customer.email}})
 
 Prioridade: {{ticket.priority_text}}
 
@@ -17084,7 +17084,7 @@ Ver Ticket: {{ticket.link}}`,
 
               type: 'ticket_closed',
 
-              description: 'Notificação enviada quando um ticket é encerrado por falta de interação do cliente',
+              description: 'Notificação enviada quando um ticket é encerrado por falta de interação do solicitante',
 
               subject_template: 'Ticket {{ticket.ticket_id}} foi encerrado',
 
@@ -17594,7 +17594,7 @@ Ver Ticket: {{ticket.link}}`,
 
                 <tr>
 
-                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Cliente:</td>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Solicitante:</td>
 
                   <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}}</td>
 
@@ -17694,7 +17694,7 @@ Ticket: {{ticket.ticket_id}}
 
 Título: {{ticket.title}}
 
-Cliente: {{customer.name}}
+Solicitante: {{customer.name}}
 
 Prioridade: {{ticket.priority_text}}
 
@@ -17710,13 +17710,13 @@ Ver Ticket: {{ticket.link}}`,
 
             {
 
-              name: 'Cliente Registrado',
+              name: 'Solicitante Registrado',
 
               type: 'customer_registered',
 
-              description: 'Notificação enviada quando um novo cliente é registrado',
+              description: 'Notificação enviada quando um novo solicitante é registrado',
 
-              subject_template: 'Novo cliente registrado: {{customer.name}}',
+              subject_template: 'Novo solicitante registrado: {{customer.name}}',
 
               html_template: `<!DOCTYPE html>
 
@@ -17728,7 +17728,7 @@ Ver Ticket: {{ticket.link}}`,
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Novo Cliente Registrado</title>
+  <title>Novo Solicitante Registrado</title>
 
 </head>
 
@@ -17774,13 +17774,13 @@ Ver Ticket: {{ticket.link}}`,
 
             <td style="padding:32px 40px 16px 40px;color:{{system.colors.text}};">
 
-              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Novo Cliente Registrado</h2>
+              <h2 style="font-size:20px;margin:0 0 12px 0;color:{{system.colors.text}};">Novo Solicitante Registrado</h2>
 
               <p style="font-size:16px;margin:0;">Olá {{user.name}},</p>
 
               <p style="font-size:16px;margin:16px 0 0 0;line-height:1.6;">
 
-                Um novo cliente foi registrado no sistema.
+                Um novo solicitante foi registrado no sistema.
 
               </p>
 
@@ -17866,7 +17866,7 @@ Ver Ticket: {{ticket.link}}`,
 
 </html>`,
 
-              text_template: `Novo Cliente Registrado
+              text_template: `Novo Solicitante Registrado
 
 Nome: {{customer.name}}
 
@@ -18392,7 +18392,7 @@ Atenciosamente,
 
                 <tr>
 
-                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Cliente:</td>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Solicitante:</td>
 
                   <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}} ({{customer.email}})</td>
 
@@ -18474,7 +18474,7 @@ Detalhes do Ticket:
 
 - Criado em: {{ticket.created_at_formatted}}
 
-- Cliente: {{customer.name}} ({{customer.email}})
+- Solicitante: {{customer.name}} ({{customer.email}})
 
 
 
@@ -18612,7 +18612,7 @@ Atenciosamente,
 
                 <tr>
 
-                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Cliente:</td>
+                  <td style="padding:12px 16px;font-weight:600;background:{{system.colors.accent}};color:{{system.colors.text}};">Solicitante:</td>
 
                   <td style="padding:12px 16px;color:{{system.colors.text}};">{{customer.name}} ({{customer.email}})</td>
 
@@ -18716,7 +18716,7 @@ Detalhes do Ticket:
 
 
 
-Cliente: {{customer.name}} ({{customer.email}})
+Solicitante: {{customer.name}} ({{customer.email}})
 
 
 
@@ -19202,7 +19202,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
               type: 'waiting_customer_closure_alert',
 
-              description: 'Alerta enviado 48h após o ticket estar em aguardando cliente sem resposta do cliente - ticket será encerrado em 24h',
+              description: 'Alerta enviado 48h após o ticket estar em aguardando solicitante sem resposta do solicitante - ticket será encerrado em 24h',
 
               subject_template: 'O ticket {{ticket.ticket_id}} será encerrado em 24h - nenhuma resposta recebida',
 
@@ -20015,7 +20015,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
 
 
-  // Alias compatível com cliente legado: /api/sla-resolver
+  // Alias compatível com solicitante legado: /api/sla-resolver
 
   router.get("/sla-resolver", authRequired, async (req, res) => {
 
@@ -20527,7 +20527,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
 
 
-  // Endpoint para company_admin listar clientes da sua empresa
+  // Endpoint para company_admin listar solicitantes da sua empresa
 
   router.get("/company/customers", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
 
@@ -20545,7 +20545,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
 
 
-      // Buscar todos os clientes
+      // Buscar todos os solicitantes
 
       const allCustomers = await storage.getCustomers();
 
@@ -20561,9 +20561,9 @@ Obrigado por nos ajudar a melhorar continuamente.
 
     } catch (error) {
 
-      console.error('Erro ao listar clientes da empresa:', error);
+      console.error('Erro ao listar solicitantes da empresa:', error);
 
-      res.status(500).json({ message: "Falha ao listar clientes da empresa", error: String(error) });
+      res.status(500).json({ message: "Falha ao listar solicitantes da empresa", error: String(error) });
 
     }
 
@@ -20963,7 +20963,7 @@ Obrigado por nos ajudar a melhorar continuamente.
 
           if (userId && userRole) {
 
-            // Adicionar o cliente ao serviço de notificações
+            // Adicionar o solicitante ao serviço de notificações
 
             notificationService.addClient(ws, userId, userRole);
 

@@ -308,7 +308,7 @@ const NotificationSettings: React.FC = () => {
 
       <Separator />
 
-      {/* Notificações Administrativas - apenas para não-clientes */}
+      {/* Notificações Administrativas - apenas para não-solicitantes */}
       {user?.role !== 'customer' && (
         <>
           <div>

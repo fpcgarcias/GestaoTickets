@@ -17,7 +17,7 @@ export class GoogleProvider implements AiProviderInterface {
         .replace('{titulo}', title)
         .replace('{descricao}', description);
       
-      // Para análise de reabertura, usar apenas a mensagem do cliente
+      // Para análise de reabertura, usar apenas a mensagem do solicitante
        if (config.analysis_type === 'reopen') {
          userPrompt = config.user_prompt_template
            .replace('{mensagem_cliente}', description);

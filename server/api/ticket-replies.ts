@@ -69,7 +69,7 @@ async function canUserReplyToTicket(
       return { canReply: true };
     }
 
-    // Para clientes, verificar se é o criador do ticket (já temos o customer_user_id do JOIN)
+    // Para solicitantes, verificar se é o criador do ticket (já temos o customer_user_id do JOIN)
     if (userRole === 'customer') {
       if (ticket.customer_user_id === userId) {
         return { canReply: true };
@@ -199,7 +199,7 @@ export async function POST(req: Request, res: Response) {
       .values(replyData)
       .returning();
 
-    // Se a resposta é do cliente, zerar flag de alerta de encerramento por falta de interação
+    // Se a resposta é do solicitante, zerar flag de alerta de encerramento por falta de interação
     if (ticket.customer_user_id != null && ticket.customer_user_id === sessionUserId) {
       await db.update(tickets).set({ waiting_customer_alert_sent_at: null }).where(eq(tickets.id, ticketId));
     }

@@ -76,7 +76,7 @@ export const TICKET_TYPES = [
 export const DEPARTMENTS = [
   { id: 1, value: '1', label: 'Suporte Técnico' },
   { id: 2, value: '2', label: 'Faturamento' },
-  { id: 3, value: '3', label: 'Atendimento ao Cliente' }
+  { id: 3, value: '3', label: 'Atendimento ao Solicitante' }
 ];
 
 export const PERIOD_OPTIONS = [
@@ -92,7 +92,7 @@ export function translateTicketStatus(status: string): string {
     'new': 'Novo',
     'ongoing': 'Em Andamento', 
     'suspended': 'Suspenso',
-    'waiting_customer': 'Aguardando Cliente',
+    'waiting_customer': 'Aguardando Solicitante',
     'escalated': 'Escalado',
     'in_analysis': 'Em Análise',
     'pending_deployment': 'Aguardando Deploy',
@@ -295,7 +295,7 @@ export const translateUserRole = (role: string, locale: string = 'pt-BR'): strin
   const roleMap: Record<string, string> = {
     'admin': '👑 Admin',
     'support': '🎧 Suporte',
-    'customer': '👤 Cliente',
+    'customer': '👤 Solicitante',
     'quality': '📝 Qualidade',
     'triage': '🔍 Triagem',
     'company_admin': '🏢 Administrador',

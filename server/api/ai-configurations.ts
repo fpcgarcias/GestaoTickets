@@ -273,7 +273,7 @@ export async function testAiConfiguration(req: Request, res: Response) {
     // Para admin, usar o companyId da sessão ou null para token global
     const forceCompanyId = userRole === 'admin' ? (testCompanyId || userCompanyId || null) : testCompanyId;
     
-    // Para análise de reabertura, usar apenas a descrição como mensagem do cliente
+    // Para análise de reabertura, usar apenas a descrição como mensagem do solicitante
     if (analysis_type === 'reopen') {
       const result = await aiService.testConfiguration(testConfig, '', test_description, forceCompanyId);
       res.json({

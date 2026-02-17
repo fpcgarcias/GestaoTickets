@@ -177,7 +177,7 @@ export const TicketForm = () => {
 
   const companyColors = getCompanyColors();
 
-  // Não precisamos mais buscar todos os clientes antecipadamente
+  // Não precisamos mais buscar todos os solicitantes antecipadamente
   // O componente CustomerSearch fará a busca conforme necessário
 
   const form = useForm({
@@ -407,7 +407,7 @@ export const TicketForm = () => {
     if (user?.role === 'customer') {
       // Para 'customer', usar dados do usuário logado
       ticketDataToSend.customer_email = user.email;
-      // Assumindo que user.id é o ID do cliente. Se for diferente, ajuste aqui.
+      // Assumindo que user.id é o ID do solicitantes. Se for diferente, ajuste aqui.
       // E que o backend espera customer_id.
       if (user.id) { // user.id pode ser string ou number dependendo da sua definição de AuthUser
         (ticketDataToSend as any).customer_id = typeof user.id === 'string' ? parseInt(user.id) : user.id;
@@ -417,9 +417,9 @@ export const TicketForm = () => {
         (ticketDataToSend as any).company_id = user.companyId; // Corrigido de user.company_id para user.companyId
       }
     } else {
-      // Para outras roles, usar o cliente selecionado no formulário
+      // Para outras roles, usar o solicitante selecionado no formulário
       if (data.customerId) {
-        // Os dados do cliente já foram definidos pelo CustomerSearch
+        // Os dados do solicitante já foram definidos pelo CustomerSearch
         (ticketDataToSend as any).customer_id = data.customerId;
         // O email já está no data.customer_email
       }
@@ -548,10 +548,10 @@ export const TicketForm = () => {
     }
   }, [selectedCompanyId, isAdmin, form]);
 
-  // Efeito para pré-selecionar o cliente quando o usuário for customer
+  // Efeito para pré-selecionar o solicitante quando o usuário for customer
   useEffect(() => {
     if (user && (user.role as any) === 'customer') {
-      // Pré-selecionar o cliente e email diretamente dos dados do usuário
+      // Pré-selecionar o solicitante e email diretamente dos dados do usuário
       form.setValue('customer_email', user.email);
       if (user.id) {
         form.setValue('customerId', typeof user.id === 'string' ? parseInt(user.id) : user.id);
@@ -602,14 +602,14 @@ export const TicketForm = () => {
                   <FormItem>
                     <FormLabel>{formatMessage('new_ticket.customer')}</FormLabel>
                     {(user?.role as any) === 'customer' ? (
-                      // Se for cliente, mostrar o nome do próprio cliente sem opção de mudança
+                      // Se for solicitante, mostrar o nome do próprio solicitante sem opção de mudança
                       <Input 
                         value={user?.name || ''} // Usar user.name diretamente
                         disabled
                         className="bg-muted"
                       />
                     ) : (
-                      // Se for admin/support, mostrar o componente de busca de clientes
+                      // Se for admin/support, mostrar o componente de busca de solicitantes
                       <CustomerSearch
                         value={field.value}
                         onValueChange={(customerId, customer) => {
@@ -641,7 +641,7 @@ export const TicketForm = () => {
                         onBlur={field.onBlur}
                         name={field.name}
                         ref={field.ref}
-                        disabled={(user?.role as any) === 'customer' || ((user?.role as any) !== 'customer' && !form.getValues('customerId'))} // Desabilitar se não for customer e nenhum cliente selecionado
+                        disabled={(user?.role as any) === 'customer' || ((user?.role as any) !== 'customer' && !form.getValues('customerId'))} // Desabilitar se não for customer e nenhum solicitante selecionado
                         className={(user?.role as any) === 'customer' ? "bg-muted" : ""}
                       />
                     </FormControl>

@@ -138,12 +138,12 @@ const AVAILABLE_VARIABLES = {
     ]
   },
   customer: {
-    label: 'Dados do Cliente',
+    label: 'Dados do Solicitante',
     variables: [
-      { key: 'customer.name', description: 'Nome do cliente' },
-      { key: 'customer.email', description: 'Email do cliente' },
-      { key: 'customer.phone', description: 'Telefone do cliente' },
-      { key: 'customer.company', description: 'Empresa do cliente' }
+      { key: 'customer.name', description: 'Nome do solicitante' },
+      { key: 'customer.email', description: 'Email do solicitante' },
+      { key: 'customer.phone', description: 'Telefone do solicitante' },
+      { key: 'customer.company', description: 'Empresa do solicitante' }
     ]
   },
   user: {

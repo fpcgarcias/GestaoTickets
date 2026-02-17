@@ -23,7 +23,7 @@ export type TicketStatus =
 // Status que PAUSAM o SLA (tempo não conta)
 export const SLA_PAUSED_STATUSES: TicketStatus[] = [
   'suspended',       // Aguardando terceiros
-  'waiting_customer', // Aguardando cliente
+  'waiting_customer', // Aguardando solicitante
   'escalated',       // Escalado - pausar SLA
   'pending_deployment' // Aguardando janela de deploy
 ];
@@ -81,7 +81,7 @@ export const STATUS_CONFIG = {
     icon: '⏸️'
   },
   waiting_customer: {
-    label: 'Aguardando Cliente',
+    label: 'Aguardando Solicitante',
     color: 'gray',
     bgColor: 'bg-gray-100',
     textColor: 'text-gray-800',

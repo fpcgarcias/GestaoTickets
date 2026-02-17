@@ -431,7 +431,7 @@ const AdvancedNotificationSettings: React.FC = () => {
             <div>
               <h4 className="font-semibold mb-2">Notificações Administrativas:</h4>
               <ul className="text-sm space-y-1">
-                <li>✓ Novo cliente registrado</li>
+                <li>✓ Novo solicitante registrado</li>
                 <li>✓ Novo usuário criado</li>
                 <li>✓ Manutenção do sistema</li>
                 <li>✓ Escalação automática por SLA</li>

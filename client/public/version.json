@@ -5,11 +5,14 @@
     {
       "version": "1.2.4",
       "date": "2026-02-16",
-      "title": "Correções de consistência visual (UI).",
-      "type": "bugfix",
+      "title": "Adição de novas funcionalidades.",
+      "type": "feature",
       "changes": {
-        "improved": [
-          "Adicionado contador de chamados na listagem de tickets."
+        "new": [
+          "Unificação dos cadastros de usuários, clientes e atendentes em uma única tela.",
+          "Criação de uma nova hierarquia de setores, permitindo relatórios de quais setores mais demandam atenção.",
+          "Clientes agora são chamados de \"Solicitantes\", facilitando a identificação de quem está solicitando o serviço.",
+          "Adicionado novo contador de chamados na listagem de tickets."
         ],
         "fixed": [
           "Padronização do componente de filtro de período em todas as telas do sistema.",

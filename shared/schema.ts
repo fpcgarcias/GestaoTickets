@@ -25,7 +25,7 @@ export const slaModeEnum = pgEnum('sla_mode', [
 // export const ticketPriorityEnum = pgEnum('ticket_priority', ['low', 'medium', 'high', 'critical']);
 export const userRoleEnum = pgEnum('user_role', [
   'admin',            // Acesso total ao sistema, multiempresa
-  'customer',         // Cliente da empresa
+  'customer',         // Solicitante da empresa
   'support',          // Atendente
   'manager',          // Gestor da equipe
   'supervisor',       // Nível entre manager e support
@@ -380,7 +380,7 @@ export const emailTemplateTypeEnum = pgEnum('email_template_type', [
   'ticket_closed',        // Ticket encerrado
   'ticket_escalated',     // Ticket escalado
   'ticket_due_soon',      // Vencimento próximo
-  'customer_registered',  // Novo cliente registrado
+  'customer_registered',  // Novo solicitante registrado
   'user_created',         // Novo usuário criado
   'system_maintenance',   // Manutenção do sistema
   'ticket_participant_added',    // Participante adicionado ao ticket

@@ -313,7 +313,7 @@ export class AiService {
   }
 
   /**
-   * Analisa se o ticket deve ser reaberto com base na mensagem do cliente usando IA
+   * Analisa se o ticket deve ser reaberto com base na mensagem do solicitante usando IA
    */
   async analyzeTicketReopen(
     ticketId: number,
@@ -400,7 +400,7 @@ export class AiService {
         return { shouldReopen: false, aiResult: { justification: 'Provedor de IA não disponível' }, usedFallback: true };
       }
       
-      // Para análise de reabertura, enviar APENAS a mensagem do cliente
+      // Para análise de reabertura, enviar APENAS a mensagem do solicitante
       // Não precisamos do título nem descrição do ticket original
       
       // Chamar IA

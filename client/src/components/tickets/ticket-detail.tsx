@@ -83,7 +83,7 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
           </div>
         </div>
         
-        {/* Exibir detalhes do cliente apenas se ele existir (pelo ID ou nome) */}
+        {/* Exibir detalhes do solicitante apenas se ele existir (pelo ID ou nome) */}
         {ticket.customer?.id || ticket.customer?.name ? (
           <div className="flex items-center gap-2 mb-4 bg-primary/10 p-3 rounded-md">
             <Building className="h-5 w-5 text-primary shrink-0" />
@@ -102,7 +102,7 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
             </div>
           </div>
         ) : ticket.customer_email ? (
-          // Se não há cliente cadastrado, mas temos o email, mostramos isso
+          // Se não há solicitante cadastrado, mas temos o email, mostramos isso
           <div className="flex items-center gap-2 mb-4 bg-amber-500/10 p-3 rounded-md">
             <Building className="h-5 w-5 text-amber-500" />
             <div>

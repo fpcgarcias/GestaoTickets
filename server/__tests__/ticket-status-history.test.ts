@@ -32,7 +32,7 @@ describe('Histórico de Status de Tickets', () => {
     }).returning();
     testUserId = user.id;
 
-    // Criar cliente de teste
+    // Criar solicitante de teste
     const [customer] = await db.insert(customers).values({
       name: 'Test Customer - History',
       email: `test-history-customer-${timestamp}@example.com`,

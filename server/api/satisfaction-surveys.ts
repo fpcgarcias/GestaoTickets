@@ -242,7 +242,7 @@ export async function POST(req: Request, res: Response) {
   }
 }
 
-// GET /api/satisfaction-surveys/pending - Obter pesquisas pendentes para o cliente autenticado
+// GET /api/satisfaction-surveys/pending - Obter pesquisas pendentes para o solicitante autenticado
 export async function getPendingForCustomer(req: Request, res: Response) {
   try {
     if (!req.session || !req.session.userId) {

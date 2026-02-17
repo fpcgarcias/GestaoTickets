@@ -729,7 +729,7 @@ const DepartmentManagement: React.FC = () => {
               />
             </div>
 
-            {/* Toggle: Fechamento automático por falta de interação (aguardando cliente) */}
+            {/* Toggle: Fechamento automático por falta de interação (aguardando solicitante) */}
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div className="space-y-1">
                 <Label htmlFor="auto_close_waiting_customer" className="font-medium">

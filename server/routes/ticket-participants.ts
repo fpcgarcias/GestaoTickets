@@ -70,7 +70,7 @@ async function validateSameCompanyUsers(ticketCompanyId: number | null, userIds:
   return { valid: true, invalidUsers: [] };
 }
 
-// 🔥 FASE 5.1: Função para validar se usuários existem e são válidos (atendentes/clientes)
+// 🔥 FASE 5.1: Função para validar se usuários existem e são válidos (atendentes/solicitantes)
 async function validateUserExistsAndValid(userIds: number[]): Promise<{ valid: boolean; invalidUsers: number[]; reason?: string }> {
   const invalidUsers: number[] = [];
   
@@ -86,7 +86,7 @@ async function validateUserExistsAndValid(userIds: number[]): Promise<{ valid: b
       continue;
     }
     
-    // Verificar se o usuário é um atendente (official) ou cliente (customer)
+    // Verificar se o usuário é um atendente (official) ou solicitante (customer)
     const [official] = await db
       .select()
       .from(officials)
@@ -108,7 +108,7 @@ async function validateUserExistsAndValid(userIds: number[]): Promise<{ valid: b
     return { 
       valid: false, 
       invalidUsers,
-      reason: "Apenas atendentes e clientes existentes podem ser adicionados como participantes"
+      reason: "Apenas atendentes e solicitantes existentes podem ser adicionados como participantes"
     };
   }
   
@@ -222,7 +222,7 @@ router.post('/:ticketId', authRequired, canAddParticipants, async (req: Request,
       });
     }
 
-    // 🔥 FASE 5.1: Validar se usuários existem e são válidos (atendentes/clientes)
+    // 🔥 FASE 5.1: Validar se usuários existem e são válidos (atendentes/solicitantes)
     const userValidation = await validateUserExistsAndValid(userIds);
     if (!userValidation.valid) {
       return res.status(400).json({ 
@@ -477,7 +477,7 @@ router.put('/:ticketId', authRequired, participantManagementRequired, async (req
       });
     }
 
-    // 🔥 FASE 5.1: Validar se usuários existem e são válidos (atendentes/clientes)
+    // 🔥 FASE 5.1: Validar se usuários existem e são válidos (atendentes/solicitantes)
     const userValidation = await validateUserExistsAndValid(userIds);
     if (!userValidation.valid) {
       return res.status(400).json({ 

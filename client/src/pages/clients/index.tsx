@@ -65,7 +65,7 @@ export default function ClientsIndex() {
       });
       
       const res = await fetch(`/api/customers?${params}`);
-      if (!res.ok) throw new Error('Erro ao carregar clientes');
+      if (!res.ok) throw new Error('Erro ao carregar solicitantes');
       return res.json();
     },
     // Atualizar apenas entre 6h e 21h (horário comercial) - dinâmico
@@ -113,7 +113,7 @@ export default function ClientsIndex() {
   };
 
   // Verificar se o usuário tem permissão para acessar esta página
-  // 'admin', 'support', 'company_admin', 'manager' e 'supervisor' podem ver a lista de clientes
+  // 'admin', 'support', 'company_admin', 'manager' e 'supervisor' podem ver a lista de solicitantes
   const hasAccess = user && (user.role === 'admin' || user.role === 'support' || user.role === 'company_admin' || user.role === 'manager' || user.role === 'supervisor');
 
   if (!hasAccess) {
@@ -130,7 +130,7 @@ export default function ClientsIndex() {
     );
   }
   
-  // Verificar o status do cliente com base no usuário associado
+  // Verificar o status do solicitante com base no usuário associado
   const getClientStatus = (client: Customer & { active?: boolean }) => {
     // Se já tiver a propriedade active, usar diretamente
     if ('active' in client) {
@@ -138,10 +138,10 @@ export default function ClientsIndex() {
     }
     
     // Caso contrário, verificar com base no usuário
-    // Podemos assumir que o cliente está ativo se não temos informação contrária
+    // Podemos assumir que o solicitante está ativo se não temos informação contrária
     if (!client.user_id) return true;
     
-    // Se o cliente estiver com user_id mas o status não vier do backend, assumimos que está ativo
+    // Se o solicitante estiver com user_id mas o status não vier do backend, assumimos que está ativo
     return true;
   };
 
@@ -174,7 +174,7 @@ export default function ClientsIndex() {
         open={showAddDialog}
         onOpenChange={setShowAddDialog}
         onCreated={() => {
-          // Atualizar a lista de clientes automaticamente
+          // Atualizar a lista de solicitantes automaticamente
           queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
         }}
       />

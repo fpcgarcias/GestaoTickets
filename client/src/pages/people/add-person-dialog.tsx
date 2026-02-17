@@ -206,7 +206,7 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
       return;
     }
     if (onlyCustomer && !formData.isRequester) {
-      toast({ title: formatMessage('common.error'), description: 'Atendentes só podem cadastrar solicitantes (clientes). Marque Solicitante.', variant: 'destructive' });
+      toast({ title: formatMessage('common.error'), description: 'Atendentes só podem cadastrar solicitantes (solicitantes). Marque Solicitante.', variant: 'destructive' });
       return;
     }
     if (!onlyCustomer && !formData.isRequester && !formData.isOfficial && !formData.role) {

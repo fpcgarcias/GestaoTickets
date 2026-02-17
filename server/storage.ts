@@ -934,7 +934,7 @@ export class MemStorage implements IStorage {
         !ticket.assignedToId // Ou não atribuídos a ninguém (para o atendente pegar)
       );
     } else if (userRole === 'customer') {
-      // Clientes veem apenas seus próprios tickets
+      // solicitantes veem apenas seus próprios tickets
       const customer = await this.getCustomerByEmail('customer@example.com');
       if (!customer) return [];
       

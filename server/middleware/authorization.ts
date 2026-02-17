@@ -178,7 +178,7 @@ export function ticketAccessRequired(req: Request, res: Response, next: NextFunc
             return next(); // Roles de atendimento têm acesso
           }
 
-          // Para clientes, verificar se é o criador do ticket
+          // Para solicitantes, verificar se é o criador do ticket
           if (userRole === 'customer') {
             if (ticket.customer_id) {
               return db
@@ -226,7 +226,7 @@ export function participantManagementRequired(req: Request, res: Response, next:
     return next();
   }
   
-  // Para clientes, verificar se é o criador do ticket ou participante (ou se é também official)
+  // Para solicitantes, verificar se é o criador do ticket ou participante (ou se é também official)
   if (userRole === 'customer') {
     // 🔥 FASE 5.3: Verificar se o customer também é official (atendente)
     db
@@ -300,7 +300,7 @@ export function canAddParticipants(req: Request, res: Response, next: NextFuncti
     return next();
   }
   
-  // Para clientes, verificar se é o criador do ticket
+  // Para solicitantes, verificar se é o criador do ticket
   if (userRole === 'customer') {
     storage.getTicket(ticketId, userRole, req.session?.companyId)
       .then(ticket => {
@@ -345,7 +345,7 @@ export function canRemoveParticipants(req: Request, res: Response, next: NextFun
     return next();
   }
   
-  // Para clientes, verificar se é o criador do ticket
+  // Para solicitantes, verificar se é o criador do ticket
   if (userRole === 'customer') {
     storage.getTicket(ticketId, userRole, req.session?.companyId)
       .then(ticket => {

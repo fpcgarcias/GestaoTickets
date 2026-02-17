@@ -81,15 +81,15 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
   const [responsibleUserId, setResponsibleUserId] = React.useState<string>("");
   const [calendarOpen, setCalendarOpen] = React.useState(false);
   
-  // 🔥 CORREÇÃO: Determinar se o usuário é cliente NESTE TICKET específico
-  // Só é cliente se o role for 'customer' E for o criador do ticket
-  // Atendentes (company_admin, admin, manager, supervisor, support) NUNCA são clientes
+  // 🔥 CORREÇÃO: Determinar se o usuário é solicitante NESTE TICKET específico
+  // Só é solicitante se o role for 'customer' E for o criador do ticket
+  // Atendentes (company_admin, admin, manager, supervisor, support) NUNCA são solicitantes
   const isCustomerForThisTicket = user?.role === 'customer' && 
     ticket.customer?.user_id && user?.id && ticket.customer.user_id === user.id;
   
   // Permissões são controladas por isCustomerForThisTicket nas renderizações abaixo
   
-  // Buscar a lista de atendentes disponíveis (apenas para não-clientes)
+  // Buscar a lista de atendentes disponíveis (apenas para não-solicitantes)
   const { data: officialsResponse, isLoading: isLoadingOfficials } = useQuery({
     queryKey: ["/api/officials", ticket.department_id],
     queryFn: async () => {
@@ -102,7 +102,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
       if (!res.ok) throw new Error('Erro ao carregar atendentes');
       return res.json();
     },
-    enabled: !isCustomerForThisTicket, // Só busca se não for cliente neste ticket
+    enabled: !isCustomerForThisTicket, // Só busca se não for solicitante neste ticket
   });
 
   // Filtrar apenas atendentes ativos e ordenar alfabeticamente
@@ -252,7 +252,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
 
   const onSubmit = (data: any) => {
     
-    // Para clientes, sempre manter status e atendente originais
+    // Para solicitantes, sempre manter status e atendente originais
     const statusToUse = isCustomerForThisTicket ? ticket.status : data.status;
     const assignedToUse = isCustomerForThisTicket ? ticket.assigned_to_id : data.assigned_to_id;
     
@@ -270,7 +270,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
       previousStatus: statusChanged ? ticket.status : undefined,
     };
     
-    // Só adicionar assigned_to_id se não for cliente
+    // Só adicionar assigned_to_id se não for solicitante
     if (!isCustomerForThisTicket) {
       requestData.assigned_to_id = assignedToUse;
     }
@@ -288,7 +288,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
       return ticket.official.name;
     }
     
-    // Se não tiver o nome no ticket, buscar na lista de atendentes (só para não-clientes)
+    // Se não tiver o nome no ticket, buscar na lista de atendentes (só para não-solicitantes)
     if (!isCustomerForThisTicket && officials && officials.length > 0) {
       const official = officials.find((o: Official) => o.id === ticket.assigned_to_id);
       return official?.name || formatMessage('ticket_reply.official_not_found');
@@ -363,7 +363,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                   <FormItem>
                     <FormLabel>{formatMessage('ticket_reply.status')}</FormLabel>
                     {isCustomerForThisTicket ? (
-                      // Para clientes: campo somente-leitura mostrando o status atual
+                      // Para solicitantes: campo somente-leitura mostrando o status atual
                       <Input 
                         value={formatMessage(`tickets.${ticket.status}`)}
                         readOnly 
@@ -426,7 +426,7 @@ export const TicketReplyForm: React.FC<TicketReplyFormProps> = ({ ticket }) => {
                   <FormItem>
                     <FormLabel>{formatMessage('ticket_reply.responsible_official')}</FormLabel>
                     {isCustomerForThisTicket ? (
-                      // Para clientes: campo somente-leitura mostrando o atendente atual
+                      // Para solicitantes: campo somente-leitura mostrando o atendente atual
                       <Input 
                         value={getCurrentOfficialName()}
                         readOnly 

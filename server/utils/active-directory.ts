@@ -26,7 +26,7 @@ const adConfig = {
   }
 };
 
-// Função para criar cliente LDAP
+// Função para criar solicitante LDAP
 function createLDAPClient(): Client {
   return new Client({
     url: adConfig.url,

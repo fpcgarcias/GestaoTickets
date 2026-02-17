@@ -170,7 +170,7 @@ export const ParticipantManagement: React.FC<ParticipantManagementProps> = ({
   // Verificar permissões
   const canManageParticipants = user?.role && (
     ['admin', 'company_admin', 'manager', 'supervisor', 'support'].includes(user.role) ||
-    (user.role === 'customer' && user.id === ticketCreatorId) // Cliente criador do ticket pode adicionar participantes
+    (user.role === 'customer' && user.id === ticketCreatorId) // Solicitante criador do ticket pode adicionar participantes
   );
   const isParticipant = Array.isArray(participants) && participants.some((p: any) => p.user_id === user?.id);
 

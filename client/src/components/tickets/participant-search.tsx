@@ -73,7 +73,7 @@ export function ParticipantSearch({
     return selectedUsers.some(user => user.id === userId);
   };
 
-  // 🔥 FASE 5.1: Filtrar usuários por empresa e validar se são atendentes/clientes
+  // 🔥 FASE 5.1: Filtrar usuários por empresa e validar se são atendentes/solicitantes
   const filteredUsers = allUsers.filter(user => {
     // Excluir usuários que já são participantes
     if (excludeUserIds.includes(user.id)) return false;

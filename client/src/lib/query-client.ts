@@ -51,7 +51,7 @@ export const queryConfigs = {
     // refetchInterval removido - usar useBusinessHoursRefetchInterval nos componentes
   },
   
-  // Dados que mudam ocasionalmente (usuários, clientes)
+  // Dados que mudam ocasionalmente (usuários, solicitantes)
   dynamic: {
     staleTime: 2 * 60 * 1000, // 2 minutos
     gcTime: 5 * 60 * 1000, // 5 minutos
@@ -70,7 +70,7 @@ export const queryConfigs = {
   }
 };
 
-// Criar cliente com configurações otimizadas
+// Criar solicitante com configurações otimizadas
 export const queryClient = new QueryClient({
   defaultOptions,
   
@@ -117,7 +117,7 @@ export const queryKeys = {
     current: () => createQueryKey('users', { type: 'current' })
   },
   
-  // Clientes
+  // solicitantes
   customers: {
     all: () => createQueryKey('customers'),
     list: (filters?: any) => createQueryKey('customers', { type: 'list', ...filters }),

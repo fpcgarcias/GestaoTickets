@@ -140,7 +140,7 @@ export class DatabaseStorage implements IStorage {
   
   // Customer operations
   async getCustomers(): Promise<Customer[]> {
-    // Busca clientes já com nome da empresa e status do usuário associado, eliminando N+1 queries
+    // Busca solicitantes já com nome da empresa e status do usuário associado, eliminando N+1 queries
     return db
       .select({
         id: customers.id,
@@ -525,7 +525,7 @@ export class DatabaseStorage implements IStorage {
       const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
       if (!customer) return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       
-      // Cliente pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
+      // Solicitante pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
       const customerCondition = or(
         eq(tickets.customer_id, customer.id), // Tickets que ele criou
         exists( // Tickets onde ele é participante
@@ -1473,7 +1473,7 @@ export class DatabaseStorage implements IStorage {
         const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
         if (!customer) return { total: 0, byStatus: {}, byPriority: {} };
         
-        // Cliente pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
+        // Solicitante pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
         const customerCondition = or(
           eq(tickets.customer_id, customer.id), // Tickets que ele criou
           exists( // Tickets onde ele é participante
@@ -2108,7 +2108,7 @@ export class DatabaseStorage implements IStorage {
       const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
       if (!customer) return [];
       
-      // Cliente pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
+      // Solicitante pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
       const customerCondition = or(
         eq(tickets.customer_id, customer.id), // Tickets que ele criou
         exists( // Tickets onde ele é participante

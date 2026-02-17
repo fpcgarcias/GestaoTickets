@@ -1,6 +1,6 @@
 /**
  * Roles que cada perfil pode atribuir (hierarquia). Deve espelhar o backend (server/endpoints/people.ts).
- * Customer não acessa a tela; support só pode cadastrar cliente; demais só podem cadastrar cargos abaixo.
+ * Customer não acessa a tela; support só pode cadastrar solicitante; demais só podem cadastrar cargos abaixo.
  */
 export function getAllowedRolesToAssign(actorRole: string): string[] {
   switch (actorRole) {

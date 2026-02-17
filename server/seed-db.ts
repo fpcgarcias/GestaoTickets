@@ -39,16 +39,16 @@ async function seedDatabase() {
   }).returning();
 
   const [customerUser] = await db.insert(users).values({
-    username: "cliente",
-    password: "cliente123",
-    email: "cliente@example.com",
-    name: "Usuário Cliente",
+    username: "solicitante",
+    password: "solicitante123",
+    email: "solicitante@example.com",
+    name: "Usuário solicitante",
     role: "customer",
     avatar_url: null,
   }).returning();
   
-  // Adicionar cliente
-  console.log("Adicionando clientes...");
+  // Adicionar solicitante
+  console.log("Adicionando solicitantes...");
   const [customer] = await db.insert(customers).values({
     name: "Empresa ABC",
     email: "contato@empresaabc.com",

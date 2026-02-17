@@ -31,13 +31,13 @@ interface CustomerSearchProps {
   onValueChange: (customerId: number, customer: Customer) => void;
   placeholder?: string;
   disabled?: boolean;
-  companyId?: number; // Para filtrar clientes por empresa (admin)
+  companyId?: number; // Para filtrar solicitantes por empresa (admin)
 }
 
 export function CustomerSearch({ 
   value, 
   onValueChange, 
-  placeholder = "Buscar cliente...",
+  placeholder = "Buscar solicitante...",
   disabled = false,
   companyId
 }: CustomerSearchProps) {
@@ -46,7 +46,7 @@ export function CustomerSearch({
   const { user } = useAuth();
   const { formatMessage } = useI18n();
 
-    // Query para buscar TODOS os clientes da empresa
+    // Query para buscar TODOS os solicitantes da empresa
   const { data: allCustomers = [], isLoading, error } = useQuery<Customer[]>({
     queryKey: ["/api/customers/search", companyId],
     queryFn: async () => {
@@ -58,7 +58,7 @@ export function CustomerSearch({
       const response = await fetch(`/api/customers?${params.toString()}`);
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Falha ao buscar clientes: ${response.status} - ${errorText}`);
+        throw new Error(`Falha ao buscar solicitantes: ${response.status} - ${errorText}`);
       }
       const data = await response.json();
       
@@ -71,7 +71,7 @@ export function CustomerSearch({
     enabled: !disabled,
   });
 
-  // Filtrar clientes localmente conforme o usuário digita
+  // Filtrar solicitantes localmente conforme o usuário digita
   const filteredCustomers = allCustomers.filter(customer => {
     if (!search) return true;
     const searchLower = search.toLowerCase();
@@ -85,7 +85,7 @@ export function CustomerSearch({
   // Verificar se deve mostrar informação da empresa (apenas para admins)
   const showCompanyInfo = user?.role === 'admin';
 
-  // Encontrar o cliente selecionado
+  // Encontrar o solicitante selecionado
   const selectedCustomer = allCustomers.find(customer => customer.id === value);
 
   return (

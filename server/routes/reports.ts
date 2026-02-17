@@ -20,7 +20,7 @@ function translateTicketStatus(status: string): string {
     'new': 'Novo',
     'ongoing': 'Em Andamento', 
     'suspended': 'Suspenso',
-    'waiting_customer': 'Aguardando Cliente',
+    'waiting_customer': 'Aguardando Solicitante',
     'escalated': 'Escalado',
     'in_analysis': 'Em Análise',
     'pending_deployment': 'Aguardando Deploy',
@@ -835,7 +835,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
     const exportHeaders = [
       'Ticket ID', 
       'Título', 
-      'Cliente', 
+      'Solicitante', 
       'Departamento', 
       'Atribuído a', 
       'Status', 
@@ -867,7 +867,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       const excelData = processedTickets.map(ticket => ({
         'Ticket ID': ticket.ticket_id,
         'Título': ticket.title,
-        'Cliente': ticket.customer_name,
+        'Solicitante': ticket.customer_name,
         'Departamento': ticket.department_name,
         'Atribuído a': ticket.assigned_to_name === 'N/A' || !ticket.assigned_to_name ? 'Não Atribuído' : ticket.assigned_to_name,
         'Status': translateTicketStatus(ticket.status),
@@ -882,7 +882,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       const colWidths = [
         { wch: 15 },  // Ticket ID
         { wch: 35 },  // Título
-        { wch: 25 },  // Cliente
+        { wch: 25 },  // Solicitante
         { wch: 20 },  // Departamento
         { wch: 25 },  // Atribuído a
         { wch: 12 },  // Status
@@ -2814,8 +2814,8 @@ router.get('/clients', authRequired, async (req: Request, res: Response) => {
       recent_comments: recentComments
     });
   } catch (error) {
-    console.error('Erro ao gerar relatório de clientes:', error);
-    return res.status(500).json({ message: 'Erro ao gerar relatório de clientes' });
+    console.error('Erro ao gerar relatório de solicitantes:', error);
+    return res.status(500).json({ message: 'Erro ao gerar relatório de solicitantes' });
   }
 });
 

@@ -118,7 +118,7 @@ export default function SLAConfigurations() {
   const [editingSLA, setEditingSLA] = useState<SLAConfiguration | null>(null);
   // Unidade de tempo do formulário (apenas para UI). Mantemos o estado interno sempre em horas
   const [timeUnit, setTimeUnit] = useState<'hours' | 'days'>('hours');
-  // Estado do combobox de categoria (busca + rolagem, igual ao modal de clientes/atendentes)
+  // Estado do combobox de categoria (busca + rolagem, igual ao modal de solicitantes/atendentes)
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
   
@@ -1538,7 +1538,7 @@ export default function SLAConfigurations() {
                   </Select>
                 </div>
 
-                {/* Seletor de Categoria (apenas quando modo = category) - com barra de busca e rolagem, igual ao modal de clientes */}
+                {/* Seletor de Categoria (apenas quando modo = category) - com barra de busca e rolagem, igual ao modal de solicitantes */}
                 {departmentSlaMode === 'category' && (
                   <div className="space-y-2">
                     <Label>{formatMessage('sla_config.category')} *</Label>

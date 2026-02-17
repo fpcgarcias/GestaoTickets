@@ -1,6 +1,6 @@
 /**
  * Controle de envio de e-mail em ambiente de desenvolvimento.
- * Evita que e-mails de teste disparem para clientes reais (ex.: quando o banco é cópia da produção).
+ * Evita que e-mails de teste disparem para solicitantes reais (ex.: quando o banco é cópia da produção).
  *
  * Variáveis de ambiente:
  * - EMAIL_DEV_DISABLE=true  → em dev, não envia nenhum e-mail (apenas log).
