@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import { formatDate } from '@/lib/utils';
 import { Ticket } from '@shared/schema';
 import { StatusDot } from './status-badge';
@@ -10,15 +11,20 @@ import { AttachmentsList } from './attachments-list';
 import { ParticipantManagement } from './participant-management';
 import { ServiceProviderManagement } from './service-provider-management';
 import { TextWithBreakAll } from '@/components/ui/text-with-links';
-import { Building, UserCircle2 } from 'lucide-react';
+import { Building, UserCircle2, Network } from 'lucide-react';
 import { useI18n } from '@/i18n';
+import { useAuth } from '@/hooks/use-auth';
 
 interface TicketDetailProps {
   ticketId: number;
 }
 
+const ROLES_CAN_SEE_SECTOR = ['admin', 'company_admin', 'manager', 'supervisor', 'support'];
+
 export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
   const { formatMessage, locale } = useI18n();
+  const { user } = useAuth();
+  const canSeeSector = user && ROLES_CAN_SEE_SECTOR.includes(user.role);
   const { data: ticket, isLoading, error } = useQuery<Ticket>({
     queryKey: [`/api/tickets/${ticketId}`],
   });
@@ -80,12 +86,18 @@ export const TicketDetail: React.FC<TicketDetailProps> = ({ ticketId }) => {
         {/* Exibir detalhes do cliente apenas se ele existir (pelo ID ou nome) */}
         {ticket.customer?.id || ticket.customer?.name ? (
           <div className="flex items-center gap-2 mb-4 bg-primary/10 p-3 rounded-md">
-            <Building className="h-5 w-5 text-primary" />
-            <div>
+            <Building className="h-5 w-5 text-primary shrink-0" />
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
               <span className="text-sm text-primary font-medium">{formatMessage('tickets.client')}: </span>
               <span className="text-sm text-primary">{ticket.customer?.name}</span>
               {ticket.customer?.email && (
-                <> - <span className="text-sm text-primary">{ticket.customer?.email}</span></>
+                <span className="text-sm text-primary">- {ticket.customer?.email}</span>
+              )}
+              {canSeeSector && (ticket.customer as any)?.sector_name && (
+                <Badge variant="secondary" className="text-xs font-normal shrink-0 inline-flex items-center gap-1">
+                  <Network className="h-3 w-3" />
+                  {(ticket.customer as any).sector_name}
+                </Badge>
               )}
             </div>
           </div>

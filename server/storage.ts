@@ -3,6 +3,8 @@ import {
   InsertUser, 
   Customer, 
   InsertCustomer,
+  Sector,
+  InsertSector,
   Official,
   InsertOfficial,
   Ticket,
@@ -36,14 +38,25 @@ export interface IStorage {
   getCustomers(): Promise<Customer[]>;
   getCustomer(id: number): Promise<Customer | undefined>;
   getCustomerByEmail(email: string): Promise<Customer | undefined>;
+  getCustomerByUserId(userId: number): Promise<Customer | undefined>;
+  /** Customer com mesmo email e company_id ainda não vinculado a nenhum user (user_id null). */
+  getCustomerUnlinkedByEmailAndCompany(email: string, companyId: number | null): Promise<Customer | undefined>;
   createCustomer(customerData: InsertCustomer): Promise<Customer>;
   updateCustomer(id: number, customerData: Partial<Customer>): Promise<Customer | undefined>;
   deleteCustomer(id: number): Promise<boolean>;
+
+  // Sector operations
+  getSectors(companyId?: number): Promise<Sector[]>;
+  getSector(id: number): Promise<Sector | undefined>;
+  createSector(data: InsertSector): Promise<Sector>;
+  updateSector(id: number, data: Partial<Sector>): Promise<Sector | undefined>;
+  deleteSector(id: number): Promise<boolean>;
   
   // Official operations
   getOfficials(): Promise<Official[]>;
   getOfficial(id: number): Promise<Official | undefined>;
   getOfficialByEmail(email: string): Promise<Official | undefined>;
+  getOfficialByUserId(userId: number): Promise<Official | undefined>;
   createOfficial(officialData: InsertOfficial): Promise<Official>;
   updateOfficial(id: number, officialData: Partial<Official>): Promise<Official | undefined>;
   deleteOfficial(id: number): Promise<boolean>;
@@ -131,6 +144,7 @@ export class MemStorage implements IStorage {
   // Implementação dos métodos da interface para a memória
   private users: Map<number, User>;
   private customers: Map<number, Customer>;
+  private sectors: Map<number, Sector>;
   private officials: Map<number, Official>;
   private tickets: Map<number, Ticket>;
   private ticketReplies: Map<number, TicketReply>;
@@ -141,6 +155,7 @@ export class MemStorage implements IStorage {
   
   private userId: number;
   private customerId: number;
+  private sectorId: number;
   private officialId: number;
   private ticketId: number;
   private replyId: number;
@@ -152,6 +167,7 @@ export class MemStorage implements IStorage {
     // Initialize maps
     this.users = new Map();
     this.customers = new Map();
+    this.sectors = new Map();
     this.officials = new Map();
     this.tickets = new Map();
     this.ticketReplies = new Map();
@@ -163,6 +179,7 @@ export class MemStorage implements IStorage {
     // Initialize auto-increment IDs
     this.userId = 1;
     this.customerId = 1;
+    this.sectorId = 1;
     this.officialId = 1;
     this.ticketId = 1;
     this.replyId = 1;
@@ -492,6 +509,16 @@ export class MemStorage implements IStorage {
     return Array.from(this.customers.values()).find(customer => customer.email === email);
   }
 
+  async getCustomerByUserId(userId: number): Promise<Customer | undefined> {
+    return Array.from(this.customers.values()).find(c => c.user_id === userId);
+  }
+
+  async getCustomerUnlinkedByEmailAndCompany(email: string, companyId: number | null): Promise<Customer | undefined> {
+    return Array.from(this.customers.values()).find(
+      c => c.email === email && c.user_id == null && (companyId === null ? c.company_id == null : c.company_id === companyId)
+    );
+  }
+
   async createCustomer(customerData: InsertCustomer): Promise<Customer> {
     const newId = this.customerId++;
     const { createdAt: _createdAt, updatedAt: _updatedAt, ...restCustomerData } = customerData as any;
@@ -522,6 +549,46 @@ export class MemStorage implements IStorage {
     return this.customers.delete(id);
   }
 
+  // Sector operations
+  async getSectors(companyId?: number): Promise<Sector[]> {
+    const all = Array.from(this.sectors.values());
+    if (companyId != null) {
+      return all.filter(s => s.company_id === companyId);
+    }
+    return all;
+  }
+
+  async getSector(id: number): Promise<Sector | undefined> {
+    return this.sectors.get(id);
+  }
+
+  async createSector(data: InsertSector): Promise<Sector> {
+    const newId = this.sectorId++;
+    const sector: Sector = {
+      id: newId,
+      name: data.name,
+      description: data.description ?? null,
+      company_id: data.company_id ?? null,
+      is_active: data.is_active ?? true,
+      created_at: new Date(),
+      updated_at: new Date(),
+    } as Sector;
+    this.sectors.set(newId, sector);
+    return sector;
+  }
+
+  async updateSector(id: number, data: Partial<Sector>): Promise<Sector | undefined> {
+    const sector = this.sectors.get(id);
+    if (!sector) return undefined;
+    const updated: Sector = { ...sector, ...data, updated_at: new Date() } as Sector;
+    this.sectors.set(id, updated);
+    return updated;
+  }
+
+  async deleteSector(id: number): Promise<boolean> {
+    return this.sectors.delete(id);
+  }
+
   // Official operations
   async getOfficials(): Promise<Official[]> {
     return Array.from(this.officials.values());
@@ -533,6 +600,10 @@ export class MemStorage implements IStorage {
 
   async getOfficialByEmail(email: string): Promise<Official | undefined> {
     return Array.from(this.officials.values()).find(official => official.email === email);
+  }
+
+  async getOfficialByUserId(userId: number): Promise<Official | undefined> {
+    return Array.from(this.officials.values()).find(o => o.user_id === userId);
   }
 
   async createOfficial(officialData: InsertOfficial): Promise<Official> {

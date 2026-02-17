@@ -16,7 +16,7 @@ export default function ReportsIndex() {
   };
 
   // Relatórios implementados
-  const implementedReports = ['tickets', 'performance', 'sla', 'department', 'clients'];
+  const implementedReports = ['tickets', 'performance', 'sla', 'department', 'clients', 'sectors'];
 
   const isReportImplemented = (reportType: string) => {
     return implementedReports.includes(reportType);
@@ -175,12 +175,52 @@ export default function ReportsIndex() {
           </Card>
         )}
 
+        {canViewDepartmentReports && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <FileText className="h-5 w-5 flex-shrink-0" />
+                  <span>Relatórios por Setor</span>
+                </CardTitle>
+                {!isReportImplemented('sectors') && (
+                  <Badge variant="secondary" className="flex-shrink-0">
+                    <Construction className="mr-1 h-3 w-3" />
+                    Em desenvolvimento
+                  </Badge>
+                )}
+              </div>
+              <CardDescription>
+                Análise de demanda por setor dos solicitantes
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Visualize quais setores geram mais demanda e suas métricas
+                </p>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm"
+                    disabled={!isReportImplemented('sectors')}
+                    onClick={() => handleViewReport('sectors')}
+                    className={!isReportImplemented('sectors') ? 'opacity-50 cursor-not-allowed' : ''}
+                  >
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                    Visualizar
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <div className="flex items-start justify-between gap-2">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <FileText className="h-5 w-5 flex-shrink-0" />
-                <span>Relatórios de Clientes</span>
+                <span>Relatórios de Solicitantes</span>
               </CardTitle>
               {!isReportImplemented('clients') && (
                 <Badge variant="secondary" className="flex-shrink-0">
@@ -196,7 +236,7 @@ export default function ReportsIndex() {
           <CardContent>
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Relatórios de satisfação e análise de feedback dos clientes
+                Relatórios de satisfação e análise de feedback dos solicitantes
               </p>
               <div className="flex gap-2">
                 <Button 

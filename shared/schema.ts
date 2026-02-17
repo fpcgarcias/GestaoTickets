@@ -79,6 +79,17 @@ export const users = pgTable("users", {
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Setores por empresa - vinculados a solicitantes (customers)
+export const sectors = pgTable("sectors", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  company_id: integer("company_id").references(() => companies.id),
+  is_active: boolean("is_active").notNull().default(true),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Customers table for those who create tickets (ajustado para snake_case)
 export const customers = pgTable("customers", {
   id: serial("id").primaryKey(),
@@ -89,6 +100,7 @@ export const customers = pgTable("customers", {
   user_id: integer("user_id").references(() => users.id),
   avatar_url: text("avatar_url"),
   company_id: integer("company_id").references(() => companies.id),
+  sector_id: integer("sector_id").references(() => sectors.id),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -594,6 +606,13 @@ export const insertCustomerSchema = createInsertSchema(customers).omit({
   updated_at: true,
 });
 
+// Schema for inserting sectors
+export const insertSectorSchema = createInsertSchema(sectors).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
 // Schema for inserting officials
 export const insertOfficialSchema = createInsertSchema(officials).omit({
   id: true,
@@ -758,6 +777,9 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 
 export type Customer = typeof customers.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
+
+export type Sector = typeof sectors.$inferSelect;
+export type InsertSector = z.infer<typeof insertSectorSchema>;
 
 export type Official = typeof officials.$inferSelect & {
   departments?: string[] | OfficialDepartment[];

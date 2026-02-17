@@ -5809,7 +5809,10 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const filterDepartmentId = req.query.department_id ? parseInt(req.query.department_id as string) : null;
 
-
+      const filterDepartmentIdsRaw = (req.query.department_ids as string) || '';
+      const filterDepartmentIds: number[] = filterDepartmentIdsRaw
+        ? filterDepartmentIdsRaw.split(',').map((id) => parseInt(id.trim(), 10)).filter((id) => !isNaN(id) && id > 0)
+        : [];
 
       const userRole = req.session?.userRole as string;
 
@@ -6033,25 +6036,19 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // APLICAR FILTRO DE DEPARTAMENTO SE FORNECIDO
+      // APLICAR FILTRO DE DEPARTAMENTO(S) SE FORNECIDO
 
-      if (filterDepartmentId) {
+      const departmentIdsToFilter = filterDepartmentIds.length > 0 ? filterDepartmentIds : (filterDepartmentId != null ? [filterDepartmentId] : []);
 
-        // Buscar todos os atendentes que pertencem ao departamento especificado
+      if (departmentIdsToFilter.length > 0) {
 
         const officialIds = await db.select({ official_id: schema.officialDepartments.official_id })
 
           .from(schema.officialDepartments)
 
-          .where(eq(schema.officialDepartments.department_id, filterDepartmentId));
+          .where(inArray(schema.officialDepartments.department_id, departmentIdsToFilter));
 
-
-
-        const allowedOfficialIds = officialIds.map(o => o.official_id);
-
-
-
-        // Filtrar apenas os atendentes que pertencem ao departamento
+        const allowedOfficialIds = [...new Set(officialIds.map(o => o.official_id))];
 
         officials = officials.filter(official => allowedOfficialIds.includes(official.id));
 
@@ -8047,7 +8044,42 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
+  // === Endpoints unificados de Pessoas (Usuários + Perfis) ===
 
+  router.get("/people", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support']), async (req: Request, res: Response) => {
+    const { getPeopleEndpoint } = await import('./endpoints/people');
+    await getPeopleEndpoint(req, res, storage);
+  });
+
+  router.post("/people", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support']), async (req: Request, res: Response) => {
+    const { hashPassword } = await import('./utils/password');
+    const { createPersonEndpoint } = await import('./endpoints/people');
+    await createPersonEndpoint(req, res, storage, hashPassword);
+  });
+
+  router.patch("/people/:id", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support']), async (req: Request, res: Response) => {
+    const { hashPassword } = await import('./utils/password');
+    const { updatePersonEndpoint } = await import('./endpoints/people');
+    await updatePersonEndpoint(req, res, storage, hashPassword);
+  });
+
+  // Sectors CRUD (support can GET for people dropdown)
+  router.get("/sectors", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support']), async (req: Request, res: Response) => {
+    const { getSectorsEndpoint } = await import('./endpoints/sectors');
+    await getSectorsEndpoint(req, res, storage);
+  });
+  router.post("/sectors", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    const { createSectorEndpoint } = await import('./endpoints/sectors');
+    await createSectorEndpoint(req, res, storage);
+  });
+  router.patch("/sectors/:id", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    const { updateSectorEndpoint } = await import('./endpoints/sectors');
+    await updateSectorEndpoint(req, res, storage);
+  });
+  router.delete("/sectors/:id", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
+    const { deleteSectorEndpoint } = await import('./endpoints/sectors');
+    await deleteSectorEndpoint(req, res, storage);
+  });
 
   // Endpoint para atualizar informações do usuário
 
@@ -8303,17 +8335,89 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Não retornar a senha
+      // Cascata: inativar/ativar também customer e official vinculados ao usuário
 
-      const { password: _, ...userWithoutPassword } = updatedUser;
+      if (updatedUser.active === false) {
+
+        const customer = await storage.getCustomerByUserId(id);
+
+        const official = await storage.getOfficialByUserId(id);
+
+        if (customer) await storage.updateCustomer(customer.id, { user_id: null });
+
+        if (official) await storage.updateOfficial(official.id, { is_active: false });
+
+      } else {
+
+        const official = await storage.getOfficialByUserId(id);
+
+        if (official) await storage.updateOfficial(official.id, { is_active: true });
+
+        const unlinkedCustomer = await storage.getCustomerUnlinkedByEmailAndCompany(
+
+          updatedUser.email,
+
+          updatedUser.company_id ?? null
+
+        );
+
+        if (unlinkedCustomer) await storage.updateCustomer(unlinkedCustomer.id, { user_id: id });
+
+      }
 
 
+
+      // Montar perfil completo (customer, official com departamentos) para a resposta
+
+      const customerAfter = await storage.getCustomerByUserId(id);
+
+      const officialAfter = await storage.getOfficialByUserId(id);
+
+      let officialDepartmentsList: string[] = [];
+
+      if (officialAfter) {
+
+        const deptRows = await db
+
+          .select({ department_id: schema.officialDepartments.department_id })
+
+          .from(schema.officialDepartments)
+
+          .where(eq(schema.officialDepartments.official_id, officialAfter.id));
+
+        const deptIds = deptRows.map((r) => r.department_id).filter((id): id is number => id != null);
+
+        if (deptIds.length > 0) {
+
+          const deptList = await db
+
+            .select({ id: schema.departments.id, name: schema.departments.name })
+
+            .from(schema.departments)
+
+            .where(inArray(schema.departments.id, deptIds));
+
+          officialDepartmentsList = deptList.map((d) => d.name);
+
+        }
+
+      }
+
+      const { password: __, ...userWithoutPassword } = updatedUser;
 
       res.json({
 
         user: userWithoutPassword,
 
-        message: updatedUser.active ? "Usuário ativado com sucesso" : "Usuário inativado com sucesso"
+        message: updatedUser.active ? "Usuário ativado com sucesso" : "Usuário inativado com sucesso",
+
+        isRequester: !!customerAfter,
+
+        isOfficial: !!officialAfter,
+
+        requesterData: customerAfter ? { id: customerAfter.id, phone: customerAfter.phone ?? undefined, company: customerAfter.company ?? undefined } : null,
+
+        officialData: officialAfter ? { id: officialAfter.id, departments: officialDepartmentsList, supervisor_id: officialAfter.supervisor_id ?? undefined, manager_id: officialAfter.manager_id ?? undefined } : null,
 
       });
 

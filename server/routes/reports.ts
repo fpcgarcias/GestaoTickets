@@ -1,4 +1,4 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import { Request, Response } from 'express';
 import { authRequired } from '../middleware/authorization';
 import { db } from '../db';
@@ -2817,6 +2817,395 @@ router.get('/clients', authRequired, async (req: Request, res: Response) => {
   }
 });
 
+// Sector reports - Relatórios por Setor do Solicitante
+router.get('/sectors', authRequired, async (req: Request, res: Response) => {
+  try {
+    const { startDate, endDate, start_date, end_date, departmentId, department_id, incidentTypeId, incident_type_id, sectorId, sector_id } = req.query;
+
+    const startDateParam = (start_date || startDate) as string | undefined;
+    const endDateParam = (end_date || endDate) as string | undefined;
+    const departmentIdParam = (department_id || departmentId) as string | undefined;
+    const incidentTypeParam = (incident_type_id as string) || (incidentTypeId as string) || undefined;
+    const sectorIdParam = (sector_id || sectorId) as string | undefined;
+
+    // Role-based filters (same logic as /department)
+    const userId = req.session.userId;
+    const userRole = req.session.userRole as string;
+
+    if (!userId || !userRole) {
+      return res.status(401).json({ message: 'Usuário não autenticado' });
+    }
+
+    const roleConditions: any[] = [];
+
+    if (userRole === 'admin') {
+      // No additional filters
+    } else if (userRole === 'company_admin') {
+      const [user] = await db.select().from(schema.users).where(eq(schema.users.id, userId));
+      if (!user || !user.company_id) {
+        return res.status(403).json({ message: 'Usuário sem empresa definida' });
+      }
+      roleConditions.push(eq(schema.tickets.company_id, user.company_id));
+    } else if (userRole === 'manager') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Manager sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      const subordinates = await db.select().from(schema.officials)
+        .where(eq(schema.officials.manager_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(schema.tickets.assigned_to_id)
+      );
+      roleConditions.push(and(inArray(schema.tickets.department_id, departmentIds), assignmentFilter));
+    } else if (userRole === 'supervisor') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Supervisor sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      const subordinates = await db.select().from(schema.officials)
+        .where(eq(schema.officials.supervisor_id, official.id));
+      const subordinateIds = subordinates.map(s => s.id);
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        subordinateIds.length > 0 ? inArray(schema.tickets.assigned_to_id, subordinateIds) : sql`false`,
+        isNull(schema.tickets.assigned_to_id)
+      );
+      roleConditions.push(and(inArray(schema.tickets.department_id, departmentIds), assignmentFilter));
+    } else if (userRole === 'support') {
+      const [official] = await db.select().from(schema.officials).where(eq(schema.officials.user_id, userId));
+      if (!official) {
+        return res.status(403).json({ message: 'Official não encontrado' });
+      }
+      const officialDepts = await db.select().from(schema.officialDepartments)
+        .where(eq(schema.officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) {
+        return res.status(403).json({ message: 'Support sem departamentos' });
+      }
+      const departmentIds = officialDepts.map(od => od.department_id);
+      const assignmentFilter = or(
+        eq(schema.tickets.assigned_to_id, official.id),
+        isNull(schema.tickets.assigned_to_id)
+      );
+      roleConditions.push(and(inArray(schema.tickets.department_id, departmentIds), assignmentFilter));
+    } else if (userRole === 'customer') {
+      const [customer] = await db.select().from(schema.customers).where(eq(schema.customers.user_id, userId));
+      if (!customer) {
+        return res.status(403).json({ message: 'Customer não encontrado' });
+      }
+      roleConditions.push(eq(schema.tickets.customer_id, customer.id));
+    } else {
+      return res.status(403).json({ message: 'Role não reconhecido' });
+    }
+
+    const additionalFilters: any[] = [];
+    if (startDateParam) {
+      additionalFilters.push(gte(schema.tickets.created_at, new Date(startDateParam)));
+    }
+    if (endDateParam) {
+      additionalFilters.push(lte(schema.tickets.created_at, new Date(endDateParam)));
+    }
+    if (departmentIdParam && departmentIdParam !== 'all') {
+      const departmentIdNumber = parseInt(departmentIdParam, 10);
+      if (!Number.isNaN(departmentIdNumber)) {
+        additionalFilters.push(eq(schema.tickets.department_id, departmentIdNumber));
+      }
+    }
+    if (incidentTypeParam && incidentTypeParam !== 'all') {
+      const incidentTypeIdNumber = parseInt(incidentTypeParam, 10);
+      if (!Number.isNaN(incidentTypeIdNumber)) {
+        additionalFilters.push(eq(schema.tickets.incident_type_id, incidentTypeIdNumber));
+      }
+    }
+
+    // Build where clause safely
+    const allConditions = [];
+    
+    if (roleConditions.length > 0) {
+      const validRoleConditions = roleConditions.filter(condition => condition !== undefined && condition !== null);
+      if (validRoleConditions.length > 0) {
+        allConditions.push(and(...validRoleConditions));
+      }
+    }
+    
+    if (additionalFilters.length > 0) {
+      const validAdditionalFilters = additionalFilters.filter(filter => filter !== undefined && filter !== null);
+      if (validAdditionalFilters.length > 0) {
+        allConditions.push(and(...validAdditionalFilters));
+      }
+    }
+    
+    const whereClause = allConditions.length > 0 ? and(...allConditions) : undefined;
+
+    // Get tickets with customer_id for sector lookup
+    const selectFields = {
+      id: schema.tickets.id,
+      customer_id: schema.tickets.customer_id,
+      department_id: schema.tickets.department_id,
+      created_at: schema.tickets.created_at,
+      first_response_at: schema.tickets.first_response_at,
+      resolved_at: schema.tickets.resolved_at
+    };
+
+    let ticketsQuery = db.select(selectFields).from(schema.tickets);
+    if (whereClause) {
+      ticketsQuery = ticketsQuery.where(whereClause as any) as any;
+    }
+    
+    const tickets = await ticketsQuery;
+
+    // Fetch customer → sector mapping
+    const customerIds = Array.from(new Set(tickets.map(t => t.customer_id).filter(Boolean))) as number[];
+    let customerSectorMap = new Map<number, number | null>();
+    
+    if (customerIds.length > 0) {
+      const customers = await db.select({
+        id: schema.customers.id,
+        sector_id: schema.customers.sector_id
+      })
+        .from(schema.customers)
+        .where(inArray(schema.customers.id, customerIds));
+      
+      customers.forEach(c => {
+        customerSectorMap.set(c.id, c.sector_id);
+      });
+    }
+
+    // Apply sector filter if provided
+    let filteredTickets = tickets;
+    if (sectorIdParam && sectorIdParam !== 'all') {
+      const sectorIdNumber = parseInt(sectorIdParam, 10);
+      if (!Number.isNaN(sectorIdNumber)) {
+        filteredTickets = tickets.filter(t => {
+          if (!t.customer_id) return false;
+          return customerSectorMap.get(t.customer_id) === sectorIdNumber;
+        });
+      }
+    }
+
+    // Group tickets by sector
+    const ticketsBySector = new Map<number, typeof filteredTickets>();
+    const ticketsWithoutSector: typeof filteredTickets = [];
+    
+    filteredTickets.forEach(t => {
+      if (!t.customer_id) {
+        ticketsWithoutSector.push(t);
+        return;
+      }
+      const sectorId = customerSectorMap.get(t.customer_id);
+      if (!sectorId) {
+        ticketsWithoutSector.push(t);
+        return;
+      }
+      const arr = ticketsBySector.get(sectorId) || [];
+      arr.push(t);
+      ticketsBySector.set(sectorId, arr);
+    });
+
+    // Fetch sector names
+    const sectorIds = Array.from(ticketsBySector.keys());
+    let sectorMap = new Map<number, string>();
+    
+    if (sectorIds.length > 0) {
+      const sectorsData = await db.select({
+        id: schema.sectors.id,
+        name: schema.sectors.name
+      })
+        .from(schema.sectors)
+        .where(inArray(schema.sectors.id, sectorIds));
+      
+      sectorsData.forEach(s => {
+        sectorMap.set(s.id, s.name);
+      });
+    }
+
+    // Fetch satisfaction surveys for all ticket IDs
+    const allTicketIds = filteredTickets.map(t => t.id);
+    let surveysByTicket = new Map<number, { rating: number | null; responded_at: Date | null }[]>();
+    
+    if (allTicketIds.length > 0) {
+      const surveys = await db.select({
+        ticket_id: schema.satisfactionSurveys.ticket_id,
+        rating: schema.satisfactionSurveys.rating,
+        responded_at: schema.satisfactionSurveys.responded_at
+      })
+        .from(schema.satisfactionSurveys)
+        .where(inArray(schema.satisfactionSurveys.ticket_id, allTicketIds.filter(id => typeof id === 'number')));
+      
+      surveys.forEach(s => {
+        if (typeof s.ticket_id !== 'number') return;
+        const arr = surveysByTicket.get(s.ticket_id) || [];
+        arr.push({ rating: s.rating, responded_at: s.responded_at });
+        surveysByTicket.set(s.ticket_id, arr);
+      });
+    }
+
+    // Count unique customers per sector
+    const customerCountBySector = new Map<number, number>();
+    ticketsBySector.forEach((sectorTickets, secId) => {
+      const uniqueCustomers = new Set(sectorTickets.map(t => t.customer_id).filter(Boolean));
+      customerCountBySector.set(secId, uniqueCustomers.size);
+    });
+
+    // Calculate metrics per sector
+    const incidentTypeIdForSector = incidentTypeParam && incidentTypeParam !== 'all' ? parseInt(incidentTypeParam, 10) : undefined;
+    const departmentIdForSector = departmentIdParam && departmentIdParam !== 'all' ? parseInt(departmentIdParam, 10) : undefined;
+    
+    const sectorsMetrics = await Promise.all(
+      Array.from(ticketsBySector.entries()).map(async ([secId, ts]) => {
+        const total = ts.length;
+        const resolved = ts.filter(t => t.resolved_at).length;
+        
+        // Calculate avg first response and resolution time from ticket data directly
+        const responseTimes: number[] = [];
+        const resolutionTimes: number[] = [];
+        
+        ts.forEach(t => {
+          if (t.first_response_at && t.created_at) {
+            const diffHours = (new Date(t.first_response_at).getTime() - new Date(t.created_at).getTime()) / (1000 * 60 * 60);
+            if (diffHours >= 0) responseTimes.push(diffHours);
+          }
+          if (t.resolved_at && t.created_at) {
+            const diffHours = (new Date(t.resolved_at).getTime() - new Date(t.created_at).getTime()) / (1000 * 60 * 60);
+            if (diffHours >= 0) resolutionTimes.push(diffHours);
+          }
+        });
+
+        const avgFirstResponseHours = responseTimes.length > 0
+          ? Math.round((responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length) * 100) / 100
+          : null;
+        
+        const avgResolutionHours = resolutionTimes.length > 0
+          ? Math.round((resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length) * 100) / 100
+          : null;
+
+        // Satisfaction average for this sector
+        const ratings: number[] = [];
+        ts.forEach(t => {
+          if (typeof t.id !== 'number') return;
+          const entries = surveysByTicket.get(t.id) || [];
+          entries.forEach(e => { if (e.rating != null && e.responded_at) ratings.push(e.rating as number); });
+        });
+        const satisfactionAvg = ratings.length > 0 ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100 : null;
+
+        return {
+          sector_id: secId,
+          sector_name: sectorMap.get(secId) || 'N/A',
+          tickets: total,
+          resolved_tickets: resolved,
+          avg_first_response_time_hours: avgFirstResponseHours,
+          avg_resolution_time_hours: avgResolutionHours,
+          satisfaction_avg: satisfactionAvg,
+          customers_count: customerCountBySector.get(secId) || 0
+        };
+      })
+    );
+    
+    // Sort by tickets descending
+    sectorsMetrics.sort((a, b) => b.tickets - a.tickets);
+
+    // Add "Sem Setor" entry if there are tickets without sector
+    if (ticketsWithoutSector.length > 0) {
+      const resolved = ticketsWithoutSector.filter(t => t.resolved_at).length;
+      
+      const responseTimes: number[] = [];
+      const resolutionTimes: number[] = [];
+      ticketsWithoutSector.forEach(t => {
+        if (t.first_response_at && t.created_at) {
+          const diffHours = (new Date(t.first_response_at).getTime() - new Date(t.created_at).getTime()) / (1000 * 60 * 60);
+          if (diffHours >= 0) responseTimes.push(diffHours);
+        }
+        if (t.resolved_at && t.created_at) {
+          const diffHours = (new Date(t.resolved_at).getTime() - new Date(t.created_at).getTime()) / (1000 * 60 * 60);
+          if (diffHours >= 0) resolutionTimes.push(diffHours);
+        }
+      });
+
+      const ratings: number[] = [];
+      ticketsWithoutSector.forEach(t => {
+        if (typeof t.id !== 'number') return;
+        const entries = surveysByTicket.get(t.id) || [];
+        entries.forEach(e => { if (e.rating != null && e.responded_at) ratings.push(e.rating as number); });
+      });
+
+      const uniqueCustomers = new Set(ticketsWithoutSector.map(t => t.customer_id).filter(Boolean));
+
+      sectorsMetrics.push({
+        sector_id: 0,
+        sector_name: 'Sem Setor',
+        tickets: ticketsWithoutSector.length,
+        resolved_tickets: resolved,
+        avg_first_response_time_hours: responseTimes.length > 0
+          ? Math.round((responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length) * 100) / 100
+          : null,
+        avg_resolution_time_hours: resolutionTimes.length > 0
+          ? Math.round((resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length) * 100) / 100
+          : null,
+        satisfaction_avg: ratings.length > 0 ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 100) / 100 : null,
+        customers_count: uniqueCustomers.size
+      });
+    }
+
+    // Summary
+    const totalTickets = filteredTickets.length;
+    const resolvedTickets = filteredTickets.filter(t => t.resolved_at !== null).length;
+    
+    const summaryResponseTimes: number[] = [];
+    const summaryResolutionTimes: number[] = [];
+    filteredTickets.forEach(t => {
+      if (t.first_response_at && t.created_at) {
+        const diffHours = (new Date(t.first_response_at).getTime() - new Date(t.created_at).getTime()) / (1000 * 60 * 60);
+        if (diffHours >= 0) summaryResponseTimes.push(diffHours);
+      }
+      if (t.resolved_at && t.created_at) {
+        const diffHours = (new Date(t.resolved_at).getTime() - new Date(t.created_at).getTime()) / (1000 * 60 * 60);
+        if (diffHours >= 0) summaryResolutionTimes.push(diffHours);
+      }
+    });
+
+    const summaryRatings: number[] = [];
+    filteredTickets.forEach(t => {
+      if (typeof t.id !== 'number') return;
+      const entries = surveysByTicket.get(t.id) || [];
+      entries.forEach(e => { if (e.rating != null && e.responded_at) summaryRatings.push(e.rating as number); });
+    });
+
+    const summary = {
+      total_tickets: totalTickets,
+      resolved_tickets: resolvedTickets,
+      avg_first_response_time_hours: summaryResponseTimes.length > 0
+        ? Math.round((summaryResponseTimes.reduce((a, b) => a + b, 0) / summaryResponseTimes.length) * 100) / 100
+        : null,
+      avg_resolution_time_hours: summaryResolutionTimes.length > 0
+        ? Math.round((summaryResolutionTimes.reduce((a, b) => a + b, 0) / summaryResolutionTimes.length) * 100) / 100
+        : null,
+      satisfaction_avg: summaryRatings.length > 0
+        ? Math.round((summaryRatings.reduce((a, b) => a + b, 0) / summaryRatings.length) * 100) / 100
+        : null
+    };
+
+    return res.json({
+      summary,
+      sectors: sectorsMetrics
+    });
+  } catch (error) {
+    console.error('Erro ao gerar relatório por setor:', error);
+    return res.status(500).json({ message: 'Erro ao gerar relatório por setor' });
+  }
+});
+
 export default router;
-
-

@@ -23,12 +23,12 @@ export default function ToggleStatusClientDialog({
 }: ToggleStatusClientDialogProps) {
   const { toast } = useToast();
   
-  // Verificar se o cliente está ativo
+  // Verificar se o solicitante está ativo
   const isActive = client ? 'active' in client ? client.active !== false : !!client.user_id : false;
   
   const toggleStatusMutation = useMutation({
     mutationFn: async () => {
-      if (!client) throw new Error('Cliente não selecionado');
+      if (!client) throw new Error('Solicitante não selecionado');
       const res = await apiRequest('DELETE', `/api/customers/${client.id}`);
       return res.json();
     },
@@ -40,21 +40,21 @@ export default function ToggleStatusClientDialog({
       // Mensagem específica para ativação/inativação
       if (isActive) {
         toast({
-          title: 'Cliente inativado com sucesso',
-          description: 'O cliente foi inativado e não poderá mais acessar o sistema',
+          title: 'Solicitante inativado com sucesso',
+          description: 'O solicitante foi inativado e não poderá mais acessar o sistema',
           variant: 'default',
         });
       } else {
         toast({
-          title: 'Cliente ativado com sucesso',
-          description: 'O cliente agora pode acessar o sistema normalmente',
+          title: 'Solicitante ativado com sucesso',
+          description: 'O solicitante agora pode acessar o sistema normalmente',
           variant: 'default',
         });
       }
     },
     onError: (error: Error) => {
       toast({
-        title: isActive ? 'Erro ao inativar cliente' : 'Erro ao ativar cliente',
+        title: isActive ? 'Erro ao inativar solicitante' : 'Erro ao ativar solicitante',
         description: error.message,
         variant: 'destructive',
       });
@@ -70,12 +70,12 @@ export default function ToggleStatusClientDialog({
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>
-            {isActive ? "Inativar Cliente" : "Ativar Cliente"}
+            {isActive ? "Inativar Solicitante" : "Ativar Solicitante"}
           </DialogTitle>
           <DialogDescription>
             {isActive 
-              ? "Ao inativar um cliente, ele não poderá mais acessar o sistema, mas seus dados serão mantidos para fins de histórico."
-              : "Ao ativar um cliente, ele voltará a ter acesso ao sistema com suas mesmas permissões anteriores."
+              ? "Ao inativar um solicitante, ele não poderá mais acessar o sistema, mas seus dados serão mantidos para fins de histórico."
+              : "Ao ativar um solicitante, ele voltará a ter acesso ao sistema com suas mesmas permissões anteriores."
             }
           </DialogDescription>
         </DialogHeader>
@@ -96,8 +96,8 @@ export default function ToggleStatusClientDialog({
           
           <p className="text-sm text-neutral-600 mb-6">
             {isActive 
-              ? "Esta ação não exclui o cliente permanentemente. Os dados serão mantidos para histórico, mas o cliente não poderá mais acessar o sistema."
-              : "Ao ativar o cliente, ele poderá realizar login novamente no sistema."
+              ? "Esta ação não exclui o solicitante permanentemente. Os dados serão mantidos para histórico, mas o solicitante não poderá mais acessar o sistema."
+              : "Ao ativar o solicitante, ele poderá realizar login novamente no sistema."
             }
           </p>
 

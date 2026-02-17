@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/tooltip";
 import { StatusDot, StatusBadge, PriorityBadge } from './status-badge';
 import { SLAIndicator } from './sla-indicator';
+import { Badge } from '@/components/ui/badge';
 import { formatDate } from '@/lib/utils';
 import { Ticket } from '@shared/schema';
 import { 
@@ -21,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Network } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { usePriorities, convertLegacyToWeight } from '@/hooks/use-priorities';
 import { useI18n } from '@/i18n';
@@ -86,6 +87,9 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
   // 🔥 CORREÇÃO: Para a role 'customer', este campo deve ser somente leitura SEMPRE
   // Não depende de ser o criador do ticket. Basta a role ser 'customer'.
   const isCustomerForThisTicket = user?.role === 'customer';
+
+  const ROLES_CAN_SEE_SECTOR = ['admin', 'company_admin', 'manager', 'supervisor', 'support'];
+  const canSeeSector = !!user && ROLES_CAN_SEE_SECTOR.includes(user.role);
   
   const { data: officialsResponse, isLoading: isOfficialsLoading } = useQuery({
     queryKey: ['/api/officials', departmentId],
@@ -228,12 +232,18 @@ export const TicketCard: React.FC<TicketCardProps> = ({ ticket, onAssignTicket, 
         </div>
         
         <div className="flex justify-between items-center mt-3 pt-3 border-t border-border flex-wrap gap-3">
-          <div className="flex items-center">
-            <Avatar className="w-7 h-7 mr-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Avatar className="w-7 h-7 mr-2 shrink-0">
               <AvatarImage src={customer?.avatar_url || ""} alt={customer?.name} />
               <AvatarFallback>{customer?.name?.charAt(0) || "C"}</AvatarFallback>
             </Avatar>
             <span className="text-sm text-muted-foreground">{customer?.name || formatMessage('tickets.card.customer_not_informed')}</span>
+            {canSeeSector && (customer as any)?.sector_name && (
+              <Badge variant="secondary" className="text-xs font-normal shrink-0 inline-flex items-center gap-1">
+                <Network className="h-3 w-3" />
+                {(customer as any).sector_name}
+              </Badge>
+            )}
           </div>
           
           <div className="flex items-center gap-2 flex-wrap">

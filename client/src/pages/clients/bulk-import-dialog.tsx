@@ -99,12 +99,12 @@ export default function BulkImportDialog({ open, onOpenChange, onImported }: Bul
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'template_importacao_clientes.csv';
+    link.download = 'template_importacao_solicitantes.csv';
     link.click();
     
     toast({
       title: 'Template baixado',
-      description: 'Use este arquivo como base para importar seus clientes',
+      description: 'Use este arquivo como base para importar seus solicitantes',
     });
   };
 
@@ -133,12 +133,12 @@ export default function BulkImportDialog({ open, onOpenChange, onImported }: Bul
       if (result.errors.length === 0) {
         toast({
           title: 'Importação concluída',
-          description: `${result.success} clientes importados com sucesso!`,
+          description: `${result.success} solicitantes importados com sucesso!`,
         });
       } else {
         toast({
           title: 'Importação concluída com avisos',
-          description: `${result.success} clientes importados, ${result.errors.length} com erro`,
+          description: `${result.success} solicitantes importados, ${result.errors.length} com erro`,
           variant: 'default',
         });
       }
@@ -167,7 +167,7 @@ export default function BulkImportDialog({ open, onOpenChange, onImported }: Bul
     if (!companyId) {
       toast({
         title: 'Empresa não selecionada',
-        description: 'Por favor, selecione uma empresa para vincular os clientes',
+        description: 'Por favor, selecione uma empresa para vincular os solicitantes',
         variant: 'destructive',
       });
       return;
@@ -195,9 +195,9 @@ export default function BulkImportDialog({ open, onOpenChange, onImported }: Bul
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Importação em Lote de Clientes</DialogTitle>
+          <DialogTitle>Importação em Lote de Solicitantes</DialogTitle>
           <DialogDescription>
-            Importe múltiplos clientes de uma vez usando um arquivo CSV ou Excel
+            Importe múltiplos solicitantes de uma vez usando um arquivo CSV ou Excel
           </DialogDescription>
         </DialogHeader>
 
@@ -209,7 +209,7 @@ export default function BulkImportDialog({ open, onOpenChange, onImported }: Bul
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-3">
-                Baixe o arquivo modelo para preencher com os dados dos clientes
+                Baixe o arquivo modelo para preencher com os dados dos solicitantes
               </p>
               <Button onClick={downloadTemplate} variant="outline" size="sm">
                 <Download className="mr-2 h-4 w-4" />
@@ -271,7 +271,7 @@ export default function BulkImportDialog({ open, onOpenChange, onImported }: Bul
                   disabled={isLoadingCompanies}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione a empresa para vincular os clientes" />
+                    <SelectValue placeholder="Selecione a empresa para vincular os solicitantes" />
                   </SelectTrigger>
                   <SelectContent>
                     {companies?.map(company => (
@@ -361,7 +361,7 @@ export default function BulkImportDialog({ open, onOpenChange, onImported }: Bul
                 ) : (
                   <>
                     <Upload className="mr-2 h-4 w-4" />
-                    Importar Clientes
+                    Importar Solicitantes
                   </>
                 )}
               </Button>

@@ -728,7 +728,7 @@ export default function TicketReports() {
                   <TableRow>
                     <TableHead className="w-20">Ticket ID</TableHead>
                     <TableHead className="min-w-48">Título</TableHead>
-                    <TableHead className="min-w-32">Cliente</TableHead>
+                    <TableHead className="min-w-32">Solicitante</TableHead>
                     <TableHead className="min-w-32">Departamento</TableHead>
                     <TableHead className="min-w-36">Atribuído a</TableHead>
                     <TableHead className="min-w-24">Status</TableHead>

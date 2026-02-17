@@ -26,6 +26,8 @@ const TicketDetail = lazy(() => import("@/pages/tickets/[id]"));
 const UsersIndex = lazy(() => import("@/pages/users/index"));
 const OfficialsIndex = lazy(() => import("@/pages/officials/index"));
 const ClientsIndex = lazy(() => import("@/pages/clients/index"));
+const PeopleIndex = lazy(() => import("@/pages/people/index"));
+const SectorsIndex = lazy(() => import("@/pages/sectors/index"));
 const CompaniesIndex = lazy(() => import("@/pages/companies/index"));
 const DepartmentManagement = lazy(() => import("@/pages/DepartmentManagement"));
 const ServiceProvidersManagement = lazy(() => import("@/pages/ServiceProvidersManagement"));
@@ -46,6 +48,7 @@ const PerformanceReports = lazy(() => import("@/pages/reports/performance"));
 const SLAReports = lazy(() => import("@/pages/reports/sla"));
 const DepartmentReports = lazy(() => import("@/pages/reports/department"));
 const ClientReports = lazy(() => import("@/pages/reports/clients"));
+const SectorReports = lazy(() => import("@/pages/reports/sectors"));
 const SatisfactionSurvey = lazy(() => import("@/pages/satisfaction-survey"));
 const SatisfactionDashboard = lazy(() => import("@/pages/satisfaction-dashboard"));
 const InventoryModule = lazy(() => import("@/pages/inventory"));
@@ -123,7 +126,13 @@ function AppContent() {
       
       <ProtectedRoute path="/users" component={() => (
         <MainLayout>
-          <UsersIndex />
+          <PeopleIndex />
+        </MainLayout>
+      )} />
+
+      <ProtectedRoute path="/sectors" component={() => (
+        <MainLayout>
+          <SectorsIndex />
         </MainLayout>
       )} />
       
@@ -156,6 +165,11 @@ function AppContent() {
                 <ProtectedRoute path="/reports/department" component={() => (
                   <MainLayout>
                     <DepartmentReports />
+                  </MainLayout>
+                )} />
+                <ProtectedRoute path="/reports/sectors" component={() => (
+                  <MainLayout>
+                    <SectorReports />
                   </MainLayout>
                 )} />
                 <ProtectedRoute path="/reports/clients" component={() => (

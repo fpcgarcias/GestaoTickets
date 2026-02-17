@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Download, Filter, ChevronDown, ArrowLeft, Building2 } from 'lucide-react';
+import { Download, Filter, ChevronDown, ArrowLeft, Layers } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { ModernBarChart } from '@/components/charts/modern-bar-chart';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
@@ -50,7 +50,7 @@ function toBrasiliaISOString(date: Date, endOfDay = false) {
   return local.toISOString();
 }
 
-interface DepartmentSummary {
+interface SectorSummary {
   total_tickets: number;
   resolved_tickets: number;
   avg_first_response_time_hours: number | null;
@@ -58,23 +58,28 @@ interface DepartmentSummary {
   satisfaction_avg: number | null;
 }
 
-interface DepartmentMetric {
-  department_id: number;
-  department_name: string;
+interface SectorMetric {
+  sector_id: number;
+  sector_name: string;
   tickets: number;
   resolved_tickets: number;
   avg_first_response_time_hours: number | null;
   avg_resolution_time_hours: number | null;
   satisfaction_avg: number | null;
-  officials_count: number;
+  customers_count: number;
 }
 
-interface DepartmentResponse {
-  summary: DepartmentSummary;
-  departments: DepartmentMetric[];
+interface SectorResponse {
+  summary: SectorSummary;
+  sectors: SectorMetric[];
 }
 
 interface Department {
+  id: number;
+  name: string;
+}
+
+interface SectorOption {
   id: number;
   name: string;
 }
@@ -84,12 +89,13 @@ interface IncidentTypeOption {
   name: string;
 }
 
-interface DepartmentFiltersState {
+interface SectorFiltersState {
   departmentId: string;
   incidentTypeId: string;
+  sectorId: string;
 }
 
-export default function DepartmentReports() {
+export default function SectorReports() {
   const { user } = useAuth();
   const [location, setLocation] = useLocation();
   const searchParams = new URLSearchParams(location.split('?')[1] || '');
@@ -98,7 +104,7 @@ export default function DepartmentReports() {
     setLocation(newSearch ? `?${newSearch}` : '');
   };
   
-  const [data, setData] = useState<DepartmentResponse | null>(null);
+  const [data, setData] = useState<SectorResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<string>('this-week');
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -106,14 +112,16 @@ export default function DepartmentReports() {
     to: undefined
   });
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [filters, setFilters] = useState<DepartmentFiltersState>({
+  const [filters, setFilters] = useState<SectorFiltersState>({
     departmentId: searchParams.get('departmentId') || 'all',
-    incidentTypeId: searchParams.get('incidentTypeId') || 'all'
+    incidentTypeId: searchParams.get('incidentTypeId') || 'all',
+    sectorId: searchParams.get('sectorId') || 'all'
   });
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [sectors, setSectors] = useState<SectorOption[]>([]);
   const [incidentTypes, setIncidentTypes] = useState<IncidentTypeOption[]>([]);
   const [isIncidentTypesLoading, setIsIncidentTypesLoading] = useState(false);
-  const [canViewDepartments, setCanViewDepartments] = useState(false);
+  const [canViewFilters, setCanViewFilters] = useState(false);
   
   // Estado para ordenação do gráfico
   const [sortBy, setSortBy] = useState<string>('tickets_desc');
@@ -170,8 +178,9 @@ export default function DepartmentReports() {
     newParams.set('end_date', toBrasiliaISOString(endDate, true));
     if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
     if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);
+    if (filters.sectorId && filters.sectorId !== 'all') newParams.set('sectorId', filters.sectorId);
     setSearchParams(newParams);
-  }, [dateRange, filters.departmentId, filters.incidentTypeId, timeFilter]);
+  }, [dateRange, filters.departmentId, filters.incidentTypeId, filters.sectorId, timeFilter]);
 
   // Função para buscar relatórios com filtros atuais
   const fetchReportsWithCurrentFilters = async () => {
@@ -184,18 +193,19 @@ export default function DepartmentReports() {
       params.append('end_date', toBrasiliaISOString(endDate, true));
       if (filters.departmentId && filters.departmentId !== 'all') params.append('department_id', filters.departmentId);
       if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incident_type_id', filters.incidentTypeId);
+      if (filters.sectorId && filters.sectorId !== 'all') params.append('sector_id', filters.sectorId);
 
-      const url = `/api/reports/department?${params}`;
+      const url = `/api/reports/sectors?${params}`;
       
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error('Erro ao buscar relatórios por departamento');
+        throw new Error('Erro ao buscar relatórios por setor');
       }
       const responseData = await response.json();
       
       setData(responseData);
     } catch (error) {
-      console.error('Erro ao buscar relatórios por departamento:', error);
+      console.error('Erro ao buscar relatórios por setor:', error);
       setData(null);
     } finally {
       setLoading(false);
@@ -206,7 +216,8 @@ export default function DepartmentReports() {
   useEffect(() => {
     const newFilters = {
       departmentId: searchParams.get('departmentId') || 'all',
-      incidentTypeId: searchParams.get('incidentTypeId') || 'all'
+      incidentTypeId: searchParams.get('incidentTypeId') || 'all',
+      sectorId: searchParams.get('sectorId') || 'all'
     };
     setFilters(newFilters);
     
@@ -237,15 +248,35 @@ export default function DepartmentReports() {
       }
     };
 
-    setCanViewDepartments(['admin', 'company_admin', 'manager', 'supervisor'].includes(user?.role || ''));
+    setCanViewFilters(['admin', 'company_admin', 'manager', 'supervisor'].includes(user?.role || ''));
     fetchDepartments();
   }, [user?.role]);
+
+  // Buscar setores dinamicamente
+  useEffect(() => {
+    const fetchSectors = async () => {
+      try {
+        const response = await fetch('/api/sectors?active_only=true&limit=100');
+        if (response.ok) {
+          const data = await response.json();
+          const validSectors = (data.data || []).filter((s: any) => 
+            s.id && s.name && s.name.trim() !== ''
+          );
+          setSectors(validSectors);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar setores:', error);
+      }
+    };
+
+    fetchSectors();
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchIncidentTypes = async () => {
-      if (!canViewDepartments) {
+      if (!canViewFilters) {
         if (isMounted) {
           setIncidentTypes([]);
           setIsIncidentTypesLoading(false);
@@ -282,13 +313,11 @@ export default function DepartmentReports() {
         const validTypes: IncidentTypeOption[] = rawTypes
           .filter((type: any) => {
             if (!type || !type.id || !type.name) return false;
-            // Se um departamento estiver selecionado, filtrar apenas os tipos desse departamento
             if (departmentId && departmentId !== 'all') {
               const departmentIdNumber = Number(departmentId);
               if (type.department_id === null || type.department_id === undefined) return false;
               return Number(type.department_id) === departmentIdNumber;
             }
-            // Se nenhum departamento selecionado, mostrar todos os tipos
             return true;
           })
           .map((type: any) => ({
@@ -326,31 +355,30 @@ export default function DepartmentReports() {
     return () => {
       isMounted = false;
     };
-  }, [filters.departmentId, canViewDepartments]);
+  }, [filters.departmentId, canViewFilters]);
 
   const handleBack = () => {
     setLocation('/reports');
   };
 
   // Preparar dados para o gráfico (formato ModernBarChart)
-  // O gráfico sempre mostra tickets resolvidos, mas a ordenação pode variar
-  const chartData = data?.departments
-    .map(dept => ({
-      name: dept.department_name,
-      Qtde: dept.resolved_tickets
+  const chartData = data?.sectors
+    .map(sector => ({
+      name: sector.sector_name,
+      Qtde: sector.tickets
     }))
     .sort((a, b) => {
       if (sortBy === 'tickets_desc') return b.Qtde - a.Qtde;
       if (sortBy === 'tickets_asc') return a.Qtde - b.Qtde;
       if (sortBy === 'satisfaction_desc') {
-        const aDept = data.departments.find(d => d.department_name === a.name);
-        const bDept = data.departments.find(d => d.department_name === b.name);
-        return (bDept?.satisfaction_avg || 0) - (aDept?.satisfaction_avg || 0);
+        const aSector = data.sectors.find(s => s.sector_name === a.name);
+        const bSector = data.sectors.find(s => s.sector_name === b.name);
+        return (bSector?.satisfaction_avg || 0) - (aSector?.satisfaction_avg || 0);
       }
       if (sortBy === 'satisfaction_asc') {
-        const aDept = data.departments.find(d => d.department_name === a.name);
-        const bDept = data.departments.find(d => d.department_name === b.name);
-        return (aDept?.satisfaction_avg || 0) - (bDept?.satisfaction_avg || 0);
+        const aSector = data.sectors.find(s => s.sector_name === a.name);
+        const bSector = data.sectors.find(s => s.sector_name === b.name);
+        return (aSector?.satisfaction_avg || 0) - (bSector?.satisfaction_avg || 0);
       }
       if (sortBy === 'name') return a.name.localeCompare(b.name);
       return 0;
@@ -371,10 +399,10 @@ export default function DepartmentReports() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Building2 className="h-6 w-6" />
-              Relatórios por Departamento
+              <Layers className="h-6 w-6" />
+              Relatórios por Setor
             </h1>
-            <p className="text-muted-foreground">Análise por departamento e equipe</p>
+            <p className="text-muted-foreground">Análise de demanda por setor dos solicitantes</p>
           </div>
         </div>
         <DropdownMenu>
@@ -401,7 +429,7 @@ export default function DepartmentReports() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className={`grid gap-4 ${canViewDepartments ? 'md:grid-cols-5' : 'md:grid-cols-2'}`}>
+          <div className={`grid gap-4 ${canViewFilters ? 'md:grid-cols-4' : 'md:grid-cols-2'}`}>
             <div className="space-y-2">
               <label className="text-sm font-medium">Período</label>
               <DateRangeFilter
@@ -414,7 +442,27 @@ export default function DepartmentReports() {
               />
             </div>
 
-            {canViewDepartments && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Setor</label>
+              <Select
+                value={filters.sectorId}
+                onValueChange={(value) => setFilters(prev => ({ ...prev, sectorId: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os setores" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os setores</SelectItem>
+                  {sectors.map((sector) => (
+                    <SelectItem key={sector.id} value={sector.id.toString()}>
+                      {sector.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {canViewFilters && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Departamento</label>
                 <Select
@@ -436,7 +484,7 @@ export default function DepartmentReports() {
               </div>
             )}
 
-            {canViewDepartments && (
+            {canViewFilters && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Tipo de Chamado</label>
                 <Select
@@ -545,7 +593,7 @@ export default function DepartmentReports() {
           <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Volume de Tickets por Departamento</CardTitle>
+                <CardTitle>Volume de Tickets por Setor</CardTitle>
                 <Select value={sortBy} onValueChange={setSortBy}>
                   <SelectTrigger className="w-[200px]">
                     <SelectValue />
@@ -565,60 +613,60 @@ export default function DepartmentReports() {
             </CardContent>
           </Card>
 
-          {/* Tabela de Departamentos */}
+          {/* Tabela de Setores */}
           <Card>
             <CardHeader>
-              <CardTitle>Métricas Detalhadas por Departamento</CardTitle>
+              <CardTitle>Métricas Detalhadas por Setor</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Departamento</TableHead>
+                      <TableHead>Setor</TableHead>
                       <TableHead className="text-right">Tickets</TableHead>
                       <TableHead className="text-right">Resolvidos</TableHead>
                       <TableHead className="text-right">Taxa</TableHead>
                       <TableHead className="text-right">Tempo Resposta</TableHead>
                       <TableHead className="text-right">Tempo Resolução</TableHead>
                       <TableHead className="text-right">Satisfação</TableHead>
-                      <TableHead className="text-right">Atendentes</TableHead>
+                      <TableHead className="text-right">Solicitantes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.departments.length === 0 ? (
+                    {data.sectors.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center text-muted-foreground">
-                          Nenhum departamento encontrado
+                          Nenhum setor encontrado
                         </TableCell>
                       </TableRow>
                     ) : (
-                      data.departments.map((dept) => (
-                        <TableRow key={dept.department_id}>
-                          <TableCell className="font-medium">{dept.department_name}</TableCell>
-                          <TableCell className="text-right">{dept.tickets}</TableCell>
-                          <TableCell className="text-right">{dept.resolved_tickets}</TableCell>
+                      data.sectors.map((sector) => (
+                        <TableRow key={sector.sector_id}>
+                          <TableCell className="font-medium">{sector.sector_name}</TableCell>
+                          <TableCell className="text-right">{sector.tickets}</TableCell>
+                          <TableCell className="text-right">{sector.resolved_tickets}</TableCell>
                           <TableCell className="text-right">
-                            {dept.tickets > 0
-                              ? Math.round((dept.resolved_tickets / dept.tickets) * 100)
+                            {sector.tickets > 0
+                              ? Math.round((sector.resolved_tickets / sector.tickets) * 100)
                               : 0}%
                           </TableCell>
                           <TableCell className="text-right">
-                            {dept.avg_first_response_time_hours !== null
-                              ? formatTime(dept.avg_first_response_time_hours)
+                            {sector.avg_first_response_time_hours !== null
+                              ? formatTime(sector.avg_first_response_time_hours)
                               : 'N/A'}
                           </TableCell>
                           <TableCell className="text-right">
-                            {dept.avg_resolution_time_hours !== null
-                              ? formatTime(dept.avg_resolution_time_hours)
+                            {sector.avg_resolution_time_hours !== null
+                              ? formatTime(sector.avg_resolution_time_hours)
                               : 'N/A'}
                           </TableCell>
                           <TableCell className="text-right">
-                            {dept.satisfaction_avg !== null
-                              ? dept.satisfaction_avg.toFixed(1)
+                            {sector.satisfaction_avg !== null
+                              ? sector.satisfaction_avg.toFixed(1)
                               : 'N/A'}
                           </TableCell>
-                          <TableCell className="text-right">{dept.officials_count}</TableCell>
+                          <TableCell className="text-right">{sector.customers_count}</TableCell>
                         </TableRow>
                       ))
                     )}

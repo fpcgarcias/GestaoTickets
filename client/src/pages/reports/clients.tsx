@@ -146,13 +146,13 @@ export default function ClientReports() {
       
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error('Erro ao buscar relatórios de clientes');
+        throw new Error('Erro ao buscar relatórios de solicitantes');
       }
       const responseData = await response.json();
       
       setData(responseData);
     } catch (error) {
-      console.error('Erro ao buscar relatórios de clientes:', error);
+      console.error('Erro ao buscar relatórios de solicitantes:', error);
       setData(null);
     } finally {
       setLoading(false);
@@ -282,7 +282,7 @@ export default function ClientReports() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Users className="h-6 w-6" />
-              Relatórios de Clientes
+              Relatórios de Solicitantes
             </h1>
             <p className="text-muted-foreground">Análise de satisfação e feedback</p>
           </div>
@@ -407,12 +407,12 @@ export default function ClientReports() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
+                <CardTitle className="text-sm font-medium">Total de Solicitantes</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{data.summary.total_customers}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Clientes únicos no período
+                  Solicitantes únicos no período
                 </p>
               </CardContent>
             </Card>
@@ -526,17 +526,17 @@ export default function ClientReports() {
             </CardContent>
           </Card>
 
-          {/* Tabela de Clientes */}
+          {/* Tabela de Solicitantes */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Clientes com Métricas</CardTitle>
+              <CardTitle>Solicitantes com Métricas</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Cliente</TableHead>
+                      <TableHead>Solicitante</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead className="text-right">Tickets</TableHead>
                       <TableHead className="text-right">Resolvidos</TableHead>
@@ -549,7 +549,7 @@ export default function ClientReports() {
                     {data.clients.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center text-muted-foreground">
-                          Nenhum cliente encontrado
+                          Nenhum solicitante encontrado
                         </TableCell>
                       </TableRow>
                     ) : (

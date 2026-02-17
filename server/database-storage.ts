@@ -1,7 +1,8 @@
 import { 
-  users, customers, officials, tickets, ticketReplies, ticketStatusHistory,
+  users, customers, sectors, officials, tickets, ticketReplies, ticketStatusHistory,
   type User, type InsertUser, 
   type Customer, type InsertCustomer, 
+  type Sector, type InsertSector,
   type Official, type InsertOfficial,
   type Ticket, type InsertTicket,
   type TicketReply, type InsertTicketReply,
@@ -173,6 +174,22 @@ export class DatabaseStorage implements IStorage {
     return customer || undefined;
   }
 
+  async getCustomerByUserId(userId: number): Promise<Customer | undefined> {
+    const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId)).limit(1);
+    return customer || undefined;
+  }
+
+  async getCustomerUnlinkedByEmailAndCompany(email: string, companyId: number | null): Promise<Customer | undefined> {
+    const conditions = [eq(customers.email, email), isNull(customers.user_id)];
+    if (companyId !== null) {
+      conditions.push(eq(customers.company_id, companyId));
+    } else {
+      conditions.push(isNull(customers.company_id));
+    }
+    const [customer] = await db.select().from(customers).where(and(...conditions)).limit(1);
+    return customer || undefined;
+  }
+
   async createCustomer(customerData: InsertCustomer): Promise<Customer> {
     const [customer] = await db.insert(customers).values(customerData).returning();
     return customer;
@@ -189,6 +206,38 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCustomer(id: number): Promise<boolean> {
     await db.delete(customers).where(eq(customers.id, id));
+    return true;
+  }
+
+  // Sector operations
+  async getSectors(companyId?: number): Promise<Sector[]> {
+    if (companyId != null) {
+      return db.select().from(sectors).where(eq(sectors.company_id, companyId)).orderBy(sectors.name);
+    }
+    return db.select().from(sectors).orderBy(sectors.name);
+  }
+
+  async getSector(id: number): Promise<Sector | undefined> {
+    const [sector] = await db.select().from(sectors).where(eq(sectors.id, id));
+    return sector || undefined;
+  }
+
+  async createSector(data: InsertSector): Promise<Sector> {
+    const [sector] = await db.insert(sectors).values(data).returning();
+    return sector;
+  }
+
+  async updateSector(id: number, data: Partial<Sector>): Promise<Sector | undefined> {
+    const [sector] = await db
+      .update(sectors)
+      .set({ ...data, updated_at: new Date() })
+      .where(eq(sectors.id, id))
+      .returning();
+    return sector || undefined;
+  }
+
+  async deleteSector(id: number): Promise<boolean> {
+    await db.delete(sectors).where(eq(sectors.id, id));
     return true;
   }
 
@@ -282,6 +331,11 @@ export class DatabaseStorage implements IStorage {
 
   async getOfficialByEmail(email: string): Promise<Official | undefined> {
     const [official] = await db.select().from(officials).where(eq(officials.email, email));
+    return official || undefined;
+  }
+
+  async getOfficialByUserId(userId: number): Promise<Official | undefined> {
+    const [official] = await db.select().from(officials).where(eq(officials.user_id, userId)).limit(1);
     return official || undefined;
   }
 
@@ -794,11 +848,14 @@ export class DatabaseStorage implements IStorage {
         ...getTableColumns(tickets),
         customer_name: customers.name,
         customer_email: customers.email,
+        customer_avatar_url: customers.avatar_url,
+        sector_name: sectors.name,
         official_name: officials.name,
         official_email: officials.email
       })
       .from(tickets)
       .leftJoin(customers, eq(tickets.customer_id, customers.id))
+      .leftJoin(sectors, eq(sectors.id, customers.sector_id))
       .leftJoin(officials, eq(tickets.assigned_to_id, officials.id));
     let whereFinal;
     if (whereClauses.length > 0 && searchClause) {
@@ -813,12 +870,14 @@ export class DatabaseStorage implements IStorage {
     if (whereFinal) {
       const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(tickets)
         .leftJoin(customers, eq(tickets.customer_id, customers.id))
+        .leftJoin(sectors, eq(sectors.id, customers.sector_id))
         .leftJoin(officials, eq(tickets.assigned_to_id, officials.id))
         .where(whereFinal);
       total = Number(count);
     } else {
       const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(tickets)
         .leftJoin(customers, eq(tickets.customer_id, customers.id))
+        .leftJoin(sectors, eq(sectors.id, customers.sector_id))
         .leftJoin(officials, eq(tickets.assigned_to_id, officials.id));
       total = Number(count);
     }
@@ -833,7 +892,9 @@ export class DatabaseStorage implements IStorage {
       ...row,
       customer: row.customer_name || row.customer_email ? {
         name: row.customer_name,
-        email: row.customer_email
+        email: row.customer_email,
+        avatar_url: row.customer_avatar_url,
+        sector_name: row.sector_name
       } : {},
       official: row.official_name || row.official_email ? {
         name: row.official_name,
@@ -988,6 +1049,8 @@ export class DatabaseStorage implements IStorage {
         customer_created_at: customers.created_at,
         customer_updated_at: customers.updated_at,
         customer_company_id: customers.company_id,
+        customer_sector_id: customers.sector_id,
+        sector_name: sectors.name,
         
         // Official
         official_id: officials.id,
@@ -1009,6 +1072,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(tickets)
       .leftJoin(customers, eq(customers.id, tickets.customer_id))
+      .leftJoin(sectors, eq(sectors.id, customers.sector_id))
       .leftJoin(officials, eq(officials.id, tickets.assigned_to_id))
       .leftJoin(departments, eq(departments.id, tickets.department_id))
       .leftJoin(incidentTypes, eq(incidentTypes.id, tickets.incident_type_id))
@@ -1053,6 +1117,8 @@ export class DatabaseStorage implements IStorage {
       created_at: result.customer_created_at,
       updated_at: result.customer_updated_at,
       company_id: result.customer_company_id,
+      sector_id: result.customer_sector_id,
+      sector_name: result.sector_name,
     } : undefined;
 
     // Construir o objeto official se existir
