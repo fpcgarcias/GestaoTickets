@@ -116,9 +116,13 @@ export default function TicketsIndex() {
     return { startDate: from, endDate: to };
   };
 
+  // No modo custom, só buscar quando ambas as datas estiverem selecionadas
+  const isDateRangeReady = !(timeFilter === 'custom' && (!dateRange.from || !dateRange.to));
+
   // Busca tickets com base no papel do usuário com paginação e filtros
   const { data: ticketsResponse, isLoading: isTicketsLoading } = useQuery({
     queryKey: ['/api/tickets/user-role', currentPage, searchQuery, statusFilter, priorityFilter, departmentFilter, incidentTypeFilter, categoryFilter, assignedToFilter, hideResolved, timeFilter, dateRange, includeOpenOutsidePeriod],
+    enabled: isDateRangeReady,
     queryFn: async () => {
       const { startDate, endDate } = getPeriodDates();
       

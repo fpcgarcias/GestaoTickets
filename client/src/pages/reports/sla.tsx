@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { PerformanceBarChart } from '@/components/charts/performance-bar-chart';
 import { PriorityBadge } from '@/components/tickets/status-badge';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { format } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 // Utilitário para converter data local (Brasília) para UTC ISO string
@@ -112,14 +112,52 @@ export default function SLAReports() {
   const [isIncidentTypesLoading, setIsIncidentTypesLoading] = useState(false);
   const [canViewDepartments, setCanViewDepartments] = useState(false);
 
+  // Função para converter timeFilter em datas reais (mesma lógica do dashboard)
+  const getPeriodDates = () => {
+    const now = new Date();
+    let from: Date;
+    let to: Date;
+    switch (timeFilter) {
+      case 'this-week':
+        from = startOfWeek(now, { weekStartsOn: 1 });
+        to = endOfWeek(now, { weekStartsOn: 1 });
+        break;
+      case 'last-week': {
+        const lastWeek = new Date(now);
+        lastWeek.setDate(now.getDate() - 7);
+        from = startOfWeek(lastWeek, { weekStartsOn: 1 });
+        to = endOfWeek(lastWeek, { weekStartsOn: 1 });
+        break;
+      }
+      case 'this-month':
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+        break;
+      case 'custom':
+        from = dateRange.from || startOfMonth(now);
+        to = dateRange.to || endOfMonth(now);
+        break;
+      default:
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+    }
+    return { startDate: from, endDate: to };
+  };
+
   // Buscar dados quando filtros mudarem
   useEffect(() => {
+    // No modo custom, só buscar quando ambas as datas estiverem selecionadas
+    if (timeFilter === 'custom' && (!dateRange.from || !dateRange.to)) {
+      return;
+    }
+
     fetchReportsWithCurrentFilters();
     
     // Atualizar URL com os filtros atuais
+    const { startDate, endDate } = getPeriodDates();
     const newParams = new URLSearchParams();
-    if (dateRange?.from) newParams.set('start_date', toBrasiliaISOString(dateRange.from, false));
-    if (dateRange?.to) newParams.set('end_date', toBrasiliaISOString(dateRange.to, true));
+    newParams.set('start_date', toBrasiliaISOString(startDate, false));
+    newParams.set('end_date', toBrasiliaISOString(endDate, true));
     if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
     if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);
     if (filters.assignedToId && filters.assignedToId !== 'all') newParams.set('assignedToId', filters.assignedToId);
@@ -131,16 +169,11 @@ export default function SLAReports() {
   const fetchReportsWithCurrentFilters = async () => {
     setLoading(true);
     try {
+      const { startDate, endDate } = getPeriodDates();
       const params = new URLSearchParams();
       
-      if (dateRange?.from) {
-        const startDate = toBrasiliaISOString(dateRange.from, false);
-        params.append('start_date', startDate);
-      }
-      if (dateRange?.to) {
-        const endDate = toBrasiliaISOString(dateRange.to, true);
-        params.append('end_date', endDate);
-      }
+      params.append('start_date', toBrasiliaISOString(startDate, false));
+      params.append('end_date', toBrasiliaISOString(endDate, true));
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
       if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incident_type_id', filters.incidentTypeId);
       if (filters.assignedToId && filters.assignedToId !== 'all') params.append('assigned_to_id', filters.assignedToId);

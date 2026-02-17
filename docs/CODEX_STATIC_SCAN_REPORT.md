@@ -135,4 +135,4 @@ Nota de seguranca: eu nao usei `rg` (no seu ambiente, `C:\WINDOWS\RG.cmd` abre o
 
 ## Observacoes (Nao-bugs)
 
-- `client/public/version.json` esta em UTF-8 valido (sem BOM) e le corretamente quando decodificado explicitamente como UTF-8. Se voce ver "ImplementaÃ§Ã£o…" em algum lugar, isso tende a ser mismatch de encoding do terminal/output, nao do conteudo do arquivo.
+- `client/public/version.json` está em UTF-8 válido (sem BOM) e lê corretamente quando decodificado explicitamente como UTF-8. Se você ver "ImplementaÃ§Ã£o" (ou seja, "Implementação" exibido errado) em algum lugar, isso tende a ser mismatch de encoding do terminal/output, não do conteúdo do arquivo.

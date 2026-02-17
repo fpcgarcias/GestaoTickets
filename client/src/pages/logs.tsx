@@ -190,7 +190,7 @@ export default function LogsPage() {
       
       return response.json();
     },
-    enabled: !!selectedFile && user?.role === 'admin',
+    enabled: !!selectedFile && user?.role === 'admin' && !(timeFilter === 'custom' && (!dateRange.from || !dateRange.to)),
   });
 
   // Função para fazer download do arquivo

@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Download, Filter, ChevronDown, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { PerformanceBarChart } from '@/components/charts/performance-bar-chart';
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 
 // Função para formatar tempo igual ao dashboard (TimeMetricCard)
 function formatTime(hours: number): string {
@@ -142,14 +143,52 @@ export default function PerformanceReports() {
     { value: 'name', label: 'Nome (A-Z)' }
   ];
 
+  // Função para converter timeFilter em datas reais (mesma lógica do dashboard)
+  const getPeriodDates = () => {
+    const now = new Date();
+    let from: Date;
+    let to: Date;
+    switch (timeFilter) {
+      case 'this-week':
+        from = startOfWeek(now, { weekStartsOn: 1 });
+        to = endOfWeek(now, { weekStartsOn: 1 });
+        break;
+      case 'last-week': {
+        const lastWeek = new Date(now);
+        lastWeek.setDate(now.getDate() - 7);
+        from = startOfWeek(lastWeek, { weekStartsOn: 1 });
+        to = endOfWeek(lastWeek, { weekStartsOn: 1 });
+        break;
+      }
+      case 'this-month':
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+        break;
+      case 'custom':
+        from = dateRange.from || startOfMonth(now);
+        to = dateRange.to || endOfMonth(now);
+        break;
+      default:
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+    }
+    return { startDate: from, endDate: to };
+  };
+
   // Buscar dados quando filtros mudarem
   useEffect(() => {
+    // No modo custom, só buscar quando ambas as datas estiverem selecionadas
+    if (timeFilter === 'custom' && (!dateRange.from || !dateRange.to)) {
+      return;
+    }
+
     fetchReportsWithCurrentFilters();
     
     // Atualizar URL com os filtros atuais
+    const { startDate, endDate } = getPeriodDates();
     const newParams = new URLSearchParams();
-    if (dateRange?.from) newParams.set('start_date', toBrasiliaISOString(dateRange.from, false));
-    if (dateRange?.to) newParams.set('end_date', toBrasiliaISOString(dateRange.to, true));
+    newParams.set('start_date', toBrasiliaISOString(startDate, false));
+    newParams.set('end_date', toBrasiliaISOString(endDate, true));
     if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
     if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);
     newParams.set('showInactiveOfficials', filters.showInactiveOfficials ? 'true' : 'false');
@@ -160,17 +199,11 @@ export default function PerformanceReports() {
   const fetchReportsWithCurrentFilters = async () => {
     setLoading(true);
     try {
+      const { startDate, endDate } = getPeriodDates();
       const params = new URLSearchParams();
       
-      // Usar a mesma lógica de datas do dashboard para consistência
-      if (dateRange?.from) {
-        const startDate = toBrasiliaISOString(dateRange.from, false);
-        params.append('start_date', startDate);
-      }
-      if (dateRange?.to) {
-        const endDate = toBrasiliaISOString(dateRange.to, true);
-        params.append('end_date', endDate);
-      }
+      params.append('start_date', toBrasiliaISOString(startDate, false));
+      params.append('end_date', toBrasiliaISOString(endDate, true));
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
       if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incident_type_id', filters.incidentTypeId);
       params.append('showInactiveOfficials', filters.showInactiveOfficials ? 'true' : 'false');
@@ -339,9 +372,9 @@ export default function PerformanceReports() {
     try {
       const params = new URLSearchParams();
       
-      // Usar a mesma lógica de datas do dashboard para consistência
-      if (dateRange?.from) params.append('start_date', toBrasiliaISOString(dateRange.from, false));
-      if (dateRange?.to) params.append('end_date', toBrasiliaISOString(dateRange.to, true));
+      const { startDate, endDate } = getPeriodDates();
+      params.append('start_date', toBrasiliaISOString(startDate, false));
+      params.append('end_date', toBrasiliaISOString(endDate, true));
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
       params.append('showInactiveOfficials', filters.showInactiveOfficials ? 'true' : 'false');
       params.append('format', format);

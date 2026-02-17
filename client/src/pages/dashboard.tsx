@@ -115,6 +115,7 @@ export default function Dashboard() {
     }
     return { startDate: from, endDate: to };
   }
+  const isDateRangeReady = !(timeFilter === 'custom' && (!dateRange.from || !dateRange.to));
   const { startDate, endDate } = getPeriodDates();
 
   const [selectedOfficialId, setSelectedOfficialId] = useState<string>('all');
@@ -360,6 +361,8 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch dashboard metrics');
       return response.json();
     },
+    // No modo custom, só buscar quando ambas as datas estiverem selecionadas
+    enabled: isDateRangeReady,
     // Atualizar apenas entre 6h e 21h (horário comercial) - dinâmico
     refetchInterval: refetchInterval,
     refetchIntervalInBackground: false,

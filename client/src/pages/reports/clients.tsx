@@ -12,6 +12,7 @@ import { Download, Filter, ChevronDown, ArrowLeft, Users, MessageSquare } from '
 import { useAuth } from '@/hooks/use-auth';
 import { ModernPieChart } from '@/components/charts/modern-pie-chart';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 
 // Utilitário para converter data local (Brasília) para UTC ISO string
 function toBrasiliaISOString(date: Date, endOfDay = false) {
@@ -110,14 +111,52 @@ export default function ClientReports() {
   const [incidentTypes, setIncidentTypes] = useState<Array<{ id: number; name: string }>>([]);
   const [canViewDepartments, setCanViewDepartments] = useState(false);
 
+  // Função para converter timeFilter em datas reais (mesma lógica do dashboard)
+  const getPeriodDates = () => {
+    const now = new Date();
+    let from: Date;
+    let to: Date;
+    switch (timeFilter) {
+      case 'this-week':
+        from = startOfWeek(now, { weekStartsOn: 1 });
+        to = endOfWeek(now, { weekStartsOn: 1 });
+        break;
+      case 'last-week': {
+        const lastWeek = new Date(now);
+        lastWeek.setDate(now.getDate() - 7);
+        from = startOfWeek(lastWeek, { weekStartsOn: 1 });
+        to = endOfWeek(lastWeek, { weekStartsOn: 1 });
+        break;
+      }
+      case 'this-month':
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+        break;
+      case 'custom':
+        from = dateRange.from || startOfMonth(now);
+        to = dateRange.to || endOfMonth(now);
+        break;
+      default:
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+    }
+    return { startDate: from, endDate: to };
+  };
+
   // Buscar dados quando filtros mudarem
   useEffect(() => {
+    // No modo custom, só buscar quando ambas as datas estiverem selecionadas
+    if (timeFilter === 'custom' && (!dateRange.from || !dateRange.to)) {
+      return;
+    }
+
     fetchReportsWithCurrentFilters();
     
     // Atualizar URL com os filtros atuais
+    const { startDate, endDate } = getPeriodDates();
     const newParams = new URLSearchParams();
-    if (dateRange?.from) newParams.set('start_date', toBrasiliaISOString(dateRange.from, false));
-    if (dateRange?.to) newParams.set('end_date', toBrasiliaISOString(dateRange.to, true));
+    newParams.set('start_date', toBrasiliaISOString(startDate, false));
+    newParams.set('end_date', toBrasiliaISOString(endDate, true));
     if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
     if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);
     if (filters.rating && filters.rating !== 'all') newParams.set('rating', filters.rating);
@@ -128,16 +167,11 @@ export default function ClientReports() {
   const fetchReportsWithCurrentFilters = async () => {
     setLoading(true);
     try {
+      const { startDate, endDate } = getPeriodDates();
       const params = new URLSearchParams();
       
-      if (dateRange?.from) {
-        const startDate = toBrasiliaISOString(dateRange.from, false);
-        params.append('start_date', startDate);
-      }
-      if (dateRange?.to) {
-        const endDate = toBrasiliaISOString(dateRange.to, true);
-        params.append('end_date', endDate);
-      }
+      params.append('start_date', toBrasiliaISOString(startDate, false));
+      params.append('end_date', toBrasiliaISOString(endDate, true));
       if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
       if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incidentTypeId', filters.incidentTypeId);
       if (filters.rating && filters.rating !== 'all') params.append('rating', filters.rating);

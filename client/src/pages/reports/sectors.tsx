@@ -169,6 +169,11 @@ export default function SectorReports() {
 
   // Buscar dados quando filtros mudarem
   useEffect(() => {
+    // No modo custom, só buscar quando ambas as datas estiverem selecionadas
+    if (timeFilter === 'custom' && (!dateRange.from || !dateRange.to)) {
+      return;
+    }
+
     fetchReportsWithCurrentFilters();
     
     // Atualizar URL com os filtros atuais

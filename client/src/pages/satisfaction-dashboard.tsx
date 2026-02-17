@@ -182,6 +182,10 @@ const SatisfactionDashboard: React.FC = () => {
 
   // Carregar dados
   useEffect(() => {
+    // No modo custom, só buscar quando ambas as datas estiverem selecionadas
+    if (timeFilter === 'custom' && (!dateRange.from || !dateRange.to)) {
+      return;
+    }
     loadData();
   }, [selectedDepartment, selectedOfficial, selectedStatus, selectedRating, timeFilter, dateRange]);
 
