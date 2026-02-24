@@ -8,6 +8,7 @@ import {
   type TicketReply, type InsertTicketReply,
   type TicketStatusHistory,
   officialDepartments, type OfficialDepartment, type InsertOfficialDepartment,
+  officialVisibilityGrants,
   ticketStatusEnum,
   incidentTypes, type IncidentType,
   categories, type Category,
@@ -256,6 +257,7 @@ export class DatabaseStorage implements IStorage {
         company_id: officials.company_id,
         supervisor_id: officials.supervisor_id,
         manager_id: officials.manager_id,
+        is_external: officials.is_external,
         created_at: officials.created_at,
         updated_at: officials.updated_at,
         user_username: users.username,
@@ -485,6 +487,14 @@ export class DatabaseStorage implements IStorage {
     return departmentOfficials.map(row => row.officials);
   }
   
+  /** IDs dos atendentes cujos tickets o observador pode ver via delegacao de visibilidade (ex.: atendente externo). */
+  private async getVisibilityGrantTargetIds(observerOfficialId: number): Promise<number[]> {
+    const rows = await db.select({ target_official_id: officialVisibilityGrants.target_official_id })
+      .from(officialVisibilityGrants)
+      .where(eq(officialVisibilityGrants.observer_official_id, observerOfficialId));
+    return rows.map(r => r.target_official_id);
+  }
+
   // Filtrar tickets baseado no perfil do usuário
   // Método paginado principal
   async getTicketsByUserRolePaginated(
@@ -593,19 +603,21 @@ export class DatabaseStorage implements IStorage {
         whereClauses.push(eq(tickets.company_id, official.company_id));
       }
       
-      // Buscar subordinados
+      // Buscar subordinados e delegacoes de visibilidade (ex.: atendentes externos)
       const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, official.id));
       const subordinateIds = subordinates.map(s => s.id);
+      const grantedTargetIds = await this.getVisibilityGrantTargetIds(official.id);
+      const allVisibleAssignedIds = [...new Set([...subordinateIds, ...grantedTargetIds])];
       
       if (!filters.assigned_to_id) {
       const assignmentFilter = or(
         eq(tickets.assigned_to_id, official.id),
-        subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
+        allVisibleAssignedIds.length > 0 ? inArray(tickets.assigned_to_id, allVisibleAssignedIds) : sql`false`,
         isNull(tickets.assigned_to_id)
       );
       whereClauses.push(assignmentFilter);
       } else {
-        if (subordinateIds.includes(Number(filters.assigned_to_id))) {
+        if (allVisibleAssignedIds.includes(Number(filters.assigned_to_id))) {
           whereClauses.push(eq(tickets.assigned_to_id, Number(filters.assigned_to_id)));
         } else if (Number(filters.assigned_to_id) === official.id) {
           whereClauses.push(eq(tickets.assigned_to_id, official.id));
@@ -632,14 +644,20 @@ export class DatabaseStorage implements IStorage {
         whereClauses.push(eq(tickets.company_id, official.company_id));
       }
       
+      // Delegacao de visibilidade: pode ver tickets de atendentes externos configurados como "observadores"
+      const grantedTargetIds = await this.getVisibilityGrantTargetIds(official.id);
+      
       if (!filters.assigned_to_id) {
       const assignmentFilter = or(
         eq(tickets.assigned_to_id, official.id),
+        grantedTargetIds.length > 0 ? inArray(tickets.assigned_to_id, grantedTargetIds) : sql`false`,
         isNull(tickets.assigned_to_id)
       );
       whereClauses.push(assignmentFilter);
       } else if (Number(filters.assigned_to_id) === official.id) {
         whereClauses.push(eq(tickets.assigned_to_id, official.id));
+      } else if (grantedTargetIds.includes(Number(filters.assigned_to_id))) {
+        whereClauses.push(eq(tickets.assigned_to_id, Number(filters.assigned_to_id)));
     } else {
         return { data: [], pagination: { page, limit, total: 0, totalPages: 0, hasNext: false, hasPrev: false } };
       }
@@ -1542,26 +1560,26 @@ export class DatabaseStorage implements IStorage {
           whereClauses.push(eq(tickets.company_id, official.company_id));
         }
         
-        // Buscar subordinados
+        // Buscar subordinados e delegacoes de visibilidade
         const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, official.id));
         const subordinateIds = subordinates.map(s => s.id);
+        const grantedTargetIds = await this.getVisibilityGrantTargetIds(official.id);
+        const allVisibleAssignedIds = [...new Set([...subordinateIds, ...grantedTargetIds])];
         
-        // Se não filtrar por officialId, mostrar tickets do próprio, subordinados e não atribuídos
+        // Se não filtrar por officialId, mostrar tickets do próprio, subordinados, delegados e não atribuídos
         if (!officialId) {
           const assignmentFilter = or(
             eq(tickets.assigned_to_id, official.id),
-            subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
+            allVisibleAssignedIds.length > 0 ? inArray(tickets.assigned_to_id, allVisibleAssignedIds) : sql`false`,
             isNull(tickets.assigned_to_id)
           );
           whereClauses.push(assignmentFilter);
         } else {
-          // Se filtrar por officialId, só permitir se for subordinado ou ele mesmo
-          if (subordinateIds.includes(officialId)) {
+          if (allVisibleAssignedIds.includes(officialId)) {
             whereClauses.push(eq(tickets.assigned_to_id, officialId));
           } else if (officialId === official.id) {
             whereClauses.push(eq(tickets.assigned_to_id, official.id));
           } else {
-            // Não tem permissão
             return { total: 0, byStatus: {}, byPriority: {} };
           }
         }
@@ -1582,17 +1600,20 @@ export class DatabaseStorage implements IStorage {
           whereClauses.push(eq(tickets.company_id, official.company_id));
         }
         
-        // Support vê tickets atribuídos a ele ou não atribuídos
+        const grantedTargetIds = await this.getVisibilityGrantTargetIds(official.id);
+        // Support vê tickets atribuídos a ele, a delegados (ex. externos) ou não atribuídos
         if (!officialId) {
           const assignmentFilter = or(
             eq(tickets.assigned_to_id, official.id),
+            grantedTargetIds.length > 0 ? inArray(tickets.assigned_to_id, grantedTargetIds) : sql`false`,
             isNull(tickets.assigned_to_id)
           );
           whereClauses.push(assignmentFilter);
         } else if (officialId === official.id) {
           whereClauses.push(eq(tickets.assigned_to_id, official.id));
+        } else if (grantedTargetIds.includes(officialId)) {
+          whereClauses.push(eq(tickets.assigned_to_id, officialId));
         } else {
-          // Não pode ver de outros
           return { total: 0, byStatus: {}, byPriority: {} };
         }
         
@@ -2175,24 +2196,24 @@ export class DatabaseStorage implements IStorage {
         whereClauses.push(eq(tickets.company_id, official.company_id));
       }
       
-      // Buscar subordinados
       const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, official.id));
       const subordinateIds = subordinates.map(s => s.id);
+      const grantedTargetIds = await this.getVisibilityGrantTargetIds(official.id);
+      const allVisibleAssignedIds = [...new Set([...subordinateIds, ...grantedTargetIds])];
       
       if (!officialId) {
         const assignmentFilter = or(
           eq(tickets.assigned_to_id, official.id),
-          subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
+          allVisibleAssignedIds.length > 0 ? inArray(tickets.assigned_to_id, allVisibleAssignedIds) : sql`false`,
           isNull(tickets.assigned_to_id)
         );
         whereClauses.push(assignmentFilter);
       } else {
-        if (subordinateIds.includes(officialId)) {
+        if (allVisibleAssignedIds.includes(officialId)) {
           whereClauses.push(eq(tickets.assigned_to_id, officialId));
         } else if (officialId === official.id) {
           whereClauses.push(eq(tickets.assigned_to_id, official.id));
         } else {
-          // Não tem permissão
           return [];
         }
       }
@@ -2213,19 +2234,20 @@ export class DatabaseStorage implements IStorage {
         whereClauses.push(eq(tickets.company_id, official.company_id));
       }
       
+      const grantedTargetIds = await this.getVisibilityGrantTargetIds(official.id);
       if (!officialId) {
         const assignmentFilter = or(
           eq(tickets.assigned_to_id, official.id),
+          grantedTargetIds.length > 0 ? inArray(tickets.assigned_to_id, grantedTargetIds) : sql`false`,
           isNull(tickets.assigned_to_id)
         );
         whereClauses.push(assignmentFilter);
       } else if (officialId === official.id) {
         whereClauses.push(eq(tickets.assigned_to_id, official.id));
+      } else if (grantedTargetIds.includes(officialId)) {
+        whereClauses.push(eq(tickets.assigned_to_id, officialId));
       } else {
-        return { 
-          data: [] as Ticket[], 
-          pagination: { page: 1, limit: 10, total: 0, totalPages: 0, hasNext: false, hasPrev: false } 
-        } as any;
+        return [];
       }
       
       // FILTRO OBRIGATÓRIO POR DEPARTAMENTO

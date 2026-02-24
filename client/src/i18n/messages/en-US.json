@@ -559,8 +559,16 @@
       "validation_error": "Validation error",
       "validation_departments_required": "Select at least one department for the support agent.",
       "password_mismatch": "Passwords do not match",
-      "password_min_length": "Password must be at least 6 characters"
+      "password_min_length": "Password must be at least 6 characters",
+      "is_external": "External Agent",
+      "is_external_help": "Mark as external agent (e.g. outsourced). Allows configuring who else can view this agent's tickets.",
+      "visibility_observers": "Additional observers",
+      "visibility_observers_help": "Agents who can view this agent's tickets (in addition to the supervisor).",
+      "add_observer": "Add observer",
+      "search_official": "Search agent...",
+      "no_officials": "No agents found."
     },
+    "badge_external": "External",
     "toggle_status_dialog": {
       "deactivate_title": "Deactivate support agent",
       "activate_title": "Activate support agent",

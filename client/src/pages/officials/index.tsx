@@ -284,7 +284,14 @@ export default function OfficialsIndex() {
                     .map((official: any) => {
                       return (
                         <TableRow key={official.id}>
-                          <TableCell className="font-medium">{official.name}</TableCell>
+                          <TableCell className="font-medium">
+                            <span>{official.name}</span>
+                            {(official as any).is_external && (
+                              <Badge variant="secondary" className="ml-2 text-xs">
+                                {formatMessage('officials.badge_external')}
+                              </Badge>
+                            )}
+                          </TableCell>
                           <TableCell>{official.email}</TableCell>
                           <TableCell>
                             <div className="flex flex-wrap gap-1">

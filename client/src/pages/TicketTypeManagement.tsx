@@ -80,45 +80,12 @@ const TicketTypeManagement: React.FC = () => {
 
   const departments = departmentsResponse?.departments || [];
 
-  // 🚀 Buscar departamentos do usuário se ele for manager/supervisor/support
-  const { data: userDepartmentsResponse } = useQuery({
-    queryKey: ['/api/officials/user', user?.id],
-    queryFn: async () => {
-      const response = await apiRequest('GET', `/api/officials?user_id=${user?.id}&limit=1`);
-      if (!response.ok) {
-        throw new Error('Erro ao buscar dados do usuário');
-      }
-      const data = await response.json();
-      // A API retorna um array, pegamos o primeiro
-      const officials = data.data || data;
-      return Array.isArray(officials) && officials.length > 0 ? officials[0] : null;
-    },
-    enabled: !!user && ['manager', 'supervisor', 'support'].includes(user.role),
-  });
-
-  // 🎯 Determinar departamentos permitidos baseado no papel do usuário
+  // 🎯 Departamentos permitidos: a API GET /api/departments já filtra por role.
+  // Admin/Company_admin: todos (da empresa ou sistema). Manager/Supervisor/Support: apenas os vinculados ao usuário.
   const allowedDepartments = React.useMemo(() => {
     if (!user) return [];
-    
-    if (user.role === 'admin') {
-      // Admin vê todos os departamentos de todas as empresas
-      return departments;
-    } else if (user.role === 'company_admin') {
-      // Company_admin vê todos os departamentos da sua empresa
-      return departments; // Já filtrado pela API
-    } else if (['manager', 'supervisor', 'support'].includes(user.role)) {
-      // Manager/Supervisor/Support veem apenas seus departamentos
-      const userDeptNames = userDepartmentsResponse?.departments || [];
-      return departments.filter(dept => 
-        userDeptNames.some((userDept: any) => {
-          const deptName = typeof userDept === 'string' ? userDept : userDept.department;
-          return dept.name === deptName;
-        })
-      );
-    }
-    
     return departments;
-  }, [user, departments, userDepartmentsResponse]);
+  }, [user, departments]);
 
   // 🔒 IDs dos departamentos permitidos para filtrar tipos de chamado
   const allowedDepartmentIds = React.useMemo(() => {

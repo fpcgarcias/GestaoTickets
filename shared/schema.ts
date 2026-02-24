@@ -133,8 +133,19 @@ export const officials = pgTable("officials", {
   company_id: integer("company_id").references(() => companies.id),
   supervisor_id: integer("supervisor_id"),
   manager_id: integer("manager_id"),
+  is_external: boolean("is_external").default(false).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Delegacao de visibilidade: quais atendentes podem ver os chamados de outro (ex.: atendente externo)
+export const officialVisibilityGrants = pgTable("official_visibility_grants", {
+  id: serial("id").primaryKey(),
+  observer_official_id: integer("observer_official_id").references(() => officials.id, { onDelete: "cascade" }).notNull(),
+  target_official_id: integer("target_official_id").references(() => officials.id, { onDelete: "cascade" }).notNull(),
+  granted_by_user_id: integer("granted_by_user_id").references(() => users.id),
+  company_id: integer("company_id").references(() => companies.id),
+  created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Tabela para armazenar os departamentos de cada atendente (relação muitos-para-muitos)
@@ -626,6 +637,12 @@ export const insertOfficialDepartmentSchema = createInsertSchema(officialDepartm
   created_at: true,
 });
 
+// Schema para delegacao de visibilidade entre atendentes
+export const insertOfficialVisibilityGrantSchema = createInsertSchema(officialVisibilityGrants).omit({
+  id: true,
+  created_at: true,
+});
+
 // Schema for inserting tickets
 export const insertTicketSchema = z.object({
   title: z.string().min(5, "O título deve ter pelo menos 5 caracteres"),
@@ -795,6 +812,9 @@ export type InsertOfficial = z.infer<typeof insertOfficialSchema> & {
 
 export type OfficialDepartment = typeof officialDepartments.$inferSelect;
 export type InsertOfficialDepartment = z.infer<typeof insertOfficialDepartmentSchema>;
+
+export type OfficialVisibilityGrant = typeof officialVisibilityGrants.$inferSelect;
+export type InsertOfficialVisibilityGrant = z.infer<typeof insertOfficialVisibilityGrantSchema>;
 
 export type Ticket = typeof tickets.$inferSelect & {
   customer: Partial<Customer>;

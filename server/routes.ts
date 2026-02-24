@@ -1309,6 +1309,18 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             const subordinateIds = subordinates.map(s => s.id);
 
+            // Delegacao de visibilidade (ex.: atendentes externos)
+
+            const visibilityGrants = await db.select({ target_official_id: schema.officialVisibilityGrants.target_official_id })
+
+              .from(schema.officialVisibilityGrants)
+
+              .where(eq(schema.officialVisibilityGrants.observer_official_id, supervisorOfficial.id));
+
+            const grantedTargetIds = visibilityGrants.map(g => g.target_official_id);
+
+            const allVisibleAssignedIds = [...new Set([...subordinateIds, ...grantedTargetIds])];
+
 
 
             // Buscar departamentos dos subordinados para tickets não atribuídos
@@ -1345,9 +1357,9 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-            if (subordinateIds.length > 0) {
+            if (allVisibleAssignedIds.length > 0) {
 
-              ticketConditions.push(inArray(schema.tickets.assigned_to_id, subordinateIds)); // Tickets dos subordinados
+              ticketConditions.push(inArray(schema.tickets.assigned_to_id, allVisibleAssignedIds)); // Subordinados + delegados
 
             }
 
@@ -1405,6 +1417,14 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           if (official) {
 
+            const visibilityGrants = await db.select({ target_official_id: schema.officialVisibilityGrants.target_official_id })
+
+              .from(schema.officialVisibilityGrants)
+
+              .where(eq(schema.officialVisibilityGrants.observer_official_id, official.id));
+
+            const grantedTargetIds = visibilityGrants.map(g => g.target_official_id);
+
             const departments = await db.select().from(schema.officialDepartments).where(eq(schema.officialDepartments.official_id, official.id));
 
             if (departments.length > 0) {
@@ -1415,37 +1435,49 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
               if (departmentIds.length > 0) {
 
-                conditions.push(
+                const assignedConditions: any[] = [
 
-                  or(
+                  eq(schema.tickets.assigned_to_id, official.id),
 
-                    eq(schema.tickets.assigned_to_id, official.id),
+                  and(
 
-                    and(
+                    isNull(schema.tickets.assigned_to_id),
 
-                      isNull(schema.tickets.assigned_to_id),
-
-                      inArray(schema.tickets.department_id, departmentIds)
-
-                    )!
+                    inArray(schema.tickets.department_id, departmentIds)
 
                   )!
 
-                )!;
+                ];
+
+                if (grantedTargetIds.length > 0) {
+
+                  assignedConditions.push(inArray(schema.tickets.assigned_to_id, grantedTargetIds));
+
+                }
+
+                conditions.push(or(...assignedConditions)!);
 
               } else {
 
-                // Se não conseguiu mapear os departamentos, mostrar apenas tickets atribuídos
+                const ownOrGranted = grantedTargetIds.length > 0
 
-                conditions.push(eq(schema.tickets.assigned_to_id, official.id));
+                  ? or(eq(schema.tickets.assigned_to_id, official.id), inArray(schema.tickets.assigned_to_id, grantedTargetIds))
+
+                  : eq(schema.tickets.assigned_to_id, official.id);
+
+                conditions.push(ownOrGranted);
 
               }
 
             } else {
 
-              // Se não tem departamentos, mostrar apenas tickets atribuídos diretamente
+              const ownOrGranted = grantedTargetIds.length > 0
 
-              conditions.push(eq(schema.tickets.assigned_to_id, official.id));
+                ? or(eq(schema.tickets.assigned_to_id, official.id), inArray(schema.tickets.assigned_to_id, grantedTargetIds))
+
+                : eq(schema.tickets.assigned_to_id, official.id);
+
+              conditions.push(ownOrGranted);
 
             }
 
@@ -5946,7 +5978,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       } else if (userRole === 'supervisor') {
 
-        // SUPERVISOR: se enxerga + subordinados (quando tiver)
+        // SUPERVISOR: se enxerga + subordinados + delegados (visibilidade de atendentes externos)
 
         if (!sessionCompanyId || !userId) {
 
@@ -5964,21 +5996,21 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           } else {
 
-            // Incluir o próprio supervisor
-
             const allowedOfficialIds = [currentOfficial.id];
-
-
-
-            // Incluir subordinados diretos
 
             const subordinates = allOfficials.filter(o => o.supervisor_id === currentOfficial.id);
 
             allowedOfficialIds.push(...subordinates.map(s => s.id));
 
+            const visibilityGrants = await db.select({ target_official_id: schema.officialVisibilityGrants.target_official_id })
+
+              .from(schema.officialVisibilityGrants)
+
+              .where(eq(schema.officialVisibilityGrants.observer_official_id, currentOfficial.id));
+
+            allowedOfficialIds.push(...visibilityGrants.map(g => g.target_official_id));
 
 
-            // Filtrar pelos IDs permitidos
 
             officials = allOfficials.filter(official => {
 
@@ -5987,8 +6019,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
               const isActive = includeInactive || official.is_active;
 
               const isAllowed = allowedOfficialIds.includes(official.id);
-
-
 
               return sameCompany && isActive && isAllowed;
 
@@ -6000,7 +6030,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       } else if (userRole === 'support') {
 
-        // SUPPORT: SÓ SE ENXERGA
+        // SUPPORT: se enxerga + atendentes cujos tickets pode ver (delegacao de visibilidade)
 
         if (!sessionCompanyId || !userId) {
 
@@ -6010,13 +6040,29 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const currentOfficial = allOfficials.find(o => o.user_id === userId);
 
-
-
           if (currentOfficial) {
 
-            const isActive = includeInactive || currentOfficial.is_active;
+            const allowedOfficialIds = [currentOfficial.id];
 
-            officials = isActive ? [currentOfficial] : [];
+            const visibilityGrants = await db.select({ target_official_id: schema.officialVisibilityGrants.target_official_id })
+
+              .from(schema.officialVisibilityGrants)
+
+              .where(eq(schema.officialVisibilityGrants.observer_official_id, currentOfficial.id));
+
+            allowedOfficialIds.push(...visibilityGrants.map(g => g.target_official_id));
+
+            officials = allOfficials.filter(o => {
+
+              const allowed = allowedOfficialIds.includes(o.id);
+
+              const sameCompany = o.company_id === sessionCompanyId;
+
+              const isActive = includeInactive || o.is_active;
+
+              return allowed && sameCompany && isActive;
+
+            });
 
           } else {
 
@@ -6118,7 +6164,52 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   });
 
+  // Delegacao de visibilidade: quem pode ver os chamados deste atendente (ex.: atendente externo)
+  router.get("/officials/:id/visibility-grants", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
+    try {
+      const targetOfficialId = parseInt(req.params.id);
+      if (isNaN(targetOfficialId)) return res.status(400).json({ message: "ID inválido" });
+      const rows = await db.select({
+        id: schema.officialVisibilityGrants.id,
+        observer_official_id: schema.officialVisibilityGrants.observer_official_id,
+        target_official_id: schema.officialVisibilityGrants.target_official_id,
+      })
+        .from(schema.officialVisibilityGrants)
+        .where(eq(schema.officialVisibilityGrants.target_official_id, targetOfficialId));
+      const observerOfficialIds = rows.map(r => r.observer_official_id);
+      return res.json({ observer_official_ids: observerOfficialIds });
+    } catch (error) {
+      console.error('Erro ao buscar visibility grants:', error);
+      res.status(500).json({ message: "Falha ao buscar delegacoes de visibilidade", error: String(error) });
+    }
+  });
 
+  router.put("/officials/:id/visibility-grants", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
+    try {
+      const targetOfficialId = parseInt(req.params.id);
+      if (isNaN(targetOfficialId)) return res.status(400).json({ message: "ID inválido" });
+      const { observer_official_ids } = req.body as { observer_official_ids?: number[] };
+      const ids = Array.isArray(observer_official_ids) ? observer_official_ids.filter(id => Number.isInteger(id) && id > 0) : [];
+      const [targetOfficial] = await db.select().from(schema.officials).where(eq(schema.officials.id, targetOfficialId)).limit(1);
+      if (!targetOfficial) return res.status(404).json({ message: "Atendente não encontrado" });
+      const companyId = targetOfficial.company_id ?? undefined;
+      const userId = req.session.userId;
+      await db.delete(schema.officialVisibilityGrants).where(eq(schema.officialVisibilityGrants.target_official_id, targetOfficialId));
+      for (const observerOfficialId of ids) {
+        if (observerOfficialId === targetOfficialId) continue;
+        await db.insert(schema.officialVisibilityGrants).values({
+          observer_official_id: observerOfficialId,
+          target_official_id: targetOfficialId,
+          company_id: companyId ?? null,
+          granted_by_user_id: userId ?? null,
+        });
+      }
+      return res.json({ observer_official_ids: ids });
+    } catch (error) {
+      console.error('Erro ao atualizar visibility grants:', error);
+      res.status(500).json({ message: "Falha ao atualizar delegacoes de visibilidade", error: String(error) });
+    }
+  });
 
   router.post("/officials", authRequired, authorize(['admin', 'manager', 'company_admin', 'supervisor', 'support']), async (req: Request, res: Response) => {
 

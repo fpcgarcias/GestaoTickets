@@ -559,8 +559,16 @@
       "validation_error": "Erro de validação",
       "validation_departments_required": "Selecione pelo menos um departamento para o atendente.",
       "password_mismatch": "As senhas não correspondem",
-      "password_min_length": "A senha deve ter pelo menos 6 caracteres"
+      "password_min_length": "A senha deve ter pelo menos 6 caracteres",
+      "is_external": "Atendente Externo",
+      "is_external_help": "Marcar como atendente externo (ex.: terceirizado). Permite configurar quem mais pode ver os chamados deste atendente.",
+      "visibility_observers": "Observadores adicionais",
+      "visibility_observers_help": "Atendentes que podem visualizar os chamados deste atendente (além do supervisor).",
+      "add_observer": "Adicionar observador",
+      "search_official": "Pesquisar atendente...",
+      "no_officials": "Nenhum atendente encontrado."
     },
+    "badge_external": "Externo",
     "toggle_status_dialog": {
       "deactivate_title": "Desativar atendente",
       "activate_title": "Ativar atendente",

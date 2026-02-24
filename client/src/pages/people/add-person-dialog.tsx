@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -54,6 +55,8 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
     departments: [] as string[],
     supervisor_id: null as number | null,
     manager_id: null as number | null,
+    is_external: false,
+    observer_official_ids: [] as number[],
     must_change_password: true,
   });
   const [userCreated, setUserCreated] = useState(false);
@@ -145,6 +148,8 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
 
   const supervisorsForDept = selectedDepartmentIds.length === 0 ? [] : (officialsData as any[]).filter((o: any) => o.user?.role === 'supervisor');
   const managersForDept = selectedDepartmentIds.length === 0 ? [] : (officialsData as any[]).filter((o: any) => o.user?.role === 'manager');
+  const [observersPopoverOpen, setObserversPopoverOpen] = useState(false);
+  const observersCandidates = (officialsData as any[]).filter((o: any) => !(formData.observer_official_ids || []).includes(o.id));
 
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -230,6 +235,8 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
       departments: formData.isOfficial ? formData.departments : undefined,
       supervisor_id: formData.isOfficial ? formData.supervisor_id : undefined,
       manager_id: formData.isOfficial ? formData.manager_id : undefined,
+      is_external: formData.isOfficial ? formData.is_external : undefined,
+      observer_official_ids: formData.isOfficial ? formData.observer_official_ids : undefined,
       must_change_password: formData.must_change_password,
     });
   };
@@ -251,6 +258,8 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
       departments: [],
       supervisor_id: null,
       manager_id: null,
+      is_external: false,
+      observer_official_ids: [],
       must_change_password: true,
     });
     setUserCreated(false);
@@ -453,6 +462,62 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="grid gap-2">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="add-is-external"
+                        checked={formData.is_external}
+                        onCheckedChange={c => setFormData(prev => ({ ...prev, is_external: c === true }))}
+                      />
+                      <Label htmlFor="add-is-external" className="text-sm font-normal">{formatMessage('officials.edit_official_dialog.is_external')}</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{formatMessage('officials.edit_official_dialog.is_external_help')}</p>
+                  </div>
+                  {formData.is_external && (
+                    <div className="grid gap-2">
+                      <Label className="text-muted-foreground">{formatMessage('officials.edit_official_dialog.visibility_observers')}</Label>
+                      <p className="text-xs text-muted-foreground">{formatMessage('officials.edit_official_dialog.visibility_observers_help')}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {(formData.observer_official_ids || []).map(id => {
+                          const off = (officialsData as any[]).find((o: any) => o.id === id);
+                          return off ? (
+                            <Badge key={id} variant="secondary" className="flex items-center gap-1">
+                              {off.name}
+                              <X className="h-3 w-3 cursor-pointer" onClick={() => setFormData(prev => ({ ...prev, observer_official_ids: (prev.observer_official_ids || []).filter(x => x !== id) }))} />
+                            </Badge>
+                          ) : null;
+                        })}
+                      </div>
+                      <Popover open={observersPopoverOpen} onOpenChange={setObserversPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button type="button" variant="outline" className="w-full justify-between">
+                            {formatMessage('officials.edit_official_dialog.add_observer')}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0">
+                          <Command>
+                            <CommandInput placeholder={formatMessage('officials.edit_official_dialog.search_official')} />
+                            <CommandEmpty>{formatMessage('officials.edit_official_dialog.no_officials')}</CommandEmpty>
+                            <CommandGroup>
+                              {observersCandidates.map((off: any) => (
+                                <CommandItem
+                                  key={off.id}
+                                  value={`${off.name} ${off.email}`}
+                                  onSelect={() => {
+                                    setFormData(prev => ({ ...prev, observer_official_ids: [...(prev.observer_official_ids || []), off.id] }));
+                                    setObserversPopoverOpen(false);
+                                  }}
+                                >
+                                  {off.name} ({off.email})
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  )}
                 </div>
               )}
 

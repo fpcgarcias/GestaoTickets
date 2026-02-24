@@ -389,7 +389,14 @@ export default function PeopleIndex() {
                 ) : people.length > 0 ? (
                   people.map((userItem: any) => (
                     <TableRow key={userItem.id} className={!userItem.active ? "opacity-60" : ""}>
-                      <TableCell>{userItem.name}</TableCell>
+                      <TableCell>
+                        <span>{userItem.name}</span>
+                        {userItem.officialData?.is_external && (
+                          <Badge variant="secondary" className="ml-2 text-xs">
+                            {formatMessage('officials.badge_external')}
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell>{userItem.email}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-normal">

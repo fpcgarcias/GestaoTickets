@@ -49,6 +49,8 @@ interface FormData {
   company_id: number | null;
   must_change_password: boolean;
   cpf: string;
+  is_external: boolean;
+  observer_official_ids: number[];
 }
 
 interface EditOfficialDialogProps {
@@ -87,6 +89,8 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
     company_id: null,
     must_change_password: false,
     cpf: '',
+    is_external: false,
+    observer_official_ids: [],
   });
 
   // Estado para o formulário de senha
@@ -99,6 +103,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
 
   const [submitting, setSubmitting] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [observersPopoverOpen, setObserversPopoverOpen] = useState(false);
 
   // Função para formatar CPF
   const formatCPF = (value: string) => {
@@ -197,20 +202,39 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
         }
       }
       
-      setFormData({
+      setFormData(prev => ({
+        ...prev,
         name: official.name,
         email: official.email,
         username: official.user?.username || official.email,
         isActive: official.is_active,
-        departments: currentDepartments, // Usar o array de strings processado
+        departments: currentDepartments,
         supervisor_id: (official as any).supervisor_id || null,
         manager_id: (official as any).manager_id || null,
         company_id: (official as any).company_id || null,
         must_change_password: false,
         cpf: official.user?.cpf || '',
-      });
+        is_external: (official as any).is_external ?? false,
+      }));
     }
   }, [official]);
+
+  // Carregar delegacoes de visibilidade (observadores) quando abrir o dialog
+  const { data: visibilityGrantsData } = useQuery<{ observer_official_ids: number[] }>({
+    queryKey: ['/api/officials', official?.id, 'visibility-grants'],
+    queryFn: async () => {
+      if (!official?.id) return { observer_official_ids: [] };
+      const res = await apiRequest('GET', `/api/officials/${official.id}/visibility-grants`);
+      if (!res.ok) return { observer_official_ids: [] };
+      return res.json();
+    },
+    enabled: !!(open && official?.id),
+  });
+  useEffect(() => {
+    if (visibilityGrantsData?.observer_official_ids != null) {
+      setFormData(prev => ({ ...prev, observer_official_ids: visibilityGrantsData.observer_official_ids }));
+    }
+  }, [visibilityGrantsData]);
   
   const toggleDepartment = (department: string) => {
     setFormData(prev => {
@@ -240,8 +264,14 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
   };
 
   const updateOfficialMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest('PATCH', `/api/officials/${official?.id}`, data);
+    mutationFn: async (payload: { updatedData: any; observer_official_ids: number[] }) => {
+      const { updatedData, observer_official_ids } = payload;
+      const res = await apiRequest('PATCH', `/api/officials/${official?.id}`, updatedData);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw err;
+      }
+      await apiRequest('PUT', `/api/officials/${official?.id}/visibility-grants`, { observer_official_ids });
       return res.json();
     },
     onSuccess: () => {
@@ -305,7 +335,6 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
     
     setSubmitting(true);
     
-    // Usar diretamente formData, pois já contém o array de strings 'departments'
     const updatedData: any = {
       name: formData.name,
       email: formData.email,
@@ -314,9 +343,10 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
       supervisor_id: formData.supervisor_id,
       manager_id: formData.manager_id,
       company_id: formData.company_id,
+      is_external: formData.is_external,
       user: {
         ...(official?.user || {}),
-        username: formData.email, // Sempre usar o email como username
+        username: formData.email,
         cpf: formData.cpf || undefined
       }
     };
@@ -347,8 +377,7 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
       updatedData.must_change_password = formData.must_change_password;
     }
     
-    // Atualização com os dados corretos
-    updateOfficialMutation.mutate(updatedData);
+    updateOfficialMutation.mutate({ updatedData, observer_official_ids: formData.observer_official_ids });
   };
 
   return (
@@ -612,6 +641,87 @@ export function EditOfficialDialog({ open, onOpenChange, official, onSaved }: Ed
                 )}
               </div>
             </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="is_external" className="text-right">
+                {formatMessage('officials.edit_official_dialog.is_external')}
+              </Label>
+              <div className="col-span-3 flex items-center gap-2">
+                <Switch
+                  id="is_external"
+                  checked={formData.is_external}
+                  onCheckedChange={(checked: boolean) =>
+                    setFormData(prev => ({ ...prev, is_external: checked }))
+                  }
+                />
+                <span className="text-sm text-muted-foreground">
+                  {formatMessage('officials.edit_official_dialog.is_external_help')}
+                </span>
+              </div>
+            </div>
+
+            {formData.is_external && (
+              <div className="grid grid-cols-4 items-start gap-4">
+                <Label className="text-right mt-2">{formatMessage('officials.edit_official_dialog.visibility_observers')}</Label>
+                <div className="col-span-3 space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    {formatMessage('officials.edit_official_dialog.visibility_observers_help')}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(formData.observer_official_ids || []).map((id) => {
+                      const off = existingOfficials.find((o: any) => o.id === id);
+                      return off ? (
+                        <Badge key={id} variant="secondary" className="px-3 py-1">
+                          {off.name}
+                          <X
+                            className="ml-2 h-3 w-3 cursor-pointer"
+                            onClick={() => setFormData(prev => ({
+                              ...prev,
+                              observer_official_ids: prev.observer_official_ids.filter(x => x !== id),
+                            }))}
+                          />
+                        </Badge>
+                      ) : null;
+                    })}
+                  </div>
+                  <Popover open={observersPopoverOpen} onOpenChange={setObserversPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between" type="button">
+                        <span>{formatMessage('officials.edit_official_dialog.add_observer')}</span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-full p-0">
+                      <Command>
+                        <CommandInput placeholder={formatMessage('officials.edit_official_dialog.search_official')} />
+                        <CommandEmpty>{formatMessage('officials.edit_official_dialog.no_officials')}</CommandEmpty>
+                        <CommandGroup>
+                          {Array.isArray(existingOfficials)
+                            ? existingOfficials
+                                .filter((off: any) => off.id !== official?.id && !(formData.observer_official_ids || []).includes(off.id))
+                                .map((off: any) => (
+                                  <CommandItem
+                                    key={off.id}
+                                    value={`${off.name} ${off.email}`}
+                                    onSelect={() => {
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        observer_official_ids: [...(prev.observer_official_ids || []), off.id],
+                                      }));
+                                      setObserversPopoverOpen(false);
+                                    }}
+                                  >
+                                    {off.name} ({off.email})
+                                  </CommandItem>
+                                ))
+                            : null}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="isActive" className="text-right">

@@ -10,7 +10,7 @@ import * as schema from '@shared/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { db } from '../db';
 
-const { users, customers, officials, officialDepartments, departments, sectors } = schema;
+const { users, customers, officials, officialDepartments, departments, sectors, officialVisibilityGrants } = schema;
 
 /** Roles que cada perfil pode atribuir (apenas hierarquia abaixo). Customer não acessa; admin pode tudo. */
 function getAllowedRolesToAssign(actorRole: string): string[] {
@@ -139,6 +139,7 @@ export async function getPeopleEndpoint(req: Request, res: Response, storage: IS
             departments: deptsByOfficialId.get(official.id) || [],
             supervisor_id: official.supervisor_id ?? undefined,
             manager_id: official.manager_id ?? undefined,
+            is_external: (official as any).is_external ?? false,
           }
         : null;
       return {
@@ -190,6 +191,8 @@ export async function createPersonEndpoint(
       departments: departmentsNames,
       supervisor_id,
       manager_id,
+      is_external,
+      observer_official_ids,
       must_change_password,
     } = req.body;
 
@@ -309,6 +312,7 @@ export async function createPersonEndpoint(
             department_id: firstDeptId ?? existingOfficialByEmail.department_id ?? undefined,
             supervisor_id: supervisor_id ?? existingOfficialByEmail.supervisor_id ?? undefined,
             manager_id: manager_id ?? existingOfficialByEmail.manager_id ?? undefined,
+            is_external: is_external !== undefined ? !!is_external : existingOfficialByEmail.is_external,
           })) ?? null;
           if (deptArray.length > 0 && effectiveCompanyId != null) {
             await db.delete(officialDepartments).where(eq(officialDepartments.official_id, existingOfficialByEmail.id));
@@ -343,6 +347,7 @@ export async function createPersonEndpoint(
             department_id: firstDeptId ?? undefined,
             supervisor_id: supervisor_id ?? undefined,
             manager_id: manager_id ?? undefined,
+            is_external: !!is_external,
           });
           for (const dept of deptArray) {
             const deptName = typeof dept === 'string' ? dept : (dept as any)?.department;
@@ -362,6 +367,21 @@ export async function createPersonEndpoint(
     });
 
     const { user, customerRecord, officialRecord } = result;
+
+    if (officialRecord && Array.isArray(observer_official_ids) && observer_official_ids.length > 0) {
+      await db.delete(officialVisibilityGrants).where(eq(officialVisibilityGrants.target_official_id, officialRecord.id));
+      const grantedBy = req.session?.userId ?? null;
+      const companyId = officialRecord.company_id ?? null;
+      for (const observerId of observer_official_ids) {
+        if (observerId === officialRecord.id) continue;
+        await db.insert(officialVisibilityGrants).values({
+          observer_official_id: observerId,
+          target_official_id: officialRecord.id,
+          granted_by_user_id: grantedBy,
+          company_id: companyId,
+        });
+      }
+    }
     const { password: _p, ...userWithoutPassword } = user;
 
     res.status(201).json({
@@ -412,6 +432,8 @@ export async function updatePersonEndpoint(
       departments: departmentsNames,
       supervisor_id,
       manager_id,
+      is_external,
+      observer_official_ids,
     } = req.body;
 
     const userRole = req.session?.userRole as string;
@@ -516,6 +538,7 @@ export async function updatePersonEndpoint(
             department_id: existingOfficialByEmail.department_id ?? undefined,
             supervisor_id: supervisor_id !== undefined ? supervisor_id : existingOfficialByEmail.supervisor_id,
             manager_id: manager_id !== undefined ? manager_id : existingOfficialByEmail.manager_id,
+            is_external: is_external !== undefined ? !!is_external : existingOfficialByEmail.is_external,
           });
           const deptArray = Array.isArray(departmentsNames) ? departmentsNames : [];
           if (deptArray.length > 0 && effectiveCompanyId != null) {
@@ -552,6 +575,7 @@ export async function updatePersonEndpoint(
             department_id: firstDeptId ?? undefined,
             supervisor_id: supervisor_id ?? undefined,
             manager_id: manager_id ?? undefined,
+            is_external: !!is_external,
           });
           for (const dept of deptArray) {
             const deptName = typeof dept === 'string' ? dept : (dept as any)?.department;
@@ -573,6 +597,7 @@ export async function updatePersonEndpoint(
           email: email ?? user.email,
           supervisor_id: supervisor_id !== undefined ? supervisor_id : existingOfficial.supervisor_id,
           manager_id: manager_id !== undefined ? manager_id : existingOfficial.manager_id,
+          is_external: is_external !== undefined ? !!is_external : existingOfficial.is_external,
         });
         if (Array.isArray(departmentsNames) && effectiveCompanyId != null) {
           await db.delete(officialDepartments).where(eq(officialDepartments.official_id, existingOfficial.id));
@@ -590,6 +615,24 @@ export async function updatePersonEndpoint(
         }
       }
     });
+
+    if (isOfficial && Array.isArray(observer_official_ids)) {
+      const officialForGrants = await storage.getOfficialByUserId(userId);
+      if (officialForGrants) {
+        await db.delete(officialVisibilityGrants).where(eq(officialVisibilityGrants.target_official_id, officialForGrants.id));
+        const grantedBy = req.session?.userId ?? null;
+        const companyId = officialForGrants.company_id ?? null;
+        for (const observerId of observer_official_ids) {
+          if (observerId === officialForGrants.id) continue;
+          await db.insert(officialVisibilityGrants).values({
+            observer_official_id: observerId,
+            target_official_id: officialForGrants.id,
+            granted_by_user_id: grantedBy,
+            company_id: companyId,
+          });
+        }
+      }
+    }
 
     const updatedUser = await storage.getUser(userId);
     if (!updatedUser) {

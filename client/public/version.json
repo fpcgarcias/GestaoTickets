@@ -1,10 +1,10 @@
 {
   "current": "1.2.4",
-  "releaseDate": "2026-02-16",
+  "releaseDate": "2026-02-24",
   "versions": [
     {
       "version": "1.2.4",
-      "date": "2026-02-16",
+      "date": "2026-02-24",
       "title": "Adição de novas funcionalidades.",
       "type": "feature",
       "changes": {
@@ -12,7 +12,8 @@
           "Unificação dos cadastros de usuários, clientes e atendentes em uma única tela.",
           "Criação de uma nova hierarquia de setores, permitindo relatórios de quais setores mais demandam atenção.",
           "Clientes agora são chamados de \"Solicitantes\", facilitando a identificação de quem está solicitando o serviço.",
-          "Adicionado novo contador de chamados na listagem de tickets."
+          "Adicionado novo contador de chamados na listagem de tickets.",
+          "Adicionado ao cadastro de atendentes a opção de \"Atendente externo\", liberando acesso a observadores adicionais."
         ],
         "fixed": [
           "Padronização do componente de filtro de período em todas as telas do sistema.",

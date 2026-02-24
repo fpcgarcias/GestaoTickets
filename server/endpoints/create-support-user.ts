@@ -31,9 +31,12 @@ export async function createSupportUserEndpoint(
       isActive = true,
       supervisorId = null,
       managerId = null,
+      supervisor_id,
+      manager_id,
       company_id = null,
       must_change_password,
-      linkExistingUser // Novo campo para indicar se deve vincular usuário existente
+      linkExistingUser,
+      is_external = false,
     } = req.body;
     
     // Garantir que linkExistingUser seja boolean
@@ -253,15 +256,16 @@ export async function createSupportUserEndpoint(
       console.log(`Departamento final escolhido: ${defaultDepartment}`);
       
       const officialData: any = {
-        name: name || user.name, // Usar nome fornecido ou nome do usuário existente
-        email: user.email, // Usar email do usuário
+        name: name || user.name,
+        email: user.email,
         user_id: user.id,
         is_active: isActive,
         avatar_url: avatarUrl || user.avatar_url,
-        department: defaultDepartment, // Para compatibilidade com a coluna existente no banco
-        supervisor_id: supervisorId,
-        manager_id: managerId,
+        department: defaultDepartment,
+        supervisor_id: supervisorId ?? supervisor_id ?? null,
+        manager_id: managerId ?? manager_id ?? null,
         company_id: effectiveCompanyId,
+        is_external: Boolean(is_external),
       };
       
       const official = await storage.createOfficial(officialData);

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle, X, ChevronsUpDown, Copy, AlertTriangle, UserPlus, Link } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
@@ -39,7 +40,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    username: '', // Manter por compatibilidade, mas não usar
+    username: '',
     departments: [] as string[],
     userId: null as number | null,
     isActive: true,
@@ -48,6 +49,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     manager_id: null as number | null,
     company_id: null as number | null,
     must_change_password: true,
+    is_external: false,
+    observer_official_ids: [] as number[],
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -57,6 +60,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
   const [existingUser, setExistingUser] = useState<ExistingUser | null>(null);
   const [linkingUser, setLinkingUser] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [observersPopoverOpen, setObserversPopoverOpen] = useState(false);
 
   // Carregar empresas (apenas para admin)
   const { data: companiesData } = useQuery({
@@ -160,9 +164,18 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
   };
 
   const createSupportUserMutation = useMutation({
-    mutationFn: async (userData: any) => {
+    mutationFn: async (payload: Record<string, any>) => {
+      const { observer_official_ids = [], ...userData } = payload;
       const response = await apiRequest('POST', '/api/support-users', userData);
-      return response.json();
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw err;
+      }
+      const data = await response.json();
+      if (data?.official?.id && Array.isArray(observer_official_ids) && observer_official_ids.length > 0) {
+        await apiRequest('PUT', `/api/officials/${data.official.id}/visibility-grants`, { observer_official_ids });
+      }
+      return data;
     },
     onSuccess: (data) => {
       setSubmitting(false);
@@ -277,10 +290,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       setGeneratedPassword(password);
     }
     
-    // Criar o usuário e atendente em uma única operação
-    // IMPORTANTE: usar email como username para manter consistência
     createSupportUserMutation.mutate({
-      username: formData.email, // ✅ USAR EMAIL COMO USERNAME
+      username: formData.email,
       email: formData.email,
       password: password,
       name: formData.name,
@@ -293,6 +304,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       company_id: formData.company_id,
       must_change_password: formData.must_change_password,
       linkExistingUser: linkingUser,
+      is_external: formData.is_external,
+      observer_official_ids: formData.observer_official_ids || [],
     });
   };
 
@@ -337,7 +350,7 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
     setFormData({
       name: '',
       email: '',
-      username: '', // Manter por compatibilidade, mas não usar
+      username: '',
       departments: [],
       userId: null,
       isActive: true,
@@ -346,6 +359,8 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
       manager_id: null,
       company_id: null,
       must_change_password: true,
+      is_external: false,
+      observer_official_ids: [],
     });
     setUserCreated(false);
     setGeneratedPassword('');
@@ -602,6 +617,87 @@ export function AddOfficialDialog({ open, onOpenChange, onCreated }: AddOfficial
                     </div>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="is_external" className="text-right">
+                    {formatMessage('officials.edit_official_dialog.is_external')}
+                  </Label>
+                  <div className="col-span-3 flex items-center gap-2">
+                    <Switch
+                      id="is_external"
+                      checked={formData.is_external}
+                      onCheckedChange={(checked: boolean) =>
+                        setFormData(prev => ({ ...prev, is_external: checked }))
+                      }
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {formatMessage('officials.edit_official_dialog.is_external_help')}
+                    </span>
+                  </div>
+                </div>
+
+                {formData.is_external && (
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right mt-2">{formatMessage('officials.edit_official_dialog.visibility_observers')}</Label>
+                    <div className="col-span-3 space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        {formatMessage('officials.edit_official_dialog.visibility_observers_help')}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {(formData.observer_official_ids || []).map((id) => {
+                          const off = existingOfficials.find((o: any) => o.id === id);
+                          return off ? (
+                            <Badge key={id} variant="secondary" className="px-3 py-1">
+                              {off.name}
+                              <X
+                                className="ml-2 h-3 w-3 cursor-pointer"
+                                onClick={() => setFormData(prev => ({
+                                  ...prev,
+                                  observer_official_ids: (prev.observer_official_ids || []).filter(x => x !== id),
+                                }))}
+                              />
+                            </Badge>
+                          ) : null;
+                        })}
+                      </div>
+                      <Popover open={observersPopoverOpen} onOpenChange={setObserversPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-between" type="button">
+                            <span>{formatMessage('officials.edit_official_dialog.add_observer')}</span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0">
+                          <Command>
+                            <CommandInput placeholder={formatMessage('officials.edit_official_dialog.search_official')} />
+                            <CommandEmpty>{formatMessage('officials.edit_official_dialog.no_officials')}</CommandEmpty>
+                            <CommandGroup>
+                              {Array.isArray(existingOfficials)
+                                ? existingOfficials
+                                    .filter((off: any) => !(formData.observer_official_ids || []).includes(off.id))
+                                    .map((off: any) => (
+                                      <CommandItem
+                                        key={off.id}
+                                        value={`${off.name} ${off.email}`}
+                                        onSelect={() => {
+                                          setFormData(prev => ({
+                                            ...prev,
+                                            observer_official_ids: [...(prev.observer_official_ids || []), off.id],
+                                          }));
+                                          setObserversPopoverOpen(false);
+                                        }}
+                                      >
+                                        {off.name} ({off.email})
+                                      </CommandItem>
+                                    ))
+                                : null}
+                            </CommandGroup>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="flex items-center space-x-2">
                   <Checkbox
