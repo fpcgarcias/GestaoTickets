@@ -122,7 +122,6 @@ export default function TicketsIndex() {
   // Busca tickets com base no papel do usuário com paginação e filtros
   const { data: ticketsResponse, isLoading: isTicketsLoading } = useQuery({
     queryKey: ['/api/tickets/user-role', currentPage, searchQuery, statusFilter, priorityFilter, departmentFilter, incidentTypeFilter, categoryFilter, assignedToFilter, hideResolved, timeFilter, dateRange, includeOpenOutsidePeriod],
-    enabled: isDateRangeReady,
     queryFn: async () => {
       const { startDate, endDate } = getPeriodDates();
       
@@ -147,7 +146,7 @@ export default function TicketsIndex() {
       if (!res.ok) throw new Error('Erro ao carregar tickets');
       return res.json();
     },
-    enabled: !!user,
+    enabled: !!user && isDateRangeReady,
   });
 
   const tickets = ticketsResponse?.data || [];

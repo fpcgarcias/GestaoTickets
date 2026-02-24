@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -24,8 +24,6 @@ const TicketsIndex = lazy(() => import("@/pages/tickets/index"));
 const NewTicket = lazy(() => import("@/pages/tickets/new"));
 const TicketDetail = lazy(() => import("@/pages/tickets/[id]"));
 const UsersIndex = lazy(() => import("@/pages/users/index"));
-const OfficialsIndex = lazy(() => import("@/pages/officials/index"));
-const ClientsIndex = lazy(() => import("@/pages/clients/index"));
 const PeopleIndex = lazy(() => import("@/pages/people/index"));
 const SectorsIndex = lazy(() => import("@/pages/sectors/index"));
 const CompaniesIndex = lazy(() => import("@/pages/companies/index"));
@@ -118,11 +116,7 @@ function AppContent() {
         </MainLayout>
       )} />
       
-      <ProtectedRoute path="/clients" component={() => (
-        <MainLayout>
-          <ClientsIndex />
-        </MainLayout>
-      )} />
+      <ProtectedRoute path="/clients" component={() => <Redirect to="/users" />} />
       
       <ProtectedRoute path="/users" component={() => (
         <MainLayout>
@@ -136,11 +130,7 @@ function AppContent() {
         </MainLayout>
       )} />
       
-      <ProtectedRoute path="/officials" component={() => (
-        <MainLayout>
-          <OfficialsIndex />
-        </MainLayout>
-      )} />
+      <ProtectedRoute path="/officials" component={() => <Redirect to="/users" />} />
 
       <ProtectedRoute path="/reports" component={() => (
                   <MainLayout>
