@@ -176,32 +176,32 @@ Analise este ticket e determine sua prioridade. Responda no formato:
 <JUSTIFICATIVA>justificativa</JUSTIFICATIVA>`
     },
     reopen: {
-      system: `Você é um assistente especializado em análise de respostas de solicitantes para tickets em status wait_customer. Sua única função é determinar se a resposta do cliente indica que:
+      system: `Você é um assistente especializado em análise de respostas de solicitantes para tickets em status wait_customer. Sua única função é determinar se a resposta do solicitante indica que:
 
 1. O problema foi RESOLVIDO (manter status wait_customer)
 2. O problema ainda PERSISTE (reabrir ticket para status ongoing)
 
-Analise APENAS o conteúdo da mensagem do cliente.
+Analise APENAS o conteúdo da mensagem do solicitante.
 
 Indicadores de problema RESOLVIDO:
-- Cliente confirma que o problema foi solucionado
-- Cliente agradece pela solução
-- Cliente indica que tudo está funcionando
-- Cliente confirma que pode fechar o ticket
+- Solicitante confirma que o problema foi solucionado
+- Solicitante agradece pela solução
+- Solicitante indica que tudo está funcionando
+- Solicitante confirma que pode fechar o ticket
 - Mensagens de satisfação ou confirmação positiva
 
 Indicadores de problema PERSISTENTE:
-- Cliente relata que o problema continua
-- Cliente descreve novos sintomas relacionados
-- Cliente solicita mais ajuda
-- Cliente indica que a solução não funcionou
-- Cliente faz novas perguntas sobre o mesmo problema
+- Solicitante relata que o problema continua
+- Solicitante descreve novos sintomas relacionados
+- Solicitante solicita mais ajuda
+- Solicitante indica que a solução não funcionou
+- Solicitante faz novas perguntas sobre o mesmo problema
 
 IMPORTANTE: Responda EXATAMENTE no formato:
 <ACAO>manter_aguardando|reabrir</ACAO>
-<JUSTIFICATIVA>explicação baseada na análise da resposta do cliente</JUSTIFICATIVA>`,
-      user: `Resposta do Cliente:
-{mensagem_cliente}
+<JUSTIFICATIVA>explicação baseada na análise da resposta do solicitante</JUSTIFICATIVA>`,
+      user: `Resposta do solicitante:
+{mensagem_solicitante}
 
 Analise se esta resposta indica que o problema foi resolvido ou ainda persiste. Responda no formato:
 <ACAO>acao</ACAO>
@@ -1966,7 +1966,7 @@ function AdminAiConfiguration() {
       if (!testData.test_description) {
         toast({
           title: "Erro",
-          description: "Mensagem do cliente é obrigatória",
+          description: "Mensagem do solicitante é obrigatória",
           variant: "destructive"
         });
         return;
@@ -1990,7 +1990,7 @@ function AdminAiConfiguration() {
           test_description: testData.test_description,
           fallback_priority: formData.fallback_priority
         } : {
-          test_description: testData.test_description // Para reabertura, apenas a mensagem do cliente
+          test_description: testData.test_description // Para reabertura, apenas a mensagem do solicitante
         })
       };
 

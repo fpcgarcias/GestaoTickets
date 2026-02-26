@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { emailTemplates, userNotificationSettings, users, tickets, customers, officials, officialDepartments, companies, ticketParticipants, ticketStatusHistory, departments, satisfactionSurveys, ticketReplies } from '@shared/schema';
-import { eq, and, isNull, inArray, not, ne, or, gte, gt, desc } from 'drizzle-orm';
+import { eq, and, isNull, inArray, not, ne, notInArray, or, gte, gt, desc } from 'drizzle-orm';
 import { storage } from '../storage';
 import { emailConfigService } from './email-config-service';
 import nodemailer from 'nodemailer';
@@ -13,7 +13,7 @@ import {
   getBusinessHoursConfig,
   addBusinessTime
 } from '@shared/utils/sla-calculator';
-import { isSlaPaused, type TicketStatus } from '@shared/ticket-utils';
+import { isSlaPaused, isSlaFinished, type TicketStatus } from '@shared/ticket-utils';
 import { 
   translateStatus, 
   translatePriority, 
@@ -2416,7 +2416,7 @@ export class EmailNotificationService {
         return (companyId: number) => companyId === specificId;
       };
 
-      // Buscar tickets ativos (qualquer status não resolvido) que ainda não violaram SLA
+      // Buscar tickets ativos (excluir resolvidos e encerrados - SLA já finalizado) que ainda não violaram SLA
       const activeTickets = await db
         .select({
           id: tickets.id,
@@ -2434,7 +2434,7 @@ export class EmailNotificationService {
         .from(tickets)
         .where(
           and(
-            ne(tickets.status, 'resolved' as any),
+            notInArray(tickets.status, ['resolved', 'closed']),
             eq(tickets.sla_breached, false)
           )
         );
@@ -2464,6 +2464,10 @@ export class EmailNotificationService {
         // Se o status atual pausa o SLA, não notificar nem escalar
         const currentStatus = ticket.status as TicketStatus;
         if (isSlaPaused(currentStatus)) {
+          continue;
+        }
+        // Tickets encerrados ou resolvidos não devem receber alertas nem escalação de SLA
+        if (isSlaFinished(currentStatus)) {
           continue;
         }
 
