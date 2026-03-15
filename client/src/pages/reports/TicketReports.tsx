@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar } from '@/components/ui/calendar';
-import { DateRange } from 'react-day-picker';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StatusBadge, PriorityBadge } from '@/components/tickets/status-badge';
@@ -23,10 +22,11 @@ import {
   CommandInput,
   CommandItem,
 } from '@/components/ui/command';
-import { Download, CalendarIcon, Filter, ChevronDown, ArrowLeft } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { Download, Calendar, Filter, ChevronDown, ArrowLeft } from 'lucide-react';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { ptBR, enUS } from 'date-fns/locale';
 import { useAuth } from '@/hooks/use-auth';
+import { useI18n } from '@/i18n';
 
 // Utilitário para converter data local (Brasília) para UTC ISO string (yyyy-mm-ddTHH:MM:SSZ)
 // IGUAL ao dashboard.tsx para consistência total
@@ -105,6 +105,7 @@ interface FiltersState {
 
 export default function TicketReports() {
   const { user } = useAuth();
+  const { formatMessage, locale } = useI18n();
   const [location, setLocation] = useLocation();
   const searchParams = new URLSearchParams(location.split('?')[1] || '');
   const setSearchParams = (params: URLSearchParams) => {
@@ -114,7 +115,10 @@ export default function TicketReports() {
   const [tickets, setTickets] = useState<TicketReport[]>([]);
   const [stats, setStats] = useState<ReportStats>({ total: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 });
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  // Filtro de período igual ao dashboard e tela de tickets: presets + período customizado
+  const [timeFilter, setTimeFilter] = useState('this-month');
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [filters, setFilters] = useState<FiltersState>({
     status: searchParams.get('status') ? searchParams.get('status')!.split(',') : [],
     priority: searchParams.get('priority') || 'all',
@@ -128,29 +132,120 @@ export default function TicketReports() {
   const [isIncidentTypesLoading, setIsIncidentTypesLoading] = useState(false);
   const [canViewDepartments, setCanViewDepartments] = useState(false);
 
+  // Calcular datas do período (igual ao dashboard e tela de tickets)
+  function getPeriodDates() {
+    const now = new Date();
+    let from: Date;
+    let to: Date;
+    switch (timeFilter) {
+      case 'this-week':
+        from = startOfWeek(now, { weekStartsOn: 1 });
+        to = endOfWeek(now, { weekStartsOn: 1 });
+        break;
+      case 'last-week': {
+        const lastWeek = new Date(now);
+        lastWeek.setDate(now.getDate() - 7);
+        from = startOfWeek(lastWeek, { weekStartsOn: 1 });
+        to = endOfWeek(lastWeek, { weekStartsOn: 1 });
+        break;
+      }
+      case 'this-month':
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+        break;
+      case 'custom':
+        from = dateRange.from ?? startOfMonth(now);
+        to = dateRange.to ?? endOfMonth(now);
+        break;
+      default:
+        from = startOfMonth(now);
+        to = endOfMonth(now);
+    }
+    return { startDate: from, endDate: to };
+  }
 
-  // Buscar dados apenas na montagem inicial
+  const isDateRangeReady = !(timeFilter === 'custom' && (!dateRange.from || !dateRange.to));
+  const { startDate, endDate } = getPeriodDates();
+
+  // Dependências estáveis para evitar reexecuções desnecessárias (filters.status é array)
+  const filtersStatusKey = (filters.status || []).join(',');
+  const dateFromKey = dateRange.from?.getTime();
+  const dateToKey = dateRange.to?.getTime();
+
+  // Buscar dados quando período ou filtros mudam (igual ao dashboard/tickets)
   useEffect(() => {
-    fetchReportsWithCurrentFilters();
-  }, []); // Executar apenas uma vez na montagem
+    if (!isDateRangeReady) return;
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      try {
+        const { startDate: periodStart, endDate: periodEnd } = (() => {
+          const now = new Date();
+          let from: Date;
+          let to: Date;
+          switch (timeFilter) {
+            case 'this-week':
+              from = startOfWeek(now, { weekStartsOn: 1 });
+              to = endOfWeek(now, { weekStartsOn: 1 });
+              break;
+            case 'last-week': {
+              const lastWeek = new Date(now);
+              lastWeek.setDate(now.getDate() - 7);
+              from = startOfWeek(lastWeek, { weekStartsOn: 1 });
+              to = endOfWeek(lastWeek, { weekStartsOn: 1 });
+              break;
+            }
+            case 'this-month':
+              from = startOfMonth(now);
+              to = endOfMonth(now);
+              break;
+            case 'custom':
+              from = dateRange.from ?? startOfMonth(now);
+              to = dateRange.to ?? endOfMonth(now);
+              break;
+            default:
+              from = startOfMonth(now);
+              to = endOfMonth(now);
+          }
+          return { startDate: from, endDate: to };
+        })();
+        const params = new URLSearchParams();
+        params.append('start_date', toBrasiliaISOString(periodStart, false));
+        params.append('end_date', toBrasiliaISOString(periodEnd, true));
+        if (filters.status?.length) params.append('status', filters.status.join(','));
+        if (filters.priority && filters.priority !== 'all') params.append('priority', filters.priority);
+        if (filters.departmentId && filters.departmentId !== 'all') params.append('departmentId', filters.departmentId);
+        if (filters.incidentTypeId && filters.incidentTypeId !== 'all') params.append('incident_type_id', filters.incidentTypeId);
+        if (filters.showInactiveOfficials) params.append('showInactiveOfficials', 'true');
+        const response = await fetch(`/api/reports/tickets?${params}`);
+        if (!response.ok) throw new Error('Erro ao buscar relatórios');
+        const data = await response.json();
+        if (!cancelled) {
+          setTickets(data.tickets || []);
+          setStats(data.stats || { total: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Erro ao buscar relatórios:', error);
+          setTickets([]);
+          setStats({ total: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [timeFilter, dateFromKey, dateToKey, filtersStatusKey, filters.priority, filters.departmentId, filters.incidentTypeId, filters.showInactiveOfficials]);
 
-
-
-  // Função para buscar relatórios com filtros atuais
+  // Função para buscar relatórios com filtros atuais (usada pelo botão e export)
   const fetchReportsWithCurrentFilters = async () => {
     setLoading(true);
     try {
+      const { startDate: periodStart, endDate: periodEnd } = getPeriodDates();
       const params = new URLSearchParams();
-      
-      // Usar a mesma lógica de datas do dashboard para consistência
-      if (dateRange?.from) {
-        const startDate = toBrasiliaISOString(dateRange.from, false);
-        params.append('start_date', startDate);
-      }
-      if (dateRange?.to) {
-        const endDate = toBrasiliaISOString(dateRange.to, true);
-        params.append('end_date', endDate);
-      }
+      params.append('start_date', toBrasiliaISOString(periodStart, false));
+      params.append('end_date', toBrasiliaISOString(periodEnd, true));
       if (filters.status && filters.status.length > 0) {
         params.append('status', filters.status.join(','));
       }
@@ -201,16 +296,17 @@ export default function TicketReports() {
       showInactiveOfficials: searchParams.get('showInactiveOfficials') === 'true' || false
     };
     setFilters(newFilters);
-    
+
     const fromDate = searchParams.get('start_date') || searchParams.get('startDate');
     const toDate = searchParams.get('end_date') || searchParams.get('endDate');
-    if (fromDate || toDate) {
+    if (fromDate && toDate) {
+      setTimeFilter('custom');
       setDateRange({
-        from: fromDate ? new Date(fromDate) : undefined,
-        to: toDate ? new Date(toDate) : undefined
+        from: new Date(fromDate),
+        to: new Date(toDate)
       });
     }
-  }, []); // Executar apenas uma vez na montagem inicial
+  }, []);
 
   // Buscar departamentos dinamicamente
   useEffect(() => {
@@ -409,11 +505,10 @@ export default function TicketReports() {
 
   const handleExport = async (format: 'pdf' | 'excel') => {
     try {
+      const { startDate: periodStart, endDate: periodEnd } = getPeriodDates();
       const params = new URLSearchParams();
-      
-      // Usar a mesma lógica de datas do dashboard para consistência
-      if (dateRange?.from) params.append('start_date', toBrasiliaISOString(dateRange.from, false));
-      if (dateRange?.to) params.append('end_date', toBrasiliaISOString(dateRange.to, true));
+      params.append('start_date', toBrasiliaISOString(periodStart, false));
+      params.append('end_date', toBrasiliaISOString(periodEnd, true));
       if (filters.status && filters.status.length > 0) {
         params.append('status', filters.status.join(','));
       }
@@ -499,36 +594,22 @@ export default function TicketReports() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Período</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateRange?.from ? (
-                      dateRange?.to ? (
-                        <>{format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}</>
-                      ) : (
-                        format(dateRange.from, "dd/MM/yyyy")
-                      )
-                    ) : (
-                      <span>Selecione o período</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={dateRange?.from}
-                    selected={dateRange}
-                    onSelect={(range) => setDateRange(range || { from: undefined, to: undefined })}
-                    numberOfMonths={2}
-                    locale={ptBR}
-                  />
-                </PopoverContent>
-              </Popover>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <DateRangeFilter
+                  timeFilter={timeFilter}
+                  setTimeFilter={setTimeFilter}
+                  dateRange={dateRange}
+                  setDateRange={setDateRange}
+                  calendarOpen={calendarOpen}
+                  setCalendarOpen={setCalendarOpen}
+                />
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {format(startDate, locale === 'en-US' ? 'MM/dd/yy' : 'dd/MM/yy', { locale: locale === 'en-US' ? enUS : ptBR })}
+                  {formatMessage('dashboard.date_range_separator')}
+                  {format(endDate, locale === 'en-US' ? 'MM/dd/yy' : 'dd/MM/yy', { locale: locale === 'en-US' ? enUS : ptBR })}
+                </span>
+              </div>
             </div>
 
             <div>
@@ -654,12 +735,9 @@ export default function TicketReports() {
 
           <div className="mt-4">
             <Button onClick={() => {
-              // Atualizar URL com os filtros atuais
               const newParams = new URLSearchParams();
-              
-              // Usar a mesma lógica de datas do dashboard para consistência
-              if (dateRange?.from) newParams.set('start_date', toBrasiliaISOString(dateRange.from, false));
-              if (dateRange?.to) newParams.set('end_date', toBrasiliaISOString(dateRange.to, true));
+              newParams.set('start_date', toBrasiliaISOString(startDate, false));
+              newParams.set('end_date', toBrasiliaISOString(endDate, true));
               if (filters.status && filters.status.length > 0) {
                 newParams.set('status', filters.status.join(','));
               }
@@ -667,10 +745,7 @@ export default function TicketReports() {
               if (filters.departmentId && filters.departmentId !== 'all') newParams.set('departmentId', filters.departmentId);
               if (filters.incidentTypeId && filters.incidentTypeId !== 'all') newParams.set('incidentTypeId', filters.incidentTypeId);
               if (filters.showInactiveOfficials) newParams.set('showInactiveOfficials', 'true');
-              
               setSearchParams(newParams);
-              
-              // Buscar os dados
               fetchReportsWithCurrentFilters();
             }} disabled={loading}>
               {loading ? 'Carregando...' : 'Aplicar Filtros'}

@@ -528,15 +528,15 @@ export default function PeopleIndex() {
           </DialogHeader>
           {selectedUser && (
             <div className="py-4">
-              <div className="flex items-center p-3 rounded-md border bg-neutral-50 mb-4">
+              <div className="flex items-center p-3 rounded-md border bg-muted mb-4">
                 <div className="mr-3">
-                  {selectedUser.role === 'admin' ? <Shield className="h-5 w-5 text-blue-600" /> :
-                    selectedUser.role === 'support' ? <UserCog className="h-5 w-5 text-amber-600" /> :
-                      <User className="h-5 w-5 text-neutral-600" />}
+                  {selectedUser.role === 'admin' ? <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" /> :
+                    selectedUser.role === 'support' ? <UserCog className="h-5 w-5 text-amber-600 dark:text-amber-400" /> :
+                      <User className="h-5 w-5 text-muted-foreground" />}
                 </div>
                 <div>
-                  <p className="font-medium">{selectedUser.name}</p>
-                  <p className="text-sm text-neutral-500">{selectedUser.email}</p>
+                  <p className="font-medium text-foreground">{selectedUser.name}</p>
+                  <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
                 </div>
               </div>
             </div>
@@ -562,15 +562,15 @@ export default function PeopleIndex() {
           </DialogHeader>
           {selectedUser && (
             <div className="py-4">
-              <div className="flex items-center p-3 rounded-md border bg-neutral-50 mb-4">
+              <div className="flex items-center p-3 rounded-md border bg-muted mb-4">
                 <div className="mr-3">
-                  {selectedUser.role === 'admin' ? <Shield className="h-5 w-5 text-blue-600" /> :
-                    selectedUser.role === 'support' ? <UserCog className="h-5 w-5 text-amber-600" /> :
-                      <User className="h-5 w-5 text-neutral-600" />}
+                  {selectedUser.role === 'admin' ? <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" /> :
+                    selectedUser.role === 'support' ? <UserCog className="h-5 w-5 text-amber-600 dark:text-amber-400" /> :
+                      <User className="h-5 w-5 text-muted-foreground" />}
                 </div>
                 <div>
-                  <p className="font-medium">{selectedUser.name}</p>
-                  <p className="text-sm text-neutral-500">{selectedUser.email}</p>
+                  <p className="font-medium text-foreground">{selectedUser.name}</p>
+                  <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
                 </div>
               </div>
               <div className="space-y-4">
@@ -604,7 +604,7 @@ export default function PeopleIndex() {
                   <Label htmlFor="must_change_password" className="text-sm">Forçar troca de senha no próximo login</Label>
                 </div>
                 {passwordError && (
-                  <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">
+                  <div className="rounded-md bg-red-50 dark:bg-red-950/50 p-3 text-sm text-red-600 dark:text-red-400">
                     <AlertTriangle className="h-4 w-4 inline-block mr-1" />
                     {passwordError}
                   </div>

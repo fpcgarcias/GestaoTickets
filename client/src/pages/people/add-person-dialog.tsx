@@ -42,8 +42,6 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    username: '',
-    password: '',
     role: '',
     company_id: user?.company_id ?? user?.company?.id ?? 0,
     cpf: '',
@@ -68,12 +66,6 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
       setFormData(prev => ({ ...prev, company_id: cid }));
     }
   }, [user, formData.company_id]);
-
-  useEffect(() => {
-    if (formData.email && !formData.username) {
-      setFormData(prev => ({ ...prev, username: prev.email }));
-    }
-  }, [formData.email]);
 
   const { data: companies = [] } = useQuery<Company[]>({
     queryKey: ['/api/companies'],
@@ -191,15 +183,7 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
       return;
     }
     if (!formData.email.trim() || !/^\S+@\S+\.\S+$/.test(formData.email)) {
-      toast({ title: formatMessage('common.error'), description: 'Email inválido', variant: 'destructive' });
-      return;
-    }
-    if (!formData.username.trim()) {
-      toast({ title: formatMessage('common.error'), description: 'Username é obrigatório', variant: 'destructive' });
-      return;
-    }
-    if (!formData.password || formData.password.length < 6) {
-      toast({ title: formatMessage('common.error'), description: 'Senha deve ter no mínimo 6 caracteres', variant: 'destructive' });
+      toast({ title: formatMessage('common.error'), description: 'Email é obrigatório e deve ser válido (será usado como login).', variant: 'destructive' });
       return;
     }
     if (!formData.company_id) {
@@ -222,8 +206,7 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
     createMutation.mutate({
       name: formData.name,
       email: formData.email,
-      username: formData.username,
-      password: formData.password,
+      username: formData.email,
       role: onlyCustomer ? undefined : (formData.role || undefined),
       company_id: formData.company_id,
       cpf: formData.cpf || undefined,
@@ -245,8 +228,6 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
     setFormData({
       name: '',
       email: '',
-      username: '',
-      password: '',
       role: '',
       company_id: user?.company_id ?? user?.company?.id ?? 0,
       cpf: '',
@@ -305,17 +286,10 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
                 <Input id="name" value={formData.name} onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))} placeholder="Nome completo" required />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="email">Email *</Label>
+                <Label htmlFor="email">E-mail * (será usado como login)</Label>
                 <Input id="email" type="email" value={formData.email} onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))} placeholder="email@empresa.com" required />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="username">Username *</Label>
-                <Input id="username" value={formData.username} onChange={e => setFormData(prev => ({ ...prev, username: e.target.value }))} placeholder="Usualmente o email" required />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="password">Senha *</Label>
-                <Input id="password" type="password" value={formData.password} onChange={e => setFormData(prev => ({ ...prev, password: e.target.value }))} placeholder="Mín. 6 caracteres" required minLength={6} />
-              </div>
+              <p className="text-sm text-muted-foreground">Uma senha complexa será gerada automaticamente e exibida após o cadastro.</p>
               <div className="grid gap-2">
                 <Label htmlFor="cpf">CPF</Label>
                 <Input id="cpf" value={formData.cpf} onChange={e => setFormData(prev => ({ ...prev, cpf: e.target.value }))} placeholder="Opcional" />
@@ -572,15 +546,16 @@ export default function AddPersonDialog({ open, onOpenChange, onCreated }: AddPe
                     <Copy className="h-4 w-4" />
                   </Button>
                 </p>
-                <p className="flex items-center gap-2">
-                  <strong>Senha temporária:</strong> {credentials.password}
-                  <Button variant="ghost" size="icon" className="h-6 w-6" type="button" onClick={() => { navigator.clipboard.writeText(credentials.password); toast({ title: 'Copiado', duration: 2000 }); }}>
+                <p className="flex items-center gap-2 flex-wrap">
+                  <strong>Nova senha:</strong>
+                  <code className="bg-muted px-2 py-1 rounded text-sm break-all">{credentials.password}</code>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" type="button" title="Copiar senha" onClick={() => { navigator.clipboard.writeText(credentials.password); toast({ title: 'Senha copiada', duration: 2000 }); }}>
                     <Copy className="h-4 w-4" />
                   </Button>
                 </p>
               </div>
-              <div className="bg-amber-50 border border-amber-200 p-3 rounded-md">
-                <p className="text-amber-800 text-sm">Anote estas credenciais; não será possível recuperá-las depois.</p>
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 rounded-md">
+                <p className="text-amber-800 dark:text-amber-200 text-sm">Anote estas credenciais; não será possível recuperar a senha depois.</p>
               </div>
             </div>
             <DialogFooter>

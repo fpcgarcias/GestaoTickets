@@ -9,6 +9,7 @@ import { IStorage } from '../storage';
 import * as schema from '@shared/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { db } from '../db';
+import { generateSecurePassword } from '../utils/password';
 
 const { users, customers, officials, officialDepartments, departments, sectors, officialVisibilityGrants } = schema;
 
@@ -206,9 +207,11 @@ export async function createPersonEndpoint(
     if (!username) {
       return res.status(400).json({ message: 'Username é obrigatório' });
     }
-    if (!password || password.length < 6) {
-      return res.status(400).json({ message: 'Senha é obrigatória e deve ter no mínimo 6 caracteres' });
-    }
+
+    // Senha automática complexa (8+ chars, maiúscula, minúscula, número, especial) quando não informada
+    const plainPassword = password && String(password).trim().length >= 8
+      ? String(password).trim()
+      : generateSecurePassword(12);
 
     let effectiveCompanyId: number | null = null;
     if (userRole === 'admin') {
@@ -234,7 +237,7 @@ export async function createPersonEndpoint(
       });
     }
 
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword = await hashPassword(plainPassword);
 
     const result = await withTransaction(async () => {
       const user = await storage.createUser({
@@ -390,7 +393,7 @@ export async function createPersonEndpoint(
       isOfficial: !!officialRecord,
       accessInfo: {
         username: user.username,
-        temporaryPassword: password,
+        temporaryPassword: plainPassword,
       },
     });
   } catch (error: any) {

@@ -3,10 +3,30 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
 import * as schema from "@shared/schema";
 
+/**
+ * Normaliza DATABASE_URL para evitar o aviso do pg sobre sslmode.
+ * Os modos 'prefer', 'require' e 'verify-ca' passam a ser explícitos como 'verify-full'.
+ * @see https://www.postgresql.org/docs/current/libpq-ssl.html
+ */
+export function normalizeConnectionString(url: string): string {
+  try {
+    const u = new URL(url);
+    const sslmode = u.searchParams.get('sslmode');
+    if (sslmode === 'prefer' || sslmode === 'require' || sslmode === 'verify-ca') {
+      u.searchParams.set('sslmode', 'verify-full');
+      return u.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
 // Configuração simplificada para driver pg tradicional
 async function createDb() {
+  const connectionString = normalizeConnectionString(process.env.DATABASE_URL!);
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString,
     max: 45,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000, // 10 segundos para testes

@@ -1,7 +1,20 @@
 {
-  "current": "1.2.4",
-  "releaseDate": "2026-02-24",
+  "current": "1.2.5",
+  "releaseDate": "2026-03-16",
   "versions": [
+    {
+      "version": "1.2.5",
+      "date": "2026-03-16",
+      "title": "Adição de novas funcionalidades.",
+      "type": "bugfix",
+      "changes": {
+        "fixed": [
+          "Corrigida a função de gerar a senha do usuário automaticamente no cadsatro.",
+          "Corrigido o cadastro do usuário para puxar automaticamente o e-mail como login do usuário.",
+          "Corrigido o filtro de datas no relatório de chamados."
+        ]
+      }
+    },
     {
       "version": "1.2.4",
       "date": "2026-02-24",

@@ -21,7 +21,7 @@ const path = require("path") as typeof import("path");
 const fs = require("fs") as typeof import("fs");
 const { fileURLToPath } = require("url") as typeof import("url");
 const { runMigrations } = await import("./migration-runner");
-const { initDb } = await import("./db");
+const { initDb, normalizeConnectionString } = await import("./db");
 const pgSimple = require("connect-pg-simple") as typeof import("connect-pg-simple");
 import helmet from "helmet";
 import cors from "cors";
@@ -270,9 +270,10 @@ if (process.env.NODE_ENV === 'production') {
   try {
     // Em produção, usar PostgreSQL para armazenar sessões
     const PostgresStore = pgSimple(session);
+    const connectionString = normalizeConnectionString(process.env.DATABASE_URL!);
     sessionStore = new PostgresStore({
       conObject: {
-        connectionString: process.env.DATABASE_URL,
+        connectionString,
         ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
       },
       tableName: 'user_sessions', // Usar a tabela existente
