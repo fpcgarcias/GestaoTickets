@@ -2269,7 +2269,7 @@ export class DatabaseStorage implements IStorage {
     
     // APLICAR FILTRO DE DEPARTAMENTO SE ESPECIFICADO (adicional aos filtros por role)
     if (departmentId) {
-      whereClauses.push(eq(tickets.department_id, _departmentId));
+      whereClauses.push(eq(tickets.department_id, departmentId));
     }
     if (incidentTypeId) {
       whereClauses.push(eq(tickets.incident_type_id, incidentTypeId));
