@@ -162,11 +162,12 @@ export async function getPeopleEndpoint(req: Request, res: Response, storage: IS
   }
 }
 
-function resolveRole(isRequester: boolean, isOfficial: boolean, providedRole: string | undefined): string {
+export function resolveRole(isRequester: boolean, isOfficial: boolean, providedRole: string | undefined): string {
+  if (providedRole) return providedRole;
   if (isRequester && isOfficial) return 'support';
   if (isOfficial) return 'support';
   if (isRequester) return 'customer';
-  return providedRole || 'viewer';
+  return 'viewer';
 }
 
 export async function createPersonEndpoint(
