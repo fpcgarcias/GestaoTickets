@@ -19,6 +19,7 @@ import {
   ticketStatusEnum
 } from "@shared/schema";
 import { generateTicketId } from "@shared/utils";
+import { normalizarPrioridadeParaEstatisticas } from "@shared/utils/priority-utils";
 
 // Interface for storage operations
 export interface IStorage {
@@ -852,10 +853,9 @@ export class MemStorage implements IStorage {
     tickets.forEach(ticket => {
       byStatus[ticket.status as keyof typeof byStatus]++;
       
-      // Agrupar prioridade por nome usando case-insensitive
-      // Normalizar para agrupamento (primeira letra maiúscula, resto minúsculo)
-      const normalizedPriority = ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1).toLowerCase();
-      byPriority[normalizedPriority] = (byPriority[normalizedPriority] || 0) + 1;
+      const raw = ticket.priority?.trim() ? ticket.priority : 'medium';
+      const label = normalizarPrioridadeParaEstatisticas(raw);
+      byPriority[label] = (byPriority[label] || 0) + 1;
     });
     
     return {
@@ -1062,10 +1062,9 @@ export class MemStorage implements IStorage {
     userTickets.forEach(ticket => {
       stats.byStatus[ticket.status] = (stats.byStatus[ticket.status] || 0) + 1;
       
-      // Agrupar prioridade por nome usando case-insensitive
-      // Normalizar para agrupamento (primeira letra maiúscula, resto minúsculo)
-      const normalizedPriority = ticket.priority.charAt(0).toUpperCase() + ticket.priority.slice(1).toLowerCase();
-      stats.byPriority[normalizedPriority] = (stats.byPriority[normalizedPriority] || 0) + 1;
+      const raw = ticket.priority?.trim() ? ticket.priority : 'medium';
+      const label = normalizarPrioridadeParaEstatisticas(raw);
+      stats.byPriority[label] = (stats.byPriority[label] || 0) + 1;
     });
     return stats;
   }
@@ -1235,8 +1234,9 @@ export class MemStorage implements IStorage {
       const status = ticket.status || 'new';
       byStatus[status] = (byStatus[status] || 0) + 1;
       
-      const priority = ticket.priority || 'medium';
-      byPriority[priority] = (byPriority[priority] || 0) + 1;
+      const raw = ticket.priority?.trim() ? ticket.priority : 'medium';
+      const label = normalizarPrioridadeParaEstatisticas(raw);
+      byPriority[label] = (byPriority[label] || 0) + 1;
     });
     
     return {

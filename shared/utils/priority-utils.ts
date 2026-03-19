@@ -5,6 +5,55 @@
 
 import type { DepartmentPriority, Company } from '@shared/schema';
 
+/** Remove marcas diacríticas para comparar "Média", "Media", "MÉDIA", etc. */
+function stripDiacritics(s: string): string {
+  return s.normalize('NFD').replace(/\p{M}/gu, '');
+}
+
+/**
+ * Chave estável para agrupar prioridades em estatísticas (acentos e caixa ignorados).
+ */
+export function chaveAgrupamentoPrioridade(prioridade: string | null | undefined): string {
+  const t = prioridade == null ? '' : String(prioridade).trim();
+  if (!t) return '';
+  return stripDiacritics(t).toLowerCase();
+}
+
+/** Sinônimos (ASCII) → rótulo canônico em pt-BR para gráficos e relatórios */
+const CANONICAL_PRIORITY_BY_ASCII_KEY: Record<string, string> = {
+  media: 'Média',
+  medium: 'Média',
+  alta: 'Alta',
+  high: 'Alta',
+  baixa: 'Baixa',
+  low: 'Baixa',
+  critica: 'Crítica',
+  critical: 'Crítica',
+  imediata: 'Imediata',
+  immediate: 'Imediata',
+};
+
+/**
+ * Rótulo único para exibição em dashboard/relatórios, fundindo variantes de escrita.
+ * Prioridades customizadas: título com base na forma sem acento (evita barras duplicadas só por acento).
+ */
+export function normalizarPrioridadeParaEstatisticas(prioridade: string | null | undefined): string {
+  if (prioridade == null) return '';
+  const trimmed = String(prioridade).trim();
+  if (trimmed === '') return '';
+  if (trimmed === 'N/A') return 'N/A';
+
+  const k = chaveAgrupamentoPrioridade(trimmed);
+  if (!k) return '';
+
+  if (CANONICAL_PRIORITY_BY_ASCII_KEY[k]) {
+    return CANONICAL_PRIORITY_BY_ASCII_KEY[k];
+  }
+
+  const base = stripDiacritics(trimmed);
+  return base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
+}
+
 // Prioridades padrão do sistema legado (fallback)
 export const DEFAULT_PRIORITIES = [
   { name: 'Baixa', weight: 1, color: '#6B7280', legacy_value: 'low' },

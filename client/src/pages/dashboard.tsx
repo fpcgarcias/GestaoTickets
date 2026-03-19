@@ -5,6 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { StatusDot } from '@/components/tickets/status-badge';
 import { TimeMetricCard } from '@/components/ui/time-metric-card';
 import { TICKET_STATUS, PRIORITY_LEVELS } from '@/lib/utils';
+import { normalizarPrioridadeParaEstatisticas as normalizarPrioridade } from '@shared/utils/priority-utils';
 import { Clock, CheckCircle2, Users, Calendar, MoreHorizontal, Building, ClipboardList, Tags, ChevronDown } from 'lucide-react';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -56,12 +57,6 @@ function toBrasiliaISOString(date: Date, endOfDay = false) {
     local.setHours(0, 0, 0, 0);
   }
   return local.toISOString();
-}
-
-// Função utilitária para normalizar prioridade (primeira letra maiúscula, resto minúsculo)
-function normalizarPrioridade(prioridade: string) {
-  if (!prioridade) return '';
-  return prioridade.charAt(0).toUpperCase() + prioridade.slice(1).toLowerCase();
 }
 
 export default function Dashboard() {

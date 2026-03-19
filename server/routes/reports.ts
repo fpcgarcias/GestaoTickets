@@ -11,6 +11,7 @@ import { type TicketStatus } from '@shared/ticket-utils';
 import { storage } from '../storage';
 import { withTimeout } from '../middleware/file-validation';
 import { logger } from '../services/logger';
+import { chaveAgrupamentoPrioridade, normalizarPrioridadeParaEstatisticas } from '@shared/utils/priority-utils';
 
 const router = Router();
 
@@ -34,13 +35,6 @@ function translateTicketStatus(status: string): string {
   };
   
   return translations[status] || status;
-}
-
-// Função utilitária para normalizar prioridade (primeira letra maiúscula, resto minúsculo)
-// IGUAL ao dashboard.tsx para consistência total
-function normalizarPrioridade(prioridade: string) {
-  if (!prioridade) return '';
-  return prioridade.charAt(0).toUpperCase() + prioridade.slice(1).toLowerCase();
 }
 
 // Função para formatar data/hora em português brasileiro
@@ -90,7 +84,7 @@ function generatePDFHTML(headers: string[], rows: any[][], reportTitle: string =
       if (header === 'Status') {
         value = translateTicketStatus(value);
       } else if (header === 'Prioridade') {
-        value = normalizarPrioridade(value);
+        value = normalizarPrioridadeParaEstatisticas(value);
       } else if (header === 'Atribuído a') {
         if (value === 'N/A' || value === '' || !value) {
           value = 'Não Atribuído';
@@ -851,7 +845,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       ticket.department_name,
       ticket.assigned_to_name === 'N/A' || !ticket.assigned_to_name ? 'Não Atribuído' : `"${ticket.assigned_to_name.replace(/"/g, '""')}"`,
       translateTicketStatus(ticket.status),
-      ticket.priority_name || normalizarPrioridade(ticket.priority),
+      ticket.priority_name || normalizarPrioridadeParaEstatisticas(ticket.priority),
       formatarDataHora(ticket.created_at),
       ticket.resolved_at ? formatarDataHora(ticket.resolved_at) : 'Não resolvido'
     ]);
@@ -871,7 +865,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
         'Departamento': ticket.department_name,
         'Atribuído a': ticket.assigned_to_name === 'N/A' || !ticket.assigned_to_name ? 'Não Atribuído' : ticket.assigned_to_name,
         'Status': translateTicketStatus(ticket.status),
-        'Prioridade': ticket.priority_name || normalizarPrioridade(ticket.priority),
+        'Prioridade': ticket.priority_name || normalizarPrioridadeParaEstatisticas(ticket.priority),
         'Criado em': formatarDataHora(ticket.created_at),
         'Resolvido em': ticket.resolved_at ? formatarDataHora(ticket.resolved_at) : 'Não resolvido'
       }));
@@ -2068,8 +2062,7 @@ router.get('/sla', authRequired, async (req: Request, res: Response) => {
     const priorityMap = new Map<string, { total: number; breached: number; originalName: string }>();
     tickets.forEach(t => {
       const prioRaw = t.priority || 'N/A';
-      // Usar chave normalizada (case-insensitive) para agrupar
-      const prioKey = prioRaw.toLowerCase().trim();
+      const prioKey = chaveAgrupamentoPrioridade(prioRaw === 'N/A' ? 'N/A' : prioRaw) || prioRaw.toLowerCase().trim();
       const current = priorityMap.get(prioKey) || { total: 0, breached: 0, originalName: prioRaw };
       current.total++;
       if (t.sla_breached) current.breached++;
@@ -2077,7 +2070,7 @@ router.get('/sla', authRequired, async (req: Request, res: Response) => {
     });
 
     const byPriority = Array.from(priorityMap.entries()).map(([_priorityKey, data]) => ({
-      priority: normalizarPrioridade(data.originalName),
+      priority: normalizarPrioridadeParaEstatisticas(data.originalName),
       total_tickets: data.total,
       breached_tickets: data.breached,
       compliance_rate: data.total > 0 ? ((data.total - data.breached) / data.total) * 100 : 0
@@ -2117,7 +2110,7 @@ router.get('/sla', authRequired, async (req: Request, res: Response) => {
         id: t.id,
         ticket_id: t.ticket_id,
         title: t.title,
-        priority: normalizarPrioridade(t.priority || 'N/A'),
+        priority: normalizarPrioridadeParaEstatisticas(t.priority || 'N/A'),
         department_name: t.department_id ? (departmentMap.get(t.department_id) || 'N/A') : 'N/A',
         created_at: t.created_at,
         resolved_at: t.resolved_at
