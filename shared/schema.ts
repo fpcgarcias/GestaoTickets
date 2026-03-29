@@ -119,6 +119,8 @@ export const departments = pgTable("departments", {
   use_service_providers: boolean("use_service_providers").default(false).notNull(),
   use_inventory_control: boolean("use_inventory_control").default(false).notNull(),
   auto_close_waiting_customer: boolean("auto_close_waiting_customer").default(false).notNull(),
+  default_agent_enabled: boolean("default_agent_enabled").default(false).notNull(),
+  default_agent_id: integer("default_agent_id").references(() => officials.id, { onDelete: 'set null' }),
 });
 
 // Support staff table (ajustado para usar department_id ao invés de enum)

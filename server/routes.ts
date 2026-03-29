@@ -4063,7 +4063,43 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
       const originalPriority = ticket.priority || null;
 
+      // 🎯 ATRIBUIÇÃO AUTOMÁTICA: Verificar se o departamento tem atendente padrão
+      if (ticket.department_id) {
+        try {
+          const [dept] = await db.select()
+            .from(departmentsSchema)
+            .where(eq(departmentsSchema.id, ticket.department_id));
 
+          console.log(`[Default Agent] Departamento ${ticket.department_id}: default_agent_enabled=${dept?.default_agent_enabled}, default_agent_id=${dept?.default_agent_id}`);
+
+          if (dept?.default_agent_enabled && dept?.default_agent_id) {
+            // Verificar se o atendente padrão está ativo
+            const [agent] = await db.select()
+              .from(schema.officials)
+              .where(and(
+                eq(schema.officials.id, dept.default_agent_id),
+                eq(schema.officials.is_active, true)
+              ));
+
+            if (agent) {
+              const updatedTicket = await storage.updateTicket(ticket.id, {
+                assigned_to_id: dept.default_agent_id,
+              });
+              if (updatedTicket) {
+                Object.assign(ticket, updatedTicket);
+              }
+              console.log(`[Default Agent] ✅ Ticket ${ticket.id} atribuído ao atendente padrão ${dept.default_agent_id}`);
+            } else {
+              console.warn(`[Default Agent] ⚠️ Atendente padrão ${dept.default_agent_id} inativo. Seguindo fluxo normal.`);
+            }
+          } else {
+            console.log(`[Default Agent] Departamento ${ticket.department_id} sem atendente padrão habilitado.`);
+          }
+        } catch (defaultAgentError) {
+          console.error('[Default Agent] ❌ Erro ao verificar atendente padrão:', defaultAgentError);
+          // Erro na atribuição automática não impede a criação do ticket
+        }
+      }
 
       // ✅ ADICIONAR PARTICIPANTES SE FORNECIDOS
 
@@ -10390,7 +10426,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-        const { name, description, is_active, company_id: new_company_id, sla_mode, satisfaction_survey_enabled, use_service_providers, use_inventory_control, auto_close_waiting_customer } = req.body; // Captura company_id, sla_mode, satisfaction_survey_enabled, use_service_providers, auto_close_waiting_customer do corpo
+        const { name, description, is_active, company_id: new_company_id, sla_mode, satisfaction_survey_enabled, use_service_providers, use_inventory_control, auto_close_waiting_customer, default_agent_enabled, default_agent_id } = req.body;
 
         const userRole = req.session.userRole as string;
 
@@ -10424,6 +10460,59 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
         if (use_service_providers !== undefined) updatePayload.use_service_providers = use_service_providers;
         if (use_inventory_control !== undefined) updatePayload.use_inventory_control = use_inventory_control;
         if (auto_close_waiting_customer !== undefined) updatePayload.auto_close_waiting_customer = auto_close_waiting_customer;
+
+        // Validação do atendente padrão
+        if (default_agent_enabled !== undefined) {
+          if (default_agent_enabled === true) {
+            if (!default_agent_id) {
+              return res.status(400).json({ message: "default_agent_id é obrigatório quando default_agent_enabled é true." });
+            }
+
+            // Buscar o departamento atual para obter company_id
+            const [currentDept] = await db.select({ company_id: departmentsSchema.company_id })
+              .from(departmentsSchema)
+              .where(eq(departmentsSchema.id, departmentIdParam));
+
+            if (!currentDept) {
+              return res.status(404).json({ message: "Departamento não encontrado." });
+            }
+
+            // Verificar que o atendente existe, está ativo e pertence à mesma empresa
+            const [agent] = await db.select()
+              .from(schema.officials)
+              .where(and(
+                eq(schema.officials.id, default_agent_id),
+                eq(schema.officials.is_active, true),
+                eq(schema.officials.company_id, currentDept.company_id!)
+              ));
+
+            if (!agent) {
+              return res.status(400).json({ message: "Atendente padrão não encontrado, inativo ou não pertence à mesma empresa do departamento." });
+            }
+
+            // Verificar que o atendente está vinculado ao departamento
+            const [deptLink] = await db.select()
+              .from(schema.officialDepartments)
+              .where(and(
+                eq(schema.officialDepartments.official_id, default_agent_id),
+                eq(schema.officialDepartments.department_id, departmentIdParam)
+              ));
+
+            if (!deptLink) {
+              return res.status(400).json({ message: "Atendente padrão não está vinculado a este departamento." });
+            }
+
+            updatePayload.default_agent_enabled = true;
+            updatePayload.default_agent_id = default_agent_id;
+          } else {
+            // Desabilitar: limpar o agent_id
+            updatePayload.default_agent_enabled = false;
+            updatePayload.default_agent_id = null;
+          }
+        } else if (default_agent_id !== undefined) {
+          // Se só mandou default_agent_id sem default_agent_enabled, ignorar
+          // (precisa habilitar explicitamente)
+        }
 
 
 

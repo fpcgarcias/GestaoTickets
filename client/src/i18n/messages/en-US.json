@@ -1433,7 +1433,13 @@
       "linked_to_incident_types": "Department cannot be deleted because it is linked to {count} incident type(s).",
       "linked_to_officials": "Department cannot be deleted because it is linked to {count} official(s).",
       "linked_to_categories": "Department cannot be deleted because it is linked to {count} category(ies)."
-    }
+    },
+    "default_agent_enabled": "Default agent",
+    "default_agent_enabled_description": "When enabled, new tickets will be automatically assigned to the selected agent",
+    "default_agent_id": "Select default agent",
+    "default_agent_id_placeholder": "Select an agent",
+    "default_agent_validation_required": "Select a default agent when the feature is enabled",
+    "default_agent_not_found": "Default agent not found or inactive"
   },
   "ticket_types": {
     "title": "Ticket Types",

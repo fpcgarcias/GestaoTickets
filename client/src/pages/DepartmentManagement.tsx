@@ -29,6 +29,8 @@ interface DepartmentFormData {
   use_service_providers?: boolean;
   use_inventory_control?: boolean;
   auto_close_waiting_customer?: boolean;
+  default_agent_enabled?: boolean;
+  default_agent_id?: number | null;
 }
 
 const DepartmentManagement: React.FC = () => {
@@ -56,8 +58,11 @@ const DepartmentManagement: React.FC = () => {
     use_service_providers: false,
     use_inventory_control: false,
     auto_close_waiting_customer: false,
+    default_agent_enabled: false,
+    default_agent_id: null,
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [defaultAgentError, setDefaultAgentError] = useState<string | null>(null);
 
   // Buscar a lista de empresas (apenas para admin)
   const { data: companies = [] } = useQuery<any[]>({
@@ -134,6 +139,22 @@ const DepartmentManagement: React.FC = () => {
   const departments = departmentsResponse?.departments || [];
   const pagination = departmentsResponse?.pagination;
 
+  // Buscar atendentes ativos vinculados ao departamento (para seleção de atendente padrão)
+  const { data: departmentOfficialsResponse } = useQuery<{
+    data: Array<{ id: number; name: string; email: string; is_active: boolean }>;
+  }>({
+    queryKey: ['/api/officials', currentDepartment.id, 'department-agents'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', `/api/officials?department_id=${currentDepartment.id}&limit=200`);
+      if (!response.ok) {
+        throw new Error('Erro ao buscar atendentes');
+      }
+      return response.json();
+    },
+    enabled: !!currentDepartment.id && currentDepartment.default_agent_enabled === true,
+  });
+  const departmentOfficials = departmentOfficialsResponse?.data || [];
+
   // Resetar página quando filtros mudarem
   const handleCompanyChange = (companyId: number | null) => {
     setSelectedCompanyId(companyId);
@@ -209,6 +230,8 @@ const DepartmentManagement: React.FC = () => {
         use_service_providers: data.use_service_providers || false,
         use_inventory_control: data.use_inventory_control || false,
         auto_close_waiting_customer: data.auto_close_waiting_customer || false,
+        default_agent_enabled: data.default_agent_enabled || false,
+        default_agent_id: data.default_agent_enabled ? (data.default_agent_id || null) : null,
       });
       
       if (!response.ok) {
@@ -299,8 +322,11 @@ const DepartmentManagement: React.FC = () => {
       use_service_providers: false,
       use_inventory_control: false,
       auto_close_waiting_customer: false,
+      default_agent_enabled: false,
+      default_agent_id: null,
     });
     setIsEditing(false);
+    setDefaultAgentError(null);
   };
 
   // Abrir formulário para criação
@@ -322,9 +348,12 @@ const DepartmentManagement: React.FC = () => {
       use_service_providers: (department as any).use_service_providers || false,
       use_inventory_control: (department as any).use_inventory_control || false,
       auto_close_waiting_customer: (department as any).auto_close_waiting_customer || false,
+      default_agent_enabled: (department as any).default_agent_enabled || false,
+      default_agent_id: (department as any).default_agent_id || null,
     });
     setIsEditing(true);
     setIsDialogOpen(true);
+    setDefaultAgentError(null);
   };
 
   // Confirmar exclusão
@@ -349,6 +378,13 @@ const DepartmentManagement: React.FC = () => {
   // Enviar formulário
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validar atendente padrão
+    if (currentDepartment.default_agent_enabled && !currentDepartment.default_agent_id) {
+      setDefaultAgentError(formatMessage('departments.default_agent_validation_required'));
+      return;
+    }
+    setDefaultAgentError(null);
     
     // Se não for admin, garantir que a empresa do usuário seja usada
     const dataToSubmit = {
@@ -571,7 +607,7 @@ const DepartmentManagement: React.FC = () => {
 
       {/* Modal de formulário */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isEditing ? formatMessage('departments.edit_department_dialog.title') : formatMessage('departments.add_department_dialog.title')}</DialogTitle>
             <DialogDescription>
@@ -750,6 +786,69 @@ const DepartmentManagement: React.FC = () => {
                 }
               />
             </div>
+
+            {/* Toggle: Atendente Padrão */}
+            {isEditing && (
+              <div className="space-y-3 p-4 border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Label htmlFor="default_agent_enabled" className="font-medium">
+                      {formatMessage('departments.default_agent_enabled')}
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      {formatMessage('departments.default_agent_enabled_description')}
+                    </p>
+                  </div>
+                  <Switch
+                    id="default_agent_enabled"
+                    checked={currentDepartment.default_agent_enabled || false}
+                    onCheckedChange={(checked) => {
+                      setCurrentDepartment((prev) => ({
+                        ...prev,
+                        default_agent_enabled: checked,
+                        default_agent_id: checked ? prev.default_agent_id : null,
+                      }));
+                      setDefaultAgentError(null);
+                    }}
+                  />
+                </div>
+
+                {currentDepartment.default_agent_enabled && (
+                  <div className="space-y-2">
+                    <Label htmlFor="default_agent_id">
+                      {formatMessage('departments.default_agent_id')}
+                    </Label>
+                    <Select
+                      value={currentDepartment.default_agent_id?.toString() || ""}
+                      onValueChange={(value) => {
+                        setCurrentDepartment((prev) => ({
+                          ...prev,
+                          default_agent_id: value ? parseInt(value) : null,
+                        }));
+                        setDefaultAgentError(null);
+                      }}
+                    >
+                      <SelectTrigger id="default_agent_id">
+                        <SelectValue placeholder={formatMessage('departments.default_agent_id_placeholder')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departmentOfficials
+                          .filter((official: any) => official.is_active)
+                          .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
+                          .map((official: any) => (
+                            <SelectItem key={official.id} value={official.id.toString()}>
+                              {official.name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    {defaultAgentError && (
+                      <p className="text-sm text-destructive">{defaultAgentError}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             
             <DialogFooter>
               <Button

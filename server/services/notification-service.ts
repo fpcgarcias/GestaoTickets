@@ -1,6 +1,6 @@
 import { WebSocket } from 'ws';
 import { db } from '../db';
-import { tickets, users, userNotificationSettings, ticketParticipants, notifications, customers, officials, officialDepartments } from '@shared/schema';
+import { tickets, users, userNotificationSettings, ticketParticipants, notifications, customers, officials, officialDepartments, departments } from '@shared/schema';
 import { eq, and, ne, isNull, sql, inArray } from 'drizzle-orm';
 import { webPushService } from './web-push-service';
 import { logNotificationError } from './logger';
@@ -930,8 +930,31 @@ class NotificationService {
 
       // Se o ticket tem departamento, notificar apenas os atendentes daquele departamento
       if (ticket.department_id) {
-        console.log(`[🔔 NEW TICKET] 📢 Enviando para departamento ${ticket.department_id} da empresa ${ticket.company_id}...`);
-        await this.sendNotificationToDepartment(ticket.department_id, payload, ticket.company_id);
+        // Verificar se o departamento tem atendente padrão habilitado
+        const [dept] = await db.select().from(departments).where(eq(departments.id, ticket.department_id));
+
+        if (dept?.default_agent_enabled && dept?.default_agent_id) {
+          // Buscar o atendente padrão ativo
+          const [agent] = await db.select()
+            .from(officials)
+            .where(and(
+              eq(officials.id, dept.default_agent_id),
+              eq(officials.is_active, true)
+            ));
+
+          if (agent?.user_id) {
+            console.log(`[🔔 NEW TICKET] 📢 Atendente padrão habilitado. Notificando apenas atendente padrão (user_id=${agent.user_id}) do departamento ${ticket.department_id}`);
+            await this.sendNotificationToUser(agent.user_id, payload);
+          } else {
+            // Fallback: atendente padrão inativo, notificar departamento inteiro
+            console.warn(`[🔔 NEW TICKET] ⚠️ Atendente padrão ${dept.default_agent_id} inativo. Fallback para notificação do departamento ${ticket.department_id}`);
+            await this.sendNotificationToDepartment(ticket.department_id, payload, ticket.company_id);
+          }
+        } else {
+          // Fluxo normal: notificar departamento inteiro
+          console.log(`[🔔 NEW TICKET] 📢 Enviando para departamento ${ticket.department_id} da empresa ${ticket.company_id}...`);
+          await this.sendNotificationToDepartment(ticket.department_id, payload, ticket.company_id);
+        }
       } else {
         // Fallback: Se não tem departamento, notificar todos (comportamento antigo)
         console.log(`[🔔 NEW TICKET] 📢 Enviando para agentes de suporte da empresa ${ticket.company_id} (sem departamento)...`);

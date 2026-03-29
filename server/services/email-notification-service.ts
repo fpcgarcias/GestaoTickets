@@ -1035,28 +1035,61 @@ export class EmailNotificationService {
 
       // 🔥 NOVA LÓGICA: Buscar APENAS os atendentes do departamento específico do ticket
       let departmentUsers = [];
+      let useDefaultAgentOnly = false;
       
       if (ticket.department_id) {
-        // Buscar usuários que são atendentes deste departamento específico
-        departmentUsers = await db
-          .select({
-            id: users.id,
-            name: users.name,
-            email: users.email,
-            role: users.role,
-            company_id: users.company_id
-          })
-          .from(users)
-          .innerJoin(officials, eq(users.id, officials.user_id))
-          .innerJoin(officialDepartments, eq(officials.id, officialDepartments.official_id))
-          .where(and(
-            eq(officialDepartments.department_id, ticket.department_id),
-            eq(users.active, true),
-            eq(officials.is_active, true),
-            // 🛡️ FILTRO DEFENSIVO: Garantir que department_id não seja NULL
-            not(isNull(officialDepartments.department_id)),
-            ticket.company_id ? eq(users.company_id, ticket.company_id) : undefined
-          ));
+        // Verificar se o departamento tem atendente padrão habilitado
+        const [dept] = await db.select().from(departments).where(eq(departments.id, ticket.department_id));
+
+        if (dept?.default_agent_enabled && dept?.default_agent_id) {
+          // Buscar o atendente padrão ativo
+          const defaultAgentUsers = await db
+            .select({
+              id: users.id,
+              name: users.name,
+              email: users.email,
+              role: users.role,
+              company_id: users.company_id
+            })
+            .from(users)
+            .innerJoin(officials, eq(users.id, officials.user_id))
+            .where(and(
+              eq(officials.id, dept.default_agent_id),
+              eq(users.active, true),
+              eq(officials.is_active, true),
+              ticket.company_id ? eq(users.company_id, ticket.company_id) : undefined
+            ));
+
+          if (defaultAgentUsers.length > 0) {
+            departmentUsers = defaultAgentUsers;
+            useDefaultAgentOnly = true;
+            console.log(`[📧 EMAIL PROD] 🎯 Atendente padrão habilitado. Enviando e-mail apenas para atendente padrão (user_id=${defaultAgentUsers[0].id})`);
+          } else {
+            console.warn(`[📧 EMAIL PROD] ⚠️ Atendente padrão ${dept.default_agent_id} inativo. Fallback para todos os atendentes do departamento.`);
+          }
+        }
+
+        // Se não usou atendente padrão, buscar todos os atendentes do departamento (fluxo normal)
+        if (!useDefaultAgentOnly) {
+          departmentUsers = await db
+            .select({
+              id: users.id,
+              name: users.name,
+              email: users.email,
+              role: users.role,
+              company_id: users.company_id
+            })
+            .from(users)
+            .innerJoin(officials, eq(users.id, officials.user_id))
+            .innerJoin(officialDepartments, eq(officials.id, officialDepartments.official_id))
+            .where(and(
+              eq(officialDepartments.department_id, ticket.department_id),
+              eq(users.active, true),
+              eq(officials.is_active, true),
+              not(isNull(officialDepartments.department_id)),
+              ticket.company_id ? eq(users.company_id, ticket.company_id) : undefined
+            ));
+        }
       } else {
         return;
       }

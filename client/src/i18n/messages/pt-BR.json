@@ -1433,7 +1433,13 @@
       "linked_to_incident_types": "Departamento não pode ser excluído pois está vinculado a {count} tipo(s) de chamado.",
       "linked_to_officials": "Departamento não pode ser excluído pois está vinculado a {count} oficial(is).",
       "linked_to_categories": "Departamento não pode ser excluído pois está vinculado a {count} categoria(s)."
-    }
+    },
+    "default_agent_enabled": "Atendente padrão",
+    "default_agent_enabled_description": "Quando habilitado, novos chamados serão automaticamente atribuídos ao atendente selecionado",
+    "default_agent_id": "Selecionar atendente padrão",
+    "default_agent_id_placeholder": "Selecione um atendente",
+    "default_agent_validation_required": "Selecione um atendente padrão quando a funcionalidade está habilitada",
+    "default_agent_not_found": "Atendente padrão não encontrado ou inativo"
   },
   "ticket_types": {
     "title": "Tipos de Chamado",
