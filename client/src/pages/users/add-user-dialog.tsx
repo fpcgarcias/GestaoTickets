@@ -10,6 +10,7 @@ import { queryClient } from '@/lib/queryClient';
 import { Loader2, Copy, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useI18n } from '@/i18n';
+import { getAllowedRolesToAssign, canOnlyCreateCustomer } from '@/lib/people-roles';
 import {
   Select,
   SelectContent,
@@ -40,14 +41,56 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
     password: '',
     role: '',
     company_id: user?.company?.id || 0,
-    cpf: ''
+    cpf: '',
+    sector_id: null as number | null,
+    department_id: null as number | null,
   });
   
   // Buscar lista de empresas (apenas para admin)
   const { data: companies, isLoading: isLoadingCompanies } = useQuery<Company[]>({
     queryKey: ['/api/companies'],
-    enabled: user?.role === 'admin', // Apenas buscar empresas se o usuário for admin
+    enabled: user?.role === 'admin',
   });
+
+  const effectiveCompanyId = user?.role === 'admin' ? formData.company_id : (user?.company?.id || 0);
+
+  const { data: sectorsResponse } = useQuery({
+    queryKey: ['/api/sectors', effectiveCompanyId],
+    queryFn: async () => {
+      let url = '/api/sectors?active_only=true&limit=500';
+      if (user?.role === 'admin' && effectiveCompanyId) {
+        url += `&company_id=${effectiveCompanyId}`;
+      }
+      const res = await apiRequest('GET', url);
+      if (!res.ok) throw new Error('Erro ao carregar setores');
+      return res.json();
+    },
+    enabled: !!effectiveCompanyId,
+  });
+
+  const sectorsData = sectorsResponse?.data || sectorsResponse || [];
+  const availableSectors = Array.isArray(sectorsData)
+    ? sectorsData.map((s: { id: number; name: string }) => ({ value: String(s.id), label: s.name }))
+    : [];
+
+  const { data: departmentsResponse } = useQuery({
+    queryKey: ['/api/departments', effectiveCompanyId],
+    queryFn: async () => {
+      let url = '/api/departments?active_only=true';
+      if (user?.role === 'admin' && effectiveCompanyId) {
+        url += `&company_id=${effectiveCompanyId}`;
+      }
+      const res = await apiRequest('GET', url);
+      if (!res.ok) throw new Error('Erro ao carregar departamentos');
+      return res.json();
+    },
+    enabled: !!effectiveCompanyId,
+  });
+
+  const departmentsData = departmentsResponse?.departments || departmentsResponse?.data || departmentsResponse || [];
+  const availableDepartments = Array.isArray(departmentsData)
+    ? departmentsData.map((d: { id: number; name: string }) => ({ value: String(d.id), label: d.name }))
+    : [];
   
   const [userCreated, setUserCreated] = useState(false);
   const [credentials, setCredentials] = useState({
@@ -76,7 +119,9 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
   const handleRoleChange = (value: string) => {
     setFormData(prev => ({
       ...prev,
-      role: value
+      role: value,
+      sector_id: null,
+      department_id: null,
     }));
   };
 
@@ -88,7 +133,7 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
   };
 
   const addUserMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
+    mutationFn: async (data: Record<string, unknown>) => {
       const res = await apiRequest('POST', '/api/users', data);
       return res.json();
     },
@@ -163,7 +208,7 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
       return;
     }
 
-    if (!formData.role) {
+    if (!onlyCustomer && !formData.role) {
       toast({
         title: formatMessage('users.add_user_dialog.validation_error'),
         description: formatMessage('users.add_user_dialog.validation_profile_required'),
@@ -172,7 +217,6 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
       return;
     }
     
-    // Validar que empresa foi selecionada
     if (!formData.company_id) {
       toast({
         title: formatMessage('users.add_user_dialog.validation_error'),
@@ -182,10 +226,14 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
       return;
     }
     
-    addUserMutation.mutate(formData);
+    addUserMutation.mutate({
+      ...formData,
+      role: effectiveRole,
+      sector_id: needsSector ? formData.sector_id : undefined,
+      department_id: needsDepartment ? formData.department_id : undefined,
+    });
   };
   
-  // Limpar formulário e resetar estado quando o diálogo for fechado
   const handleCloseDialog = () => {
     setFormData({
       name: '',
@@ -194,43 +242,46 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
       password: '',
       role: '',
       company_id: user?.company?.id || 0,
-      cpf: ''
+      cpf: '',
+      sector_id: null,
+      department_id: null,
     });
     setUserCreated(false);
     setCredentials({ username: '', password: '' });
     onOpenChange(false);
   };
 
-  // Função para obter os roles disponíveis baseado no perfil do usuário logado
+  const allowedRoles = getAllowedRolesToAssign(user?.role ?? '');
+  const onlyCustomer = canOnlyCreateCustomer(user?.role ?? '');
+  const effectiveRole = onlyCustomer ? 'customer' : formData.role;
+
+  const allRoleOptions = [
+    { value: 'admin', label: formatMessage('users.roles.admin') },
+    { value: 'company_admin', label: formatMessage('users.roles.company_admin') },
+    { value: 'manager', label: formatMessage('users.roles.manager') },
+    { value: 'supervisor', label: formatMessage('users.roles.supervisor') },
+    { value: 'support', label: formatMessage('users.roles.support') },
+    { value: 'triage', label: formatMessage('users.roles.triage') },
+    { value: 'quality', label: formatMessage('users.roles.quality') },
+    { value: 'viewer', label: formatMessage('users.roles.viewer') },
+    { value: 'customer', label: formatMessage('users.roles.customer') },
+    { value: 'inventory_manager', label: formatMessage('users.roles.inventory_manager') },
+    { value: 'integration_bot', label: formatMessage('users.roles.integration_bot') },
+  ];
+
   const getAvailableRoles = () => {
-    const roleOptions = [
-      { value: 'admin', label: formatMessage('users.roles.admin') },
-      { value: 'company_admin', label: formatMessage('users.roles.company_admin') },
-      { value: 'manager', label: formatMessage('users.roles.manager') },
-      { value: 'supervisor', label: formatMessage('users.roles.supervisor') },
-      { value: 'support', label: formatMessage('users.roles.support') },
-      { value: 'triage', label: formatMessage('users.roles.triage') },
-      { value: 'quality', label: formatMessage('users.roles.quality') },
-      { value: 'viewer', label: formatMessage('users.roles.viewer') },
-      { value: 'customer', label: formatMessage('users.roles.customer') },
-      { value: 'integration_bot', label: formatMessage('users.roles.integration_bot') }
-    ];
-    
     if (user?.role === 'admin') {
-      return roleOptions;
-    } else if (user?.role === 'company_admin') {
-      return roleOptions.filter(role => !['admin', 'integration_bot'].includes(role.value));
-    } else if (user?.role === 'manager') {
-      return roleOptions.filter(role => !['admin', 'integration_bot'].includes(role.value));
-    } else if (user?.role === 'supervisor') {
-      return roleOptions.filter(role => !['admin', 'integration_bot'].includes(role.value));
+      return allRoleOptions;
     }
-    return [];
+    return allRoleOptions.filter(r => allowedRoles.includes(r.value));
   };
+
+  const needsSector = effectiveRole === 'customer';
+  const needsDepartment = ['support', 'triage', 'supervisor', 'manager', 'quality', 'inventory_manager'].includes(effectiveRole);
 
   return (
     <Dialog open={open} onOpenChange={handleCloseDialog}>
-      <DialogContent className="sm:max-w-[450px]">
+      <DialogContent className="sm:max-w-[450px] max-h-[90vh] overflow-y-auto">
         {!userCreated ? (
           // Formulário de adição
           <>
@@ -299,24 +350,26 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
                   minLength={6}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="role">{formatMessage('users.add_user_dialog.profile')} *</Label>
-                <Select 
-                  value={formData.role} 
-                  onValueChange={handleRoleChange}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={formatMessage('users.add_user_dialog.profile_placeholder')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getAvailableRoles().map(role => (
-                      <SelectItem key={role.value} value={role.value}>
-                        {role.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {!onlyCustomer && (
+                <div className="space-y-2">
+                  <Label htmlFor="role">{formatMessage('users.add_user_dialog.profile')} *</Label>
+                  <Select 
+                    value={formData.role} 
+                    onValueChange={handleRoleChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={formatMessage('users.add_user_dialog.profile_placeholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getAvailableRoles().map(role => (
+                        <SelectItem key={role.value} value={role.value}>
+                          {role.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="company_id">{formatMessage('users.add_user_dialog.company')} *</Label>
                 {user?.role === 'admin' ? (
@@ -346,6 +399,44 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
                   />
                 )}
               </div>
+              {needsSector && (
+                <div className="space-y-2">
+                  <Label>{formatMessage('users.add_user_dialog.sector')}</Label>
+                  <Select
+                    value={formData.sector_id ? String(formData.sector_id) : 'none'}
+                    onValueChange={v => setFormData(prev => ({ ...prev, sector_id: v === 'none' ? null : parseInt(v, 10) }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={formatMessage('users.add_user_dialog.sector_placeholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{formatMessage('users.add_user_dialog.none')}</SelectItem>
+                      {availableSectors.map((s: { value: string; label: string }) => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {needsDepartment && (
+                <div className="space-y-2">
+                  <Label>{formatMessage('users.add_user_dialog.department')}</Label>
+                  <Select
+                    value={formData.department_id ? String(formData.department_id) : 'none'}
+                    onValueChange={v => setFormData(prev => ({ ...prev, department_id: v === 'none' ? null : parseInt(v, 10) }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={formatMessage('users.add_user_dialog.department_placeholder')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{formatMessage('users.add_user_dialog.none')}</SelectItem>
+                      {availableDepartments.map((d: { value: string; label: string }) => (
+                        <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex justify-end space-x-2 pt-4">
                 <Button type="button" variant="outline" onClick={handleCloseDialog}>
                   {formatMessage('users.add_user_dialog.cancel')}

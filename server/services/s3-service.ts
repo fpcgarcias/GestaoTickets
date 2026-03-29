@@ -2,6 +2,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } fro
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
 import path from 'path';
+import { log } from './db-logger';
 
 // Configuração do cliente S3/Wasabi
 const s3Client = new S3Client({
@@ -136,6 +137,8 @@ class S3Service {
       // Executar upload
       await s3Client.send(uploadCommand);
 
+      log.info('Upload S3/Wasabi concluído', { service: 'S3/Wasabi', operation: 'uploadFile', s3_key: s3Key, file_size: file.size, ticket_id: ticketId });
+
       return {
         s3Key,
         bucket: BUCKET_NAME,
@@ -146,6 +149,7 @@ class S3Service {
       };
 
     } catch (error) {
+      log.error('Erro no upload S3/Wasabi', { service: 'S3/Wasabi', operation: 'uploadFile', ticket_id: ticketId, error: error instanceof Error ? error.message : String(error) });
       console.error(`[S3] ❌ Erro no upload:`, error);
       throw new Error('Falha ao fazer upload do arquivo. Tente novamente.', { cause: error });
     }
@@ -217,6 +221,7 @@ class S3Service {
       };
     } catch (error) {
       console.error('[S3] ❌ Erro no upload de inventário:', error);
+      log.error('S3: falha no upload de inventário', { service: 'S3/Wasabi', operation: 'uploadInventoryFile', error: error instanceof Error ? error.message : String(error) });
       throw new Error('Falha ao fazer upload do arquivo de inventário. Tente novamente.', { cause: error });
     }
   }
@@ -274,6 +279,7 @@ class S3Service {
       };
     } catch (error) {
       console.error('[S3] ❌ Erro no upload de PDF assinado:', error);
+      log.error('S3: falha no upload de PDF assinado', { service: 'S3/Wasabi', operation: 'uploadSignedPdf', term_id: params.termId, error: error instanceof Error ? error.message : String(error) });
       throw new Error('Falha ao fazer upload do PDF assinado. Tente novamente.', { cause: error });
     }
   }
@@ -310,7 +316,9 @@ class S3Service {
       });
 
       await s3Client.send(deleteCommand);
+      log.info('Arquivo deletado do S3/Wasabi', { service: 'S3/Wasabi', operation: 'deleteFile', s3_key: s3Key });
     } catch (error) {
+      log.error('Erro ao deletar arquivo S3/Wasabi', { service: 'S3/Wasabi', operation: 'deleteFile', s3_key: s3Key, error: error instanceof Error ? error.message : String(error) });
       console.error('Erro ao deletar arquivo:', error);
       throw new Error('Falha ao deletar arquivo.', { cause: error });
     }

@@ -60,7 +60,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/satisfaction-dashboard", icon: Star, labelKey: 'sidebar.satisfaction_dashboard', roles: ['admin', 'company_admin', 'manager', 'supervisor'] },
   { href: "/performance-dashboard", icon: BarChart3, labelKey: 'sidebar.performance_dashboard', roles: ['admin'] },
   { href: "/ai-audit", icon: Brain, labelKey: 'sidebar.ai_audit', roles: ['admin', 'company_admin'] },
-  { href: "/logs", icon: FileText, labelKey: 'sidebar.logs', roles: ['admin'] },
+  { href: "/logs", icon: FileText, labelKey: 'sidebar.logs', roles: ['admin', 'company_admin'] },
   { href: "/settings", icon: Settings, labelKey: 'sidebar.settings', roles: ['admin', 'company_admin', 'manager', 'supervisor', 'support', 'viewer'] },
 ];
 

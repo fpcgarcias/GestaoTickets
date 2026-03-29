@@ -24,6 +24,7 @@ import { IStorage } from "./storage";
 import { isSlaPaused } from "@shared/ticket-utils";
 import { convertStatusHistoryToPeriods, calculateEffectiveBusinessTime, getBusinessHoursConfig } from "@shared/utils/sla-calculator";
 import { normalizarPrioridadeParaEstatisticas } from "@shared/utils/priority-utils";
+import { log } from "./services/db-logger";
 
 // Definir tipo TicketStatus globalmente para uso nos casts
 type TicketStatus = typeof ticketStatusEnum.enumValues[number];
@@ -1231,8 +1232,10 @@ export class DatabaseStorage implements IStorage {
 
       // @ts-expect-error - Ignorar erro de tipo temporariamente se status não bater exatamente
       const [insertedTicket] = await db.insert(tickets).values(ticketInsertData).returning();
+      log.info('Ticket criado', { ticket_id: insertedTicket.id, ticket_code: ticketId, company_id: ticketData.company_id });
       return this.getTicketInternal(insertedTicket.id) as Promise<Ticket>; // Usar método interno
     } catch (error) {
+      log.error('Erro ao criar ticket', { error: error instanceof Error ? error.message : String(error), company_id: ticketData.company_id });
       console.error("Error creating ticket:", error);
       throw error;
     }
@@ -1300,8 +1303,10 @@ export class DatabaseStorage implements IStorage {
       
       const updatedTicket = await this.getTicketInternal(ticket.id); // Usar método interno
 
+      log.info('Ticket atualizado', { ticket_id: id, ticket_code: ticket.ticket_id, status: ticket.status, company_id: ticket.company_id });
       return updatedTicket;
     } catch (error) {
+      log.error('Erro ao atualizar ticket', { ticket_id: id, error: error instanceof Error ? error.message : String(error) });
       console.error(`[ERROR] Erro ao atualizar ticket ${id}:`, error);
       throw error;
     }

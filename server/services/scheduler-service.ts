@@ -4,6 +4,7 @@ import { isWithinAllowedWindow } from '../utils/scheduler-window';
 import { db } from '../db';
 import { companies } from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import { log as dbLog } from './db-logger';
 
 export class SchedulerService {
   private intervalId: NodeJS.Timeout | null = null;
@@ -130,6 +131,11 @@ export class SchedulerService {
       }
     } catch (error) {
       console.error('[Scheduler] Erro ao gerar digest diário:', error);
+      dbLog.error('Scheduler: falha no digest diário', {
+        tipo: 'scheduler',
+        job: 'daily_digest',
+        erro: (error as any)?.message || String(error),
+      });
     }
   }
 
@@ -155,6 +161,11 @@ export class SchedulerService {
       }
     } catch (error) {
       console.error('[Scheduler] Erro ao gerar digest semanal:', error);
+      dbLog.error('Scheduler: falha no digest semanal', {
+        tipo: 'scheduler',
+        job: 'weekly_digest',
+        erro: (error as any)?.message || String(error),
+      });
     }
   }
 
@@ -174,6 +185,11 @@ export class SchedulerService {
       await emailNotificationService.checkWaitingCustomerAutoClose(companyFilter);
     } catch (error) {
       console.error('[Scheduler] Erro na verificação de tickets:', error);
+      dbLog.error('Scheduler: falha na verificação de tickets', {
+        tipo: 'scheduler',
+        job: 'check_tickets',
+        erro: (error as any)?.message || String(error),
+      });
     }
   }
 

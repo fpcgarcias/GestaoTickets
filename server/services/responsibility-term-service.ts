@@ -19,6 +19,7 @@ import puppeteer from 'puppeteer';
 import s3Service from './s3-service';
 import { emailConfigService } from './email-config-service';
 import { resolveDevEmail } from '../utils/email-dev';
+import { log as dbLog } from './db-logger';
 
 export interface TemplateInput extends Omit<InsertInventoryTermTemplate, 'company_id' | 'created_at' | 'updated_at'> {
   company_id: number;
@@ -921,6 +922,13 @@ class ResponsibilityTermService {
     const devEmail = resolveDevEmail(params.to);
     if (!devEmail.send) {
       console.log(`[📧 EMAIL DEV] Termo de responsabilidade: envio desabilitado em desenvolvimento. Destinatário original: ${devEmail.originalTo}`);
+      dbLog.info('Email não enviado (modo dev): termo de responsabilidade', {
+        tipo: 'email',
+        template: 'responsibility_term',
+        destinatario: devEmail.originalTo,
+        motivo: 'Envio desabilitado em desenvolvimento',
+        company_id: params.companyId,
+      });
       return;
     }
     const effectiveTo = devEmail.to;

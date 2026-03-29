@@ -425,7 +425,12 @@
       "validation_company_required": "Select a company",
       "error_adding_user": "Error adding user",
       "user_added_success_toast": "User added successfully",
-      "user_added_desc_toast": "User registered in the system"
+      "user_added_desc_toast": "User registered in the system",
+      "sector": "Sector",
+      "sector_placeholder": "Select sector",
+      "department": "Department",
+      "department_placeholder": "Select department",
+      "none": "None"
     }
   },
   "officials": {
@@ -2739,6 +2744,81 @@
   "not_found": {
     "title": "Page not found",
     "description": "The page you are looking for does not exist or has been moved."
+  },
+  "logs": {
+    "title": "System Logs",
+    "description": "View and analyze centralized logs from all servers",
+    "refresh": "Refresh",
+    "loading": "Loading logs...",
+    "error_loading": "Error loading logs",
+    "error_loading_stats": "Error loading statistics",
+    "no_logs": "No logs found",
+    "no_logs_description": "Adjust filters or wait for new log entries.",
+    "load_more": "Load more",
+    "stats": {
+      "total_logs": "Total Logs",
+      "total_errors": "Total Errors",
+      "avg_response_time": "Avg Response Time",
+      "slow_requests": "Slow Requests",
+      "ms": "ms",
+      "above_1s": "above 1s"
+    },
+    "filters": {
+      "level": "Level",
+      "all_levels": "All levels",
+      "server": "Server",
+      "all_servers": "All servers",
+      "search": "Search in message...",
+      "date_from": "Start date",
+      "date_to": "End date",
+      "company": "Company",
+      "all_companies": "All companies",
+      "clear_filters": "Clear filters",
+      "min_response_time": "Min time (ms)"
+    },
+    "table": {
+      "timestamp": "Timestamp",
+      "level": "Level",
+      "server": "Server",
+      "message": "Message",
+      "url": "URL",
+      "response_time": "Time (ms)",
+      "status": "Status"
+    },
+    "levels": {
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error",
+      "fatal": "Fatal"
+    },
+    "detail": {
+      "title": "Log Details",
+      "id": "ID",
+      "level": "Level",
+      "message": "Message",
+      "server": "Server",
+      "trace_id": "Trace ID",
+      "span_id": "Span ID",
+      "company_id": "Company",
+      "user_id": "User",
+      "request_method": "Method",
+      "request_url": "URL",
+      "response_status": "HTTP Status",
+      "response_time": "Response Time",
+      "created_at": "Created at",
+      "context_data": "Context Data",
+      "no_context": "No context data",
+      "system_log": "System log",
+      "view_trace": "View full trace"
+    },
+    "trace": {
+      "title": "Trace View",
+      "description": "Full request flow",
+      "entries": "{count} entries",
+      "back_to_logs": "Back to logs",
+      "no_entries": "No entries found for this trace"
+    }
   }
 }
 

@@ -1,7 +1,18 @@
 {
-  "current": "1.2.5",
-  "releaseDate": "2026-03-16",
+  "current": "1.2.6",
+  "releaseDate": "2026-03-23",
   "versions": [
+    {
+      "version": "1.2.6",
+      "date": "2026-03-23",
+      "title": "Atualização do sistema de logs.",
+      "type": "feature",
+      "changes": {
+        "improved": [
+          "Atualização do sistema de logs."
+        ]
+      }
+    },
     {
       "version": "1.2.5",
       "date": "2026-03-16",

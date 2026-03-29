@@ -16,10 +16,10 @@ const { users, customers, officials, officialDepartments, departments, sectors, 
 /** Roles que cada perfil pode atribuir (apenas hierarquia abaixo). Customer não acessa; admin pode tudo. */
 function getAllowedRolesToAssign(actorRole: string): string[] {
   switch (actorRole) {
-    case 'admin': return ['customer', 'support', 'supervisor', 'manager', 'company_admin', 'admin', 'viewer'];
-    case 'company_admin': return ['customer', 'support', 'supervisor', 'manager', 'company_admin', 'viewer'];
-    case 'manager': return ['customer', 'support', 'supervisor', 'viewer'];
-    case 'supervisor': return ['customer', 'support', 'viewer'];
+    case 'admin': return ['customer', 'support', 'triage', 'supervisor', 'manager', 'company_admin', 'admin', 'viewer', 'quality', 'inventory_manager', 'integration_bot'];
+    case 'company_admin': return ['customer', 'support', 'triage', 'supervisor', 'manager', 'company_admin', 'viewer', 'quality', 'inventory_manager'];
+    case 'manager': return ['customer', 'support', 'triage', 'supervisor', 'viewer'];
+    case 'supervisor': return ['customer', 'support', 'triage', 'viewer'];
     case 'support': return ['customer'];
     case 'customer':
     default: return [];

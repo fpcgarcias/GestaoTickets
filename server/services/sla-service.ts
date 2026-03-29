@@ -12,6 +12,7 @@ import {
   type DepartmentPriority
 } from '@shared/schema';
 import { eq, and, isNull, ilike } from 'drizzle-orm';
+import { log as dbLog } from './db-logger';
 
 // Interface para resultado de SLA resolvido
 export interface ResolvedSLA {
@@ -128,6 +129,10 @@ export class SLAService {
 
     } catch (error) {
       console.error('Erro ao resolver SLA:', error);
+      dbLog.error('SLA: falha na resolução', {
+        tipo: 'sla',
+        erro: (error as any)?.message || String(error),
+      });
       // Em caso de erro, retornar fallback global
       resolved = this.getNoSLAResult();
       resolved.fallbackReason = 'error_fallback';

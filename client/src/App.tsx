@@ -38,7 +38,7 @@ const SLADashboardPage = lazy(() => import("@/pages/sla-dashboard"));
 const PermissionsPage = lazy(() => import("@/pages/permissions"));
 const Changelog = lazy(() => import("@/pages/changelog"));
 const PerformanceDashboard = lazy(() => import("@/pages/performance-dashboard"));
-const LogsPage = lazy(() => import("@/pages/logs"));
+const SystemLogsPage = lazy(() => import("@/pages/system-logs"));
 const AiAuditPage = lazy(() => import("@/pages/ai-audit"));
 const ReportsIndex = lazy(() => import("@/pages/reports/index"));
 const TicketReports = lazy(() => import("@/pages/reports/TicketReports"));
@@ -242,7 +242,7 @@ function AppContent() {
       
       <ProtectedRoute path="/logs" component={() => (
         <MainLayout>
-          <LogsPage />
+          <SystemLogsPage />
         </MainLayout>
       )} />
       

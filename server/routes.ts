@@ -32,6 +32,7 @@ import { emailNotificationService } from './services/email-notification-service'
 import dashboardRouter from './routes/dashboard';
 
 import logsRouter from './routes/logs';
+import systemLogsRouter from './routes/system-logs';
 
 import ticketParticipantsRouter from './routes/ticket-participants';
 import serviceProvidersRouter from './routes/service-providers';
@@ -7980,143 +7981,107 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
   // Endpoint para criar usuários
 
-  router.post("/users", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor']), async (req: Request, res: Response) => {
-
+  router.post("/users", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support']), async (req: Request, res: Response) => {
     try {
-
-      const { username, email, password, name, role, avatarUrl, company_id, cpf } = req.body;
-
+      const { username, email, password, name, role, avatarUrl, company_id, cpf, sector_id, department_id } = req.body;
       const userRole = req.session?.userRole as string;
-
       const sessionCompanyId = req.session?.companyId;
-
-
 
       console.log(`Tentando criar usuário: ${name}, email: ${email}, username: ${username}, role: ${role}`);
 
-
-
-      // VALIDAÇÃO CRÍTICA DE SEGURANÇA: Apenas usuários admin podem criar outros admin
-
-      if (role === 'admin' && userRole !== 'admin') {
-
-        console.log(`TENTATIVA DE ESCALAÇÃO DE PRIVILÉGIOS: Usuário com role '${userRole}' tentou criar usuário admin`);
-
+      const { canManageUserRole } = await import('./middleware/authorization');
+      if (!canManageUserRole(userRole, role)) {
+        console.log(`TENTATIVA DE ESCALAÇÃO DE PRIVILÉGIOS: Usuário com role '${userRole}' tentou criar usuário '${role}'`);
         return res.status(403).json({
-
-          message: "Acesso negado: Apenas administradores globais podem criar outros administradores"
-
+          message: "Acesso negado: Você não tem permissão para criar usuários com esse perfil"
         });
-
       }
-
-
 
       const existingUser = await storage.getUserByUsername(username);
-
       if (existingUser) {
-
         console.log(`Erro: Nome de usuário '${username}' já existe`);
-
         return res.status(400).json({ message: "Nome de usuário já existe" });
-
       }
-
-
 
       const existingEmail = await storage.getUserByEmail(email);
-
       if (existingEmail) {
-
         console.log(`Erro: Email '${email}' já está em uso`);
-
         return res.status(400).json({ message: "Email já está em uso" });
-
       }
-
-
-
-      // Determinar company_id baseado no role do usuário logado
 
       let finalCompanyId: number | undefined;
-
       if (userRole === 'admin') {
-
-        // Admin pode especificar qualquer empresa ou deixar sem empresa
-
         finalCompanyId = company_id || undefined;
-
       } else {
-
-        // Outros roles só podem criar usuários para sua própria empresa
-
         finalCompanyId = sessionCompanyId;
-
       }
-
-
 
       const { hashPassword } = await import('./utils/password');
-
       const hashedPassword = await hashPassword(password);
 
-
-
       const user = await storage.createUser({
-
         username,
-
         email,
-
         password: hashedPassword,
-
         name,
-
         role: role as typeof schema.userRoleEnum.enumValues[number],
-
         avatar_url: avatarUrl,
-
         company_id: finalCompanyId,
-
         active: true,
-
         cpf: cpf || undefined 
-
       });
 
-
-
-      // Notificar sobre novo usuário criado
-
-      try {
-
-        await emailNotificationService.notifyNewUserCreated(user.id, req.session?.userId);
-        await notificationService.notifyNewUserCreated(user.id, req.session?.userId);
-
-      } catch (notificationError) {
-
-        console.error('Erro ao enviar notificação de novo usuário:', notificationError);
-
-        // Não falhar a criação do usuário por causa da notificação
-
+      if (role === 'customer' && sector_id) {
+        try {
+          await storage.createCustomer({
+            name,
+            email,
+            phone: null,
+            company: null,
+            user_id: user.id,
+            company_id: finalCompanyId,
+            sector_id: sector_id,
+          });
+        } catch (custErr) {
+          console.error('Erro ao vincular setor ao solicitante:', custErr);
+        }
       }
 
+      if (['support', 'triage', 'supervisor', 'manager', 'quality', 'inventory_manager'].includes(role) && department_id) {
+        try {
+          const official = await storage.createOfficial({
+            name,
+            email,
+            department_id: department_id,
+            user_id: user.id,
+            company_id: finalCompanyId,
+            is_active: true,
+            is_external: false,
+          });
+          if (official) {
+            await storage.addOfficialDepartment({
+              official_id: official.id,
+              department_id: department_id,
+            });
+          }
+        } catch (offErr) {
+          console.error('Erro ao vincular departamento ao atendente:', offErr);
+        }
+      }
 
+      try {
+        await emailNotificationService.notifyNewUserCreated(user.id, req.session?.userId);
+        await notificationService.notifyNewUserCreated(user.id, req.session?.userId);
+      } catch (notificationError) {
+        console.error('Erro ao enviar notificação de novo usuário:', notificationError);
+      }
 
       const { password: _, ...userWithoutPassword } = user;
-
-
-
       res.status(201).json(userWithoutPassword);
-
     } catch (error) {
-
       console.error('Erro ao criar usuário:', error);
-
       res.status(500).json({ message: "Falha ao criar usuário", error: String(error) });
-
     }
-
   });
 
 
@@ -20809,6 +20774,8 @@ Obrigado por nos ajudar a melhorar continuamente.
   app.use("/api/tickets", dashboardRouter);
 
   app.use("/api/logs", logsRouter);
+
+  app.use("/api/system-logs", systemLogsRouter);
 
   app.use("/api/ticket-participants", ticketParticipantsRouter);
 

@@ -22,6 +22,7 @@ import {
   type SupportedLanguage 
 } from '../utils/status-translations';
 import { resolveDevEmail } from '../utils/email-dev';
+import { log as dbLog } from './db-logger';
 
 export interface EmailNotificationContext {
   ticket?: any;
@@ -115,6 +116,13 @@ export class EmailNotificationService {
       const devEmail = resolveDevEmail(recipientEmail);
       if (!devEmail.send) {
         console.log(`[📧 EMAIL DEV] Envio desabilitado em desenvolvimento. Destinatário original: ${devEmail.originalTo}`);
+        dbLog.info(`Email não enviado (modo dev): ${templateType}`, {
+          tipo: 'email',
+          template: templateType,
+          destinatario: devEmail.originalTo,
+          motivo: 'Envio desabilitado em desenvolvimento',
+          company_id: companyId,
+        });
         return { success: true };
       }
       const effectiveRecipient = devEmail.to;
@@ -152,12 +160,27 @@ export class EmailNotificationService {
       if (!emailConfig || !emailConfig.from_email || !emailConfig.provider ||
           (emailConfig.provider === 'smtp' && (!emailConfig.host || !emailConfig.username || !emailConfig.password || emailConfig.port === 0)) ||
           ((emailConfig.provider === 'brevo' || emailConfig.provider === 'sendgrid' || emailConfig.provider === 'mailgun') && !emailConfig.api_key)) {
+        dbLog.warn(`Email não enviado (config incompleta): ${templateType}`, {
+          tipo: 'email',
+          template: templateType,
+          destinatario: recipientEmail,
+          motivo: 'Configuração de email inexistente ou incompleta',
+          company_id: validatedCompanyId,
+          provider: emailConfig?.provider || 'nenhum',
+        });
         return { success: false, error: 'Configuração de email inexistente ou incompleta para a empresa. Nenhum email enviado.' };
       }
 
       // 4. Buscar template
       const template = await this.getEmailTemplate(templateType, validatedCompanyId);
       if (!template) {
+        dbLog.warn(`Email não enviado (template ausente): ${templateType}`, {
+          tipo: 'email',
+          template: templateType,
+          destinatario: recipientEmail,
+          motivo: `Template '${templateType}' não encontrado`,
+          company_id: validatedCompanyId,
+        });
         return { success: false, error: `Template '${templateType}' não encontrado. Configure em Configurações > Email > Templates.` };
       }
 
@@ -191,6 +214,17 @@ export class EmailNotificationService {
 
         const _result = await transporter.sendMail(mailOptions);
 
+        dbLog.info(`Email enviado: ${templateType} → ${effectiveRecipient}`, {
+          tipo: 'email',
+          template: templateType,
+          destinatario: effectiveRecipient,
+          assunto: renderedSubject,
+          company_id: validatedCompanyId,
+          provider: emailConfig.provider,
+          ticket_id: context.ticket?.id,
+          ticket_code: context.ticket?.ticket_id,
+        });
+
         return { success: true };
       } catch (transporterError) {
         console.error(`[📧 EMAIL PROD] ❌ ERRO ao criar transporter ou enviar email:`, transporterError);
@@ -200,6 +234,16 @@ export class EmailNotificationService {
           command: (transporterError as any)?.command,
           response: (transporterError as any)?.response,
           responseCode: (transporterError as any)?.responseCode
+        });
+        dbLog.error(`Falha ao enviar email: ${templateType} → ${effectiveRecipient}`, {
+          tipo: 'email',
+          template: templateType,
+          destinatario: effectiveRecipient,
+          company_id: validatedCompanyId,
+          provider: emailConfig.provider,
+          erro: (transporterError as any)?.message,
+          erro_code: (transporterError as any)?.code,
+          ticket_id: context.ticket?.id,
         });
         return { success: false, error: `Erro no envio: ${String(transporterError)}. Verifique as configurações de email.` };
       }
@@ -1067,6 +1111,13 @@ export class EmailNotificationService {
 
       if (!ticket) {
         console.log(`[📧 EMAIL PROD] ❌ ERRO: Ticket ${ticketId} não encontrado no banco`);
+        dbLog.warn(`Email não enviado: ticket não encontrado`, {
+          tipo: 'email',
+          evento: 'ticket_assigned',
+          ticket_id: ticketId,
+          atendente_id: assignedToId,
+          motivo: 'Ticket não encontrado no banco',
+        });
         return;
       }
 
@@ -1085,6 +1136,15 @@ export class EmailNotificationService {
 
       if (!official) {
         console.log(`[📧 EMAIL PROD] ❌ ERRO: Atendente (official) ${assignedToId} não encontrado ou inativo`);
+        dbLog.warn(`Email não enviado: atendente não encontrado`, {
+          tipo: 'email',
+          evento: 'ticket_assigned',
+          ticket_id: ticketId,
+          ticket_code: ticket.ticket_id,
+          atendente_id: assignedToId,
+          motivo: 'Atendente não encontrado ou inativo',
+          company_id: ticket.company_id,
+        });
         return;
       }
 
@@ -1133,6 +1193,16 @@ export class EmailNotificationService {
         );
       } else {
         console.log(`[📧 EMAIL PROD] 🔕 Atendente (official) ${official.name} não configurado para receber notificações`);
+        dbLog.info(`Email não enviado (preferência do usuário): ticket_assigned`, {
+          tipo: 'email',
+          template: 'ticket_assigned',
+          destinatario: official.email,
+          atendente: official.name,
+          motivo: 'Usuário desabilitou notificações de atribuição',
+          ticket_id: ticketId,
+          ticket_code: ticket.ticket_id,
+          company_id: ticket.company_id,
+        });
       }
 
       console.log(`[📧 EMAIL PROD] ===========================================`);
@@ -1144,6 +1214,13 @@ export class EmailNotificationService {
 
     } catch (error) {
       console.error('Erro ao enviar notificação de ticket atribuído:', error);
+      dbLog.error(`Erro ao processar email: atribuição de ticket`, {
+        tipo: 'email',
+        evento: 'ticket_assigned',
+        ticket_id: ticketId,
+        atendente_id: assignedToId,
+        erro: (error as any)?.message || String(error),
+      });
     }
   }
 

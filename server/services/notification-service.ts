@@ -5,6 +5,7 @@ import { eq, and, ne, isNull, sql, inArray } from 'drizzle-orm';
 import { webPushService } from './web-push-service';
 import { logNotificationError } from './logger';
 import { STATUS_CONFIG } from '@shared/ticket-utils';
+import { log as dbLog } from './db-logger';
 
 interface NotificationPayload {
   type: string;
@@ -145,6 +146,13 @@ class NotificationService {
             notificationId: notification.id,
             error: webPushError instanceof Error ? webPushError.message : String(webPushError),
             stack: webPushError instanceof Error ? webPushError.stack : undefined,
+          });
+          dbLog.error('Web Push: falha no envio', {
+            tipo: 'notificacao',
+            canal: 'web_push',
+            user_id: userId,
+            ticket_id: payload.ticketId,
+            erro: webPushError instanceof Error ? webPushError.message : String(webPushError),
           });
           // Continuar normalmente - notificação já está persistida
         }
@@ -411,6 +419,12 @@ class NotificationService {
         }
       } catch (wpError) {
         console.error('Erro no processamento batch de Web Push', wpError);
+        dbLog.error('Web Push batch: falha no processamento', {
+          tipo: 'notificacao',
+          canal: 'web_push_batch',
+          usuarios_offline: offlineUserIds.length,
+          erro: wpError instanceof Error ? wpError.message : String(wpError),
+        });
       }
     }
   }
@@ -933,6 +947,12 @@ class NotificationService {
         'error',
         { ticketId }
       );
+      dbLog.error('Notificação: falha ao notificar novo ticket', {
+        tipo: 'notificacao',
+        evento: 'new_ticket',
+        ticket_id: ticketId,
+        erro: (error as any)?.message || String(error),
+      });
     }
   }
 

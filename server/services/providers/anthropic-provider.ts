@@ -1,5 +1,6 @@
 import { AiProviderInterface, AiAnalysisResult } from "../ai-service";
 import { AiConfiguration } from "../../../shared/schema";
+import { log as dbLog } from '../db-logger';
 
 export class AnthropicProvider implements AiProviderInterface {
   async analyze(
@@ -149,6 +150,12 @@ export class AnthropicProvider implements AiProviderInterface {
 
     } catch (error: unknown) {
       console.error('Erro no provedor Anthropic Claude:', error);
+      dbLog.error('IA: falha no Anthropic Claude', {
+        tipo: 'ia',
+        provider: 'anthropic_claude',
+        model: config.model,
+        erro: error instanceof Error ? error.message : String(error),
+      });
       
       // Se for timeout, marcar como tal
       if (error instanceof Error && error.name === 'TimeoutError') {

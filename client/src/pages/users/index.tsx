@@ -27,6 +27,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useBusinessHoursRefetchInterval } from '../../hooks/use-business-hours';
 import AddUserDialog from './add-user-dialog';
 import { useI18n } from '@/i18n';
+import { getAllowedRolesToAssign } from '@/lib/people-roles';
 
 // Função para traduzir códigos de erro de senha
 const translatePasswordErrors = (errorCodes: string[], formatMessage: (id: string) => string): string[] => {
@@ -324,7 +325,7 @@ export default function UsersIndex() {
     return company?.name || formatMessage('users.company_not_found');
   };
 
-  // Função para obter os roles disponíveis baseado no perfil do usuário logado (para edição)
+  const allowedRolesForEdit = getAllowedRolesToAssign(user?.role ?? '');
   const getAvailableRolesForEdit = () => {
     const roleOptions = [
       { value: 'admin', label: formatMessage('users.roles.admin') },
@@ -336,19 +337,13 @@ export default function UsersIndex() {
       { value: 'quality', label: formatMessage('users.roles.quality') },
       { value: 'viewer', label: formatMessage('users.roles.viewer') },
       { value: 'customer', label: formatMessage('users.roles.customer') },
-      { value: 'integration_bot', label: formatMessage('users.roles.integration_bot') }
+      { value: 'inventory_manager', label: formatMessage('users.roles.inventory_manager') },
+      { value: 'integration_bot', label: formatMessage('users.roles.integration_bot') },
     ];
-    
     if (user?.role === 'admin') {
       return roleOptions;
-    } else if (user?.role === 'company_admin') {
-      return roleOptions.filter(role => !['admin', 'integration_bot'].includes(role.value));
-    } else if (user?.role === 'manager') {
-      return roleOptions.filter(role => !['admin', 'integration_bot'].includes(role.value));
-    } else if (user?.role === 'supervisor') {
-      return roleOptions.filter(role => !['admin', 'integration_bot'].includes(role.value));
     }
-    return [];
+    return roleOptions.filter(r => allowedRolesForEdit.includes(r.value));
   };
 
   return (

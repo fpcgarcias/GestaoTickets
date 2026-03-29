@@ -7,6 +7,7 @@ import clicksignConfigService from './clicksign-config-service';
 import responsibilityTermService from './responsibility-term-service';
 import https from 'https';
 import http from 'http';
+import { log } from './db-logger';
 
 export type SupportedSignatureProvider = 'docusign' | 'clicksign' | 'd4sign' | 'mock';
 
@@ -539,6 +540,8 @@ export class ClicksignProvider implements SignatureProvider {
       
       console.log('[ClickSign] URL de assinatura:', signingUrl);
 
+      log.info('Documento enviado para Clicksign', { service: 'Clicksign', operation: 'sendDocument', envelope_key: envelopeKey, document_key: documentKey });
+
       return {
         requestId: envelopeKey,
         documentId: documentKey, // Retornar também o ID do documento
@@ -547,6 +550,7 @@ export class ClicksignProvider implements SignatureProvider {
         status: 'pending',
       };
     } catch (error: unknown) {
+      log.error('Erro ao enviar documento para Clicksign', { service: 'Clicksign', operation: 'sendDocument', error: error instanceof Error ? error.message : String(error) });
       console.error('Erro ao enviar documento para Clicksign:', error);
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Falha ao enviar para Clicksign: ${message}`, { cause: error });

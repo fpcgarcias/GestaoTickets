@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean, pgEnum, primaryKey, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, pgEnum, primaryKey, jsonb, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -596,6 +596,32 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   last_used_at: timestamp("last_used_at"),
 });
 
+// Tabela de logs centralizados do sistema
+export const systemLogs = pgTable("system_logs", {
+  id: serial("id").primaryKey(),
+  level: text("level").notNull(), // 'debug' | 'info' | 'warn' | 'error' | 'fatal'
+  message: text("message").notNull(),
+  server_identifier: text("server_identifier").notNull(),
+  trace_id: text("trace_id"),
+  span_id: text("span_id"),
+  context_data: jsonb("context_data").default({}),
+  company_id: integer("company_id").references(() => companies.id),
+  user_id: integer("user_id").references(() => users.id),
+  request_method: text("request_method"),
+  request_url: text("request_url"),
+  response_status: integer("response_status"),
+  response_time_ms: integer("response_time_ms"),
+  created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ([
+  index("idx_system_logs_created_at").on(table.created_at.desc()),
+  index("idx_system_logs_level").on(table.level),
+  index("idx_system_logs_server").on(table.server_identifier),
+  index("idx_system_logs_trace_id").on(table.trace_id),
+  index("idx_system_logs_company_id").on(table.company_id),
+  index("idx_system_logs_request_url").on(table.request_url),
+  index("idx_system_logs_level_created").on(table.level, table.created_at.desc()),
+]));
+
 // Schema for inserting companies
 export const insertCompanySchema = createInsertSchema(companies).omit({
   id: true,
@@ -785,6 +811,12 @@ export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions
   last_used_at: true,
 });
 
+// Schema for inserting system logs
+export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({
+  id: true,
+  created_at: true,
+});
+
 // Types
 export type Company = typeof companies.$inferSelect;
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
@@ -923,6 +955,9 @@ export type PushSubscription = typeof pushSubscriptions.$inferSelect & {
   user?: Partial<User>;
 };
 export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
+
+export type SystemLog = typeof systemLogs.$inferSelect;
+export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;
 
 // Relation declarations
 

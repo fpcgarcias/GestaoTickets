@@ -1,5 +1,6 @@
 import { AiProviderInterface, AiAnalysisResult } from "../ai-service";
 import { AiConfiguration } from "../../../shared/schema";
+import { log as dbLog } from '../db-logger';
 
 export class GoogleProvider implements AiProviderInterface {
   async analyze(
@@ -152,6 +153,12 @@ export class GoogleProvider implements AiProviderInterface {
 
     } catch (error: unknown) {
       console.error('Erro no provedor Google Gemini:', error);
+      dbLog.error('IA: falha no Google Gemini', {
+        tipo: 'ia',
+        provider: 'google_gemini',
+        model: config.model,
+        erro: error instanceof Error ? error.message : String(error),
+      });
       
       // Se for timeout, marcar como tal
       if (error instanceof Error && error.name === 'TimeoutError') {

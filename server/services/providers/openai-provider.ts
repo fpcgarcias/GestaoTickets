@@ -1,5 +1,6 @@
 import { AiProviderInterface, AiAnalysisResult } from "../ai-service";
 import { AiConfiguration } from "../../../shared/schema";
+import { log } from "../db-logger";
 
 export class OpenAiProvider implements AiProviderInterface {
   async analyze(
@@ -62,8 +63,12 @@ export class OpenAiProvider implements AiProviderInterface {
       }
 
       const data = await response.json();
+      const duration = Date.now() - startTime;
+      log.info('Chamada OpenAI concluída', { service: 'OpenAI', duration_ms: duration, model: config.model, status: response.status });
       return this.processResponse(data, config, startTime);
     } catch (error: unknown) {
+      const duration = Date.now() - startTime;
+      log.error('Erro na chamada OpenAI', { service: 'OpenAI', duration_ms: duration, model: config.model, error: error instanceof Error ? error.message : String(error) });
       console.error('Erro no provedor OpenAI:', error);
       
       // Se for timeout, marcar como tal

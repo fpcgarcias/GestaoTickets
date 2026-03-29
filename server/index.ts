@@ -14,7 +14,7 @@ if (isProduction) {
 }
 
 const express = require("express") as typeof import("express");
-const { setupVite, serveStatic, log } = await import("./vite");
+const { setupVite, serveStatic } = await import("./vite");
 const session = require("express-session") as typeof import("express-session");
 const crypto = require("crypto") as typeof import("crypto");
 const path = require("path") as typeof import("path");
@@ -27,6 +27,8 @@ import helmet from "helmet";
 import cors from "cors";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 // === IMPORTS DE SEGURANCA ===
+import { logBuffer } from './services/log-buffer';
+import { requestLoggingMiddleware } from './middleware/request-logging';
 
 // Calcular __dirname para ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -82,6 +84,13 @@ process.on('SIGINT', () => {
 
 // Função para encerramento gracioso
 function gracefulShutdown() {
+  console.log('[🧹 CLEANUP] Parando LogBuffer...');
+  logBuffer.stop().then(() => {
+    console.log('[🧹 CLEANUP] ✅ LogBuffer parado com sucesso');
+  }).catch((error) => {
+    console.error('[🧹 CLEANUP] ❌ Erro ao parar LogBuffer:', error);
+  });
+
   console.log('[🧹 CLEANUP] Parando CleanupScheduler...');
   
   if (cleanupSchedulerInstance) {
@@ -90,6 +99,17 @@ function gracefulShutdown() {
       console.log('[🧹 CLEANUP] ✅ CleanupScheduler parado com sucesso');
     } catch (error) {
       console.error('[🧹 CLEANUP] ❌ Erro ao parar CleanupScheduler:', error);
+    }
+  }
+
+  console.log('[📋 LOG-RETENTION] Parando LogRetentionJob...');
+
+  if (logRetentionJobInstance) {
+    try {
+      logRetentionJobInstance.stop();
+      console.log('[📋 LOG-RETENTION] ✅ LogRetentionJob parado com sucesso');
+    } catch (error) {
+      console.error('[📋 LOG-RETENTION] ❌ Erro ao parar LogRetentionJob:', error);
     }
   }
   
@@ -260,6 +280,8 @@ const notificationService = {
 
 // Variável global para armazenar a instância do CleanupScheduler
 let cleanupSchedulerInstance: any = null;
+// Variável global para armazenar a instância do LogRetentionJob
+let logRetentionJobInstance: any = null;
 
 // Inicializar serviço
 notificationService.initialize();
@@ -312,53 +334,9 @@ app.use(session({
   }
 }));
 
-// === MIDDLEWARE DE LOG MELHORADO ===
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      
-      // Mascarar dados sensíveis nos logs
-      if (capturedJsonResponse) {
-        const sanitizedResponse = { ...capturedJsonResponse };
-        // Mascarar TODAS as possíveis informações sensíveis
-        if (sanitizedResponse.password) sanitizedResponse.password = '[MASKED]';
-        if (sanitizedResponse.senha) sanitizedResponse.senha = '[MASKED]';
-        if (sanitizedResponse.token) sanitizedResponse.token = '[MASKED]';
-        if (sanitizedResponse.session) sanitizedResponse.session = '[MASKED]';
-        if (sanitizedResponse.email) sanitizedResponse.email = '[MASKED]';
-        if (sanitizedResponse.username) sanitizedResponse.username = '[MASKED]';
-        if (sanitizedResponse.name) sanitizedResponse.name = '[MASKED]';
-        
-        // Se for array de usuários, mascarar cada item
-        if (Array.isArray(sanitizedResponse) || (sanitizedResponse.users && Array.isArray(sanitizedResponse.users))) {
-          logLine += ` :: [USERS_DATA_MASKED]`;
-        } else {
-          logLine += ` :: ${JSON.stringify(sanitizedResponse)}`;
-        }
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
-});
+// === MIDDLEWARE DE LOGGING CENTRALIZADO (DB) ===
+logBuffer.start();
+app.use(requestLoggingMiddleware);
 
 // // Servir arquivos estáticos - Usar o __dirname calculado
 // app.use(express.static(path.join(__dirname, "public"))); // Comentar ou remover esta linha
@@ -422,7 +400,19 @@ async function startServer() {
       console.error("[🧹 CLEANUP] Stack trace:", error instanceof Error ? error.stack : 'N/A');
     }
     
-    // 6. Iniciar servidor na porta especificada
+    // 6. Inicializar LogRetentionJob para limpeza automática de logs antigos
+    console.log("[📋 LOG-RETENTION] Inicializando LogRetentionJob...");
+    try {
+      const { logRetentionJob } = await import("./services/log-retention-job");
+      logRetentionJob.start();
+      logRetentionJobInstance = logRetentionJob;
+      console.log("[📋 LOG-RETENTION] ✅ LogRetentionJob inicializado com sucesso");
+    } catch (error) {
+      console.error("[📋 LOG-RETENTION] ❌ Erro ao inicializar LogRetentionJob:", error);
+      console.error("[📋 LOG-RETENTION] Stack trace:", error instanceof Error ? error.stack : 'N/A');
+    }
+    
+    // 7. Iniciar servidor na porta especificada
     const PORT = process.env.PORT || 5000; 
     server.listen(PORT, () => {
       console.log(`Servidor rodando na porta ${PORT}`);
