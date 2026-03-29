@@ -97,25 +97,9 @@ router.get('/', authRequired, async (req: Request, res: Response) => {
     // Combinar todas as condições com AND (Requirement 8.5)
     const whereClause = and(...conditions);
 
-    // Contar total de notificações
-    const [{ count: totalCount }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(notifications)
-      .where(whereClause);
-
-    // Contar notificações não lidas
-    const [{ count: unreadCount }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(notifications)
-      .where(and(
-        eq(notifications.user_id, userId),
-        sql`${notifications.read_at} IS NULL`
-      ));
-
     // Configurar ordenação (Requirement 9.4)
     let orderByClause;
     if (sortBy === 'priority') {
-      // Ordenar por prioridade: critical > high > medium > low
       const priorityOrder = sql`
         CASE ${notifications.priority}
           WHEN 'critical' THEN 4
@@ -127,19 +111,35 @@ router.get('/', authRequired, async (req: Request, res: Response) => {
       `;
       orderByClause = sortOrder === 'asc' ? priorityOrder : desc(priorityOrder);
     } else {
-      // Ordenação padrão por data de criação
       orderByClause = sortOrder === 'asc' ? notifications.created_at : desc(notifications.created_at);
     }
 
-    // Buscar notificações com paginação (Requirement 1.5)
     const offset = (page - 1) * limit;
-    const notificationsList = await db
-      .select()
-      .from(notifications)
-      .where(whereClause)
-      .orderBy(orderByClause)
-      .limit(limit)
-      .offset(offset);
+
+    // Executar as 3 queries em paralelo em vez de sequencialmente
+    const [totalResult, unreadResult, notificationsList] = await Promise.all([
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(notifications)
+        .where(whereClause),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(notifications)
+        .where(and(
+          eq(notifications.user_id, userId),
+          sql`${notifications.read_at} IS NULL`
+        )),
+      db
+        .select()
+        .from(notifications)
+        .where(whereClause)
+        .orderBy(orderByClause)
+        .limit(limit)
+        .offset(offset),
+    ]);
+
+    const totalCount = totalResult[0].count;
+    const unreadCount = unreadResult[0].count;
 
     const hasMore = offset + notificationsList.length < totalCount;
 

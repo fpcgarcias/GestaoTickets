@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { useNotifications } from '@/hooks/use-notifications';
+import { useWebSocketContext } from '@/contexts/websocket-context';
 import { Bell } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { NotificationPanel } from '@/components/notifications/notification-panel';
 
 export const NotificationCenter: React.FC = () => {
-  const { unreadCount } = useNotifications();
+  const { unreadCount } = useWebSocketContext();
   const [isOpen, setIsOpen] = useState(false);
 
   const toggleNotifications = () => {

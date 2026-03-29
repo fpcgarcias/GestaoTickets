@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNotifications, NotificationFilters as FilterType } from '@/hooks/use-notifications';
+import { NotificationFilters as FilterType } from '@/hooks/use-notifications';
 import { Bell, Trash2, CheckCheck, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -56,14 +56,6 @@ interface PersistentNotification {
 export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onClose }) => {
   const [, setLocation] = useLocation();
   const { locale, formatMessage } = useI18n();
-  // 🔥 CORREÇÃO: Usar hook useNotifications para sincronizar estado e contador
-  const { 
-    notifications: _hookNotifications, 
-    markAsRead, 
-    markAllAsRead, 
-    refresh,
-    loading: _hookLoading 
-  } = useNotifications();
   const [notifications, setNotifications] = useState<PersistentNotification[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -143,8 +135,6 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
       setPage(1);
       setHasMore(true);
       fetchNotifications(1, false);
-      // 🔥 CORREÇÃO: Sincronizar com hook quando painel abre (sem incluir refresh nas deps para evitar loop)
-      refresh().catch(err => console.error('Erro ao sincronizar notificações:', err));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, filters]);
@@ -180,13 +170,19 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
   }, [open, hasMore, loading, page, fetchNotifications]);
 
   // Marcar todas como lidas (Requirement 2.3)
+  // O badge atualiza automaticamente via WebSocket (sendUnreadCountUpdate no servidor)
   const handleMarkAllAsRead = async () => {
     try {
-      // 🔥 CORREÇÃO: Usar função do hook para sincronizar com badge
-      await markAllAsRead();
-      // Recarregar notificações do servidor para garantir sincronização
-      await refresh();
-      // Atualizar estado local do painel também
+      const response = await fetch('/api/notifications/read-all', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao marcar todas como lidas');
+      }
+
       setNotifications(prev =>
         prev.map(notif => ({
           ...notif,
@@ -199,17 +195,20 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
   };
 
   // Marcar como lida ao clicar (Requirement 2.1, 10.3)
+  // O badge atualiza automaticamente via WebSocket (sendUnreadCountUpdate no servidor)
   const handleNotificationClick = async (notification: PersistentNotification) => {
-    // Marcar como lida se ainda não foi lida
     if (!notification.readAt || notification.readAt === null) {
       try {
-        // 🔥 CORREÇÃO: Usar função do hook para sincronizar com badge
-        await markAsRead(notification.id);
-        
-        // Recarregar notificações do servidor para garantir sincronização
-        await refresh();
-        
-        // Atualizar estado local do painel também
+        const response = await fetch(`/api/notifications/${notification.id}/read`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!response.ok) {
+          throw new Error('Erro ao marcar como lida');
+        }
+
         setNotifications(prev =>
           prev.map(notif =>
             notif.id === notification.id
@@ -222,7 +221,6 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ open, onCl
       }
     }
 
-    // Navegar para o ticket se houver ticketId (Requirement 10.3)
     if (notification.ticketId) {
       setLocation(`/tickets/${notification.ticketId}`);
       onClose();

@@ -100,14 +100,11 @@ export function useNotifications(): UseNotificationsReturn {
       if (filters.search) params.append('search', filters.search);
       
       const response = await fetch(
-        `${config.apiBaseUrl}/api/notifications?${params.toString()}&_t=${Date.now()}`,
+        `${config.apiBaseUrl}/api/notifications?${params.toString()}`,
         {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
           },
         }
       );
@@ -182,7 +179,6 @@ export function useNotifications(): UseNotificationsReturn {
         throw new Error(`Erro ao marcar notificação como lida: ${response.status}`);
       }
       
-      // 🔥 CORREÇÃO: Atualizar notificação localmente com timestamp correto
       const now = new Date().toISOString();
       setNotifications(prev =>
         prev.map(notif =>
@@ -192,19 +188,14 @@ export function useNotifications(): UseNotificationsReturn {
         )
       );
       
-      // 🔥 CORREÇÃO: Recarregar notificações do servidor para garantir sincronização
-      // Isso garante que após recarregar a página, as notificações continuem marcadas como lidas
-      await loadNotifications(currentPage, false);
-      
-      // Sincronizar contador via WebSocket (Requirement 6.5)
-      // O contador será atualizado automaticamente pelo WebSocket através da mensagem 'unread_count_update'
-      // Não precisamos atualizar manualmente aqui
+      // O contador de não lidas é atualizado automaticamente via WebSocket
+      // (sendUnreadCountUpdate no servidor)
       
     } catch (error) {
       console.error('[useNotifications] Erro ao marcar como lida:', error);
       throw error;
     }
-  }, [loadNotifications, currentPage]);
+  }, []);
   
   /**
    * Marca todas as notificações como lidas
@@ -227,25 +218,19 @@ export function useNotifications(): UseNotificationsReturn {
         throw new Error(`Erro ao marcar todas como lidas: ${response.status}`);
       }
       
-      // Atualizar todas as notificações localmente
       const now = new Date().toISOString();
       setNotifications(prev =>
         prev.map(notif => ({ ...notif, readAt: now }))
       );
       
-      // 🔥 CORREÇÃO: Recarregar notificações do servidor para garantir sincronização
-      // Isso garante que após recarregar a página, as notificações continuem marcadas como lidas
-      await loadNotifications(1, false);
-      
-      // Sincronizar contador via WebSocket (Requirement 6.5)
-      // O contador será atualizado automaticamente pelo WebSocket através da mensagem 'unread_count_update'
-      // Não precisamos atualizar manualmente aqui
+      // O contador de não lidas é atualizado automaticamente via WebSocket
+      // (sendUnreadCountUpdate no servidor)
       
     } catch (error) {
       console.error('[useNotifications] Erro ao marcar todas como lidas:', error);
       throw error;
     }
-  }, [loadNotifications]);
+  }, []);
   
   /**
    * Exclui uma notificação
