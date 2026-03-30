@@ -38,6 +38,8 @@ interface SystemLog {
   response_status: number | null;
   response_time_ms: number | null;
   created_at: string;
+  company_name: string | null;
+  user_name: string | null;
 }
 
 interface LogsResponse {
@@ -241,13 +243,14 @@ function FilterBar({ filters, setFilters, servers, formatMessage, isAdmin, compa
 // DetailPanel (Task 9.3)
 // ---------------------------------------------------------------------------
 
-function DetailPanel({ log, open, onClose, formatMessage, locale, onViewTrace }: {
+function DetailPanel({ log, open, onClose, formatMessage, locale, onViewTrace, isAdmin }: {
   log: SystemLog | null;
   open: boolean;
   onClose: () => void;
   formatMessage: (id: string, values?: Record<string, any>) => string;
   locale: string;
   onViewTrace: (traceId: string) => void;
+  isAdmin: boolean;
 }) {
   if (!log) return null;
 
@@ -271,8 +274,8 @@ function DetailPanel({ log, open, onClose, formatMessage, locale, onViewTrace }:
       ) : '—',
     },
     { label: formatMessage('logs.detail.span_id'), value: log.span_id ? <span className="font-mono text-xs break-all">{log.span_id}</span> : '—' },
-    { label: formatMessage('logs.detail.company_id'), value: log.company_id ?? formatMessage('logs.detail.system_log') },
-    { label: formatMessage('logs.detail.user_id'), value: log.user_id ?? '—' },
+    ...(isAdmin ? [{ label: formatMessage('logs.detail.company_id'), value: log.company_name ?? formatMessage('logs.detail.system_log') }] : []),
+    { label: formatMessage('logs.detail.user_id'), value: log.user_name ?? '—' },
     { label: formatMessage('logs.detail.request_method'), value: log.request_method ?? '—' },
     { label: formatMessage('logs.detail.request_url'), value: log.request_url ? <span className="font-mono text-xs break-all">{log.request_url}</span> : '—' },
     { label: formatMessage('logs.detail.response_status'), value: log.response_status ?? '—' },
@@ -611,6 +614,7 @@ export default function SystemLogsPage() {
         formatMessage={formatMessage}
         locale={locale}
         onViewTrace={setTraceId}
+        isAdmin={isAdmin}
       />
     </div>
   );

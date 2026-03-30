@@ -7,7 +7,7 @@
 
 import { Request, Response } from 'express';
 import { db } from '../db';
-import { systemLogs } from '@shared/schema';
+import { systemLogs, companies, users } from '@shared/schema';
 import {
   eq, and, desc, asc, lt, gte, lte, like, sql, count, avg, SQL,
 } from 'drizzle-orm';
@@ -172,27 +172,46 @@ export async function listSystemLogs(req: Request, res: Response) {
       ? asc(systemLogs.created_at)
       : desc(systemLogs.id);
 
-    const [data, totalResult] = await Promise.all([
+    const [rawData, totalResult] = await Promise.all([
       db
-        .select()
+        .select({
+          id: systemLogs.id,
+          level: systemLogs.level,
+          message: systemLogs.message,
+          server_identifier: systemLogs.server_identifier,
+          trace_id: systemLogs.trace_id,
+          span_id: systemLogs.span_id,
+          context_data: systemLogs.context_data,
+          company_id: systemLogs.company_id,
+          user_id: systemLogs.user_id,
+          request_method: systemLogs.request_method,
+          request_url: systemLogs.request_url,
+          response_status: systemLogs.response_status,
+          response_time_ms: systemLogs.response_time_ms,
+          created_at: systemLogs.created_at,
+          company_name: companies.name,
+          user_name: users.name,
+        })
         .from(systemLogs)
+        .leftJoin(companies, eq(systemLogs.company_id, companies.id))
+        .leftJoin(users, eq(systemLogs.user_id, users.id))
         .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(orderBy)
-        .limit(limit + 1), // +1 para saber se há mais
+        .limit(limit + 1),
       db
         .select({ total: count() })
         .from(systemLogs)
         .where(countFilters.length > 0 ? and(...countFilters) : undefined),
     ]);
 
-    const hasMore = data.length > limit;
-    if (hasMore) data.pop();
+    const hasMore = rawData.length > limit;
+    if (hasMore) rawData.pop();
 
-    const nextCursor = hasMore && data.length > 0 ? data[data.length - 1].id : null;
+    const nextCursor = hasMore && rawData.length > 0 ? rawData[rawData.length - 1].id : null;
     const total = totalResult[0]?.total ?? 0;
 
     return res.json({
-      data,
+      data: rawData,
       pagination: {
         nextCursor,
         hasMore,

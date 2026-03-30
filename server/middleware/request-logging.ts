@@ -243,6 +243,11 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
       contextData.query_params = queryString;
     }
 
+    const aiAnalysisMs: number | undefined = res.locals.aiAnalysisMs;
+    if (aiAnalysisMs !== undefined) {
+      contextData.ai_analysis_ms = aiAnalysisMs;
+    }
+
     const entry: LogEntryInput = {
       level,
       message,
@@ -261,7 +266,9 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
     logBuffer.add(entry);
 
     // Log adicional de warn para requisições lentas (> 1s)
-    if (durationMs > 1000) {
+    // Desconta tempo de análise da IA (comportamento esperado) para evitar falsos positivos
+    const adjustedDurationMs = aiAnalysisMs !== undefined ? durationMs - aiAnalysisMs : durationMs;
+    if (adjustedDurationMs > 1000) {
       const warnEntry: LogEntryInput = {
         level: 'warn',
         message: `⚠ Lenta: ${message} (${durationMs}ms)`,
@@ -271,6 +278,7 @@ export function requestLoggingMiddleware(req: Request, res: Response, next: Next
         context_data: {
           ...details,
           total_time_ms: durationMs,
+          ...(aiAnalysisMs !== undefined && { ai_analysis_ms: aiAnalysisMs, tempo_sem_ia_ms: adjustedDurationMs }),
           response_status: res.statusCode,
         },
         company_id: companyId,

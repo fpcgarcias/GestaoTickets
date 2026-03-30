@@ -4195,6 +4195,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
           const aiService = new AiService();
 
+          const aiStartMs = Date.now();
+
           const aiResult = await aiService.analyzeTicketPriority(
 
             {
@@ -4212,6 +4214,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
             db
 
           );
+
+          res.locals.aiAnalysisMs = Date.now() - aiStartMs;
 
 
 
