@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 interface Company {
   id: number;
@@ -402,20 +403,20 @@ export default function AddUserDialog({ open, onOpenChange, onCreated }: AddUser
               {needsSector && (
                 <div className="space-y-2">
                   <Label>{formatMessage('users.add_user_dialog.sector')}</Label>
-                  <Select
-                    value={formData.sector_id ? String(formData.sector_id) : 'none'}
-                    onValueChange={v => setFormData(prev => ({ ...prev, sector_id: v === 'none' ? null : parseInt(v, 10) }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={formatMessage('users.add_user_dialog.sector_placeholder')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">{formatMessage('users.add_user_dialog.none')}</SelectItem>
-                      {availableSectors.map((s: { value: string; label: string }) => (
-                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={formData.sector_id ? String(formData.sector_id) : ''}
+                    onValueChange={(value) =>
+                      setFormData(prev => ({
+                        ...prev,
+                        sector_id: value ? parseInt(value, 10) : null,
+                      }))
+                    }
+                    options={availableSectors}
+                    placeholder={formatMessage('users.add_user_dialog.sector_placeholder')}
+                    searchPlaceholder="Digite para buscar setores..."
+                    emptyText="Nenhum setor encontrado"
+                    noneLabel={formatMessage('users.add_user_dialog.none')}
+                  />
                 </div>
               )}
               {needsDepartment && (

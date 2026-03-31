@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,7 @@ import { useBusinessHoursRefetchInterval } from '../../hooks/use-business-hours'
 import AddUserDialog from './add-user-dialog';
 import { useI18n } from '@/i18n';
 import { getAllowedRolesToAssign } from '@/lib/people-roles';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 // Função para traduzir códigos de erro de senha
 const translatePasswordErrors = (errorCodes: string[], formatMessage: (id: string) => string): string[] => {
@@ -72,6 +73,7 @@ export default function UsersIndex() {
   const [editUsername, setEditUsername] = useState('');
   const [editRole, setEditRole] = useState('');
   const [editCpf, setEditCpf] = useState('');
+  const [editSectorId, setEditSectorId] = useState<number | null>(null);
 
   // Usar hook dinâmico para horário comercial
   const refetchInterval = useBusinessHoursRefetchInterval(30000);
@@ -110,6 +112,7 @@ export default function UsersIndex() {
     setEditUsername(user.username);
     setEditRole(user.role);
     setEditCpf(user.cpf || '');
+    setEditSectorId(null);
     setEditDialogOpen(true);
   };
 
@@ -157,6 +160,46 @@ export default function UsersIndex() {
     // Atualizar apenas entre 6h e 21h (horário comercial) - dinâmico
     refetchInterval: refetchInterval,
   });
+
+  const { data: editUserProfile } = useQuery({
+    queryKey: ['/api/users/profile', selectedUser?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/users/${selectedUser.id}/profile`);
+      if (!res.ok) throw new Error('Erro ao carregar perfil do usuário');
+      return res.json();
+    },
+    enabled: editDialogOpen && !!selectedUser?.id,
+  });
+
+  const editEffectiveCompanyId = selectedUser?.company_id ?? user?.company?.id ?? 0;
+
+  const { data: editSectorsResponse } = useQuery({
+    queryKey: ['/api/sectors', editEffectiveCompanyId, 'edit-user'],
+    queryFn: async () => {
+      let url = '/api/sectors?active_only=true&limit=500';
+      if (user?.role === 'admin' && editEffectiveCompanyId) {
+        url += `&company_id=${editEffectiveCompanyId}`;
+      }
+      const res = await apiRequest('GET', url);
+      if (!res.ok) throw new Error('Erro ao carregar setores');
+      return res.json();
+    },
+    enabled: editDialogOpen && editRole === 'customer' && !!editEffectiveCompanyId,
+  });
+
+  const editSectorsData = editSectorsResponse?.data || editSectorsResponse || [];
+  const availableEditSectors = Array.isArray(editSectorsData)
+    ? editSectorsData.map((sector: { id: number; name: string }) => ({
+        value: String(sector.id),
+        label: sector.name,
+      }))
+    : [];
+
+  useEffect(() => {
+    if (editDialogOpen && selectedUser) {
+      setEditSectorId(editUserProfile?.requesterData?.sector_id ?? null);
+    }
+  }, [editDialogOpen, selectedUser, editUserProfile]);
 
   const users = usersResponse?.data || [];
   const pagination = usersResponse?.pagination;
@@ -276,7 +319,8 @@ export default function UsersIndex() {
         email: editEmail,
         username: editUsername,
         role: editRole,
-        cpf: editCpf || undefined
+        cpf: editCpf || undefined,
+        sector_id: editRole === 'customer' ? editSectorId : undefined
       }
     });
   };
@@ -800,7 +844,12 @@ export default function UsersIndex() {
                   <Label htmlFor="editRole">{formatMessage('users.edit_dialog.profile')}</Label>
                   <Select 
                     value={editRole} 
-                    onValueChange={setEditRole}
+                    onValueChange={(value) => {
+                      setEditRole(value);
+                      if (value !== 'customer') {
+                        setEditSectorId(null);
+                      }
+                    }}
                   >
                     <SelectTrigger id="editRole">
                       <SelectValue placeholder={formatMessage('users.edit_dialog.profile_placeholder')} />
@@ -814,6 +863,20 @@ export default function UsersIndex() {
                     </SelectContent>
                   </Select>
                 </div>
+                {editRole === 'customer' && (
+                  <div className="grid gap-2">
+                    <Label>{formatMessage('users.add_user_dialog.sector')}</Label>
+                    <SearchableSelect
+                      value={editSectorId ? String(editSectorId) : ''}
+                      onValueChange={(value) => setEditSectorId(value ? parseInt(value, 10) : null)}
+                      options={availableEditSectors}
+                      placeholder={formatMessage('users.add_user_dialog.sector_placeholder')}
+                      searchPlaceholder="Digite para buscar setores..."
+                      emptyText="Nenhum setor encontrado"
+                      noneLabel={formatMessage('users.add_user_dialog.none')}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}

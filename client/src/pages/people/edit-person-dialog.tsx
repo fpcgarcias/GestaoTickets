@@ -22,6 +22,7 @@ import {
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 
 interface EditPersonDialogProps {
   open: boolean;
@@ -336,20 +337,20 @@ export default function EditPersonDialog({ open, onOpenChange, person, onUpdated
               </div>
               <div className="grid gap-2">
                 <Label className="text-muted-foreground">{formatMessage('people.add_dialog.sector')}</Label>
-                <Select
-                  value={formData.sector_id ? String(formData.sector_id) : 'none'}
-                  onValueChange={v => setFormData(prev => ({ ...prev, sector_id: v === 'none' ? null : parseInt(v, 10) }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o setor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {availableSectors.map((s: { value: string; label: string }) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={formData.sector_id ? String(formData.sector_id) : ''}
+                  onValueChange={(value) =>
+                    setFormData(prev => ({
+                      ...prev,
+                      sector_id: value ? parseInt(value, 10) : null,
+                    }))
+                  }
+                  options={availableSectors}
+                  placeholder="Selecione o setor"
+                  searchPlaceholder="Digite para buscar setores..."
+                  emptyText="Nenhum setor encontrado"
+                  noneLabel="Nenhum"
+                />
               </div>
             </div>
           )}

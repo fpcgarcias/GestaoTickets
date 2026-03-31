@@ -8193,7 +8193,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      const { name, email, username, password, role, must_change_password, cpf } = req.body;
+      const { name, email, username, password, role, must_change_password, cpf, sector_id } = req.body;
 
       const userRole = req.session?.userRole as string;
 
@@ -8338,6 +8338,43 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       if (!updatedUser) {
 
         return res.status(500).json({ message: "Falha ao atualizar usuário" });
+
+      }
+
+      if ((role === 'customer' || existingUser.role === 'customer') && sector_id !== undefined) {
+
+        try {
+
+          const customer = await storage.getCustomerByUserId(id);
+
+          if (customer) {
+
+            await storage.updateCustomer(customer.id, {
+              name: updatedUser.name,
+              email: updatedUser.email,
+              company_id: updatedUser.company_id ?? null,
+              sector_id: sector_id || null
+            });
+
+          } else {
+
+            await storage.createCustomer({
+              name: updatedUser.name,
+              email: updatedUser.email,
+              phone: null,
+              company: null,
+              user_id: updatedUser.id,
+              company_id: updatedUser.company_id ?? null,
+              sector_id: sector_id || null
+            });
+
+          }
+
+        } catch (customerUpdateError) {
+
+          console.error('Erro ao atualizar setor do solicitante:', customerUpdateError);
+
+        }
 
       }
 
@@ -8671,6 +8708,33 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
     }
 
+  });
+
+  router.get("/users/:id/profile", authRequired, authorize(['admin', 'company_admin', 'manager', 'supervisor', 'support']), async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de usuário inválido" });
+      }
+
+      const userData = await storage.getUser(id);
+      if (!userData) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      const requesterData = await storage.getCustomerByUserId(id);
+      const officialData = await storage.getOfficialByUserId(id);
+
+      res.json({
+        id: userData.id,
+        requesterData: requesterData ? { sector_id: requesterData.sector_id ?? null } : null,
+        officialData: officialData ? { department_id: officialData.department_id ?? null } : null,
+      });
+    } catch (error) {
+      console.error('Erro ao carregar perfil do usuário:', error);
+      res.status(500).json({ message: "Falha ao carregar perfil do usuário", error: String(error) });
+    }
   });
 
 
