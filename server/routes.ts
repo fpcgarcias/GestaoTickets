@@ -24,6 +24,7 @@ import multer from 'multer';
 
 import s3Service from './services/s3-service';
 import { getDefaultAiBotName } from './utils/ai-bot-names';
+import { verifyPassword } from './utils/password';
 
 import { emailConfigService, type SMTPConfigInput } from './services/email-config-service';
 
@@ -7419,10 +7420,6 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
 
 
-      // Verificar a senha - voltar para o import dinâmico que funcionava antes
-
-      const { verifyPassword } = await import('./utils/password');
-
       const passwordValid = await verifyPassword(password, user.password);
 
 
@@ -7456,18 +7453,20 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
       // Buscar a empresa do usuário, se não for admin
 
       let company = null;
+      let configuredCompanyName: string | null = null;
 
       if (user.company_id) {
 
-        const [companyData] = await db
-
-          .select()
-
-          .from(schema.companies)
-
-          .where(eq(schema.companies.id, user.company_id))
-
-          .limit(1);
+        const [companyResult, companyNameSetting] = await Promise.all([
+          db
+            .select()
+            .from(schema.companies)
+            .where(eq(schema.companies.id, user.company_id))
+            .limit(1),
+          getSystemSetting('companyName', 'Ticket Wise', user.company_id)
+        ]);
+        const [companyData] = companyResult;
+        configuredCompanyName = companyNameSetting;
 
 
 
@@ -7563,9 +7562,8 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
         // 🎯 BUSCAR O NOME DA EMPRESA DAS CONFIGURAÇÕES DO SISTEMA - SEM FALLBACK!
 
-        const configuredCompanyName = await getSystemSetting('companyName', 'Ticket Wise', company.id);
-
-        console.log('✅ [LOGIN] Nome da empresa das configurações:', configuredCompanyName);
+        const resolvedCompanyName = configuredCompanyName ?? 'Ticket Wise';
+        console.log('✅ [LOGIN] Nome da empresa das configurações:', resolvedCompanyName);
 
 
 
@@ -7577,7 +7575,7 @@ export async function registerRoutes(app: Express): Promise<HttpServer> {
 
             id: company.id,
 
-            name: configuredCompanyName, // 🎯 SEMPRE DAS CONFIGURAÇÕES
+            name: resolvedCompanyName, // 🎯 SEMPRE DAS CONFIGURAÇÕES
 
             email: company.email,
 

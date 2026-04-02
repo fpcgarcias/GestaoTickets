@@ -1,7 +1,21 @@
 {
-  "current": "1.2.7",
-  "releaseDate": "2026-03-30",
+  "current": "1.2.8",
+  "releaseDate": "2026-04-02",
   "versions": [
+    {
+      "version": "1.2.8",
+      "date": "2026-04-02",
+      "title": "Melhorias de desempenho.",
+      "type": "bugfix",
+      "changes": {
+        "fixed": [
+          "Melhorias de desempenho no login.",
+          "Melhoria de desempenho na tela de tickets.",
+          "Melhorias de desempenho na consulta de partitipantes dos tickets.",
+          "Melhorias de desempenho nas consultas de histórico dos tickets."
+        ]
+      }
+    },
     {
       "version": "1.2.7",
       "date": "2026-03-30",

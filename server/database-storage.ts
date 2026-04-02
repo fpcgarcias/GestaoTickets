@@ -20,6 +20,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, inArray, getTableColumns, isNull, ilike, asc, gte, lte, ne, exists } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { IStorage } from "./storage";
 import { isSlaPaused } from "@shared/ticket-utils";
 import { convertStatusHistoryToPeriods, calculateEffectiveBusinessTime, getBusinessHoursConfig } from "@shared/utils/sla-calculator";
@@ -2150,8 +2151,10 @@ export class DatabaseStorage implements IStorage {
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
       if (!official) return [];
       
-      // Buscar departamentos do official
-      const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+      const [officialDepts, subordinates] = await Promise.all([
+        db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id)),
+        db.select().from(officials).where(eq(officials.manager_id, official.id))
+      ]);
       if (officialDepts.length === 0) return [];
       const departmentIds = officialDepts.map(od => od.department_id);
       // Filtrar por empresa do atendente
@@ -2159,8 +2162,6 @@ export class DatabaseStorage implements IStorage {
         whereClauses.push(eq(tickets.company_id, official.company_id));
       }
       
-      // Buscar subordinados
-      const subordinates = await db.select().from(officials).where(eq(officials.manager_id, official.id));
       const subordinateIds = subordinates.map(s => s.id);
       
       if (!officialId) {
@@ -2188,8 +2189,11 @@ export class DatabaseStorage implements IStorage {
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
       if (!official) return [];
       
-      // Buscar departamentos do official
-      const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+      const [officialDepts, subordinates, grantedTargetIds] = await Promise.all([
+        db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id)),
+        db.select().from(officials).where(eq(officials.supervisor_id, official.id)),
+        this.getVisibilityGrantTargetIds(official.id)
+      ]);
       if (officialDepts.length === 0) return [];
       const departmentIds = officialDepts.map(od => od.department_id);
       // Filtrar por empresa do atendente
@@ -2197,9 +2201,7 @@ export class DatabaseStorage implements IStorage {
         whereClauses.push(eq(tickets.company_id, official.company_id));
       }
       
-      const subordinates = await db.select().from(officials).where(eq(officials.supervisor_id, official.id));
       const subordinateIds = subordinates.map(s => s.id);
-      const grantedTargetIds = await this.getVisibilityGrantTargetIds(official.id);
       const allVisibleAssignedIds = [...new Set([...subordinateIds, ...grantedTargetIds])];
       
       if (!officialId) {
@@ -2226,8 +2228,10 @@ export class DatabaseStorage implements IStorage {
       const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
       if (!official) return [];
       
-      // Buscar departamentos do official
-      const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+      const [officialDepts, grantedTargetIds] = await Promise.all([
+        db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id)),
+        this.getVisibilityGrantTargetIds(official.id)
+      ]);
       if (officialDepts.length === 0) return [];
       const departmentIds = officialDepts.map(od => od.department_id);
       // Filtrar por empresa do atendente
@@ -2235,7 +2239,6 @@ export class DatabaseStorage implements IStorage {
         whereClauses.push(eq(tickets.company_id, official.company_id));
       }
       
-      const grantedTargetIds = await this.getVisibilityGrantTargetIds(official.id);
       if (!officialId) {
         const assignmentFilter = or(
           eq(tickets.assigned_to_id, official.id),
@@ -2418,43 +2421,38 @@ export class DatabaseStorage implements IStorage {
    * Obtém todos os participantes de um ticket
    */
   async getTicketParticipants(ticketId: number): Promise<TicketParticipant[]> {
+    const participantUser = alias(users, "participant_user");
+    const addedByUser = alias(users, "added_by_user");
+
     const participants = await db
       .select()
       .from(ticketParticipants)
+      .leftJoin(participantUser, eq(participantUser.id, ticketParticipants.user_id))
+      .leftJoin(addedByUser, eq(addedByUser.id, ticketParticipants.added_by_id))
       .where(eq(ticketParticipants.ticket_id, ticketId))
       .orderBy(asc(ticketParticipants.added_at));
 
-    // Enriquecer com dados dos usuários
-    const enrichedParticipants: TicketParticipant[] = [];
-    
-    for (const participant of participants) {
-      const user = participant.user_id ? await this.getUser(participant.user_id) : undefined;
-      const addedBy = participant.added_by_id ? await this.getUser(participant.added_by_id) : undefined;
-      
-      enrichedParticipants.push({
-        ...participant,
-        user: user ? {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          avatar_url: user.avatar_url,
-          active: user.active
-        } : undefined,
-        added_by: addedBy ? {
-          id: addedBy.id,
-          username: addedBy.username,
-          email: addedBy.email,
-          name: addedBy.name,
-          role: addedBy.role,
-          avatar_url: addedBy.avatar_url,
-          active: addedBy.active
-        } : undefined
-      });
-    }
-
-    return enrichedParticipants;
+    return participants.map(({ ticket_participants, participant_user, added_by_user }) => ({
+      ...ticket_participants,
+      user: participant_user ? {
+        id: participant_user.id,
+        username: participant_user.username,
+        email: participant_user.email,
+        name: participant_user.name,
+        role: participant_user.role,
+        avatar_url: participant_user.avatar_url,
+        active: participant_user.active
+      } : undefined,
+      added_by: added_by_user ? {
+        id: added_by_user.id,
+        username: added_by_user.username,
+        email: added_by_user.email,
+        name: added_by_user.name,
+        role: added_by_user.role,
+        avatar_url: added_by_user.avatar_url,
+        active: added_by_user.active
+      } : undefined
+    }));
   }
 
   /**

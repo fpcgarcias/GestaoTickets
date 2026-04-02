@@ -25,6 +25,7 @@ export function normalizeConnectionString(url: string): string {
 // Configuração simplificada para driver pg tradicional
 async function createDb() {
   const connectionString = normalizeConnectionString(process.env.DATABASE_URL!);
+  const SLOW_QUERY_THRESHOLD_MS = Number(process.env.SLOW_QUERY_THRESHOLD_MS || 300);
   const pool = new Pool({
     connectionString,
     max: 45,
@@ -33,6 +34,23 @@ async function createDb() {
     allowExitOnIdle: true,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
   });
+
+  const originalQuery = pool.query.bind(pool);
+  pool.query = (async (...args: any[]) => {
+    const start = Date.now();
+    try {
+      return await originalQuery(...args as [any, ...any[]]);
+    } finally {
+      const durationMs = Date.now() - start;
+      if (durationMs >= SLOW_QUERY_THRESHOLD_MS) {
+        const firstArg = args[0];
+        const queryText = typeof firstArg === 'string'
+          ? firstArg
+          : (firstArg?.text ?? '<query text unavailable>');
+        console.warn(`[DB][SLOW_QUERY] ${durationMs}ms - ${queryText}`);
+      }
+    }
+  }) as typeof pool.query;
   
   const db = drizzle(pool, { schema });
   

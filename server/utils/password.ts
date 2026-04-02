@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 
 // Configurações de segurança
-const SALT_ROUNDS = 12; // Alto nível de segurança
+const SALT_ROUNDS = 10; // Equilíbrio entre segurança e performance
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 128;
 
