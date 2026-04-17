@@ -453,12 +453,20 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
           .where(inArray(schema.departments.id, departmentIds))
       : [];
 
-    // Fetch customers
+    // Fetch customers (sector_id para resolver setor em batch, sem N+1)
     const customers = customerIds.length > 0
-      ? await db.select({ id: schema.customers.id, name: schema.customers.name, email: schema.customers.email })
+      ? await db.select({ id: schema.customers.id, name: schema.customers.name, email: schema.customers.email, sector_id: schema.customers.sector_id })
           .from(schema.customers)
           .where(inArray(schema.customers.id, customerIds))
       : [];
+
+    const sectorIds = Array.from(new Set(customers.map(c => c.sector_id).filter((id): id is number => id !== null)));
+    const sectors = sectorIds.length > 0
+      ? await db.select({ id: schema.sectors.id, name: schema.sectors.name })
+          .from(schema.sectors)
+          .where(inArray(schema.sectors.id, sectorIds))
+      : [];
+    const sectorMap = new Map(sectors.map(s => [s.id, s.name]));
 
     // Fetch officials (NÃO users - assigned_to_id aponta para officials.id!)
     const officials = assignedToIds.length > 0
@@ -484,7 +492,17 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
 
     // Create lookup maps
     const departmentMap = new Map(departments.map(d => [d.id, d]));
-    const customerMap = new Map(customers.map(c => [c.id, c]));
+    const customerMap = new Map(
+      customers.map(c => [
+        c.id,
+        {
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          sector_name: c.sector_id != null ? (sectorMap.get(c.sector_id) ?? 'N/A') : 'N/A',
+        },
+      ])
+    );
     const officialMap = new Map(officials.map(o => [o.id, o]));
     
     // Create priority lookup map
@@ -503,6 +521,8 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
         priorityInfo = priorityMap.get(key);
       }
 
+      const cust = ticket.customer_id ? customerMap.get(ticket.customer_id) : undefined;
+
       return {
         id: ticket.id,
         ticket_id: ticket.ticket_id,
@@ -518,7 +538,10 @@ router.get('/tickets', authRequired, async (req: Request, res: Response) => {
         resolved_at: ticket.resolved_at ? ticket.resolved_at.toISOString() : null,
         closed_at: ticket.closed_at ? ticket.closed_at.toISOString() : null,
         department: ticket.department_id ? departmentMap.get(ticket.department_id) || { id: ticket.department_id, name: 'N/A' } : { id: 0, name: 'N/A' },
-        customer: ticket.customer_id ? customerMap.get(ticket.customer_id) || { id: ticket.customer_id, name: 'N/A', email: ticket.customer_email } : { id: 0, name: 'N/A', email: ticket.customer_email },
+        customer: ticket.customer_id
+          ? (cust ? { id: cust.id, name: cust.name, email: cust.email } : { id: ticket.customer_id, name: 'N/A', email: ticket.customer_email })
+          : { id: 0, name: 'N/A', email: ticket.customer_email },
+        sector: { name: cust?.sector_name ?? 'N/A' },
         assigned_to: ticket.assigned_to_id ? officialMap.get(ticket.assigned_to_id) || null : null
       };
     });
@@ -575,7 +598,9 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       customer_id: schema.tickets.customer_id,
       customer_email: schema.tickets.customer_email,
       assigned_to_id: schema.tickets.assigned_to_id,
-      company_id: schema.tickets.company_id
+      company_id: schema.tickets.company_id,
+      category_id: schema.tickets.category_id,
+      incident_type_id: schema.tickets.incident_type_id
     })
     .from(schema.tickets);
 
@@ -760,12 +785,20 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
           .where(inArray(schema.departments.id, departmentIds))
       : [];
 
-    // Fetch customers
+    // Fetch customers (sector_id para setor em batch, sem N+1)
     const customers = customerIds.length > 0
-      ? await db.select({ id: schema.customers.id, name: schema.customers.name })
+      ? await db.select({ id: schema.customers.id, name: schema.customers.name, sector_id: schema.customers.sector_id })
           .from(schema.customers)
           .where(inArray(schema.customers.id, customerIds))
       : [];
+
+    const sectorIdsExport = Array.from(new Set(customers.map(c => c.sector_id).filter((id): id is number => id !== null)));
+    const sectorsExport = sectorIdsExport.length > 0
+      ? await db.select({ id: schema.sectors.id, name: schema.sectors.name })
+          .from(schema.sectors)
+          .where(inArray(schema.sectors.id, sectorIdsExport))
+      : [];
+    const sectorMapExport = new Map(sectorsExport.map(s => [s.id, s.name]));
 
     // Fetch officials (NÃO users - assigned_to_id aponta para officials.id!)
     const officials = assignedToIds.length > 0
@@ -789,9 +822,33 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       eq(schema.departmentPriorities.is_active, true)
     ));
 
+    // Fetch incident types (nomes para export Excel)
+    const incidentTypeIds = Array.from(new Set(tickets.map(t => t.incident_type_id).filter((id): id is number => id !== null)));
+    const incidentTypesData = incidentTypeIds.length > 0
+      ? await db.select({ id: schema.incidentTypes.id, name: schema.incidentTypes.name })
+          .from(schema.incidentTypes)
+          .where(inArray(schema.incidentTypes.id, incidentTypeIds))
+      : [];
+
+    // Fetch categories (nomes para export Excel)
+    const categoryIds = Array.from(new Set(tickets.map(t => t.category_id).filter((id): id is number => id !== null)));
+    const categoriesData = categoryIds.length > 0
+      ? await db.select({ id: schema.categories.id, name: schema.categories.name })
+          .from(schema.categories)
+          .where(inArray(schema.categories.id, categoryIds))
+      : [];
+
     // Create lookup maps
     const departmentMap = new Map(departments.map(d => [d.id, d.name]));
-    const customerMap = new Map(customers.map(c => [c.id, c.name]));
+    const customerMap = new Map(
+      customers.map(c => [
+        c.id,
+        {
+          name: c.name,
+          sector_name: c.sector_id != null ? (sectorMapExport.get(c.sector_id) ?? 'N/A') : 'N/A',
+        },
+      ])
+    );
     const officialMap = new Map(officials.map(o => [o.id, { name: o.name, email: o.email }]));
     
     // Create priority lookup map
@@ -800,6 +857,9 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       const key = `${p.department_id}-${p.name.toLowerCase()}`;
       priorityMap.set(key, p);
     });
+
+    const incidentTypeMap = new Map(incidentTypesData.map(it => [it.id, it.name]));
+    const categoryMap = new Map(categoriesData.map(c => [c.id, c.name]));
 
     // Process results with joined data
     const processedTickets = tickets.map(ticket => {
@@ -810,18 +870,23 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
         priorityInfo = priorityMap.get(key);
       }
 
+      const custExport = ticket.customer_id ? customerMap.get(ticket.customer_id) : undefined;
+
       return {
         ...ticket,
         title: ticket.title || '',
         description: ticket.description || '',
         department_name: ticket.department_id ? departmentMap.get(ticket.department_id) || 'N/A' : 'N/A',
-        customer_name: ticket.customer_id ? customerMap.get(ticket.customer_id) || 'N/A' : 'N/A',
+        customer_name: ticket.customer_id ? custExport?.name || 'N/A' : 'N/A',
+        sector_name: ticket.customer_id ? custExport?.sector_name || 'N/A' : 'N/A',
         customer_email: ticket.customer_email || '',
               assigned_to_name: ticket.assigned_to_id ? officialMap.get(ticket.assigned_to_id)?.name || 'N/A' : 'Não atribuído',
       assigned_to_email: ticket.assigned_to_id ? officialMap.get(ticket.assigned_to_id)?.email || '' : '',
         priority_weight: priorityInfo?.weight,
         priority_color: priorityInfo?.color,
-        priority_name: priorityInfo?.name
+        priority_name: priorityInfo?.name,
+        incident_type_name: ticket.incident_type_id ? incidentTypeMap.get(ticket.incident_type_id) || 'N/A' : 'N/A',
+        category_name: ticket.category_id ? categoryMap.get(ticket.category_id) || 'N/A' : 'N/A'
       };
     });
 
@@ -830,6 +895,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       'Ticket ID', 
       'Título', 
       'Solicitante', 
+      'Setor',
       'Departamento', 
       'Atribuído a', 
       'Status', 
@@ -842,6 +908,7 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
       ticket.ticket_id,
       `"${ticket.title.replace(/"/g, '""')}"`,
       `"${ticket.customer_name.replace(/"/g, '""')}"`,
+      `"${String(ticket.sector_name).replace(/"/g, '""')}"`,
       ticket.department_name,
       ticket.assigned_to_name === 'N/A' || !ticket.assigned_to_name ? 'Não Atribuído' : `"${ticket.assigned_to_name.replace(/"/g, '""')}"`,
       translateTicketStatus(ticket.status),
@@ -862,7 +929,10 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
         'Ticket ID': ticket.ticket_id,
         'Título': ticket.title,
         'Solicitante': ticket.customer_name,
+        'Setor': ticket.sector_name || 'N/A',
         'Departamento': ticket.department_name,
+        'Tipo de Chamado': ticket.incident_type_name,
+        'Categoria': ticket.category_name,
         'Atribuído a': ticket.assigned_to_name === 'N/A' || !ticket.assigned_to_name ? 'Não Atribuído' : ticket.assigned_to_name,
         'Status': translateTicketStatus(ticket.status),
         'Prioridade': ticket.priority_name || normalizarPrioridadeParaEstatisticas(ticket.priority),
@@ -877,7 +947,10 @@ router.get('/tickets/export', authRequired, async (req: Request, res: Response) 
         { wch: 15 },  // Ticket ID
         { wch: 35 },  // Título
         { wch: 25 },  // Solicitante
+        { wch: 20 },  // Setor
         { wch: 20 },  // Departamento
+        { wch: 25 },  // Tipo de Chamado
+        { wch: 25 },  // Categoria
         { wch: 25 },  // Atribuído a
         { wch: 12 },  // Status
         { wch: 12 },  // Prioridade

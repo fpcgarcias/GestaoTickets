@@ -65,6 +65,9 @@ interface TicketReport {
     name: string;
     email: string;
   };
+  sector?: {
+    name: string;
+  };
   assigned_to: {
     id: number;
     name: string;
@@ -804,6 +807,7 @@ export default function TicketReports() {
                     <TableHead className="w-20">Ticket ID</TableHead>
                     <TableHead className="min-w-48">Título</TableHead>
                     <TableHead className="min-w-32">Solicitante</TableHead>
+                    <TableHead className="min-w-32">Setor</TableHead>
                     <TableHead className="min-w-32">Departamento</TableHead>
                     <TableHead className="min-w-36">Atribuído a</TableHead>
                     <TableHead className="min-w-24">Status</TableHead>
@@ -818,6 +822,7 @@ export default function TicketReports() {
                       <TableCell className="text-sm">#{ticket.ticket_id}</TableCell>
                       <TableCell className="max-w-xs truncate text-sm" title={ticket.title}>{ticket.title}</TableCell>
                       <TableCell className="text-sm">{ticket.customer?.name || 'N/A'}</TableCell>
+                      <TableCell className="text-sm">{ticket.sector?.name || 'N/A'}</TableCell>
                       <TableCell className="text-sm">{ticket.department?.name || 'N/A'}</TableCell>
                       <TableCell className="text-sm">{ticket.assigned_to?.name || 'Não atribuído'}</TableCell>
                       <TableCell>
