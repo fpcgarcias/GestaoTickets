@@ -129,6 +129,23 @@ export interface IStorage {
   getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
   getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>>;
 
+  // Dashboard metrics otimizado — busca tudo de uma vez
+  getDashboardMetricsOptimized(userId: number, userRole: string, options: {
+    officialId?: number;
+    startDate?: Date;
+    endDate?: Date;
+    departmentId?: number;
+    incidentTypeId?: number;
+    categoryId?: number;
+    companyId?: number;
+    recentLimit?: number;
+  }): Promise<{
+    stats: { total: number; byStatus: Record<string, number>; byPriority: Record<string, number> };
+    averageFirstResponseTime: number;
+    averageResolutionTime: number;
+    recentTickets: Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null }>;
+  }>;
+
   // Dashboard BI operations
   getDashboardTrendData(userId: number, userRole: string, options: {
     granularity: 'day' | 'week' | 'month';
@@ -139,6 +156,7 @@ export interface IStorage {
     departmentId?: number;
     incidentTypeId?: number;
     categoryId?: number;
+    companyId?: number;
   }): Promise<{ series: Array<{ name: string; data: Array<{ date: string; count: number }> }> }>;
 
   getDashboardHeatmapData(userId: number, userRole: string, options: {
@@ -148,7 +166,49 @@ export interface IStorage {
     departmentId?: number;
     incidentTypeId?: number;
     categoryId?: number;
+    companyId?: number;
   }): Promise<{ data: Array<{ day_of_week: number; hour: number; count: number }> }>;
+
+  getDashboardRankingData(userId: number, userRole: string, options: {
+    startDate?: Date;
+    endDate?: Date;
+    sortBy?: 'resolved_count' | 'avg_first_response' | 'avg_resolution';
+    officialId?: number;
+    departmentId?: number;
+    incidentTypeId?: number;
+    categoryId?: number;
+    companyId?: number;
+  }): Promise<{ ranking: Array<{ official_id: number; official_name: string; resolved_count: number; avg_first_response_hours: number; avg_resolution_hours: number }> }>;
+
+  getDashboardSlaData(userId: number, userRole: string, options: {
+    startDate?: Date;
+    endDate?: Date;
+    officialId?: number;
+    departmentId?: number;
+    incidentTypeId?: number;
+    categoryId?: number;
+    companyId?: number;
+  }): Promise<{ total_resolved: number; within_sla: number; compliance_rate: number; has_sla_config: boolean }>;
+
+  getDashboardBacklogData(userId: number, userRole: string, options: {
+    officialId?: number;
+    departmentId?: number;
+    companyId?: number;
+  }): Promise<{ open_over_7_days: number; unassigned: number; stale_over_3_days: number }>;
+
+  getDashboardDrilldownData(userId: number, userRole: string, options: {
+    type: 'status' | 'priority' | 'department' | 'official' | 'incident_type' | 'category' | 'backlog_type';
+    value: string;
+    page: number;
+    pageSize: number;
+    officialId?: number;
+    startDate?: Date;
+    endDate?: Date;
+    departmentId?: number;
+    incidentTypeId?: number;
+    categoryId?: number;
+    companyId?: number;
+  }): Promise<{ tickets: Array<{ id: number; ticket_id: string; title: string; status: string; priority: string; created_at: string; official_name: string | null }>; total: number; page: number; page_size: number }>;
 
   // Company operations (adicionar se não existir)
   getCompany(id: number): Promise<Company | undefined>;
@@ -1309,6 +1369,24 @@ export class MemStorage implements IStorage {
       }));
   }
 
+  // Dashboard metrics otimizado — implementação MemStorage (delega para métodos existentes)
+  async getDashboardMetricsOptimized(userId: number, userRole: string, options: {
+    officialId?: number; startDate?: Date; endDate?: Date; departmentId?: number;
+    incidentTypeId?: number; categoryId?: number; companyId?: number; recentLimit?: number;
+  }): Promise<{
+    stats: { total: number; byStatus: Record<string, number>; byPriority: Record<string, number> };
+    averageFirstResponseTime: number; averageResolutionTime: number;
+    recentTickets: Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null }>;
+  }> {
+    const [stats, averageFirstResponseTime, averageResolutionTime, recentTickets] = await Promise.all([
+      this.getTicketStatsForDashboardByUserRole(userId, userRole, options.officialId, options.startDate, options.endDate, options.departmentId, options.incidentTypeId, options.categoryId),
+      this.getAverageFirstResponseTimeByUserRole(userId, userRole, options.officialId, options.startDate, options.endDate, options.departmentId, options.incidentTypeId, options.categoryId),
+      this.getAverageResolutionTimeByUserRole(userId, userRole, options.officialId, options.startDate, options.endDate, options.departmentId, options.incidentTypeId, options.categoryId),
+      this.getRecentTicketsForDashboardByUserRole(userId, userRole, options.recentLimit ?? 5, options.officialId, options.startDate, options.endDate, options.departmentId, options.incidentTypeId, options.categoryId),
+    ]);
+    return { stats, averageFirstResponseTime, averageResolutionTime, recentTickets };
+  }
+
   // Ticket participants operations
   async addTicketParticipant(ticketId: number, userId: number, addedById: number): Promise<any> {
     // Implementação básica para memória
@@ -1348,6 +1426,26 @@ export class MemStorage implements IStorage {
   async getDashboardHeatmapData(userId: number, userRole: string, options: any): Promise<{ data: Array<{ day_of_week: number; hour: number; count: number }> }> {
     console.warn(`[MemStorage] getDashboardHeatmapData não implementado`);
     return { data: [] };
+  }
+
+  async getDashboardRankingData(userId: number, userRole: string, options: any): Promise<{ ranking: Array<{ official_id: number; official_name: string; resolved_count: number; avg_first_response_hours: number; avg_resolution_hours: number }> }> {
+    console.warn(`[MemStorage] getDashboardRankingData não implementado`);
+    return { ranking: [] };
+  }
+
+  async getDashboardSlaData(userId: number, userRole: string, options: any): Promise<{ total_resolved: number; within_sla: number; compliance_rate: number; has_sla_config: boolean }> {
+    console.warn(`[MemStorage] getDashboardSlaData não implementado`);
+    return { total_resolved: 0, within_sla: 0, compliance_rate: 0, has_sla_config: false };
+  }
+
+  async getDashboardBacklogData(userId: number, userRole: string, options: any): Promise<{ open_over_7_days: number; unassigned: number; stale_over_3_days: number }> {
+    console.warn(`[MemStorage] getDashboardBacklogData não implementado`);
+    return { open_over_7_days: 0, unassigned: 0, stale_over_3_days: 0 };
+  }
+
+  async getDashboardDrilldownData(userId: number, userRole: string, options: any): Promise<{ tickets: Array<{ id: number; ticket_id: string; title: string; status: string; priority: string; created_at: string; official_name: string | null }>; total: number; page: number; page_size: number }> {
+    console.warn(`[MemStorage] getDashboardDrilldownData não implementado`);
+    return { tickets: [], total: 0, page: 1, page_size: 20 };
   }
 }
 

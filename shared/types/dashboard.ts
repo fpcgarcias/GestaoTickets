@@ -70,6 +70,7 @@ export interface DashboardFilters {
   departmentId?: string;
   incidentTypeId?: string;
   categoryId?: string;
+  companyId?: string;
 }
 
 /** Tipo de agregação dinâmica */

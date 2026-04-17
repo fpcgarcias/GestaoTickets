@@ -8,6 +8,7 @@ interface ModernBarChartProps {
     Qtde: number;
   }>;
   isLoading?: boolean;
+  onBarClick?: (name: string) => void;
 }
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -29,7 +30,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export const ModernBarChart: React.FC<ModernBarChartProps> = ({ data, isLoading }) => {
+export const ModernBarChart: React.FC<ModernBarChartProps> = ({ data, isLoading, onBarClick }) => {
   const { formatMessage } = useI18n();
   
   if (isLoading) {
@@ -71,6 +72,7 @@ export const ModernBarChart: React.FC<ModernBarChartProps> = ({ data, isLoading 
             bottom: 20,
           }}
           barCategoryGap="20%"
+          onClick={onBarClick ? (state) => { if (state?.activePayload?.[0]) onBarClick(state.activePayload[0].payload.name); } : undefined}
         >
           <defs>
             <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
@@ -116,6 +118,7 @@ export const ModernBarChart: React.FC<ModernBarChartProps> = ({ data, isLoading 
             filter="url(#shadow)"
             animationDuration={800}
             animationBegin={0}
+            cursor={onBarClick ? 'pointer' : 'default'}
           />
         </BarChart>
       </ResponsiveContainer>

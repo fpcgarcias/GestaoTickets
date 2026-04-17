@@ -16,14 +16,15 @@ import {
   ticketParticipants, type TicketParticipant,
   type Company,
   serviceProviders, departmentServiceProviders, ticketServiceProviders,
-  type ServiceProvider
+  type ServiceProvider,
+  slaDefinitions
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, inArray, getTableColumns, isNull, ilike, asc, gte, lte, ne, exists, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { IStorage } from "./storage";
 import { isSlaPaused } from "@shared/ticket-utils";
-import { convertStatusHistoryToPeriods, calculateEffectiveBusinessTime, getBusinessHoursConfig } from "@shared/utils/sla-calculator";
+import { convertStatusHistoryToPeriods, calculateEffectiveBusinessTime, calculateSLAStatus, getBusinessHoursConfig } from "@shared/utils/sla-calculator";
 import { normalizarPrioridadeParaEstatisticas } from "@shared/utils/priority-utils";
 import { log } from "./services/db-logger";
 
@@ -2116,13 +2117,17 @@ export class DatabaseStorage implements IStorage {
       incidentTypeId?: number;
       categoryId?: number;
       dateField?: 'created_at' | 'resolved_at';
+      companyId?: number;
     }
   ): Promise<SQL[]> {
     const whereClauses: SQL[] = [];
     const opts = options ?? {};
 
     if (userRole === 'admin') {
-      // Admin vê tudo — sem filtro de empresa
+      // Admin vê tudo — mas pode filtrar por empresa se selecionada
+      if (opts.companyId) {
+        whereClauses.push(eq(tickets.company_id, opts.companyId) as unknown as SQL);
+      }
     } else if (userRole === 'company_admin') {
       const [user] = await db.select().from(users).where(eq(users.id, userId));
       if (!user || !user.company_id) return [sql`false`];
@@ -2248,6 +2253,29 @@ export class DatabaseStorage implements IStorage {
       }
 
       whereClauses.push(inArray(tickets.department_id, departmentIds) as unknown as SQL);
+    } else if (userRole === 'viewer' || userRole === 'quality') {
+      // Viewer/Quality: veem todos os tickets da própria empresa (somente leitura)
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user || !user.company_id) return [sql`false`];
+      whereClauses.push(eq(tickets.company_id, user.company_id) as unknown as SQL);
+    } else if (userRole === 'triage') {
+      // Triage: similar a support, vinculado a departamentos
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!official) return [sql`false`];
+
+      const officialDepts = await db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id));
+      if (officialDepts.length === 0) return [sql`false`];
+      const departmentIds = officialDepts.map(od => od.department_id);
+
+      if (official.company_id) {
+        whereClauses.push(eq(tickets.company_id, official.company_id) as unknown as SQL);
+      }
+
+      // Triage vê todos os tickets dos seus departamentos (para classificar e encaminhar)
+      whereClauses.push(inArray(tickets.department_id, departmentIds) as unknown as SQL);
+    } else {
+      // Qualquer outra role desconhecida: sem acesso ao dashboard
+      return [sql`false`];
     }
 
     // Filtro de atendente (para todas as roles)
@@ -2391,6 +2419,166 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
+  // === DASHBOARD METRICS OTIMIZADO ===
+
+  /**
+   * Busca todas as métricas do dashboard de uma vez, evitando queries duplicadas.
+   * Antes: ~7 queries sequenciais buscando os mesmos tickets repetidamente.
+   * Agora: 1 query de tickets + 1 query de status_history (quando necessário).
+   */
+  async getDashboardMetricsOptimized(
+    userId: number,
+    userRole: string,
+    options: {
+      officialId?: number;
+      startDate?: Date;
+      endDate?: Date;
+      departmentId?: number;
+      incidentTypeId?: number;
+      categoryId?: number;
+      companyId?: number;
+      recentLimit?: number;
+    }
+  ): Promise<{
+    stats: { total: number; byStatus: Record<string, number>; byPriority: Record<string, number> };
+    averageFirstResponseTime: number;
+    averageResolutionTime: number;
+    recentTickets: Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null }>;
+  }> {
+    const limit = options.recentLimit ?? 5;
+
+    // 1) Buscar tickets UMA ÚNICA VEZ
+    const whereClauses = await this.buildDashboardWhereClause(userId, userRole, {
+      officialId: options.officialId,
+      startDate: options.startDate,
+      endDate: options.endDate,
+      departmentId: options.departmentId,
+      incidentTypeId: options.incidentTypeId,
+      categoryId: options.categoryId,
+      companyId: options.companyId,
+    });
+
+    const allTickets = await db
+      .select({
+        id: tickets.id,
+        title: tickets.title,
+        created_at: tickets.created_at,
+        first_response_at: tickets.first_response_at,
+        resolved_at: tickets.resolved_at,
+        status: tickets.status,
+        assigned_to_id: tickets.assigned_to_id,
+        company_id: tickets.company_id,
+        department_id: tickets.department_id,
+        priority: tickets.priority,
+      })
+      .from(tickets)
+      .where(whereClauses.length > 0 ? and(...whereClauses) : undefined);
+
+    // 2) Stats — contagem em memória (já temos os dados)
+    const byStatus: Record<string, number> = {};
+    const byPriority: Record<string, number> = {};
+    for (const t of allTickets) {
+      const status = t.status || 'new';
+      byStatus[status] = (byStatus[status] || 0) + 1;
+      const raw = t.priority?.trim() ? t.priority : 'medium';
+      const label = normalizarPrioridadeParaEstatisticas(raw);
+      byPriority[label] = (byPriority[label] || 0) + 1;
+    }
+
+    // 3) Recent tickets — ordenar em memória e pegar top N
+    const recentTickets = allTickets
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, limit)
+      .map(t => ({
+        id: t.id,
+        title: t.title || '',
+        status: t.status,
+        priority: t.priority,
+        created_at: t.created_at,
+        company_id: t.company_id,
+        assigned_to_id: t.assigned_to_id,
+        department_id: t.department_id,
+      }));
+
+    // 4) Tempos médios — buscar status_history UMA VEZ para todos os tickets relevantes
+    const ticketsWithFirstResponse = allTickets.filter(t => t.created_at && (t.first_response_at || t.resolved_at));
+    const resolvedTickets = allTickets.filter(t => t.status === 'resolved' && t.resolved_at && t.created_at);
+
+    // IDs únicos de tickets que precisam de status_history
+    const needHistoryIds = [...new Set([
+      ...ticketsWithFirstResponse.map(t => t.id),
+      ...resolvedTickets.map(t => t.id),
+    ])];
+
+    let statusMap = new Map<number, TicketStatusHistory[]>();
+    if (needHistoryIds.length > 0) {
+      // Buscar em batches se necessário (evitar IN clause muito grande)
+      const batchSize = 500;
+      const allHistory: TicketStatusHistory[] = [];
+      for (let i = 0; i < needHistoryIds.length; i += batchSize) {
+        const batch = needHistoryIds.slice(i, i + batchSize);
+        const rows = await db
+          .select()
+          .from(ticketStatusHistory)
+          .where(inArray(ticketStatusHistory.ticket_id, batch))
+          .orderBy(asc(ticketStatusHistory.created_at));
+        allHistory.push(...rows);
+      }
+      for (const h of allHistory) {
+        if (!statusMap.has(h.ticket_id)) statusMap.set(h.ticket_id, []);
+        statusMap.get(h.ticket_id)!.push(h);
+      }
+    }
+
+    const businessHours = getBusinessHoursConfig();
+
+    // 4a) Tempo médio de primeira resposta
+    let averageFirstResponseTime = 0;
+    if (ticketsWithFirstResponse.length > 0) {
+      try {
+        const times = ticketsWithFirstResponse.map(t => {
+          const createdAt = new Date(t.created_at);
+          const firstResponseAt = t.first_response_at ? new Date(t.first_response_at) : new Date(t.resolved_at!);
+          const statusHistory = statusMap.get(t.id) || [];
+          const statusPeriods = convertStatusHistoryToPeriods(createdAt, t.status as TicketStatus, statusHistory);
+          const limitedPeriods = statusPeriods
+            .map(p => ({ ...p, endTime: new Date(Math.min(new Date(p.endTime).getTime(), firstResponseAt.getTime())) }))
+            .filter(p => new Date(p.startTime) < firstResponseAt);
+          return calculateEffectiveBusinessTime(createdAt, firstResponseAt, limitedPeriods, businessHours) / (1000 * 60 * 60);
+        });
+        const soma = times.reduce((a, b) => a + b, 0);
+        averageFirstResponseTime = Math.round((soma / times.length) * 100) / 100;
+      } catch (e) {
+        console.error('Erro ao calcular tempo médio de primeira resposta:', e);
+      }
+    }
+
+    // 4b) Tempo médio de resolução
+    let averageResolutionTime = 0;
+    if (resolvedTickets.length > 0) {
+      try {
+        const times = resolvedTickets.map(t => {
+          const createdAt = new Date(t.created_at);
+          const resolvedAt = new Date(t.resolved_at!);
+          const statusHistory = statusMap.get(t.id) || [];
+          const statusPeriods = convertStatusHistoryToPeriods(createdAt, t.status as TicketStatus, statusHistory);
+          return calculateEffectiveBusinessTime(createdAt, resolvedAt, statusPeriods, businessHours) / (1000 * 60 * 60);
+        });
+        const total = times.reduce((a, b) => a + b, 0);
+        averageResolutionTime = Math.round((total / times.length) * 100) / 100;
+      } catch (e) {
+        console.error('Erro ao calcular tempo médio de resolução:', e);
+      }
+    }
+
+    return {
+      stats: { total: allTickets.length, byStatus, byPriority },
+      averageFirstResponseTime,
+      averageResolutionTime,
+      recentTickets,
+    };
+  }
+
   // === MÉTODOS DO DASHBOARD BI ===
 
   /**
@@ -2409,6 +2597,7 @@ export class DatabaseStorage implements IStorage {
       departmentId?: number;
       incidentTypeId?: number;
       categoryId?: number;
+      companyId?: number;
     }
   ): Promise<{ series: Array<{ name: string; data: Array<{ date: string; count: number }> }> }> {
     const whereClauses = await this.buildDashboardWhereClause(userId, userRole, {
@@ -2418,6 +2607,7 @@ export class DatabaseStorage implements IStorage {
       departmentId: options.departmentId,
       incidentTypeId: options.incidentTypeId,
       categoryId: options.categoryId,
+      companyId: options.companyId,
     });
 
     const granularity = options.granularity;
@@ -2438,7 +2628,7 @@ export class DatabaseStorage implements IStorage {
         .groupBy(sql`period`, tickets.status)
         .orderBy(sql`period`);
 
-      return this.buildTrendSeries(rows);
+      return this.buildTrendSeries(rows, 'status');
     } else if (groupBy === 'priority') {
       const rows = await db
         .select({
@@ -2451,7 +2641,7 @@ export class DatabaseStorage implements IStorage {
         .groupBy(sql`period`, tickets.priority)
         .orderBy(sql`period`);
 
-      return this.buildTrendSeries(rows);
+      return this.buildTrendSeries(rows, 'priority');
     } else {
       // Sem agrupamento — linha única "total"
       const rows = await db
@@ -2467,7 +2657,7 @@ export class DatabaseStorage implements IStorage {
       const series = [{
         name: 'total',
         data: rows.map(r => ({
-          date: (r.period as Date).toISOString().split('T')[0],
+          date: r.period instanceof Date ? r.period.toISOString().split('T')[0] : String(r.period).split('T')[0],
           count: r.count,
         })),
       }];
@@ -2479,19 +2669,30 @@ export class DatabaseStorage implements IStorage {
   /**
    * Helper para montar as séries de tendência a partir dos rows agrupados.
    */
-  private buildTrendSeries(rows: Array<{ period: unknown; group_value: string | null; count: number }>): { series: Array<{ name: string; data: Array<{ date: string; count: number }> }> } {
-    const seriesMap = new Map<string, Array<{ date: string; count: number }>>();
+  private buildTrendSeries(rows: Array<{ period: unknown; group_value: string | null; count: number }>, groupBy?: 'status' | 'priority'): { series: Array<{ name: string; data: Array<{ date: string; count: number }> }> } {
+    // Mapa intermediário: chave normalizada → { date → count acumulado }
+    const seriesMap = new Map<string, Map<string, number>>();
 
     for (const row of rows) {
-      const name = row.group_value || 'unknown';
-      const date = (row.period as Date).toISOString().split('T')[0];
-      if (!seriesMap.has(name)) {
-        seriesMap.set(name, []);
+      let name = row.group_value || 'unknown';
+      // Normalizar prioridades para agrupar variantes (Alta, alta, high → mesma série)
+      if (groupBy === 'priority') {
+        name = normalizarPrioridadeParaEstatisticas(name) || name;
       }
-      seriesMap.get(name)!.push({ date, count: row.count });
+      const date = row.period instanceof Date ? row.period.toISOString().split('T')[0] : String(row.period).split('T')[0];
+      if (!seriesMap.has(name)) {
+        seriesMap.set(name, new Map());
+      }
+      const dateMap = seriesMap.get(name)!;
+      dateMap.set(date, (dateMap.get(date) || 0) + row.count);
     }
 
-    const series = Array.from(seriesMap.entries()).map(([name, data]) => ({ name, data }));
+    const series = Array.from(seriesMap.entries()).map(([name, dateMap]) => ({
+      name,
+      data: Array.from(dateMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, count]) => ({ date, count })),
+    }));
     return { series };
   }
 
@@ -2509,6 +2710,7 @@ export class DatabaseStorage implements IStorage {
       departmentId?: number;
       incidentTypeId?: number;
       categoryId?: number;
+      companyId?: number;
     }
   ): Promise<{ data: Array<{ day_of_week: number; hour: number; count: number }> }> {
     const whereClauses = await this.buildDashboardWhereClause(userId, userRole, {
@@ -2518,6 +2720,7 @@ export class DatabaseStorage implements IStorage {
       departmentId: options.departmentId,
       incidentTypeId: options.incidentTypeId,
       categoryId: options.categoryId,
+      companyId: options.companyId,
     });
 
     const rows = await db
@@ -2537,6 +2740,475 @@ export class DatabaseStorage implements IStorage {
         hour: r.hour,
         count: r.count,
       })),
+    };
+  }
+
+  /**
+   * Retorna ranking de atendentes com volume resolvido e tempos médios.
+   * Usa SQL com JOIN em officials e agregações de COUNT/AVG.
+   */
+  async getDashboardRankingData(
+    userId: number,
+    userRole: string,
+    options: {
+      startDate?: Date;
+      endDate?: Date;
+      sortBy?: 'resolved_count' | 'avg_first_response' | 'avg_resolution';
+      officialId?: number;
+      departmentId?: number;
+      incidentTypeId?: number;
+      categoryId?: number;
+      companyId?: number;
+    }
+  ): Promise<{ ranking: Array<{ official_id: number; official_name: string; resolved_count: number; avg_first_response_hours: number; avg_resolution_hours: number }> }> {
+    // Para role support, restringir ao próprio atendente
+    if (userRole === 'support') {
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!official) return { ranking: [] };
+
+      // Buscar dados apenas do próprio atendente
+      const whereClauses = await this.buildDashboardWhereClause(userId, userRole, {
+        officialId: official.id,
+        startDate: options.startDate,
+        endDate: options.endDate,
+        departmentId: options.departmentId,
+        incidentTypeId: options.incidentTypeId,
+        categoryId: options.categoryId,
+      });
+
+      const rows = await db
+        .select({
+          official_id: officials.id,
+          official_name: officials.name,
+          resolved_count: sql<number>`COUNT(CASE WHEN ${tickets.status} IN ('resolved', 'closed') THEN 1 END)::int`.as('resolved_count'),
+          avg_first_response_hours: sql<number>`COALESCE(AVG(EXTRACT(EPOCH FROM (${tickets.first_response_at} - ${tickets.created_at})) / 3600) FILTER (WHERE ${tickets.first_response_at} IS NOT NULL), 0)`.as('avg_first_response_hours'),
+          avg_resolution_hours: sql<number>`COALESCE(AVG(EXTRACT(EPOCH FROM (${tickets.resolved_at} - ${tickets.created_at})) / 3600) FILTER (WHERE ${tickets.resolved_at} IS NOT NULL), 0)`.as('avg_resolution_hours'),
+        })
+        .from(officials)
+        .leftJoin(tickets, and(
+          eq(tickets.assigned_to_id, officials.id),
+          ...(options.startDate && options.endDate
+            ? [and(gte(tickets.created_at, options.startDate), lte(tickets.created_at, options.endDate))]
+            : [])
+        ))
+        .where(and(
+          eq(officials.id, official.id),
+          eq(officials.is_active, true),
+          ...(whereClauses.length > 0 ? [and(...whereClauses)] : [])
+        ))
+        .groupBy(officials.id, officials.name);
+
+      return {
+        ranking: rows.map(r => ({
+          official_id: r.official_id,
+          official_name: r.official_name,
+          resolved_count: r.resolved_count ?? 0,
+          avg_first_response_hours: Number(Number(r.avg_first_response_hours ?? 0).toFixed(2)),
+          avg_resolution_hours: Number(Number(r.avg_resolution_hours ?? 0).toFixed(2)),
+        })),
+      };
+    }
+
+    // Para outras roles, buscar company_id do usuário
+    let companyId: number | null = null;
+    if (userRole === 'admin') {
+      // Admin vê tudo — mas pode filtrar por empresa se selecionada
+      if (options.companyId) {
+        companyId = options.companyId;
+      }
+    } else if (userRole === 'company_admin') {
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user || !user.company_id) return { ranking: [] };
+      companyId = user.company_id;
+    } else {
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!official || !official.company_id) return { ranking: [] };
+      companyId = official.company_id;
+    }
+
+    // Construir condições do JOIN de tickets
+    const ticketJoinConditions: SQL[] = [
+      eq(tickets.assigned_to_id, officials.id) as unknown as SQL,
+    ];
+    if (options.startDate && options.endDate) {
+      ticketJoinConditions.push(and(gte(tickets.created_at, options.startDate), lte(tickets.created_at, options.endDate)) as unknown as SQL);
+    }
+    if (options.departmentId) {
+      ticketJoinConditions.push(eq(tickets.department_id, options.departmentId) as unknown as SQL);
+    }
+    if (options.incidentTypeId) {
+      ticketJoinConditions.push(eq(tickets.incident_type_id, options.incidentTypeId) as unknown as SQL);
+    }
+    if (options.categoryId) {
+      ticketJoinConditions.push(eq(tickets.category_id, options.categoryId) as unknown as SQL);
+    }
+
+    // Condições WHERE para officials
+    const officialConditions: SQL[] = [
+      eq(officials.is_active, true) as unknown as SQL,
+    ];
+    if (companyId) {
+      officialConditions.push(eq(officials.company_id, companyId) as unknown as SQL);
+    }
+    // Filtrar apenas atendentes que pertencem ao departamento selecionado
+    if (options.departmentId) {
+      officialConditions.push(
+        exists(
+          db.select({ one: sql`1` })
+            .from(officialDepartments)
+            .where(and(
+              eq(officialDepartments.official_id, officials.id),
+              eq(officialDepartments.department_id, options.departmentId)
+            ))
+        ) as unknown as SQL
+      );
+    }
+
+    const sortBy = options.sortBy || 'resolved_count';
+    let orderByExpr;
+    if (sortBy === 'avg_first_response') {
+      orderByExpr = sql`avg_first_response_hours ASC`;
+    } else if (sortBy === 'avg_resolution') {
+      orderByExpr = sql`avg_resolution_hours ASC`;
+    } else {
+      orderByExpr = sql`resolved_count DESC`;
+    }
+
+    const rows = await db
+      .select({
+        official_id: officials.id,
+        official_name: officials.name,
+        resolved_count: sql<number>`COUNT(CASE WHEN ${tickets.status} IN ('resolved', 'closed') THEN 1 END)::int`.as('resolved_count'),
+        avg_first_response_hours: sql<number>`COALESCE(AVG(EXTRACT(EPOCH FROM (${tickets.first_response_at} - ${tickets.created_at})) / 3600) FILTER (WHERE ${tickets.first_response_at} IS NOT NULL), 0)`.as('avg_first_response_hours'),
+        avg_resolution_hours: sql<number>`COALESCE(AVG(EXTRACT(EPOCH FROM (${tickets.resolved_at} - ${tickets.created_at})) / 3600) FILTER (WHERE ${tickets.resolved_at} IS NOT NULL), 0)`.as('avg_resolution_hours'),
+      })
+      .from(officials)
+      .leftJoin(tickets, and(...ticketJoinConditions))
+      .where(and(...officialConditions))
+      .groupBy(officials.id, officials.name)
+      .orderBy(orderByExpr);
+
+    return {
+      ranking: rows.map(r => ({
+        official_id: r.official_id,
+        official_name: r.official_name,
+        resolved_count: r.resolved_count ?? 0,
+        avg_first_response_hours: Number(Number(r.avg_first_response_hours ?? 0).toFixed(2)),
+        avg_resolution_hours: Number(Number(r.avg_resolution_hours ?? 0).toFixed(2)),
+      })),
+    };
+  }
+
+  /**
+   * Retorna taxa de conformidade SLA.
+   * Compara tempo de resolução com resolution_time_hours da sla_definitions.
+   * Usa calculateEffectiveBusinessTime para considerar horário comercial, pausas (aguardando cliente) e dias úteis,
+   * mantendo consistência com o cálculo de SLA do restante do sistema.
+   */
+  async getDashboardSlaData(
+    userId: number,
+    userRole: string,
+    options: {
+      startDate?: Date;
+      endDate?: Date;
+      officialId?: number;
+      departmentId?: number;
+      incidentTypeId?: number;
+      categoryId?: number;
+      companyId?: number;
+    }
+  ): Promise<{ total_resolved: number; within_sla: number; compliance_rate: number; has_sla_config: boolean }> {
+    // Obter company_id do usuário
+    let companyId: number | null = null;
+    if (userRole === 'admin') {
+      // Admin vê tudo — mas pode filtrar por empresa se selecionada
+      if (options.companyId) {
+        companyId = options.companyId;
+      }
+    } else if (userRole === 'company_admin') {
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user || !user.company_id) return { total_resolved: 0, within_sla: 0, compliance_rate: 0, has_sla_config: false };
+      companyId = user.company_id;
+    } else {
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!official || !official.company_id) return { total_resolved: 0, within_sla: 0, compliance_rate: 0, has_sla_config: false };
+      companyId = official.company_id;
+    }
+
+    // Verificar se existem definições de SLA para a empresa
+    const slaCheck = companyId
+      ? await db.select({ count: sql<number>`count(*)::int` }).from(slaDefinitions).where(eq(slaDefinitions.company_id, companyId))
+      : await db.select({ count: sql<number>`count(*)::int` }).from(slaDefinitions);
+
+    const hasSlaConfig = (slaCheck[0]?.count ?? 0) > 0;
+
+    if (!hasSlaConfig) {
+      return { total_resolved: 0, within_sla: 0, compliance_rate: 0, has_sla_config: false };
+    }
+
+    // Usar buildDashboardWhereClause para filtros de segurança
+    const whereClauses = await this.buildDashboardWhereClause(userId, userRole, {
+      officialId: options.officialId,
+      startDate: options.startDate,
+      endDate: options.endDate,
+      departmentId: options.departmentId,
+      incidentTypeId: options.incidentTypeId,
+      categoryId: options.categoryId,
+      companyId: options.companyId,
+    });
+
+    // Adicionar filtros específicos de SLA: apenas tickets resolvidos/encerrados com resolved_at
+    whereClauses.push(sql`${tickets.status} IN ('resolved', 'closed')` as unknown as SQL);
+    whereClauses.push(sql`${tickets.resolved_at} IS NOT NULL` as unknown as SQL);
+
+    // Buscar tickets resolvidos com suas definições de SLA
+    const resolvedTickets = await db
+      .select({
+        id: tickets.id,
+        created_at: tickets.created_at,
+        resolved_at: tickets.resolved_at,
+        status: tickets.status,
+        priority: tickets.priority,
+        sla_resolution_hours: slaDefinitions.resolution_time_hours,
+      })
+      .from(tickets)
+      .innerJoin(slaDefinitions, and(
+        sql`LOWER(${slaDefinitions.priority}) = LOWER(${tickets.priority})`,
+        eq(slaDefinitions.company_id, tickets.company_id),
+      ))
+      .where(whereClauses.length > 0 ? and(...whereClauses) : undefined);
+
+    const totalResolved = resolvedTickets.length;
+
+    if (totalResolved === 0) {
+      return { total_resolved: 0, within_sla: 0, compliance_rate: 0, has_sla_config: true };
+    }
+
+    // Buscar status history de todos os tickets em uma única query (otimizado)
+    const ticketIds = resolvedTickets.map(t => t.id);
+    const allStatusHistory = await db
+      .select()
+      .from(ticketStatusHistory)
+      .where(inArray(ticketStatusHistory.ticket_id, ticketIds))
+      .orderBy(asc(ticketStatusHistory.created_at));
+
+    // Agrupar status history por ticket_id
+    const statusMap = new Map<number, TicketStatusHistory[]>();
+    for (const status of allStatusHistory) {
+      if (!statusMap.has(status.ticket_id)) statusMap.set(status.ticket_id, []);
+      statusMap.get(status.ticket_id)!.push(status);
+    }
+
+    const businessHours = getBusinessHoursConfig();
+
+    // Usar calculateSLAStatus — a mesma função usada em todo o sistema —
+    // para garantir consistência no cálculo (horário comercial, pausas, dias úteis)
+    let withinSla = 0;
+    for (const ticket of resolvedTickets) {
+      const createdAt = new Date(ticket.created_at);
+      const resolvedAt = new Date(ticket.resolved_at!);
+      const statusHistory = statusMap.get(ticket.id) || [];
+
+      const statusPeriods = convertStatusHistoryToPeriods(
+        createdAt,
+        ticket.status as any,
+        statusHistory
+      );
+
+      const slaResult = calculateSLAStatus(
+        createdAt,
+        ticket.sla_resolution_hours,
+        resolvedAt,       // currentTime = resolvedAt (ticket já resolvido)
+        resolvedAt,       // resolvedAt
+        businessHours,
+        statusPeriods,
+        ticket.status as any
+      );
+
+      // Se o SLA NÃO foi violado, está dentro do prazo
+      if (!slaResult.isBreached) {
+        withinSla++;
+      }
+    }
+
+    const complianceRate = totalResolved > 0 ? Number(((withinSla / totalResolved) * 100).toFixed(1)) : 0;
+
+    return {
+      total_resolved: totalResolved,
+      within_sla: withinSla,
+      compliance_rate: complianceRate,
+      has_sla_config: true,
+    };
+  }
+
+  /**
+   * Retorna métricas de backlog: tickets abertos >7 dias, sem atendente, sem atualização >3 dias.
+   * Considera apenas tickets com status 'new' ou 'ongoing'.
+   */
+  async getDashboardBacklogData(
+    userId: number,
+    userRole: string,
+    options: {
+      officialId?: number;
+      departmentId?: number;
+      companyId?: number;
+    }
+  ): Promise<{ open_over_7_days: number; unassigned: number; stale_over_3_days: number }> {
+    const whereClauses = await this.buildDashboardWhereClause(userId, userRole, {
+      officialId: options.officialId,
+      departmentId: options.departmentId,
+      companyId: options.companyId,
+    });
+
+    // Filtro base: apenas tickets new ou ongoing
+    const baseStatusFilter = sql`${tickets.status} IN ('new', 'ongoing')` as unknown as SQL;
+
+    // Query 1: Abertos há mais de 7 dias
+    const openOver7DaysResult = await db
+      .select({ count: sql<number>`count(*)::int`.as('count') })
+      .from(tickets)
+      .where(and(
+        baseStatusFilter,
+        sql`${tickets.created_at} < NOW() - INTERVAL '7 days'` as unknown as SQL,
+        ...(whereClauses.length > 0 ? whereClauses : []),
+      ));
+
+    // Query 2: Sem atendente
+    const unassignedResult = await db
+      .select({ count: sql<number>`count(*)::int`.as('count') })
+      .from(tickets)
+      .where(and(
+        baseStatusFilter,
+        isNull(tickets.assigned_to_id) as unknown as SQL,
+        ...(whereClauses.length > 0 ? whereClauses : []),
+      ));
+
+    // Query 3: Sem atualização há mais de 3 dias
+    const staleOver3DaysResult = await db
+      .select({ count: sql<number>`count(*)::int`.as('count') })
+      .from(tickets)
+      .where(and(
+        baseStatusFilter,
+        sql`${tickets.updated_at} < NOW() - INTERVAL '3 days'` as unknown as SQL,
+        ...(whereClauses.length > 0 ? whereClauses : []),
+      ));
+
+    return {
+      open_over_7_days: openOver7DaysResult[0]?.count ?? 0,
+      unassigned: unassignedResult[0]?.count ?? 0,
+      stale_over_3_days: staleOver3DaysResult[0]?.count ?? 0,
+    };
+  }
+
+  /**
+   * Retorna lista paginada de tickets para drill-down.
+   * Suporta filtros por status, prioridade, departamento, atendente, tipo de chamado, categoria e tipo de backlog.
+   */
+  async getDashboardDrilldownData(
+    userId: number,
+    userRole: string,
+    options: {
+      type: 'status' | 'priority' | 'department' | 'official' | 'incident_type' | 'category' | 'backlog_type';
+      value: string;
+      page: number;
+      pageSize: number;
+      officialId?: number;
+      startDate?: Date;
+      endDate?: Date;
+      departmentId?: number;
+      incidentTypeId?: number;
+      categoryId?: number;
+      companyId?: number;
+    }
+  ): Promise<{ tickets: Array<{ id: number; ticket_id: string; title: string; status: string; priority: string; created_at: string; official_name: string | null }>; total: number; page: number; page_size: number }> {
+    const whereClauses = await this.buildDashboardWhereClause(userId, userRole, {
+      officialId: options.officialId,
+      startDate: options.startDate,
+      endDate: options.endDate,
+      departmentId: options.departmentId,
+      incidentTypeId: options.incidentTypeId,
+      categoryId: options.categoryId,
+      companyId: options.companyId,
+    });
+
+    // Filtro específico por tipo de drill-down
+    switch (options.type) {
+      case 'status':
+        whereClauses.push(sql`${tickets.status} = ${options.value}`);
+        break;
+      case 'priority':
+        whereClauses.push(sql`${tickets.priority} = ${options.value}`);
+        break;
+      case 'department':
+        whereClauses.push(sql`${tickets.department_id} = ${parseInt(options.value, 10)}`);
+        break;
+      case 'official':
+        whereClauses.push(sql`${tickets.assigned_to_id} = ${parseInt(options.value, 10)}`);
+        break;
+      case 'incident_type':
+        whereClauses.push(sql`${tickets.incident_type_id} = ${parseInt(options.value, 10)}`);
+        break;
+      case 'category':
+        whereClauses.push(sql`${tickets.category_id} = ${parseInt(options.value, 10)}`);
+        break;
+      case 'backlog_type': {
+        // Todos os tipos de backlog consideram apenas tickets new/ongoing
+        whereClauses.push(sql`${tickets.status} IN ('new', 'ongoing')`);
+
+        if (options.value === 'open_over_7_days') {
+          whereClauses.push(sql`${tickets.created_at} < NOW() - INTERVAL '7 days'`);
+        } else if (options.value === 'unassigned') {
+          whereClauses.push(isNull(tickets.assigned_to_id));
+        } else if (options.value === 'stale_over_3_days') {
+          whereClauses.push(sql`${tickets.updated_at} < NOW() - INTERVAL '3 days'`);
+        }
+        break;
+      }
+    }
+
+    const offset = (options.page - 1) * options.pageSize;
+
+    // Query de contagem total
+    const countResult = await db
+      .select({ count: sql<number>`count(*)::int`.as('count') })
+      .from(tickets)
+      .where(and(...(whereClauses.length > 0 ? whereClauses : [sql`true`])));
+
+    const total = countResult[0]?.count ?? 0;
+
+    // Query de tickets com LEFT JOIN para nome do atendente
+    const rows = await db
+      .select({
+        id: tickets.id,
+        ticket_id: tickets.ticket_id,
+        title: tickets.title,
+        status: tickets.status,
+        priority: tickets.priority,
+        created_at: tickets.created_at,
+        official_name: officials.name,
+      })
+      .from(tickets)
+      .leftJoin(officials, eq(tickets.assigned_to_id, officials.id))
+      .where(and(...(whereClauses.length > 0 ? whereClauses : [sql`true`])))
+      .orderBy(desc(tickets.created_at))
+      .limit(options.pageSize)
+      .offset(offset);
+
+    const drilldownTickets = rows.map(row => ({
+      id: row.id,
+      ticket_id: row.ticket_id,
+      title: row.title,
+      status: row.status,
+      priority: row.priority,
+      created_at: row.created_at.toISOString(),
+      official_name: row.official_name ?? null,
+    }));
+
+    return {
+      tickets: drilldownTickets,
+      total,
+      page: options.page,
+      page_size: options.pageSize,
     };
   }
 

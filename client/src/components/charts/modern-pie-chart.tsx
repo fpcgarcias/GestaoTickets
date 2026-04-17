@@ -10,6 +10,7 @@ interface ModernPieChartProps {
   }>;
   isLoading?: boolean;
   hideLegend?: boolean;
+  onSegmentClick?: (name: string) => void;
 }
 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -58,7 +59,7 @@ const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name
   );
 };
 
-export const ModernPieChart: React.FC<ModernPieChartProps> = ({ data, isLoading, hideLegend = false }) => {
+export const ModernPieChart: React.FC<ModernPieChartProps> = ({ data, isLoading, hideLegend = false, onSegmentClick }) => {
   if (isLoading) {
     return (
       <div className="w-full h-80 flex items-center justify-center">
@@ -118,6 +119,8 @@ export const ModernPieChart: React.FC<ModernPieChartProps> = ({ data, isLoading,
                 stroke={entry.color}
                 strokeWidth={2}
                 className="hover:opacity-80 transition-opacity duration-200"
+                onClick={() => onSegmentClick?.(entry.name)}
+                style={{ cursor: onSegmentClick ? 'pointer' : 'default' }}
               />
             ))}
           </Pie>
@@ -132,7 +135,13 @@ export const ModernPieChart: React.FC<ModernPieChartProps> = ({ data, isLoading,
             {data.map((item, _index) => {
               const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0';
               return (
-                <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/60 hover:bg-muted transition-colors duration-200">
+                <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/60 hover:bg-muted transition-colors duration-200"
+                  onClick={() => onSegmentClick?.(item.name)}
+                  style={{ cursor: onSegmentClick ? 'pointer' : 'default' }}
+                  role={onSegmentClick ? 'button' : undefined}
+                  tabIndex={onSegmentClick ? 0 : undefined}
+                  onKeyDown={onSegmentClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSegmentClick(item.name); } } : undefined}
+                >
                   <div className="flex items-center gap-3">
                     <div 
                       className="w-4 h-4 rounded-full shadow-sm" 
