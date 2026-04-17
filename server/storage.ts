@@ -129,6 +129,27 @@ export interface IStorage {
   getTicketStatsForDashboardByUserRole(userId: number, userRole: string, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<{ total: number; byStatus: Record<string, number>; byPriority: Record<string, number>; }>;
   getRecentTicketsForDashboardByUserRole(userId: number, userRole: string, limit: number, officialId?: number, startDate?: Date, endDate?: Date, departmentId?: number, incidentTypeId?: number, categoryId?: number): Promise<Array<{ id: number; title: string; status: string; priority: string | null; created_at: Date; company_id: number | null; assigned_to_id: number | null; department_id: number | null; }>>;
 
+  // Dashboard BI operations
+  getDashboardTrendData(userId: number, userRole: string, options: {
+    granularity: 'day' | 'week' | 'month';
+    groupBy?: 'status' | 'priority';
+    officialId?: number;
+    startDate?: Date;
+    endDate?: Date;
+    departmentId?: number;
+    incidentTypeId?: number;
+    categoryId?: number;
+  }): Promise<{ series: Array<{ name: string; data: Array<{ date: string; count: number }> }> }>;
+
+  getDashboardHeatmapData(userId: number, userRole: string, options: {
+    officialId?: number;
+    startDate?: Date;
+    endDate?: Date;
+    departmentId?: number;
+    incidentTypeId?: number;
+    categoryId?: number;
+  }): Promise<{ data: Array<{ day_of_week: number; hour: number; count: number }> }>;
+
   // Company operations (adicionar se não existir)
   getCompany(id: number): Promise<Company | undefined>;
 
@@ -1317,6 +1338,16 @@ export class MemStorage implements IStorage {
     // Implementação básica para memória
     console.warn(`[MemStorage] getTicketParticipantsHistory(${ticketId}) não implementado`);
     return [];
+  }
+
+  async getDashboardTrendData(userId: number, userRole: string, options: any): Promise<{ series: Array<{ name: string; data: Array<{ date: string; count: number }> }> }> {
+    console.warn(`[MemStorage] getDashboardTrendData não implementado`);
+    return { series: [] };
+  }
+
+  async getDashboardHeatmapData(userId: number, userRole: string, options: any): Promise<{ data: Array<{ day_of_week: number; hour: number; count: number }> }> {
+    console.warn(`[MemStorage] getDashboardHeatmapData não implementado`);
+    return { data: [] };
   }
 }
 

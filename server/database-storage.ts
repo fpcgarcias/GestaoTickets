@@ -19,7 +19,7 @@ import {
   type ServiceProvider
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, inArray, getTableColumns, isNull, ilike, asc, gte, lte, ne, exists } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, getTableColumns, isNull, ilike, asc, gte, lte, ne, exists, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { IStorage } from "./storage";
 import { isSlaPaused } from "@shared/ticket-utils";
@@ -2101,6 +2101,181 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
+   * Constrói as cláusulas WHERE reutilizáveis para todos os endpoints do dashboard,
+   * aplicando filtros de segurança por role/company_id e filtros opcionais.
+   * Retorna um array de condições SQL que podem ser combinadas com and().
+   */
+  async buildDashboardWhereClause(
+    userId: number,
+    userRole: string,
+    options?: {
+      officialId?: number;
+      startDate?: Date;
+      endDate?: Date;
+      departmentId?: number;
+      incidentTypeId?: number;
+      categoryId?: number;
+      dateField?: 'created_at' | 'resolved_at';
+    }
+  ): Promise<SQL[]> {
+    const whereClauses: SQL[] = [];
+    const opts = options ?? {};
+
+    if (userRole === 'admin') {
+      // Admin vê tudo — sem filtro de empresa
+    } else if (userRole === 'company_admin') {
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      if (!user || !user.company_id) return [sql`false`];
+      whereClauses.push(eq(tickets.company_id, user.company_id) as unknown as SQL);
+    } else if (userRole === 'customer') {
+      const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
+      if (!customer) return [sql`false`];
+
+      const customerCondition = or(
+        eq(tickets.customer_id, customer.id),
+        exists(
+          db.select().from(ticketParticipants)
+            .where(and(
+              eq(ticketParticipants.ticket_id, tickets.id),
+              eq(ticketParticipants.user_id, userId)
+            ))
+        )
+      );
+      whereClauses.push(customerCondition as unknown as SQL);
+      if (customer.company_id) {
+        whereClauses.push(eq(tickets.company_id, customer.company_id) as unknown as SQL);
+      }
+    } else if (userRole === 'manager') {
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!official) return [sql`false`];
+
+      const [officialDepts, subordinates] = await Promise.all([
+        db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id)),
+        db.select().from(officials).where(eq(officials.manager_id, official.id))
+      ]);
+      if (officialDepts.length === 0) return [sql`false`];
+      const departmentIds = officialDepts.map(od => od.department_id);
+
+      if (official.company_id) {
+        whereClauses.push(eq(tickets.company_id, official.company_id) as unknown as SQL);
+      }
+
+      const subordinateIds = subordinates.map(s => s.id);
+
+      if (!opts.officialId) {
+        const assignmentFilter = or(
+          eq(tickets.assigned_to_id, official.id),
+          subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
+          isNull(tickets.assigned_to_id)
+        );
+        whereClauses.push(assignmentFilter as unknown as SQL);
+      } else {
+        if (subordinateIds.includes(opts.officialId)) {
+          whereClauses.push(eq(tickets.assigned_to_id, opts.officialId) as unknown as SQL);
+        } else if (opts.officialId === official.id) {
+          whereClauses.push(eq(tickets.assigned_to_id, official.id) as unknown as SQL);
+        } else {
+          return [sql`false`];
+        }
+      }
+
+      whereClauses.push(inArray(tickets.department_id, departmentIds) as unknown as SQL);
+    } else if (userRole === 'supervisor') {
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!official) return [sql`false`];
+
+      const [officialDepts, subordinates, grantedTargetIds] = await Promise.all([
+        db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id)),
+        db.select().from(officials).where(eq(officials.supervisor_id, official.id)),
+        this.getVisibilityGrantTargetIds(official.id)
+      ]);
+      if (officialDepts.length === 0) return [sql`false`];
+      const departmentIds = officialDepts.map(od => od.department_id);
+
+      if (official.company_id) {
+        whereClauses.push(eq(tickets.company_id, official.company_id) as unknown as SQL);
+      }
+
+      const subordinateIds = subordinates.map(s => s.id);
+      const allVisibleAssignedIds = [...new Set([...subordinateIds, ...grantedTargetIds])];
+
+      if (!opts.officialId) {
+        const assignmentFilter = or(
+          eq(tickets.assigned_to_id, official.id),
+          allVisibleAssignedIds.length > 0 ? inArray(tickets.assigned_to_id, allVisibleAssignedIds) : sql`false`,
+          isNull(tickets.assigned_to_id)
+        );
+        whereClauses.push(assignmentFilter as unknown as SQL);
+      } else {
+        if (allVisibleAssignedIds.includes(opts.officialId)) {
+          whereClauses.push(eq(tickets.assigned_to_id, opts.officialId) as unknown as SQL);
+        } else if (opts.officialId === official.id) {
+          whereClauses.push(eq(tickets.assigned_to_id, official.id) as unknown as SQL);
+        } else {
+          return [sql`false`];
+        }
+      }
+
+      whereClauses.push(inArray(tickets.department_id, departmentIds) as unknown as SQL);
+    } else if (userRole === 'support') {
+      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
+      if (!official) return [sql`false`];
+
+      const [officialDepts, grantedTargetIds] = await Promise.all([
+        db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id)),
+        this.getVisibilityGrantTargetIds(official.id)
+      ]);
+      if (officialDepts.length === 0) return [sql`false`];
+      const departmentIds = officialDepts.map(od => od.department_id);
+
+      if (official.company_id) {
+        whereClauses.push(eq(tickets.company_id, official.company_id) as unknown as SQL);
+      }
+
+      if (!opts.officialId) {
+        const assignmentFilter = or(
+          eq(tickets.assigned_to_id, official.id),
+          grantedTargetIds.length > 0 ? inArray(tickets.assigned_to_id, grantedTargetIds) : sql`false`,
+          isNull(tickets.assigned_to_id)
+        );
+        whereClauses.push(assignmentFilter as unknown as SQL);
+      } else if (opts.officialId === official.id) {
+        whereClauses.push(eq(tickets.assigned_to_id, official.id) as unknown as SQL);
+      } else if (grantedTargetIds.includes(opts.officialId)) {
+        whereClauses.push(eq(tickets.assigned_to_id, opts.officialId) as unknown as SQL);
+      } else {
+        return [sql`false`];
+      }
+
+      whereClauses.push(inArray(tickets.department_id, departmentIds) as unknown as SQL);
+    }
+
+    // Filtro de atendente (para todas as roles)
+    if (opts.officialId) {
+      whereClauses.push(eq(tickets.assigned_to_id, opts.officialId) as unknown as SQL);
+    }
+
+    // Filtro de período
+    const dateCol = opts.dateField === 'resolved_at' ? tickets.resolved_at : tickets.created_at;
+    if (opts.startDate && opts.endDate) {
+      whereClauses.push(and(gte(dateCol, opts.startDate), lte(dateCol, opts.endDate)) as unknown as SQL);
+    }
+
+    // Filtros adicionais
+    if (opts.departmentId) {
+      whereClauses.push(eq(tickets.department_id, opts.departmentId) as unknown as SQL);
+    }
+    if (opts.incidentTypeId) {
+      whereClauses.push(eq(tickets.incident_type_id, opts.incidentTypeId) as unknown as SQL);
+    }
+    if (opts.categoryId) {
+      whereClauses.push(eq(tickets.category_id, opts.categoryId) as unknown as SQL);
+    }
+
+    return whereClauses;
+  }
+
+  /**
    * Busca otimizada para dashboards de performance: retorna apenas os campos essenciais,
    * aplica todos os filtros no SQL e não faz enrichments.
    * NÃO IMPACTA OUTRAS TELAS.
@@ -2117,171 +2292,15 @@ export class DatabaseStorage implements IStorage {
     department_id: number | null;
     priority: string | null;
   }[]> {
-    // Montar filtros SQL conforme papel do usuário
-    const whereClauses: any[] = [];
-    let companyId: number | null;
-    if (userRole === 'admin') {
-      // Admin vê tudo
-    } else if (userRole === 'company_admin') {
-      const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (!user || !user.company_id) return [];
-      companyId = user.company_id;
-      whereClauses.push(eq(tickets.company_id, companyId));
-    } else if (userRole === 'customer') {
-      const [customer] = await db.select().from(customers).where(eq(customers.user_id, userId));
-      if (!customer) return [];
-      
-      // Solicitante pode ver tickets que ele criou OU tickets onde ele foi marcado como participante
-      const customerCondition = or(
-        eq(tickets.customer_id, customer.id), // Tickets que ele criou
-        exists( // Tickets onde ele é participante
-          db.select().from(ticketParticipants)
-            .where(and(
-              eq(ticketParticipants.ticket_id, tickets.id),
-              eq(ticketParticipants.user_id, userId)
-            ))
-        )
-      );
-      whereClauses.push(customerCondition);
-      // Filtrar por empresa SEMPRE para não-admins
-      if (customer.company_id) {
-        whereClauses.push(eq(tickets.company_id, customer.company_id));
-      }
-    } else if (userRole === 'manager') {
-      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
-      if (!official) return [];
-      
-      const [officialDepts, subordinates] = await Promise.all([
-        db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id)),
-        db.select().from(officials).where(eq(officials.manager_id, official.id))
-      ]);
-      if (officialDepts.length === 0) return [];
-      const departmentIds = officialDepts.map(od => od.department_id);
-      // Filtrar por empresa do atendente
-      if (official.company_id) {
-        whereClauses.push(eq(tickets.company_id, official.company_id));
-      }
-      
-      const subordinateIds = subordinates.map(s => s.id);
-      
-      if (!officialId) {
-        const assignmentFilter = or(
-          eq(tickets.assigned_to_id, official.id),
-          subordinateIds.length > 0 ? inArray(tickets.assigned_to_id, subordinateIds) : sql`false`,
-          isNull(tickets.assigned_to_id)
-        );
-        whereClauses.push(assignmentFilter);
-      } else {
-        if (subordinateIds.includes(officialId)) {
-          whereClauses.push(eq(tickets.assigned_to_id, officialId));
-        } else if (officialId === official.id) {
-          whereClauses.push(eq(tickets.assigned_to_id, official.id));
-        } else {
-          // Não tem permissão
-          return [];
-        }
-      }
-      
-      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
-      whereClauses.push(inArray(tickets.department_id, departmentIds));
-      
-    } else if (userRole === 'supervisor') {
-      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
-      if (!official) return [];
-      
-      const [officialDepts, subordinates, grantedTargetIds] = await Promise.all([
-        db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id)),
-        db.select().from(officials).where(eq(officials.supervisor_id, official.id)),
-        this.getVisibilityGrantTargetIds(official.id)
-      ]);
-      if (officialDepts.length === 0) return [];
-      const departmentIds = officialDepts.map(od => od.department_id);
-      // Filtrar por empresa do atendente
-      if (official.company_id) {
-        whereClauses.push(eq(tickets.company_id, official.company_id));
-      }
-      
-      const subordinateIds = subordinates.map(s => s.id);
-      const allVisibleAssignedIds = [...new Set([...subordinateIds, ...grantedTargetIds])];
-      
-      if (!officialId) {
-        const assignmentFilter = or(
-          eq(tickets.assigned_to_id, official.id),
-          allVisibleAssignedIds.length > 0 ? inArray(tickets.assigned_to_id, allVisibleAssignedIds) : sql`false`,
-          isNull(tickets.assigned_to_id)
-        );
-        whereClauses.push(assignmentFilter);
-      } else {
-        if (allVisibleAssignedIds.includes(officialId)) {
-          whereClauses.push(eq(tickets.assigned_to_id, officialId));
-        } else if (officialId === official.id) {
-          whereClauses.push(eq(tickets.assigned_to_id, official.id));
-        } else {
-          return [];
-        }
-      }
-      
-      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
-      whereClauses.push(inArray(tickets.department_id, departmentIds));
-      
-    } else if (userRole === 'support') {
-      const [official] = await db.select().from(officials).where(eq(officials.user_id, userId));
-      if (!official) return [];
-      
-      const [officialDepts, grantedTargetIds] = await Promise.all([
-        db.select().from(officialDepartments).where(eq(officialDepartments.official_id, official.id)),
-        this.getVisibilityGrantTargetIds(official.id)
-      ]);
-      if (officialDepts.length === 0) return [];
-      const departmentIds = officialDepts.map(od => od.department_id);
-      // Filtrar por empresa do atendente
-      if (official.company_id) {
-        whereClauses.push(eq(tickets.company_id, official.company_id));
-      }
-      
-      if (!officialId) {
-        const assignmentFilter = or(
-          eq(tickets.assigned_to_id, official.id),
-          grantedTargetIds.length > 0 ? inArray(tickets.assigned_to_id, grantedTargetIds) : sql`false`,
-          isNull(tickets.assigned_to_id)
-        );
-        whereClauses.push(assignmentFilter);
-      } else if (officialId === official.id) {
-        whereClauses.push(eq(tickets.assigned_to_id, official.id));
-      } else if (grantedTargetIds.includes(officialId)) {
-        whereClauses.push(eq(tickets.assigned_to_id, officialId));
-      } else {
-        return [];
-      }
-      
-      // FILTRO OBRIGATÓRIO POR DEPARTAMENTO
-      whereClauses.push(inArray(tickets.department_id, departmentIds));
-    }
-    
-    // APLICAR FILTRO DE ATENDENTE SE ESPECIFICADO (para todas as roles)
-    if (officialId) {
-      whereClauses.push(eq(tickets.assigned_to_id, officialId));
-    }
-    if (startDate && endDate) {
-      whereClauses.push(
-        and(
-          gte(tickets.created_at, startDate),
-          lte(tickets.created_at, endDate)
-        )
-      );
-    }
-    
-    // APLICAR FILTRO DE DEPARTAMENTO SE ESPECIFICADO (adicional aos filtros por role)
-    if (departmentId) {
-      whereClauses.push(eq(tickets.department_id, departmentId));
-    }
-    if (incidentTypeId) {
-      whereClauses.push(eq(tickets.incident_type_id, incidentTypeId));
-    }
-    if (categoryId) {
-      whereClauses.push(eq(tickets.category_id, categoryId));
-    }
-    
+    const whereClauses = await this.buildDashboardWhereClause(userId, userRole, {
+      officialId,
+      startDate,
+      endDate,
+      departmentId,
+      incidentTypeId,
+      categoryId,
+    });
+
     // Buscar apenas os campos essenciais
     const result = await db
       .select({
@@ -2370,6 +2389,155 @@ export class DatabaseStorage implements IStorage {
       .from(officials)
       .where(whereClauses.length > 0 ? and(...whereClauses) : undefined);
     return result;
+  }
+
+  // === MÉTODOS DO DASHBOARD BI ===
+
+  /**
+   * Retorna dados de tendência temporal para o gráfico de tendência.
+   * Usa SQL com date_trunc para agrupamento eficiente no banco.
+   */
+  async getDashboardTrendData(
+    userId: number,
+    userRole: string,
+    options: {
+      granularity: 'day' | 'week' | 'month';
+      groupBy?: 'status' | 'priority';
+      officialId?: number;
+      startDate?: Date;
+      endDate?: Date;
+      departmentId?: number;
+      incidentTypeId?: number;
+      categoryId?: number;
+    }
+  ): Promise<{ series: Array<{ name: string; data: Array<{ date: string; count: number }> }> }> {
+    const whereClauses = await this.buildDashboardWhereClause(userId, userRole, {
+      officialId: options.officialId,
+      startDate: options.startDate,
+      endDate: options.endDate,
+      departmentId: options.departmentId,
+      incidentTypeId: options.incidentTypeId,
+      categoryId: options.categoryId,
+    });
+
+    const granularity = options.granularity;
+    const groupBy = options.groupBy;
+
+    // Construir a query com date_trunc
+    const periodExpr = sql`date_trunc(${sql.raw(`'${granularity}'`)}, ${tickets.created_at})`;
+
+    if (groupBy === 'status') {
+      const rows = await db
+        .select({
+          period: periodExpr.as('period'),
+          group_value: tickets.status,
+          count: sql<number>`count(*)::int`.as('count'),
+        })
+        .from(tickets)
+        .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
+        .groupBy(sql`period`, tickets.status)
+        .orderBy(sql`period`);
+
+      return this.buildTrendSeries(rows);
+    } else if (groupBy === 'priority') {
+      const rows = await db
+        .select({
+          period: periodExpr.as('period'),
+          group_value: tickets.priority,
+          count: sql<number>`count(*)::int`.as('count'),
+        })
+        .from(tickets)
+        .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
+        .groupBy(sql`period`, tickets.priority)
+        .orderBy(sql`period`);
+
+      return this.buildTrendSeries(rows);
+    } else {
+      // Sem agrupamento — linha única "total"
+      const rows = await db
+        .select({
+          period: periodExpr.as('period'),
+          count: sql<number>`count(*)::int`.as('count'),
+        })
+        .from(tickets)
+        .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
+        .groupBy(sql`period`)
+        .orderBy(sql`period`);
+
+      const series = [{
+        name: 'total',
+        data: rows.map(r => ({
+          date: (r.period as Date).toISOString().split('T')[0],
+          count: r.count,
+        })),
+      }];
+
+      return { series };
+    }
+  }
+
+  /**
+   * Helper para montar as séries de tendência a partir dos rows agrupados.
+   */
+  private buildTrendSeries(rows: Array<{ period: unknown; group_value: string | null; count: number }>): { series: Array<{ name: string; data: Array<{ date: string; count: number }> }> } {
+    const seriesMap = new Map<string, Array<{ date: string; count: number }>>();
+
+    for (const row of rows) {
+      const name = row.group_value || 'unknown';
+      const date = (row.period as Date).toISOString().split('T')[0];
+      if (!seriesMap.has(name)) {
+        seriesMap.set(name, []);
+      }
+      seriesMap.get(name)!.push({ date, count: row.count });
+    }
+
+    const series = Array.from(seriesMap.entries()).map(([name, data]) => ({ name, data }));
+    return { series };
+  }
+
+  /**
+   * Retorna dados de volume por dia da semana e hora para o heatmap.
+   * Usa SQL com EXTRACT(DOW) e EXTRACT(HOUR) para agrupamento eficiente.
+   */
+  async getDashboardHeatmapData(
+    userId: number,
+    userRole: string,
+    options: {
+      officialId?: number;
+      startDate?: Date;
+      endDate?: Date;
+      departmentId?: number;
+      incidentTypeId?: number;
+      categoryId?: number;
+    }
+  ): Promise<{ data: Array<{ day_of_week: number; hour: number; count: number }> }> {
+    const whereClauses = await this.buildDashboardWhereClause(userId, userRole, {
+      officialId: options.officialId,
+      startDate: options.startDate,
+      endDate: options.endDate,
+      departmentId: options.departmentId,
+      incidentTypeId: options.incidentTypeId,
+      categoryId: options.categoryId,
+    });
+
+    const rows = await db
+      .select({
+        day_of_week: sql<number>`EXTRACT(DOW FROM ${tickets.created_at})::int`.as('day_of_week'),
+        hour: sql<number>`EXTRACT(HOUR FROM ${tickets.created_at})::int`.as('hour'),
+        count: sql<number>`count(*)::int`.as('count'),
+      })
+      .from(tickets)
+      .where(whereClauses.length > 0 ? and(...whereClauses) : undefined)
+      .groupBy(sql`day_of_week`, sql`hour`)
+      .orderBy(sql`day_of_week`, sql`hour`);
+
+    return {
+      data: rows.map(r => ({
+        day_of_week: r.day_of_week,
+        hour: r.hour,
+        count: r.count,
+      })),
+    };
   }
 
   // === MÉTODOS DE PARTICIPANTES DE TICKETS ===
